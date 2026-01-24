@@ -62,6 +62,14 @@ fn get_migrations() -> Vec<Migration> {
                 last_synced INTEGER
             );",
             kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 2,
+            description: "add_metadata_columns",
+            sql: "ALTER TABLE notes ADD COLUMN type TEXT DEFAULT 'NOTE'; 
+                  ALTER TABLE notes ADD COLUMN status TEXT DEFAULT 'ACTIVE'; 
+                  ALTER TABLE notes ADD COLUMN tags TEXT DEFAULT '';",
+            kind: MigrationKind::Up,
         }
     ]
 }

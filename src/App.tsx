@@ -9,6 +9,9 @@ interface Note {
   id: string;
   path: string;
   last_synced: number;
+  type?: string;
+  status?: string;
+  tags?: string;
 }
 
 interface NoteMetadata {
@@ -140,7 +143,14 @@ function App() {
 
       await invoke("save_note", { path: fullPath, content: finalContent });
 
-      if (db) await db.execute("UPDATE notes SET last_synced = $1 WHERE path = $2", [Date.now(), activeFile]);
+      if (db) {
+        await db.execute(
+          "UPDATE notes SET last_synced = $1, type = $2, status = $3, tags = $4 WHERE path = $5",
+          [Date.now(), metadata.type, metadata.status, metadata.tags, activeFile]
+        );
+      }
+
+      setLibrary(prev => prev.map(n => n.path === activeFile ? { ...n, type: metadata.type, status: metadata.status, tags: metadata.tags } : n));
 
       setIsDirty(false);
       setSyncStatus("SAVED");
@@ -183,8 +193,13 @@ function App() {
           <div className="flex-1 overflow-y-auto p-2">
             <ul className="space-y-0.5">
               {library.map((note) => (
-                <li key={note.id} onClick={() => handleReadFile(note.path)} className={`cursor-pointer px-3 py-2 rounded-md text-sm truncate ${activeFile === note.path ? "bg-gray-800 text-white font-medium" : "text-gray-400 hover:bg-gray-900"}`}>
-                  <span className="opacity-30 text-[10px] mr-2">DOC</span>{note.path.replace(".md", "")}
+                <li key={note.id} onClick={() => handleReadFile(note.path)} className={`cursor-pointer px-3 py-2 rounded-md text-sm truncate flex items-center ${activeFile === note.path ? "bg-gray-800 text-white font-medium" : "text-gray-400 hover:bg-gray-900"}`}>
+                  <span className="opacity-70 text-[10px] mr-2">
+                    {note.type === 'PROJECT' ? '📁' : note.type === 'TASK' ? '☑️' : '📄'}
+                  </span>
+                  <span className={`truncate ${note.status === 'DONE' ? 'line-through opacity-50' : ''}`}>
+                    {note.path.replace(".md", "")}
+                  </span>
                 </li>
               ))}
             </ul>
