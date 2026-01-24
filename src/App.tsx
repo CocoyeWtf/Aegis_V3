@@ -29,32 +29,31 @@ function App() {
   const [db, setDb] = useState<Database | null>(null);
   const [library, setLibrary] = useState<Note[]>([]);
 
+  // SEARCH & FILTER STATES
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterType, setFilterType] = useState("ALL"); // ALL, PROJECT, TASK, NOTE
+
   // EDITOR STATES
   const [activeFile, setActiveFile] = useState<string>("");
-  const [bodyContent, setBodyContent] = useState<string>(""); // Le texte pur
-  const [metadata, setMetadata] = useState<NoteMetadata>({ type: "NOTE", status: "ACTIVE", tags: "" }); // Les infos contextuelles
+  const [bodyContent, setBodyContent] = useState<string>("");
+  const [metadata, setMetadata] = useState<NoteMetadata>({ type: "NOTE", status: "ACTIVE", tags: "" });
   const [isDirty, setIsDirty] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string>("");
 
-  // --- LOGIQUE DE PARSING (LE CERVEAU) ---
+  // --- LOGIQUE PARSING ---
   const parseFileContent = (rawText: string) => {
     if (rawText.includes(METADATA_SEPARATOR)) {
       const [body, metaBlock] = rawText.split(METADATA_SEPARATOR);
-
-      // Extraction basique des clés/valeurs (Key: Value)
       const metaLines = metaBlock.split("\n");
       const newMeta = { type: "NOTE", status: "ACTIVE", tags: "" };
-
       metaLines.forEach(line => {
         if (line.startsWith("TYPE:")) newMeta.type = line.replace("TYPE:", "").trim();
         if (line.startsWith("STATUS:")) newMeta.status = line.replace("STATUS:", "").trim();
         if (line.startsWith("TAGS:")) newMeta.tags = line.replace("TAGS:", "").trim();
       });
-
       setBodyContent(body);
       setMetadata(newMeta);
     } else {
-      // Pas de métadonnées, c'est un fichier "vierge"
       setBodyContent(rawText);
       setMetadata({ type: "NOTE", status: "ACTIVE", tags: "" });
     }
@@ -64,8 +63,8 @@ function App() {
     let metaBlock = `TYPE: ${metadata.type}\nSTATUS: ${metadata.status}\nTAGS: ${metadata.tags}`;
     return `${bodyContent}${METADATA_SEPARATOR}${metaBlock}`;
   };
-  // ----------------------------------------
 
+  // --- INITIALISATION ---
   useEffect(() => {
     const init = async () => {
       try {
@@ -73,21 +72,46 @@ function App() {
         const database = await Database.load("sqlite:aegis.db");
         setDb(database);
         setStatus(`${sysMsg} | MEMORY: CONNECTED`);
-        await loadLibrary(database);
-      } catch (err) {
-        setStatus("SYSTEM FAILURE: " + err);
-      }
+        await loadLibrary(database, "", "ALL");
+      } catch (err) { setStatus("SYSTEM FAILURE: " + err); }
     };
     init();
   }, []);
 
-  const loadLibrary = async (database: Database) => {
+  // --- MOTEUR DE RECHERCHE (SQL) ---
+  const loadLibrary = async (database: Database, query: string, type: string) => {
     try {
-      const notes = await database.select<Note[]>("SELECT * FROM notes ORDER BY last_synced DESC");
+      let sql = "SELECT * FROM notes WHERE 1=1";
+      const params: any[] = [];
+
+      // Filtre Texte (Nom ou Tags)
+      if (query) {
+        sql += " AND (path LIKE $1 OR tags LIKE $1)";
+        params.push(`%${query}%`); // Recherche floue
+      }
+
+      // Filtre Type
+      if (type !== "ALL") {
+        // Astuce pour gérer les index de paramètres dynamiques ($1, $2...)
+        const paramIndex = params.length + 1;
+        sql += ` AND type = $${paramIndex}`;
+        params.push(type);
+      }
+
+      sql += " ORDER BY last_synced DESC";
+
+      const notes = await database.select<Note[]>(sql, params);
       setLibrary(notes);
-    } catch (err) { console.error(err); }
+    } catch (err) { console.error("Search Error", err); }
   };
 
+  // Trigger recherche quand les inputs changent
+  useEffect(() => {
+    if (db) loadLibrary(db, searchQuery, filterType);
+  }, [searchQuery, filterType, db]);
+
+
+  // --- ACTIONS (SCAN, CREATE, SAVE, DELETE) ---
   const handleScan = async () => {
     if (!db) return;
     setSyncStatus("SCANNING...");
@@ -103,17 +127,17 @@ function App() {
         if (result.rowsAffected > 0) newCount++;
       }
       setSyncStatus(`SYNC COMPLETE (+${newCount})`);
-      await loadLibrary(db);
+      await loadLibrary(db, searchQuery, filterType);
     } catch (error) { setSyncStatus("SYNC ERROR"); }
   };
 
   const handleCreate = async () => {
-    const name = prompt("Nom de la note :");
+    const name = prompt("Nom :");
     if (!name) return;
     const fileName = name.endsWith(".md") ? name : `${name}.md`;
     const fullPath = `${VAULT_PATH}\\${fileName}`;
     try {
-      const template = `# ${name}\n\nCreated: ${new Date().toLocaleString()}`; // Pas de métadata à la création, on l'ajoute au save
+      const template = `# ${name}\n\nCreated: ${new Date().toLocaleString()}`;
       await invoke("create_note", { path: fullPath, content: template });
       await handleScan();
       handleReadFile(fileName);
@@ -124,10 +148,7 @@ function App() {
     try {
       const fullPath = `${VAULT_PATH}\\${fileName}`;
       const content = await invoke<string>("read_note", { path: fullPath });
-
-      // On parse au lieu de juste afficher
       parseFileContent(content);
-
       setActiveFile(fileName);
       setIsDirty(false);
     } catch (error) { alert(error); }
@@ -137,10 +158,7 @@ function App() {
     if (!activeFile) return;
     try {
       const fullPath = `${VAULT_PATH}\\${activeFile}`;
-
-      // On reconstruit le fichier complet (Corps + Footer)
       const finalContent = constructFileContent();
-
       await invoke("save_note", { path: fullPath, content: finalContent });
 
       if (db) {
@@ -148,10 +166,8 @@ function App() {
           "UPDATE notes SET last_synced = $1, type = $2, status = $3, tags = $4 WHERE path = $5",
           [Date.now(), metadata.type, metadata.status, metadata.tags, activeFile]
         );
+        await loadLibrary(db, searchQuery, filterType); // Rafraîchir la liste instantanément
       }
-
-      setLibrary(prev => prev.map(n => n.path === activeFile ? { ...n, type: metadata.type, status: metadata.status, tags: metadata.tags } : n));
-
       setIsDirty(false);
       setSyncStatus("SAVED");
       setTimeout(() => setSyncStatus("READY"), 2000);
@@ -184,16 +200,52 @@ function App() {
 
       <div className="flex flex-1 min-h-0">
 
-        {/* COLONNE 1 : VAULT */}
+        {/* COLONNE 1 : NAVIGATION & RECHERCHE */}
         <div className="w-64 bg-gray-950 border-r border-gray-900 flex flex-col">
-          <div className="p-3 border-b border-gray-900 flex gap-2">
-            <button onClick={handleScan} className="flex-1 bg-blue-900/20 hover:bg-blue-900/40 text-blue-400 border border-blue-900/50 py-2 rounded text-xs font-bold">SYNC</button>
-            <button onClick={handleCreate} className="w-10 bg-green-900/20 hover:bg-green-900/40 text-green-400 border border-green-900/50 py-2 rounded text-xs font-bold">+</button>
+
+          {/* ZONE OUTILS (Sync + Create) */}
+          <div className="p-3 flex gap-2">
+            <button onClick={handleScan} className="flex-1 bg-blue-900/20 hover:bg-blue-900/40 text-blue-400 border border-blue-900/50 py-2 rounded text-xs font-bold transition-colors">SYNC</button>
+            <button onClick={handleCreate} className="w-10 bg-green-900/20 hover:bg-green-900/40 text-green-400 border border-green-900/50 py-2 rounded text-xs font-bold transition-colors">+</button>
           </div>
+
+          {/* ZONE RECHERCHE */}
+          <div className="px-3 pb-3 border-b border-gray-900">
+            <input
+              type="text"
+              placeholder="Search vault..."
+              className="w-full bg-black border border-gray-800 rounded px-2 py-1 text-xs text-gray-300 focus:border-blue-500 focus:outline-none mb-2"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+
+            {/* FILTRES RAPIDES (TABS) */}
+            <div className="flex gap-1">
+              {['ALL', 'PROJECT', 'TASK'].map(f => (
+                <button
+                  key={f}
+                  onClick={() => setFilterType(f)}
+                  className={`flex-1 py-1 text-[10px] font-bold rounded ${filterType === f ? "bg-gray-800 text-white" : "text-gray-600 hover:bg-gray-900"}`}
+                >
+                  {f === 'ALL' ? 'ALL' : f === 'PROJECT' ? 'PROJ' : 'TASK'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* LISTE RÉSULTATS */}
           <div className="flex-1 overflow-y-auto p-2">
+            <h3 className="text-[10px] font-bold text-gray-600 uppercase mb-2 px-2 tracking-wider">Results ({library.length})</h3>
             <ul className="space-y-0.5">
               {library.map((note) => (
-                <li key={note.id} onClick={() => handleReadFile(note.path)} className={`cursor-pointer px-3 py-2 rounded-md text-sm truncate flex items-center ${activeFile === note.path ? "bg-gray-800 text-white font-medium" : "text-gray-400 hover:bg-gray-900"}`}>
+                <li
+                  key={note.id}
+                  onClick={() => handleReadFile(note.path)}
+                  className={`cursor-pointer px-3 py-2 rounded-md text-sm transition-all flex items-center gap-2 truncate ${activeFile === note.path
+                      ? "bg-gray-800 text-white font-medium"
+                      : "text-gray-400 hover:bg-gray-900 hover:text-gray-300"
+                    }`}
+                >
                   <span className="opacity-70 text-[10px] mr-2">
                     {note.type === 'PROJECT' ? '📁' : note.type === 'TASK' ? '☑️' : '📄'}
                   </span>
@@ -206,7 +258,7 @@ function App() {
           </div>
         </div>
 
-        {/* COLONNE 2 : EDITOR */}
+        {/* COLONNE 2 : ÉDITEUR */}
         <div className="flex-1 bg-black flex flex-col relative">
           {activeFile ? (
             <>
@@ -260,7 +312,7 @@ function App() {
                     <button
                       key={type}
                       onClick={() => { setMetadata({ ...metadata, type }); setIsDirty(true); }}
-                      className={`flex-1 py-2 text-[10px] font-bold rounded border ${metadata.type === type ? "bg-blue-900/30 border-blue-800 text-blue-400" : "bg-gray-900 border-gray-800 text-gray-500 hover:bg-gray-800"}`}
+                      className={`flex-1 py-1 text-[10px] font-bold rounded border ${metadata.type === type ? "bg-blue-900/30 border-blue-800 text-blue-400" : "bg-gray-900 border-gray-800 text-gray-500 hover:bg-gray-800"}`}
                     >
                       {type}
                     </button>
