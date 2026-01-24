@@ -99,6 +99,32 @@ function App() {
     }
   };
 
+  const handleCreate = async () => {
+    const name = prompt("Nom de la nouvelle note (ex: Meeting_CEO) :");
+    if (!name) return;
+
+    // On force l'extension .md si absente
+    const fileName = name.endsWith(".md") ? name : `${name}.md`;
+    const fullPath = `${VAULT_PATH}\\${fileName}`;
+
+    try {
+      // 1. Création Physique (Disque)
+      // On crée un fichier avec un template de base
+      const template = `# ${name}\n\nCreated: ${new Date().toLocaleString()}\n\n`;
+      await invoke("create_note", { path: fullPath, content: template });
+
+      // 2. Scan & Indexation Immédiate (Mise à jour Mémoire)
+      // On réutilise la logique de handleScan pour être sûr que tout est synchro
+      await handleScan();
+
+      // 3. Ouverture automatique
+      handleReadFile(fileName);
+
+    } catch (err) {
+      alert("Erreur création : " + err);
+    }
+  };
+
   return (
     <div className="h-screen w-screen bg-black text-white p-6 flex flex-col overflow-hidden font-sans">
 
@@ -121,12 +147,20 @@ function App() {
 
         {/* SIDEBAR */}
         <div className="w-64 bg-gray-900 rounded-lg border border-gray-800 flex flex-col p-3">
-          <button
-            onClick={handleScan}
-            className="w-full bg-blue-700 hover:bg-blue-600 text-white py-3 px-3 rounded text-xs font-bold uppercase tracking-wider mb-4 transition-colors shadow-lg shadow-blue-900/20"
-          >
-            SYNC VAULT & DB
-          </button>
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={handleScan}
+              className="flex-1 bg-blue-700 hover:bg-blue-600 text-white py-3 px-3 rounded text-xs font-bold uppercase tracking-wider transition-colors shadow-lg shadow-blue-900/20"
+            >
+              SYNC
+            </button>
+            <button
+              onClick={handleCreate}
+              className="bg-green-700 hover:bg-green-600 text-white py-3 px-4 rounded text-xl font-bold flex items-center justify-center shadow-lg shadow-green-900/20"
+            >
+              +
+            </button>
+          </div>
 
           <div className="flex-1 overflow-y-auto">
             <h3 className="text-xs font-bold text-gray-500 uppercase mb-2 px-1">Memory Banks ({library.length})</h3>
