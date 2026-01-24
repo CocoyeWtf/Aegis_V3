@@ -1,8 +1,4 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
+use tauri_plugin_fs::FsExt;
 
 #[tauri::command]
 fn check_system_status() -> String {
@@ -12,26 +8,41 @@ fn check_system_status() -> String {
 #[tauri::command]
 fn scan_vault(path: String) -> Result<Vec<String>, String> {
     let mut files = Vec::new();
-    let entries = std::fs::read_dir(path).map_err(|e| e.to_string())?;
-
-    for entry in entries {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) == Some("md") {
-            if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
-                files.push(name.to_string());
+    match std::fs::read_dir(path) {
+        Ok(entries) => {
+            for entry in entries {
+                if let Ok(entry) = entry {
+                    let path = entry.path();
+                    if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("md") {
+                        if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
+                            files.push(name.to_string());
+                        }
+                    }
+                }
             }
+            Ok(files)
         }
+        Err(e) => Err(format!("Erreur scan: {}", e)),
     }
-    Ok(files)
+}
+
+#[tauri::command]
+fn read_note(path: String) -> Result<String, String> {
+    match std::fs::read(&path) {
+        Ok(bytes) => Ok(String::from_utf8_lossy(&bytes).to_string()),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, check_system_status, scan_vault])
+        .invoke_handler(tauri::generate_handler![
+            check_system_status, 
+            scan_vault, 
+            read_note
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
