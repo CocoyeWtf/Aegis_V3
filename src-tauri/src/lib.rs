@@ -45,6 +45,11 @@ fn save_note(path: String, content: String) -> Result<(), String> {
     std::fs::write(path, content).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn delete_note(path: String) -> Result<(), String> {
+    std::fs::remove_file(path).map_err(|e| e.to_string())
+}
+
 fn get_migrations() -> Vec<Migration> {
     vec![
         Migration {
@@ -75,7 +80,8 @@ pub fn run() {
             scan_vault, 
             read_note,
             create_note,
-            save_note
+            save_note,
+            delete_note
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

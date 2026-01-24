@@ -146,6 +146,31 @@ function App() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!activeFile) return;
+    if (!confirm(`ATTENTION : Supprimer définitivement "${activeFile}" ?\nCette action est irréversible.`)) return;
+
+    try {
+      const fullPath = `${VAULT_PATH}\\${activeFile}`;
+      // 1. Suppression Physique
+      await invoke("delete_note", { path: fullPath });
+
+      // 2. Suppression Mémoire
+      if (db) {
+        await db.execute("DELETE FROM notes WHERE path = $1", [activeFile]);
+      }
+
+      // 3. Mise à jour UI
+      setLibrary(prev => prev.filter(n => n.path !== activeFile)); // Optimiste
+      setActiveFile("");
+      setActiveContent("");
+      setIsDirty(false);
+
+    } catch (err) {
+      alert("Erreur suppression : " + err);
+    }
+  };
+
   return (
     <div className="h-screen w-screen bg-black text-white p-6 flex flex-col overflow-hidden font-sans">
 
@@ -210,16 +235,27 @@ function App() {
                   <span className="font-mono text-sm text-gray-200">{activeFile}</span>
                   {isDirty && <span className="text-yellow-500 text-xs font-bold">● MODIFIED</span>}
                 </div>
-                <button
-                  onClick={handleSave}
-                  disabled={!isDirty}
-                  className={`text-xs font-bold px-4 py-1 rounded transition-colors ${isDirty
-                      ? "bg-yellow-600 text-white hover:bg-yellow-500 cursor-pointer"
-                      : "bg-gray-800 text-gray-500 cursor-not-allowed"
-                    }`}
-                >
-                  {isDirty ? "SAVE CHANGES" : "SAVED"}
-                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSave}
+                    disabled={!isDirty}
+                    className={`text-xs font-bold px-4 py-1 rounded transition-colors ${isDirty
+                        ? "bg-yellow-600 text-white hover:bg-yellow-500 cursor-pointer"
+                        : "bg-gray-800 text-gray-500 cursor-not-allowed"
+                      }`}
+                  >
+                    {isDirty ? "SAVE CHANGES" : "SAVED"}
+                  </button>
+
+                  <button
+                    onClick={handleDelete}
+                    className="bg-red-900/50 hover:bg-red-700 text-red-200 px-3 py-1 rounded text-xs font-bold border border-red-900 transition-colors ml-2"
+                    title="Delete Note"
+                  >
+                    DELETE
+                  </button>
+                </div>
               </div>
 
               {/* EDITOR AREA */}
