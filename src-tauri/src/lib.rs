@@ -50,6 +50,30 @@ fn delete_note(path: String) -> Result<(), String> {
     std::fs::remove_file(path).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn read_all_files(path: String) -> Result<Vec<(String, String)>, String> {
+    let mut results = Vec::new();
+    match std::fs::read_dir(path) {
+        Ok(entries) => {
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if p.is_file() && p.extension().map_or(false, |s| s == "md") {
+                    // CORRECTION ICI : On utilise and_then et Some (Option) au lieu de Ok (Result)
+                    if let Some(name) = p.file_name().and_then(|n| n.to_str()).map(|s| s.to_string()) {
+                        // Lecture "lossy" pour tolérer les caractères Windows
+                        if let Ok(bytes) = std::fs::read(&p) {
+                            let content = String::from_utf8_lossy(&bytes).to_string();
+                            results.push((name, content));
+                        }
+                    }
+                }
+            }
+            Ok(results)
+        }
+        Err(e) => Err(format!("Erreur lecture dossier: {}", e)),
+    }
+}
+
 fn get_migrations() -> Vec<Migration> {
     vec![
         Migration {
@@ -70,6 +94,12 @@ fn get_migrations() -> Vec<Migration> {
                   ALTER TABLE notes ADD COLUMN status TEXT DEFAULT 'ACTIVE'; 
                   ALTER TABLE notes ADD COLUMN tags TEXT DEFAULT '';",
             kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 3,
+            description: "add_content_column",
+            sql: "ALTER TABLE notes ADD COLUMN content TEXT DEFAULT '';",
+            kind: MigrationKind::Up,
         }
     ]
 }
@@ -89,7 +119,8 @@ pub fn run() {
             read_note,
             create_note,
             save_note,
-            delete_note
+            delete_note,
+            read_all_files
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

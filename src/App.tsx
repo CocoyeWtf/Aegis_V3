@@ -12,6 +12,7 @@ interface Note {
   type?: string;
   status?: string;
   tags?: string;
+  content?: string; // Ajout du champ content
 }
 
 interface NoteMetadata {
@@ -29,11 +30,11 @@ function App() {
   const [db, setDb] = useState<Database | null>(null);
   const [library, setLibrary] = useState<Note[]>([]);
 
-  // SEARCH & FILTER STATES
+  // SEARCH & FILTER
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterType, setFilterType] = useState("ALL"); // ALL, PROJECT, TASK, NOTE
+  const [filterType, setFilterType] = useState("ALL");
 
-  // EDITOR STATES
+  // EDITOR
   const [activeFile, setActiveFile] = useState<string>("");
   const [bodyContent, setBodyContent] = useState<string>("");
   const [metadata, setMetadata] = useState<NoteMetadata>({ type: "NOTE", status: "ACTIVE", tags: "" });
@@ -64,7 +65,7 @@ function App() {
     return `${bodyContent}${METADATA_SEPARATOR}${metaBlock}`;
   };
 
-  // --- INITIALISATION ---
+  // --- INIT ---
   useEffect(() => {
     const init = async () => {
       try {
@@ -78,57 +79,85 @@ function App() {
     init();
   }, []);
 
-  // --- MOTEUR DE RECHERCHE (SQL) ---
+  // --- MOTEUR DE RECHERCHE V2 (FULL TEXT) ---
   const loadLibrary = async (database: Database, query: string, type: string) => {
     try {
       let sql = "SELECT * FROM notes WHERE 1=1";
       const params: any[] = [];
 
-      // Filtre Texte (Nom ou Tags)
       if (query) {
-        sql += " AND (path LIKE $1 OR tags LIKE $1)";
-        params.push(`%${query}%`); // Recherche floue
+        // ON CHERCHE MAINTENANT DANS LE CONTENU AUSSI
+        sql += " AND (path LIKE $1 OR tags LIKE $1 OR content LIKE $1)";
+        params.push(`%${query}%`);
       }
 
-      // Filtre Type
       if (type !== "ALL") {
-        // Astuce pour gérer les index de paramètres dynamiques ($1, $2...)
         const paramIndex = params.length + 1;
         sql += ` AND type = $${paramIndex}`;
         params.push(type);
       }
 
       sql += " ORDER BY last_synced DESC";
-
       const notes = await database.select<Note[]>(sql, params);
       setLibrary(notes);
     } catch (err) { console.error("Search Error", err); }
   };
 
-  // Trigger recherche quand les inputs changent
   useEffect(() => {
     if (db) loadLibrary(db, searchQuery, filterType);
   }, [searchQuery, filterType, db]);
 
+  // --- ACTIONS ---
 
-  // --- ACTIONS (SCAN, CREATE, SAVE, DELETE) ---
+  // SCAN V2 : FULL TEXT INDEXING
   const handleScan = async () => {
     if (!db) return;
-    setSyncStatus("SCANNING...");
+    setSyncStatus("INDEXING...");
     try {
-      const fileList = await invoke<string[]>("scan_vault", { path: VAULT_PATH });
+      // APPEL DE LA NOUVELLE COMMANDE RUST
+      const entries = await invoke<[string, string][]>("read_all_files", { path: VAULT_PATH });
+
       let newCount = 0;
-      for (const file of fileList) {
-        const simpleId = generateSimpleId();
-        const result = await db.execute(
-          "INSERT OR IGNORE INTO notes (id, path, last_synced) VALUES ($1, $2, $3)",
-          [simpleId, file, Date.now()]
-        );
-        if (result.rowsAffected > 0) newCount++;
+      for (const [fileName, content] of entries) {
+        // Parsing rapide pour extraire les métadonnées lors de l'indexation
+        let cleanBody = content;
+        let type = "NOTE", status = "ACTIVE", tags = "";
+
+        if (content.includes(METADATA_SEPARATOR)) {
+          const parts = content.split(METADATA_SEPARATOR);
+          cleanBody = parts[0];
+          const metaLines = parts[1].split("\n");
+          metaLines.forEach(line => {
+            if (line.startsWith("TYPE:")) type = line.replace("TYPE:", "").trim();
+            if (line.startsWith("STATUS:")) status = line.replace("STATUS:", "").trim();
+            if (line.startsWith("TAGS:")) tags = line.replace("TAGS:", "").trim();
+          });
+        }
+
+        // VERIFICATION EXISTENCE
+        const exists = await db.select<any[]>("SELECT id FROM notes WHERE path = $1", [fileName]);
+
+        if (exists.length === 0) {
+          const simpleId = generateSimpleId();
+          await db.execute(
+            "INSERT INTO notes (id, path, last_synced, content, type, status, tags) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            [simpleId, fileName, Date.now(), cleanBody, type, status, tags]
+          );
+          newCount++;
+        } else {
+          // MISE À JOUR DU CONTENU
+          await db.execute(
+            "UPDATE notes SET last_synced=$1, content=$2, type=$3, status=$4, tags=$5 WHERE path=$6",
+            [Date.now(), cleanBody, type, status, tags, fileName]
+          );
+        }
       }
-      setSyncStatus(`SYNC COMPLETE (+${newCount})`);
+      setSyncStatus(`INDEX UPDATED`);
       await loadLibrary(db, searchQuery, filterType);
-    } catch (error) { setSyncStatus("SYNC ERROR"); }
+    } catch (error) {
+      console.error(error);
+      setSyncStatus("INDEX ERROR");
+    }
   };
 
   const handleCreate = async () => {
@@ -162,11 +191,12 @@ function App() {
       await invoke("save_note", { path: fullPath, content: finalContent });
 
       if (db) {
+        // SAUVEGARDE DU CONTENU (BodyContent) DANS LA DB AUSSI
         await db.execute(
-          "UPDATE notes SET last_synced = $1, type = $2, status = $3, tags = $4 WHERE path = $5",
-          [Date.now(), metadata.type, metadata.status, metadata.tags, activeFile]
+          "UPDATE notes SET last_synced = $1, type = $2, status = $3, tags = $4, content = $5 WHERE path = $6",
+          [Date.now(), metadata.type, metadata.status, metadata.tags, bodyContent, activeFile]
         );
-        await loadLibrary(db, searchQuery, filterType); // Rafraîchir la liste instantanément
+        await loadLibrary(db, searchQuery, filterType);
       }
       setIsDirty(false);
       setSyncStatus("SAVED");
@@ -200,16 +230,13 @@ function App() {
 
       <div className="flex flex-1 min-h-0">
 
-        {/* COLONNE 1 : NAVIGATION & RECHERCHE */}
+        {/* COLONNE 1 : NAVIGATION */}
         <div className="w-64 bg-gray-950 border-r border-gray-900 flex flex-col">
-
-          {/* ZONE OUTILS (Sync + Create) */}
           <div className="p-3 flex gap-2">
             <button onClick={handleScan} className="flex-1 bg-blue-900/20 hover:bg-blue-900/40 text-blue-400 border border-blue-900/50 py-2 rounded text-xs font-bold transition-colors">SYNC</button>
             <button onClick={handleCreate} className="w-10 bg-green-900/20 hover:bg-green-900/40 text-green-400 border border-green-900/50 py-2 rounded text-xs font-bold transition-colors">+</button>
           </div>
 
-          {/* ZONE RECHERCHE */}
           <div className="px-3 pb-3 border-b border-gray-900">
             <input
               type="text"
@@ -218,56 +245,36 @@ function App() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-
-            {/* FILTRES RAPIDES (TABS) */}
             <div className="flex gap-1">
               {['ALL', 'PROJECT', 'TASK'].map(f => (
-                <button
-                  key={f}
-                  onClick={() => setFilterType(f)}
-                  className={`flex-1 py-1 text-[10px] font-bold rounded ${filterType === f ? "bg-gray-800 text-white" : "text-gray-600 hover:bg-gray-900"}`}
-                >
-                  {f === 'ALL' ? 'ALL' : f === 'PROJECT' ? 'PROJ' : 'TASK'}
-                </button>
+                <button key={f} onClick={() => setFilterType(f)} className={`flex-1 py-1 text-[10px] font-bold rounded ${filterType === f ? "bg-gray-800 text-white" : "text-gray-600 hover:bg-gray-900"}`}>{f === 'ALL' ? 'ALL' : f === 'PROJECT' ? 'PROJ' : 'TASK'}</button>
               ))}
             </div>
           </div>
 
-          {/* LISTE RÉSULTATS */}
           <div className="flex-1 overflow-y-auto p-2">
             <h3 className="text-[10px] font-bold text-gray-600 uppercase mb-2 px-2 tracking-wider">Results ({library.length})</h3>
             <ul className="space-y-0.5">
               {library.map((note) => (
-                <li
-                  key={note.id}
-                  onClick={() => handleReadFile(note.path)}
-                  className={`cursor-pointer px-3 py-2 rounded-md text-sm transition-all flex items-center gap-2 truncate ${activeFile === note.path
-                      ? "bg-gray-800 text-white font-medium"
-                      : "text-gray-400 hover:bg-gray-900 hover:text-gray-300"
-                    }`}
-                >
-                  <span className="opacity-70 text-[10px] mr-2">
-                    {note.type === 'PROJECT' ? '📁' : note.type === 'TASK' ? '☑️' : '📄'}
-                  </span>
-                  <span className={`truncate ${note.status === 'DONE' ? 'line-through opacity-50' : ''}`}>
-                    {note.path.replace(".md", "")}
-                  </span>
+                <li key={note.id} onClick={() => handleReadFile(note.path)} className={`cursor-pointer px-3 py-2 rounded-md text-sm transition-all flex items-center gap-2 truncate ${activeFile === note.path ? "bg-gray-800 text-white font-medium" : "text-gray-400 hover:bg-gray-900 hover:text-gray-300"}`}>
+                  <span className="opacity-70 text-[10px] mr-2">{note.type === 'PROJECT' ? '📁' : note.type === 'TASK' ? '☑️' : '📄'}</span>
+                  <span className={`truncate ${note.status === 'DONE' ? 'line-through opacity-50' : ''}`}>{note.path.replace(".md", "")}</span>
                 </li>
               ))}
             </ul>
           </div>
         </div>
 
-        {/* COLONNE 2 : ÉDITEUR */}
+        {/* COLONNE 2 : EDITOR */}
         <div className="flex-1 bg-black flex flex-col relative">
           {activeFile ? (
             <>
-              <div className="h-12 border-b border-gray-900 flex items-center justify-between px-6 bg-black/50">
+              <div className="h-12 border-b border-gray-900 flex items-center justify-between px-6 bg-black/50 backdrop-blur">
                 <span className="font-mono text-sm text-gray-200">{activeFile}</span>
                 <div className="flex items-center gap-2">
-                  {isDirty && <span className="text-yellow-600 text-[10px] font-bold uppercase mr-2">Unsaved Changes</span>}
-                  <button onClick={handleSave} disabled={!isDirty} className={`text-xs px-3 py-1.5 rounded border transition-all ${isDirty ? "border-yellow-700 text-yellow-500" : "border-transparent text-gray-600"}`}>{isDirty ? "SAVE" : "SAVED"}</button>
-                  <button onClick={handleDelete} className="text-xs px-3 py-1.5 rounded text-red-900 hover:text-red-500">TRASH</button>
+                  {isDirty && <span className="text-yellow-600 text-[10px] font-bold uppercase tracking-wider mr-2">Unsaved Changes</span>}
+                  <button onClick={handleSave} disabled={!isDirty} className={`text-xs px-3 py-1.5 rounded border transition-all ${isDirty ? "border-yellow-700 text-yellow-500 hover:bg-yellow-900/20" : "border-transparent text-gray-600"}`}>{isDirty ? "SAVE" : "SAVED"}</button>
+                  <button onClick={handleDelete} className="text-xs px-3 py-1.5 rounded text-red-900 hover:text-red-500 hover:bg-red-900/10 transition-colors">TRASH</button>
                 </div>
               </div>
               <textarea
@@ -279,65 +286,35 @@ function App() {
               />
             </>
           ) : (
-            <div className="h-full flex items-center justify-center text-gray-800"><div className="text-6xl mb-4 opacity-10">◈</div></div>
+            <div className="h-full flex flex-col items-center justify-center text-gray-800 select-none"><div className="text-6xl mb-4 opacity-10">◈</div></div>
           )}
         </div>
 
-        {/* COLONNE 3 : CONTEXT PILOT (ACTIVÉ) */}
+        {/* COLONNE 3 : CONTEXT PILOT */}
         <div className="w-80 bg-gray-950 border-l border-gray-900 flex flex-col p-6 gap-6">
           <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-900 pb-2">Context Pilot</h3>
-
           {activeFile ? (
             <>
-              {/* STATUS SELECTOR */}
               <div>
                 <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">Project Status</label>
-                <select
-                  value={metadata.status}
-                  onChange={(e) => { setMetadata({ ...metadata, status: e.target.value }); setIsDirty(true); }}
-                  className="w-full bg-gray-900 border border-gray-800 text-gray-300 text-xs rounded p-2 focus:border-blue-500 focus:outline-none"
-                >
+                <select value={metadata.status} onChange={(e) => { setMetadata({ ...metadata, status: e.target.value }); setIsDirty(true); }} className="w-full bg-gray-900 border border-gray-800 text-gray-300 text-xs rounded p-2 focus:border-blue-500 focus:outline-none">
                   <option value="ACTIVE">🟢 ACTIVE</option>
                   <option value="HOLD">🟠 ON HOLD</option>
                   <option value="DONE">🔵 COMPLETED</option>
                   <option value="ARCHIVED">⚫ ARCHIVED</option>
                 </select>
               </div>
-
-              {/* TYPE SELECTOR */}
               <div>
                 <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">Entry Type</label>
                 <div className="flex gap-2">
                   {['NOTE', 'PROJECT', 'TASK'].map(type => (
-                    <button
-                      key={type}
-                      onClick={() => { setMetadata({ ...metadata, type }); setIsDirty(true); }}
-                      className={`flex-1 py-1 text-[10px] font-bold rounded border ${metadata.type === type ? "bg-blue-900/30 border-blue-800 text-blue-400" : "bg-gray-900 border-gray-800 text-gray-500 hover:bg-gray-800"}`}
-                    >
-                      {type}
-                    </button>
+                    <button key={type} onClick={() => { setMetadata({ ...metadata, type }); setIsDirty(true); }} className={`flex-1 py-2 text-[10px] font-bold rounded border ${metadata.type === type ? "bg-blue-900/30 border-blue-800 text-blue-400" : "bg-gray-900 border-gray-800 text-gray-500 hover:bg-gray-800"}`}>{type}</button>
                   ))}
                 </div>
               </div>
-
-              {/* TAGS INPUT */}
               <div>
-                <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">Tags (comma separated)</label>
-                <input
-                  type="text"
-                  value={metadata.tags}
-                  onChange={(e) => { setMetadata({ ...metadata, tags: e.target.value }); setIsDirty(true); }}
-                  className="w-full bg-gray-900 border border-gray-800 text-gray-300 text-xs rounded p-2 focus:border-blue-500 focus:outline-none font-mono"
-                  placeholder="strategy, q1, urgent"
-                />
-              </div>
-
-              {/* INFO BOX */}
-              <div className="bg-gray-900/50 p-4 rounded border border-gray-900 mt-auto">
-                <p className="text-[10px] text-gray-500 leading-relaxed">
-                  <span className="text-gray-400 font-bold">Aegis Intelligence:</span><br />
-                  Les métadonnées sont stockées directement dans le fichier (Footer). Aucune dépendance externe.
-                </p>
+                <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">Tags</label>
+                <input type="text" value={metadata.tags} onChange={(e) => { setMetadata({ ...metadata, tags: e.target.value }); setIsDirty(true); }} className="w-full bg-gray-900 border border-gray-800 text-gray-300 text-xs rounded p-2 focus:border-blue-500 focus:outline-none font-mono" placeholder="tag1, tag2" />
               </div>
             </>
           ) : (
