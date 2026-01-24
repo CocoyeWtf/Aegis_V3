@@ -1,4 +1,5 @@
 use tauri_plugin_fs::FsExt;
+use tauri_plugin_sql::{Builder, Migration, MigrationKind};
 
 #[tauri::command]
 fn check_system_status() -> String {
@@ -34,10 +35,31 @@ fn read_note(path: String) -> Result<String, String> {
     }
 }
 
+fn get_migrations() -> Vec<Migration> {
+    vec![
+        Migration {
+            version: 1,
+            description: "create_notes_table",
+            sql: "CREATE TABLE IF NOT EXISTS notes (
+                id TEXT PRIMARY KEY,
+                path TEXT UNIQUE NOT NULL,
+                content_hash TEXT,
+                last_synced INTEGER
+            );",
+            kind: MigrationKind::Up,
+        }
+    ]
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
+        .plugin(
+            tauri_plugin_sql::Builder::default()
+            .add_migrations("sqlite:aegis.db", get_migrations())
+            .build()
+        )
         .invoke_handler(tauri::generate_handler![
             check_system_status, 
             scan_vault, 

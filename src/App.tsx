@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import Database from "@tauri-apps/plugin-sql";
 
 const VAULT_PATH = "D:\\AEGIS_VAULT_TEST";
 
@@ -10,9 +11,22 @@ function App() {
   const [activeFile, setActiveFile] = useState<string>("");
 
   useEffect(() => {
+    // 1. Check System
     invoke<string>("check_system_status")
       .then((msg) => setStatus(msg))
       .catch((err) => console.error(err));
+
+    // 2. Test DB Connection
+    const initDb = async () => {
+      try {
+        const db = await Database.load("sqlite:aegis.db");
+        await db.execute("INSERT OR IGNORE INTO notes (id, path, last_synced) VALUES ($1, $2, $3)", ["TEST_ID", "system_check", Date.now()]);
+        console.log("DB Connection: SUCCESS");
+      } catch (e) {
+        console.error("DB Error:", e);
+      }
+    };
+    initDb();
   }, []);
 
   const handleScan = async () => {
