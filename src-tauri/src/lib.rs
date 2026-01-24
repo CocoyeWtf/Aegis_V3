@@ -40,6 +40,11 @@ fn create_note(path: String, content: String) -> Result<(), String> {
     std::fs::write(path, content).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn save_note(path: String, content: String) -> Result<(), String> {
+    std::fs::write(path, content).map_err(|e| e.to_string())
+}
+
 fn get_migrations() -> Vec<Migration> {
     vec![
         Migration {
@@ -69,7 +74,8 @@ pub fn run() {
             check_system_status, 
             scan_vault, 
             read_note,
-            create_note
+            create_note,
+            save_note
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

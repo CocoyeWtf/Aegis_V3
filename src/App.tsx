@@ -25,6 +25,7 @@ function App() {
   const [activeContent, setActiveContent] = useState<string>("");
   const [activeFile, setActiveFile] = useState<string>("");
   const [syncStatus, setSyncStatus] = useState<string>("");
+  const [isDirty, setIsDirty] = useState(false);
 
   // 1. Initialisation & Chargement Mémoire
   useEffect(() => {
@@ -94,6 +95,7 @@ function App() {
       const content = await invoke<string>("read_note", { path: fullPath });
       setActiveContent(content);
       setActiveFile(fileName);
+      setIsDirty(false); // <--- Important : on reset l'état quand on change de fichier
     } catch (error) {
       alert("Erreur lecture: " + error);
     }
@@ -122,6 +124,25 @@ function App() {
 
     } catch (err) {
       alert("Erreur création : " + err);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!activeFile) return;
+    try {
+      const fullPath = `${VAULT_PATH}\\${activeFile}`;
+      await invoke("save_note", { path: fullPath, content: activeContent });
+
+      // Update timestamp in DB
+      if (db) {
+        await db.execute("UPDATE notes SET last_synced = $1 WHERE path = $2", [Date.now(), activeFile]);
+      }
+
+      setIsDirty(false); // Le fichier est propre
+      setSyncStatus("SAVED");
+      setTimeout(() => setSyncStatus("READY"), 2000);
+    } catch (err) {
+      alert("Erreur sauvegarde : " + err);
     }
   };
 
@@ -183,18 +204,34 @@ function App() {
         <div className="flex-1 bg-gray-950 rounded-lg border border-gray-800 p-0 overflow-hidden flex flex-col">
           {activeFile ? (
             <>
+              {/* EDITOR HEADER */}
               <div className="bg-gray-900 px-6 py-3 border-b border-gray-800 flex justify-between items-center">
-                <span className="font-mono text-sm text-gray-200">{activeFile}</span>
-                <span className="text-xs text-gray-500 uppercase tracking-widest">
-                  {/* Placeholder pour les futurs status */}
-                  ACTIVE
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-sm text-gray-200">{activeFile}</span>
+                  {isDirty && <span className="text-yellow-500 text-xs font-bold">● MODIFIED</span>}
+                </div>
+                <button
+                  onClick={handleSave}
+                  disabled={!isDirty}
+                  className={`text-xs font-bold px-4 py-1 rounded transition-colors ${isDirty
+                      ? "bg-yellow-600 text-white hover:bg-yellow-500 cursor-pointer"
+                      : "bg-gray-800 text-gray-500 cursor-not-allowed"
+                    }`}
+                >
+                  {isDirty ? "SAVE CHANGES" : "SAVED"}
+                </button>
               </div>
-              <div className="p-6 overflow-auto flex-1">
-                <pre className="whitespace-pre-wrap font-mono text-sm text-gray-300 leading-relaxed max-w-3xl">
-                  {activeContent}
-                </pre>
-              </div>
+
+              {/* EDITOR AREA */}
+              <textarea
+                className="flex-1 w-full h-full bg-gray-950 p-6 text-gray-300 font-mono text-sm resize-none focus:outline-none leading-relaxed"
+                value={activeContent}
+                onChange={(e) => {
+                  setActiveContent(e.target.value);
+                  setIsDirty(true);
+                }}
+                spellCheck={false}
+              />
             </>
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-gray-700 select-none">
