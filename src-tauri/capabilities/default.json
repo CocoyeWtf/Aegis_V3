@@ -7,16 +7,9 @@
   ],
   "permissions": [
     "core:default",
-    "opener:default",
     "fs:default",
-    {
-      "identifier": "fs:allow-read-dir",
-      "allow": [
-        {
-          "path": "D:\\**"
-        }
-      ]
-    },
-    "sql:default"
+    "sql:default",
+    "sql:allow-load",
+    "sql:allow-execute"
   ]
 }
