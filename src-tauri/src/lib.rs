@@ -114,6 +114,50 @@ fn create_vault_directory(path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn move_file_system_entry(source_path: String, destination_folder: String) -> Result<(), String> {
+    let source = std::path::Path::new(&source_path);
+    let file_name = source.file_name().ok_or("Invalid source path")?;
+    
+    // SECURITY 1: Prevent moving critical folders
+    let source_str = source_path.replace("\\", "/");
+    if source_str.ends_with("/01_Inbox") || source_str.ends_with("/10_Projects") {
+        return Err("This system folder cannot be moved.".to_string());
+    }
+
+    let dest_folder = std::path::Path::new(&destination_folder);
+    if !dest_folder.is_dir() {
+        return Err("Target is not a directory".to_string());
+    }
+
+    // SECURITY 2: Recursion Check (Prevent moving folder into its own child)
+    // We compare canonical paths to be safe
+    if let (Ok(src_canon), Ok(dest_canon)) = (std::fs::canonicalize(source), std::fs::canonicalize(dest_folder)) {
+        if dest_canon.starts_with(src_canon) {
+             return Err("Recursion Error: Cannot move a folder into itself.".to_string());
+        }
+    }
+
+    let mut dest_path = dest_folder.join(file_name);
+    
+    // COLLISION HANDLING
+    if dest_path.exists() {
+        let name_str = file_name.to_string_lossy();
+        let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+        let new_name = if name_str.contains('.') {
+            let parts: Vec<&str> = name_str.rsplitn(2, '.').collect();
+            format!("{} ({}).{}", parts[1], timestamp, parts[0])
+        } else {
+             format!("{} ({})", name_str, timestamp)
+        };
+        dest_path = dest_folder.join(new_name);
+    }
+
+    if source == dest_path { return Ok(()); }
+
+    std::fs::rename(source, dest_path).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -132,7 +176,8 @@ pub fn run() {
             read_all_files, 
             open_external_file, 
             create_folder,
-            create_vault_directory
+            create_vault_directory,
+            move_file_system_entry
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

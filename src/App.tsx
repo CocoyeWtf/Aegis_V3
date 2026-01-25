@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Database from "@tauri-apps/plugin-sql";
 import { LazyStore } from "@tauri-apps/plugin-store";
+import { DndContext, DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
 import WelcomeView from "./WelcomeView";
 
 const METADATA_SEPARATOR = "\n\n--- AEGIS METADATA ---\n";
@@ -25,6 +26,42 @@ interface Note { id: string; path: string; tags?: string; }
 
 function generateSimpleId() { return crypto.randomUUID(); }
 function getTodayDate() { return new Date().toISOString().split('T')[0]; }
+
+interface SidebarNodeProps {
+  node: FileNode;
+  activeFile: string;
+  selectedFolder: string;
+  expandedFolders: Set<string>;
+  onToggleExpand: (path: string) => void;
+  onNodeClick: (node: FileNode) => void;
+}
+
+const SidebarNode = ({ node, activeFile, selectedFolder, expandedFolders, onToggleExpand, onNodeClick }: SidebarNodeProps) => {
+  const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({ id: node.path });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: node.path, disabled: !node.is_dir });
+
+  const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 9999, position: 'relative' as 'relative' } : undefined;
+  const depth = node.path.split('/').length - 1;
+  const isExpanded = expandedFolders.has(node.path);
+
+  return (
+    <div
+      ref={(el) => { setDragRef(el); if (node.is_dir) setDropRef(el); }}
+      style={{ ...style, paddingLeft: `${depth * 12 + 8}px` }}
+      {...listeners} {...attributes}
+      className={`cursor-pointer py-1.5 rounded text-sm flex items-center gap-2 truncate transition-colors border border-transparent 
+        ${activeFile === node.path ? "bg-blue-900/30 text-white border-blue-900" : ""} 
+        ${isOver && node.is_dir ? "bg-purple-900/60 border-purple-500 scale-[1.02] shadow-lg shadow-purple-900/50" : ""}
+        ${!isOver && selectedFolder === node.path && node.is_dir ? "bg-yellow-900/20 text-yellow-100 border-yellow-900/50" : ""}
+        ${!isOver && activeFile !== node.path && selectedFolder !== node.path ? "text-gray-400 hover:bg-gray-900" : ""}
+        ${isDragging ? "opacity-30 bg-gray-800" : ""}
+      `}
+    >
+      {node.is_dir ? (<span onClick={(e) => { e.stopPropagation(); onToggleExpand(node.path); }} className="w-4 text-center hover:text-white font-bold text-[10px]">{isExpanded ? '▼' : '▶'}</span>) : <span className="w-4"></span>}
+      <span onClick={() => onNodeClick(node)} className="truncate flex-1 flex items-center gap-2"><span className="opacity-70 text-xs">{node.is_dir ? '📁' : '📝'}</span>{node.name}</span>
+    </div>
+  );
+};
 
 function App() {
   const [vaultPath, setVaultPath] = useState<string | null>(null);
@@ -329,6 +366,26 @@ function App() {
     } catch (e) { alert("Erreur ouverture: " + e); }
   };
 
+  /* DND HANDLE */
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    const sourcePath = active.id as string;
+    const targetFolder = over.id as string;
+
+    if (sourcePath === targetFolder) return;
+
+    try {
+      const fullSource = `${vaultPath}\\${sourcePath.replace(/\//g, '\\')}`;
+      const fullDest = `${vaultPath}\\${targetFolder.replace(/\//g, '\\')}`;
+      await invoke("move_file_system_entry", { sourcePath: fullSource, destinationFolder: fullDest });
+      await handleScan();
+    } catch (e) {
+      alert("Move Error: " + e);
+    }
+  };
+
   const handleNodeClick = async (node: FileNode) => { if (node.is_dir) { setSelectedFolder(node.path === selectedFolder ? "" : node.path); setActiveFile(""); } else { setActiveFile(node.path); setSelectedFolder(node.path.split('/').slice(0, -1).join('/')); parseFullFile(node.content, node.path); setIsDirty(false); setCurrentTab('COCKPIT'); } };
 
   return (
@@ -351,17 +408,22 @@ function App() {
             <button onClick={handleCreateNote} className="bg-green-900/20 hover:bg-green-900/40 text-green-400 border border-green-900/50 py-2 rounded text-xs font-bold flex items-center justify-center gap-1"><span>📝</span>+</button>
           </div>
           <div className="flex-1 overflow-y-auto p-2 select-none">
-            {fileTree.map((node) => {
-              if (!isVisibleInTree(node.path)) return null;
-              const depth = node.path.split('/').length - 1;
-              const isExpanded = expandedFolders.has(node.path);
-              return (
-                <div key={node.path} style={{ paddingLeft: `${depth * 12 + 8}px` }} className={`cursor-pointer py-1.5 rounded text-sm flex items-center gap-2 truncate transition-colors border border-transparent ${activeFile === node.path ? "bg-blue-900/30 text-white border-blue-900" : ""} ${selectedFolder === node.path && node.is_dir ? "bg-yellow-900/20 text-yellow-100 border-yellow-900/50" : "text-gray-400 hover:bg-gray-900"}`}>
-                  {node.is_dir ? (<span onClick={(e) => { e.stopPropagation(); toggleFolderExpand(node.path); }} className="w-4 text-center hover:text-white font-bold text-[10px]">{isExpanded ? '▼' : '▶'}</span>) : <span className="w-4"></span>}
-                  <span onClick={() => handleNodeClick(node)} className="truncate flex-1 flex items-center gap-2"><span className="opacity-70 text-xs">{node.is_dir ? '📁' : '📝'}</span>{node.name}</span>
-                </div>
-              );
-            })}
+            <DndContext onDragEnd={handleDragEnd}>
+              {fileTree.map((node) => {
+                if (!isVisibleInTree(node.path)) return null;
+                return (
+                  <SidebarNode
+                    key={node.path}
+                    node={node}
+                    activeFile={activeFile}
+                    selectedFolder={selectedFolder}
+                    expandedFolders={expandedFolders}
+                    onToggleExpand={toggleFolderExpand}
+                    onNodeClick={handleNodeClick}
+                  />
+                );
+              })}
+            </DndContext>
           </div>
           <div className="p-2 border-t border-gray-900 mt-auto flex flex-col gap-2">
             {selectedFolder && !activeFile && (
