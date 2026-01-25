@@ -228,6 +228,20 @@ function App() {
   const handleCreateFolder = async () => { const name = prompt(`Créer un dossier dans "${selectedFolder || 'Racine'}" :`); if (!name) return; const prefix = selectedFolder ? `${selectedFolder}/` : ""; const fullPath = `${VAULT_PATH}\\${prefix}${name}`.replace(/\//g, '\\'); try { await invoke("create_folder", { path: fullPath }); await handleScan(); } catch (e) { alert("Erreur : " + e); } };
   const handleDeleteFolder = async () => { if (!selectedFolder || !confirm(`DANGER : Supprimer "${selectedFolder}" ?`)) return; try { const fullPath = `${VAULT_PATH}\\${selectedFolder.replace(/\//g, '\\')}`; await invoke("delete_folder", { path: fullPath }); if (db) await db.execute("DELETE FROM notes WHERE path LIKE $1", [`${selectedFolder}%`]); setSelectedFolder(""); await handleScan(); } catch (e) { alert("Erreur : " + e); } };
   const handleDeleteFile = async () => { if (!activeFile || !confirm(`Supprimer "${activeFile}" ?`)) return; try { const fullPath = `${VAULT_PATH}\\${activeFile.replace(/\//g, '\\')}`; await invoke("delete_note", { path: fullPath }); if (db) await db.execute("DELETE FROM notes WHERE path = $1", [activeFile]); setActiveFile(""); setBodyContent(""); await handleScan(); } catch (e) { alert("Erreur : " + e); } };
+  const openNote = async (notePath: string) => {
+    if (!notePath) return;
+    try {
+      const fullPath = `${VAULT_PATH}\\${notePath.replace(/\//g, '\\')}`;
+      const content = await invoke<string>("read_note", { path: fullPath });
+      setActiveFile(notePath);
+      const folder = notePath.includes('/') ? notePath.substring(0, notePath.lastIndexOf('/')) : "";
+      setSelectedFolder(folder);
+      parseFullFile(content, notePath);
+      setIsDirty(false);
+      setCurrentTab('COCKPIT');
+    } catch (e) { alert("Erreur ouverture: " + e); }
+  };
+
   const handleNodeClick = async (node: FileNode) => { if (node.is_dir) { setSelectedFolder(node.path === selectedFolder ? "" : node.path); setActiveFile(""); } else { setActiveFile(node.path); setSelectedFolder(node.path.split('/').slice(0, -1).join('/')); parseFullFile(node.content, node.path); setIsDirty(false); setCurrentTab('COCKPIT'); } };
 
   return (
@@ -319,31 +333,43 @@ function App() {
                 <div className="ml-auto text-xs text-gray-500">{globalActions.length} actions loaded</div>
               </div>
               <div className="flex-1 overflow-auto p-8">
-                <table className="w-full text-left border-collapse">
-                  <thead><tr className="border-b border-gray-800 text-xs text-gray-500 uppercase tracking-wider"><th className="pb-3 pl-2 w-10"></th><th className="pb-3 pl-2 w-10">Sts</th><th className="pb-3 w-16">ID</th><th className="pb-3">Action</th><th className="pb-3 w-40">Source</th><th className="pb-3 w-24">Pilot</th><th className="pb-3 w-32 text-right">Deadline</th></tr></thead>
-                  <tbody className="text-sm text-gray-300 font-mono">
-                    {globalActions.map((action) => {
-                      if (!isVisibleInMaster(action, globalActions)) return null;
-                      const depth = action.code.split('.').length - 1;
-                      const hasChildren = globalActions.some(a => a.note_path === action.note_path && a.code.startsWith(action.code + "."));
-                      return (
-                        <tr key={action.id} className="border-b border-gray-900 hover:bg-gray-900/50 transition-colors group">
-                          <td className="py-3 pl-2">{hasChildren ? (<button onClick={() => toggleGlobalCollapse(action.note_path || "", action.code)} className="text-gray-500 w-4 text-[10px] hover:text-white font-mono border border-gray-700 rounded bg-gray-900 h-4 flex items-center justify-center">{action.collapsed ? '+' : '-'}</button>) : null}</td>
-                          <td className="py-3 pl-2"><input type="checkbox" checked={action.status} onChange={() => toggleActionFromMaster(action)} className="w-4 h-4 cursor-pointer accent-purple-500" /></td>
-                          <td className="py-3 text-blue-500 font-bold" style={{ paddingLeft: `${depth * 15}px` }}>{action.code}</td>
-                          {/* DECALAGE VISUEL APPLIQUÉ SUR LE TITRE DE L'ACTION */}
-                          <td className={`py-3 ${action.status ? 'line-through opacity-50' : 'text-white'}`} style={{ paddingLeft: `${depth * 24}px` }}>
-                            {depth > 0 && <span className="text-gray-600 mr-2">↳</span>}
-                            {action.task}
-                          </td>
-                          <td className="py-3 text-gray-500 text-xs truncate max-w-[200px] cursor-pointer hover:text-white hover:underline" onClick={() => { setActiveFile(action.note_path || ""); setCurrentTab('COCKPIT'); }}>{action.note_path?.split('/').pop()}</td>
-                          <td className="py-3 text-blue-300">{action.owner}</td>
-                          <td className="py-3 text-right text-yellow-600">{action.deadline}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                <div className="flex bg-gray-900 px-4 py-2 border-b border-gray-800 flex justify-between items-center shrink-0">
+                  <h3 className="text-xs font-bold text-purple-400 uppercase tracking-wider">⚡ Global Aggregation</h3>
+                  <span className="text-[10px] text-gray-500">{globalActions.length} items</span>
+                </div>
+                <div className="flex gap-2 px-4 py-2 bg-gray-900/50 text-[10px] text-gray-500 uppercase tracking-wider font-bold shrink-0 border-b border-gray-800 mb-2">
+                  <div className="w-6 text-center"></div><div className="w-10 text-center">ID</div><div className="flex-1">Action</div><div className="w-20 text-center">Pilot</div><div className="w-24 text-center">Deadline</div><div className="w-24 text-center">Source</div>
+                </div>
+                <div className="p-4 overflow-y-auto flex-1">
+                  {globalActions.map((action) => {
+                    if (!isVisibleInMaster(action, globalActions)) return null;
+                    const depth = action.code.split('.').length - 1;
+                    const hasChildren = globalActions.some(a => a.note_path === action.note_path && a.code.startsWith(action.code + "."));
+                    return (
+                      <div key={action.id} style={{ marginLeft: `${depth * 24}px` }} className="flex items-center gap-2 bg-gray-900/20 p-1.5 rounded border border-gray-800/50 group hover:border-purple-500/30 hover:bg-gray-900/40 transition-all mb-1">
+                        {hasChildren ? (<button onClick={() => toggleGlobalCollapse(action.note_path || "", action.code)} className="text-gray-500 w-4 text-[10px] hover:text-white font-mono border border-gray-700 rounded bg-gray-900 h-4 flex items-center justify-center">{action.collapsed ? '+' : '-'}</button>) : <div className="w-4"></div>}
+                        <input type="checkbox" checked={action.status} onChange={() => toggleActionFromMaster(action)} className="w-4 h-4 cursor-pointer accent-purple-500 shrink-0" />
+
+                        {/* ID - Read Only Style */}
+                        <div className="w-10 bg-gray-900/50 text-xs text-center text-blue-400 rounded font-mono py-1 border border-gray-800">{action.code}</div>
+
+                        {/* Task - Read Only Style */}
+                        <div className={`flex-1 text-sm ${action.status ? 'text-gray-500 line-through' : 'text-gray-300'} truncate px-2`} title={action.task}>{action.task}</div>
+
+                        {/* Owner - Pill Style */}
+                        <div className="w-20 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-500 rounded py-1">{action.owner || '-'}</div>
+
+                        {/* Deadline - Pill Style */}
+                        <div className="w-24 bg-gray-900/50 border border-gray-800 text-xs text-center text-yellow-700/70 rounded py-1">{action.deadline || '-'}</div>
+
+                        {/* Source - Clickable Badge */}
+                        <button onClick={() => openNote(action.note_path || "")} className="w-24 bg-gray-900/50 hover:bg-blue-900/30 border border-gray-800 hover:border-blue-700 text-[10px] text-gray-500 hover:text-blue-300 rounded py-1 truncate transition-colors text-center" title={`Open ${action.note_path}`}>
+                          {action.note_path?.split('/').pop()?.replace('.md', '') || 'Unknown'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
