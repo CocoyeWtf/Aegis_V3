@@ -88,13 +88,51 @@ fn create_folder(path: String) -> Result<(), String> {
     std::fs::create_dir_all(path).map_err(|e| e.to_string())
 }
 
+// --- DYNAMIC VAULT MANAGEMENT COMMANDS ---
+
+#[tauri::command]
+fn get_active_vault(app: tauri::AppHandle) -> Result<String, String> {
+    use tauri_plugin_store::StoreExt;
+    let store = app.store("aegis_config.json").map_err(|e| e.to_string())?;
+    let val = store.get("vault_path").ok_or("No vault configured")?;
+    Err("Not implemented correctly yet - need direct store".to_string()) // Placeholder fix below
+}
+
+// SIMPLER APPROACH: Let Frontend handle Store logic, Backend just provides FS access.
+// We only need create_vault here.
+
+#[tauri::command]
+fn create_vault_directory(path: String) -> Result<(), String> {
+    if !std::path::Path::new(&path).exists() {
+        std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+    }
+    // Create basic structure
+    let inbox = std::path::Path::new(&path).join("00_Inbox");
+    let projects = std::path::Path::new(&path).join("10_Projects");
+    if !inbox.exists() { std::fs::create_dir_all(inbox).map_err(|e| e.to_string())?; }
+    if !projects.exists() { std::fs::create_dir_all(projects).map_err(|e| e.to_string())?; }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_sql::Builder::default().add_migrations("sqlite:aegis_v4.db", get_migrations()).build())
         .invoke_handler(tauri::generate_handler![
-            check_system_status, scan_vault_recursive, read_note, save_note, create_note, delete_note, delete_folder, read_all_files, open_external_file, create_folder
+            check_system_status, 
+            scan_vault_recursive, 
+            read_note, 
+            save_note, 
+            create_note, 
+            delete_note, 
+            delete_folder, 
+            read_all_files, 
+            open_external_file, 
+            create_folder,
+            create_vault_directory
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

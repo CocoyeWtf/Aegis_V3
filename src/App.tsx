@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Database from "@tauri-apps/plugin-sql";
+import { LazyStore } from "@tauri-apps/plugin-store";
+import WelcomeView from "./WelcomeView";
 
-const VAULT_PATH = "D:\\AEGIS_VAULT_TEST";
 const METADATA_SEPARATOR = "\n\n--- AEGIS METADATA ---\n";
 const ACTION_HEADER = "\n\n## PLAN D'ACTION\n";
+const STORE_PATH = "aegis_config.json";
 
 interface FileNode { path: string; name: string; is_dir: boolean; extension: string; content: string; }
 interface NoteMetadata { type: string; status: string; tags: string; }
@@ -25,6 +27,36 @@ function generateSimpleId() { return crypto.randomUUID(); }
 function getTodayDate() { return new Date().toISOString().split('T')[0]; }
 
 function App() {
+  const [vaultPath, setVaultPath] = useState<string | null>(null);
+  const [isStoreLoaded, setIsStoreLoaded] = useState(false);
+
+  // Load Config
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const store = new LazyStore(STORE_PATH);
+        const path = await store.get<string>("vault_path");
+        if (path) setVaultPath(path);
+      } catch (e) {
+        console.error("Config Load Error:", e);
+      } finally {
+        setIsStoreLoaded(true);
+      }
+    };
+    loadConfig();
+  }, []);
+
+  const handleVaultSelection = async (path: string) => {
+    try {
+      const store = new LazyStore(STORE_PATH);
+      await store.set("vault_path", path);
+      await store.save();
+      setVaultPath(path);
+    } catch (e) {
+      alert("Erreur sauvegarde config: " + e);
+    }
+  };
+
   const [status, setStatus] = useState<string>("BOOTING...");
   const [db, setDb] = useState<Database | null>(null);
 
@@ -136,10 +168,15 @@ function App() {
   };
 
   useEffect(() => {
+    if (!vaultPath) return; // Wait for vault choice
     const init = async () => {
       try { const sysMsg = await invoke<string>("check_system_status"); const database = await Database.load("sqlite:aegis_v4.db"); setDb(database); setStatus(`${sysMsg}`); handleScan(database); } catch (err) { setStatus("SYSTEM FAILURE"); }
     }; init();
-  }, []);
+  }, [vaultPath]);
+
+  // If store checking or no vault, show Welcome
+  if (!isStoreLoaded) return <div className="h-screen w-screen bg-black text-white flex items-center justify-center">LOADING KERNEL...</div>;
+  if (!vaultPath) return <WelcomeView onVaultSelected={handleVaultSelection} />;
 
   const addAction = (parentId?: string) => {
     let newCode = "";
@@ -162,7 +199,7 @@ function App() {
   const toggleActionFromMaster = async (action: ActionItem) => {
     if (!action.note_path) return;
     try {
-      const fullPath = `${VAULT_PATH}\\${action.note_path.replace(/\//g, '\\')}`;
+      const fullPath = `${vaultPath}\\${action.note_path.replace(/\//g, '\\')}`;
       const content = await invoke<string>("read_note", { path: fullPath });
 
       let fileBody = content; let fileMeta = { type: "NOTE", status: "ACTIVE", tags: "" }; let fileActions: ActionItem[] = [];
@@ -183,7 +220,7 @@ function App() {
   const handleScan = async (databaseInstance?: Database) => {
     const database = databaseInstance || db; if (!database) return; setSyncStatus("SYNCING...");
     try {
-      const nodes = await invoke<FileNode[]>("scan_vault_recursive", { root: VAULT_PATH });
+      const nodes = await invoke<FileNode[]>("scan_vault_recursive", { root: vaultPath });
       setFileTree(nodes.sort((a, b) => a.path.localeCompare(b.path)));
       await database.execute("DELETE FROM actions");
       let actionCount = 0;
@@ -220,18 +257,18 @@ function App() {
     } catch (error) { console.error(error); setSyncStatus("SYNC ERROR"); }
   };
 
-  const handleSave = async () => { if (!activeFile) return; try { const fullPath = `${VAULT_PATH}\\${activeFile.replace(/\//g, '\\')}`; const finalContent = constructFullFile(bodyContent, localActions, metadata); await invoke("save_note", { path: fullPath, content: finalContent }); await handleScan(); setIsDirty(false); } catch (err) { alert(err); } };
+  const handleSave = async () => { if (!activeFile) return; try { const fullPath = `${vaultPath}\\${activeFile.replace(/\//g, '\\')}`; const finalContent = constructFullFile(bodyContent, localActions, metadata); await invoke("save_note", { path: fullPath, content: finalContent }); await handleScan(); setIsDirty(false); } catch (err) { alert(err); } };
   const findRelatedNotes = async (currentFile: string, tags: string, database: Database) => { if (!tags) { setRelatedNotes([]); return; } const tagList = tags.split(/[;,]/).map(t => t.trim()).filter(t => t.length > 0); if (tagList.length === 0) { setRelatedNotes([]); return; } let sql = "SELECT id, path, tags FROM notes WHERE path != $1 AND ("; const params: any[] = [currentFile]; tagList.forEach((tag, index) => { if (index > 0) sql += " OR "; sql += `tags LIKE $${index + 2}`; params.push(`%${tag}%`); }); sql += ") ORDER BY last_synced DESC LIMIT 5"; try { const results = await database.select<Note[]>(sql, params); setRelatedNotes(results); } catch (err) { console.error(err); } };
   const toggleFolderExpand = (path: string) => { const next = new Set(expandedFolders); if (next.has(path)) next.delete(path); else next.add(path); setExpandedFolders(next); };
   const isVisibleInTree = (nodePath: string) => { const parts = nodePath.split('/'); let currentPath = parts[0]; for (let i = 0; i < parts.length - 1; i++) { if (!expandedFolders.has(currentPath)) return false; currentPath += `/${parts[i + 1]}`; } return true; };
-  const handleCreateNote = async () => { const name = prompt(`Créer une note dans "${selectedFolder || 'Racine'}" :`); if (!name) return; const prefix = selectedFolder ? `${selectedFolder}/` : ""; const finalName = name.endsWith(".md") ? name : `${name}.md`; const fullPath = `${VAULT_PATH}\\${prefix}${finalName}`.replace(/\//g, '\\'); const template = `# ${finalName.replace('.md', '')}\n\nCreated: ${new Date().toLocaleString()}\n\n`; try { await invoke("create_note", { path: fullPath, content: template }); await handleScan(); setActiveFile(`${prefix}${finalName}`); setBodyContent(template); } catch (e) { alert("Erreur : " + e); } };
-  const handleCreateFolder = async () => { const name = prompt(`Créer un dossier dans "${selectedFolder || 'Racine'}" :`); if (!name) return; const prefix = selectedFolder ? `${selectedFolder}/` : ""; const fullPath = `${VAULT_PATH}\\${prefix}${name}`.replace(/\//g, '\\'); try { await invoke("create_folder", { path: fullPath }); await handleScan(); } catch (e) { alert("Erreur : " + e); } };
-  const handleDeleteFolder = async () => { if (!selectedFolder || !confirm(`DANGER : Supprimer "${selectedFolder}" ?`)) return; try { const fullPath = `${VAULT_PATH}\\${selectedFolder.replace(/\//g, '\\')}`; await invoke("delete_folder", { path: fullPath }); if (db) await db.execute("DELETE FROM notes WHERE path LIKE $1", [`${selectedFolder}%`]); setSelectedFolder(""); await handleScan(); } catch (e) { alert("Erreur : " + e); } };
-  const handleDeleteFile = async () => { if (!activeFile || !confirm(`Supprimer "${activeFile}" ?`)) return; try { const fullPath = `${VAULT_PATH}\\${activeFile.replace(/\//g, '\\')}`; await invoke("delete_note", { path: fullPath }); if (db) await db.execute("DELETE FROM notes WHERE path = $1", [activeFile]); setActiveFile(""); setBodyContent(""); await handleScan(); } catch (e) { alert("Erreur : " + e); } };
+  const handleCreateNote = async () => { const name = prompt(`Créer une note dans "${selectedFolder || 'Racine'}" :`); if (!name) return; const prefix = selectedFolder ? `${selectedFolder}/` : ""; const finalName = name.endsWith(".md") ? name : `${name}.md`; const fullPath = `${vaultPath}\\${prefix}${finalName}`.replace(/\//g, '\\'); const template = `# ${finalName.replace('.md', '')}\n\nCreated: ${new Date().toLocaleString()}\n\n`; try { await invoke("create_note", { path: fullPath, content: template }); await handleScan(); setActiveFile(`${prefix}${finalName}`); setBodyContent(template); } catch (e) { alert("Erreur : " + e); } };
+  const handleCreateFolder = async () => { const name = prompt(`Créer un dossier dans "${selectedFolder || 'Racine'}" :`); if (!name) return; const prefix = selectedFolder ? `${selectedFolder}/` : ""; const fullPath = `${vaultPath}\\${prefix}${name}`.replace(/\//g, '\\'); try { await invoke("create_folder", { path: fullPath }); await handleScan(); } catch (e) { alert("Erreur : " + e); } };
+  const handleDeleteFolder = async () => { if (!selectedFolder || !confirm(`DANGER : Supprimer "${selectedFolder}" ?`)) return; try { const fullPath = `${vaultPath}\\${selectedFolder.replace(/\//g, '\\')}`; await invoke("delete_folder", { path: fullPath }); if (db) await db.execute("DELETE FROM notes WHERE path LIKE $1", [`${selectedFolder}%`]); setSelectedFolder(""); await handleScan(); } catch (e) { alert("Erreur : " + e); } };
+  const handleDeleteFile = async () => { if (!activeFile || !confirm(`Supprimer "${activeFile}" ?`)) return; try { const fullPath = `${vaultPath}\\${activeFile.replace(/\//g, '\\')}`; await invoke("delete_note", { path: fullPath }); if (db) await db.execute("DELETE FROM notes WHERE path = $1", [activeFile]); setActiveFile(""); setBodyContent(""); await handleScan(); } catch (e) { alert("Erreur : " + e); } };
   const openNote = async (notePath: string) => {
     if (!notePath) return;
     try {
-      const fullPath = `${VAULT_PATH}\\${notePath.replace(/\//g, '\\')}`;
+      const fullPath = `${vaultPath}\\${notePath.replace(/\//g, '\\')}`;
       const content = await invoke<string>("read_note", { path: fullPath });
       setActiveFile(notePath);
       const folder = notePath.includes('/') ? notePath.substring(0, notePath.lastIndexOf('/')) : "";
