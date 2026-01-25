@@ -8,11 +8,16 @@ import Sidebar, { FileNode } from "./Sidebar";
 
 // --- CONSTANTES ---
 const METADATA_SEPARATOR = "--- AEGIS METADATA ---";
-const ACTION_HEADER_MARKER = "## PLAN D'ACTION"; // Version assouplie sans sauts de ligne stricts
+const ACTION_HEADER_MARKER = "## PLAN D'ACTION";
 const STORE_PATH = "aegis_config.json";
 
 // --- TYPES ---
-interface NoteMetadata { type: string; status: string; tags: string; }
+interface NoteMetadata {
+  id: string; // L'ID est maintenant obligatoire dans les métadonnées
+  type: string;
+  status: string;
+  tags: string;
+}
 interface ActionItem {
   id: string; code: string; status: boolean; created: string; deadline: string;
   owner: string; task: string; note_path?: string; collapsed?: boolean;
@@ -20,18 +25,24 @@ interface ActionItem {
 interface Note { id: string; path: string; tags?: string; }
 
 // --- UTILITAIRES ---
-function generateSimpleId() { return crypto.randomUUID(); }
+function generateUUID() { return crypto.randomUUID(); }
 function getTodayDate() { return new Date().toISOString().split('T')[0]; }
 
+// Fonction de hachage SHA-256 (Pour vérifier l'intégrité du contenu)
+async function computeContentHash(text: string): Promise<string> {
+  const msgBuffer = new TextEncoder().encode(text);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 function App() {
-  // --- STATE SYSTEME ---
+  // --- STATE ---
   const [vaultPath, setVaultPath] = useState<string | null>(null);
   const [isStoreLoaded, setIsStoreLoaded] = useState(false);
   const [status, setStatus] = useState<string>("BOOTING...");
   const [db, setDb] = useState<Database | null>(null);
   const [syncStatus, setSyncStatus] = useState<string>("");
-
-  // --- STATE UI ---
   const [currentTab, setCurrentTab] = useState<'COCKPIT' | 'MASTER_PLAN'>('COCKPIT');
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [activeFile, setActiveFile] = useState<string>("");
@@ -39,11 +50,10 @@ function App() {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [isDirty, setIsDirty] = useState(false);
 
-  // --- STATE DONNEES (CONTENU) ---
   const [bodyContent, setBodyContent] = useState<string>("");
   const [localActions, setLocalActions] = useState<ActionItem[]>([]);
   const [globalActions, setGlobalActions] = useState<ActionItem[]>([]);
-  const [metadata, setMetadata] = useState<NoteMetadata>({ type: "NOTE", status: "ACTIVE", tags: "" });
+  const [metadata, setMetadata] = useState<NoteMetadata>({ id: "", type: "NOTE", status: "ACTIVE", tags: "" });
   const [relatedNotes, setRelatedNotes] = useState<Note[]>([]);
 
   // --- INIT ---
@@ -68,7 +78,7 @@ function App() {
     }; init();
   }, [vaultPath]);
 
-  // --- LOGIQUE METIER (PARSING ROBUSTE) ---
+  // --- PARSING & CONSTRUCTION (AVEC ID STABLE) ---
   const sortActionsSemantic = (actions: ActionItem[]) => {
     return [...actions].sort((a, b) => {
       if (a.note_path && b.note_path && a.note_path !== b.note_path) return a.note_path!.localeCompare(b.note_path!);
@@ -86,20 +96,19 @@ function App() {
   };
 
   const parseFullFile = (rawText: string, filePath: string) => {
-    // 1. NORMALISATION : On convertit tous les retours chariot Windows (\r\n) en Unix (\n)
     let text = rawText.replace(/\r\n/g, "\n");
-
-    let meta = { type: "NOTE", status: "ACTIVE", tags: "" };
+    let meta = { id: "", type: "NOTE", status: "ACTIVE", tags: "" };
     let actions: ActionItem[] = [];
     const seenCodes = new Set<string>();
 
-    // 2. EXTRACTION METADATA
+    // Extraction Metadata
     if (text.includes(METADATA_SEPARATOR)) {
       const parts = text.split(METADATA_SEPARATOR);
-      text = parts[0]; // On garde le corps
+      text = parts[0];
       const metaBlock = parts[1];
       if (metaBlock) {
         metaBlock.split("\n").forEach(line => {
+          if (line.startsWith("ID:")) meta.id = line.replace("ID:", "").trim();
           if (line.startsWith("TYPE:")) meta.type = line.replace("TYPE:", "").trim();
           if (line.startsWith("STATUS:")) meta.status = line.replace("STATUS:", "").trim();
           if (line.startsWith("TAGS:")) meta.tags = line.replace("TAGS:", "").trim();
@@ -107,31 +116,19 @@ function App() {
       }
     }
 
-    // 3. EXTRACTION ACTIONS (Avec le nouveau marqueur souple)
+    // Extraction Actions
     if (text.includes(ACTION_HEADER_MARKER)) {
       const parts = text.split(ACTION_HEADER_MARKER);
-      text = parts[0]; // On garde le texte avant le header
-
-      const actionBlock = parts[1];
-      if (actionBlock) {
-        actionBlock.split("\n").forEach(line => {
+      text = parts[0];
+      if (parts[1]) {
+        parts[1].split("\n").forEach(line => {
           if (line.trim().startsWith("|") && !line.includes("---") && !line.includes("| ID |")) {
             const cols = line.split("|").map(c => c.trim());
             if (cols.length >= 7) {
               const code = cols[1] || "";
               if (code && !seenCodes.has(code)) {
                 seenCodes.add(code);
-                actions.push({
-                  id: generateSimpleId(),
-                  code: code,
-                  status: cols[2].toLowerCase().includes("x"),
-                  created: cols[3],
-                  deadline: cols[4],
-                  owner: cols[5],
-                  task: cols[6],
-                  note_path: filePath,
-                  collapsed: false
-                });
+                actions.push({ id: generateUUID(), code: code, status: cols[2].toLowerCase().includes("x"), created: cols[3], deadline: cols[4], owner: cols[5], task: cols[6], note_path: filePath, collapsed: false });
               }
             }
           }
@@ -142,7 +139,6 @@ function App() {
     setBodyContent(text.trim());
     setMetadata(meta);
     setLocalActions(sortActionsSemantic(actions));
-
     if (db) findRelatedNotes(filePath, meta.tags, db);
   };
 
@@ -155,43 +151,76 @@ function App() {
       file += "| :--- | :---: | :--- | :--- | :--- | :--- |\n";
       sortedActions.forEach(a => { file += `| ${a.code} | [${a.status ? 'x' : ' '}] | ${a.created} | ${a.deadline} | ${a.owner} | ${a.task} |\n`; });
     }
+    // ECRITURE DU PIED DE PAGE TECHNIQUE
     file += `\n\n${METADATA_SEPARATOR}\n`;
+    file += `ID: ${meta.id || generateUUID()}\n`; // Sécurité si ID vide
     file += `TYPE: ${meta.type}\nSTATUS: ${meta.status}\nTAGS: ${meta.tags}`;
     return file;
   };
 
-  // --- ACTIONS BASE DE DONNEES ---
+  // --- SCAN INTELLIGENT (INJECTION D'ID) ---
   const handleScan = async (databaseInstance?: Database) => {
-    const database = databaseInstance || db; if (!database) return; setSyncStatus("SYNCING...");
+    const database = databaseInstance || db; if (!database) return; setSyncStatus("INDEXING...");
     try {
       const nodes = await invoke<FileNode[]>("scan_vault_recursive", { root: vaultPath });
       setFileTree(nodes.sort((a, b) => a.path.localeCompare(b.path)));
 
-      // REGENERATION DB
       await database.execute("DELETE FROM actions");
+
       for (const node of nodes) {
         if (node.is_dir || node.extension !== "md") continue;
 
-        // NORMALISATION POUR SCAN
-        const cleanContent = node.content.replace(/\r\n/g, "\n");
-        let bodyForDb = cleanContent;
+        let cleanContent = node.content.replace(/\r\n/g, "\n");
+        let fileId = "";
         let type = "NOTE", status = "ACTIVE", tags = "";
+        let contentWasModified = false;
 
+        // 1. Détection de l'ID existant
         if (cleanContent.includes(METADATA_SEPARATOR)) {
           const parts = cleanContent.split(METADATA_SEPARATOR);
-          bodyForDb = parts[0];
           const m = parts[1];
           if (m) {
+            if (m.includes("ID:")) fileId = m.split("ID:")[1].split("\n")[0].trim();
             if (m.includes("TYPE:")) type = m.split("TYPE:")[1].split("\n")[0].trim();
             if (m.includes("STATUS:")) status = m.split("STATUS:")[1].split("\n")[0].trim();
             if (m.includes("TAGS:")) tags = m.split("TAGS:")[1].split("\n")[0].trim();
           }
         }
 
-        const exists = await database.select<any[]>("SELECT id FROM notes WHERE path = $1", [node.path]);
-        if (exists.length === 0) await database.execute("INSERT INTO notes (id, path, last_synced, content, type, status, tags) VALUES ($1, $2, $3, $4, $5, $6, $7)", [generateSimpleId(), node.path, Date.now(), bodyForDb, type, status, tags]);
-        else await database.execute("UPDATE notes SET last_synced=$1, content=$2, type=$3, status=$4, tags=$5 WHERE path=$6", [Date.now(), bodyForDb, type, status, tags, node.path]);
+        // 2. INJECTION D'ID si manquant (AI Readiness)
+        if (!fileId) {
+          fileId = generateUUID();
+          // On ajoute le bloc metadata proprement
+          const newMetadata = `\n\n${METADATA_SEPARATOR}\nID: ${fileId}\nTYPE: ${type}\nSTATUS: ${status}\nTAGS: ${tags}`;
+          cleanContent += newMetadata;
+          // Sauvegarde physique immédiate pour graver l'ID
+          await invoke("save_note", { path: `${vaultPath}\\${node.path.replace(/\//g, '\\')}`, content: cleanContent });
+          contentWasModified = true;
+        }
 
+        // 3. Calcul du Hash (pour intégrité future)
+        const contentHash = await computeContentHash(cleanContent);
+
+        // 4. Indexation DB (On utilise le VRAI ID du fichier, plus un ID aléatoire)
+        // Note: Pour V4, on stocke l'ID fichier dans la colonne 'id' de la DB.
+        // Si la DB a des vieux IDs, ce n'est pas grave, on écrase ou on insère.
+        const exists = await database.select<any[]>("SELECT id FROM notes WHERE path = $1", [node.path]);
+
+        if (exists.length === 0) {
+          // Nouvelle entrée
+          await database.execute(
+            "INSERT INTO notes (id, path, last_synced, content, type, status, tags) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            [fileId, node.path, Date.now(), cleanContent, type, status, tags]
+          );
+        } else {
+          // Mise à jour (On force l'ID de la DB à matcher l'ID du fichier)
+          await database.execute(
+            "UPDATE notes SET id=$1, last_synced=$2, content=$3, type=$4, status=$5, tags=$6 WHERE path=$7",
+            [fileId, Date.now(), cleanContent, type, status, tags, node.path]
+          );
+        }
+
+        // 5. Indexation Actions
         const seenCodesInFile = new Set<string>();
         if (cleanContent.includes(ACTION_HEADER_MARKER)) {
           const parts = cleanContent.split(ACTION_HEADER_MARKER);
@@ -203,7 +232,10 @@ function App() {
                   const code = c[1];
                   if (code && !seenCodesInFile.has(code)) {
                     seenCodesInFile.add(code);
-                    await database.execute("INSERT INTO actions (id, note_path, code, status, task, owner, created_at, deadline, comment) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", [generateSimpleId(), node.path, code, c[2].includes("x") ? 'DONE' : 'TODO', c[6], c[5], c[3], c[4], ""]);
+                    await database.execute(
+                      "INSERT INTO actions (id, note_path, code, status, task, owner, created_at, deadline, comment) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+                      [generateUUID(), node.path, code, c[2].includes("x") ? 'DONE' : 'TODO', c[6], c[5], c[3], c[4], ""]
+                    );
                   }
                 }
               }
@@ -212,16 +244,15 @@ function App() {
         }
       }
       setSyncStatus(`READY`);
-      // CHARGEMENT MASTER PLAN
       const allActionsRaw = await database.select<any[]>("SELECT * FROM actions");
       const allActionsTyped = allActionsRaw.map(a => ({ ...a, status: a.status === 'DONE', collapsed: false }));
       setGlobalActions(sortActionsSemantic(allActionsTyped));
-    } catch (error) { console.error(error); setSyncStatus("SYNC ERROR"); }
+    } catch (error) { console.error(error); setSyncStatus("SCAN ERROR"); }
   };
 
   const findRelatedNotes = async (currentFile: string, tags: string, database: Database) => { if (!tags) { setRelatedNotes([]); return; } const tagList = tags.split(/[;,]/).map(t => t.trim()).filter(t => t.length > 0); if (tagList.length === 0) { setRelatedNotes([]); return; } let sql = "SELECT id, path, tags FROM notes WHERE path != $1 AND ("; const params: any[] = [currentFile]; tagList.forEach((tag, index) => { if (index > 0) sql += " OR "; sql += `tags LIKE $${index + 2}`; params.push(`%${tag}%`); }); sql += ") ORDER BY last_synced DESC LIMIT 5"; try { const results = await database.select<Note[]>(sql, params); setRelatedNotes(results); } catch (err) { console.error(err); } };
 
-  // --- EVENTS UTILISATEUR ---
+  // --- EVENTS ---
   const handleVaultSelection = async (path: string) => { const store = new LazyStore(STORE_PATH); await store.set("vault_path", path); await store.save(); setVaultPath(path); };
   const handleCloseVault = async () => { if (!confirm("Fermer le Cockpit ?")) return; const store = new LazyStore(STORE_PATH); await store.set("vault_path", null); await store.save(); setVaultPath(null); };
 
@@ -231,12 +262,20 @@ function App() {
       const baseName = "Untitled"; let finalName = `${baseName}.md`; let counter = 1;
       while (fileTree.some(n => n.path === `${targetFolder}/${finalName}`)) { finalName = `${baseName} ${counter}.md`; counter++; }
       const fullPath = `${vaultPath}\\${targetFolder}\\${finalName}`.replace(/\//g, '\\');
-      const template = `# ${finalName.replace('.md', '')}\n\nCreated: ${new Date().toLocaleString()}\n\n`;
+
+      // CREATION AVEC ID
+      const newId = generateUUID();
+      const template = `# ${finalName.replace('.md', '')}\n\nCreated: ${new Date().toLocaleString()}\n\n\n\n${METADATA_SEPARATOR}\nID: ${newId}\nTYPE: NOTE\nSTATUS: ACTIVE\nTAGS: `;
+
       if (targetFolder === "01_Inbox") await invoke("create_folder", { path: `${vaultPath}\\01_Inbox` });
       await invoke("create_note", { path: fullPath, content: template });
-      await handleScan(); setActiveFile(`${targetFolder}/${finalName}`); setSelectedFolder(targetFolder); setBodyContent(template); setCurrentTab('COCKPIT');
+      await handleScan(); setActiveFile(`${targetFolder}/${finalName}`); setSelectedFolder(targetFolder);
+      // Parsing immédiat pour l'UI
+      parseFullFile(template, `${targetFolder}/${finalName}`);
+      setCurrentTab('COCKPIT');
     } catch (e) { alert("Erreur: " + e); }
   };
+
   const handleCreateFolder = async () => { const name = prompt("Nom du dossier :"); if (!name) return; const p = selectedFolder ? `${selectedFolder}/` : ""; await invoke("create_folder", { path: `${vaultPath}\\${p}${name}` }); await handleScan(); };
   const handleDeleteFolder = async () => { if (confirm("Supprimer ce dossier ?")) { await invoke("delete_folder", { path: `${vaultPath}\\${selectedFolder}` }); setSelectedFolder(""); await handleScan(); } };
   const handleDeleteFile = async () => { if (confirm("Supprimer ?")) { await invoke("delete_note", { path: `${vaultPath}\\${activeFile}` }); setActiveFile(""); await handleScan(); } };
@@ -264,7 +303,7 @@ function App() {
   };
   const handleSave = async () => { if (activeFile) { const fullPath = `${vaultPath}\\${activeFile.replace(/\//g, '\\')}`; const finalContent = constructFullFile(bodyContent, localActions, metadata); await invoke("save_note", { path: fullPath, content: finalContent }); await handleScan(); setIsDirty(false); } };
 
-  // --- ACTION PLAN MANAGEMENT ---
+  // --- ACTIONS HELPERS ---
   const addAction = (parentId?: string) => {
     let newCode = "";
     if (parentId) {
@@ -275,7 +314,7 @@ function App() {
       const roots = localActions.filter(a => !a.code.includes("."));
       let maxRoot = 0; roots.forEach(r => { const val = parseInt(r.code); if (val > maxRoot) maxRoot = val; }); newCode = (maxRoot + 1).toString();
     }
-    const newItem = { id: generateSimpleId(), code: newCode, status: false, created: getTodayDate(), deadline: "", owner: "", task: "", collapsed: false, note_path: activeFile };
+    const newItem = { id: generateUUID(), code: newCode, status: false, created: getTodayDate(), deadline: "", owner: "", task: "", collapsed: false, note_path: activeFile };
     setLocalActions(prev => sortActionsSemantic([...prev, newItem])); setIsDirty(true);
   };
   const updateAction = (id: string, field: keyof ActionItem, value: any) => { setLocalActions(prev => prev.map(a => a.id === id ? { ...a, [field]: value } : a)); setIsDirty(true); };
@@ -286,14 +325,13 @@ function App() {
     const parts = action.code.split('.'); let currentCode = parts[0];
     for (let i = 0; i < parts.length - 1; i++) { const parent = list.find(a => a.code === currentCode); if (parent && parent.collapsed) return false; currentCode += `.${parts[i + 1]}`; } return true;
   };
-
-  // --- MASTER PLAN HELPERS ---
   const isVisibleInMaster = (action: ActionItem, list: ActionItem[]) => {
     if (!action.code.includes('.')) return true;
     const parts = action.code.split('.'); let currentCode = parts[0];
     for (let i = 0; i < parts.length - 1; i++) { const parent = list.find(a => a.note_path === action.note_path && a.code === currentCode); if (parent && parent.collapsed) return false; currentCode += `.${parts[i + 1]}`; } return true;
   };
   const toggleGlobalCollapse = (notePath: string, code: string) => { setGlobalActions(prev => prev.map(a => (a.note_path === notePath && a.code === code) ? { ...a, collapsed: !a.collapsed } : a)); };
+
   const openNote = async (notePath: string) => {
     if (!notePath) return; try { const fullPath = `${vaultPath}\\${notePath.replace(/\//g, '\\')}`; const content = await invoke<string>("read_note", { path: fullPath }); setActiveFile(notePath); const folder = notePath.includes('/') ? notePath.substring(0, notePath.lastIndexOf('/')) : ""; setSelectedFolder(folder); parseFullFile(content, notePath); setIsDirty(false); setCurrentTab('COCKPIT'); } catch (e) { alert("Erreur ouverture: " + e); }
   };
@@ -304,9 +342,9 @@ function App() {
       const content = await invoke<string>("read_note", { path: fullPath });
       // Parsing Rapide Normalisé
       const clean = content.replace(/\r\n/g, "\n");
-      let fileBody = clean; let fileMeta = { type: "NOTE", status: "ACTIVE", tags: "" }; let fileActions: ActionItem[] = [];
-      if (clean.includes(METADATA_SEPARATOR)) { const parts = clean.split(METADATA_SEPARATOR); fileBody = parts[0]; const m = parts[1]; if (m && m.includes("TYPE:")) fileMeta.type = m.split("TYPE:")[1].split("\n")[0].trim(); if (m && m.includes("STATUS:")) fileMeta.status = m.split("STATUS:")[1].split("\n")[0].trim(); if (m && m.includes("TAGS:")) fileMeta.tags = m.split("TAGS:")[1].split("\n")[0].trim(); }
-      if (clean.includes(ACTION_HEADER_MARKER)) { const parts = clean.split(ACTION_HEADER_MARKER); fileBody = parts[0]; if (parts[1]) parts[1].split("\n").forEach(l => { if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) { const c = l.split("|").map(x => x.trim()); if (c.length >= 7) fileActions.push({ id: generateSimpleId(), code: c[1], status: c[2].includes("x"), created: c[3], deadline: c[4], owner: c[5], task: c[6], note_path: action.note_path }); } }); }
+      let fileBody = clean; let fileMeta = { id: "", type: "NOTE", status: "ACTIVE", tags: "" }; let fileActions: ActionItem[] = [];
+      if (clean.includes(METADATA_SEPARATOR)) { const parts = clean.split(METADATA_SEPARATOR); fileBody = parts[0]; const m = parts[1]; if (m) { if (m.includes("ID:")) fileMeta.id = m.split("ID:")[1].split("\n")[0].trim(); if (m.includes("TYPE:")) fileMeta.type = m.split("TYPE:")[1].split("\n")[0].trim(); if (m.includes("STATUS:")) fileMeta.status = m.split("STATUS:")[1].split("\n")[0].trim(); if (m.includes("TAGS:")) fileMeta.tags = m.split("TAGS:")[1].split("\n")[0].trim(); } }
+      if (clean.includes(ACTION_HEADER_MARKER)) { const parts = clean.split(ACTION_HEADER_MARKER); fileBody = parts[0]; if (parts[1]) parts[1].split("\n").forEach(l => { if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) { const c = l.split("|").map(x => x.trim()); if (c.length >= 7) fileActions.push({ id: generateUUID(), code: c[1], status: c[2].includes("x"), created: c[3], deadline: c[4], owner: c[5], task: c[6], note_path: action.note_path }); } }); }
 
       const target = fileActions.find(a => a.code === action.code); if (target) target.status = !target.status;
       const newContent = constructFullFile(fileBody.trim(), fileActions, fileMeta);
@@ -316,7 +354,6 @@ function App() {
     } catch (err) { alert("Erreur Master: " + err); }
   };
 
-  // --- RENDU ---
   if (!isStoreLoaded) return <div className="bg-black h-screen text-white flex items-center justify-center">LOADING...</div>;
   if (!vaultPath) return <WelcomeView onVaultSelected={handleVaultSelection} />;
 
@@ -324,7 +361,7 @@ function App() {
     <div className="h-screen w-screen bg-black text-white flex flex-col overflow-hidden font-sans">
       <div className="h-10 bg-gray-950 border-b border-gray-900 flex items-center justify-between px-4">
         <div className="flex items-center gap-6">
-          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V4.2</span>
+          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V4.3 AI READY</span>
           <div className="flex gap-1 bg-gray-900 p-1 rounded">
             <button onClick={() => setCurrentTab('COCKPIT')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'COCKPIT' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>COCKPIT</button>
             <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-purple-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>
@@ -435,6 +472,10 @@ function App() {
             {activeFile ? (
               <>
                 <div className="space-y-4">
+                  <div>
+                    <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">UUID (System)</label>
+                    <input type="text" value={metadata.id} disabled className="w-full bg-gray-900/50 border border-gray-900 text-gray-600 text-[9px] rounded p-2 font-mono select-all" />
+                  </div>
                   <div>
                     <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">Project Status</label>
                     <select value={metadata.status} onChange={(e) => { setMetadata({ ...metadata, status: e.target.value }); setIsDirty(true); }} className="w-full bg-gray-900 border border-gray-800 text-gray-300 text-xs rounded p-2 focus:border-blue-500 focus:outline-none"> <option value="ACTIVE">🟢 ACTIVE</option> <option value="HOLD">🟠 ON HOLD</option> <option value="DONE">🔵 COMPLETED</option> <option value="ARCHIVED">⚫ ARCHIVED</option> </select>
