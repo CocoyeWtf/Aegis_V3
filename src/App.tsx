@@ -57,6 +57,22 @@ function App() {
     }
   };
 
+  const handleCloseVault = async () => {
+    try {
+      if (!confirm("Fermer le Cockpit actuel ?")) return;
+      const store = new LazyStore(STORE_PATH);
+      await store.set("vault_path", null);
+      await store.save();
+      setVaultPath(null);
+      setFileTree([]);
+      setGlobalActions([]);
+      setActiveFile("");
+      setBodyContent("");
+    } catch (e) {
+      alert("Erreur fermeture: " + e);
+    }
+  };
+
   const [status, setStatus] = useState<string>("BOOTING...");
   const [db, setDb] = useState<Database | null>(null);
 
@@ -313,7 +329,17 @@ function App() {
               );
             })}
           </div>
-          {selectedFolder && !activeFile && (<div className="p-2 border-t border-gray-900 bg-red-950/20"><p className="text-[10px] text-red-400 mb-1 px-1">Selected: {selectedFolder}</p><button onClick={handleDeleteFolder} className="w-full bg-red-900/50 hover:bg-red-800 text-white text-xs py-1 rounded font-bold border border-red-700">DELETE FOLDER</button></div>)}
+          <div className="p-2 border-t border-gray-900 mt-auto flex flex-col gap-2">
+            {selectedFolder && !activeFile && (
+              <div className="bg-red-950/20 p-2 rounded mb-2">
+                <p className="text-[10px] text-red-400 mb-1 px-1">Selected: {selectedFolder}</p>
+                <button onClick={handleDeleteFolder} className="w-full bg-red-900/50 hover:bg-red-800 text-white text-xs py-1 rounded font-bold border border-red-700">DELETE FOLDER</button>
+              </div>
+            )}
+            <button onClick={handleCloseVault} className="flex items-center justify-center gap-2 w-full bg-gray-900 hover:bg-gray-800 text-gray-500 hover:text-white text-xs py-2 rounded transition-colors border border-transparent hover:border-gray-700">
+              <span>⏻</span> CLOSE VAULT
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 bg-black flex flex-col relative overflow-hidden">
