@@ -76,9 +76,17 @@ fn create_note(path: String, content: String) -> Result<(), String> {
 #[tauri::command]
 fn delete_note(path: String) -> Result<(), String> { std::fs::remove_file(path).map_err(|e| e.to_string()) }
 #[tauri::command]
+fn delete_folder(path: String) -> Result<(), String> {
+    std::fs::remove_dir_all(path).map_err(|e| e.to_string())
+}
+#[tauri::command]
 fn open_external_file(path: String) -> Result<(), String> { open::that(path).map_err(|e| e.to_string()) }
 #[tauri::command]
 fn read_all_files(_path: String) -> Result<Vec<(String, String)>, String> { Ok(Vec::new()) }
+#[tauri::command]
+fn create_folder(path: String) -> Result<(), String> {
+    std::fs::create_dir_all(path).map_err(|e| e.to_string())
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -86,7 +94,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_sql::Builder::default().add_migrations("sqlite:aegis_v4.db", get_migrations()).build())
         .invoke_handler(tauri::generate_handler![
-            check_system_status, scan_vault_recursive, read_note, save_note, create_note, delete_note, read_all_files, open_external_file
+            check_system_status, scan_vault_recursive, read_note, save_note, create_note, delete_note, delete_folder, read_all_files, open_external_file, create_folder
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
