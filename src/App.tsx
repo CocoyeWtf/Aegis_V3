@@ -277,7 +277,41 @@ function App() {
   const findRelatedNotes = async (currentFile: string, tags: string, database: Database) => { if (!tags) { setRelatedNotes([]); return; } const tagList = tags.split(/[;,]/).map(t => t.trim()).filter(t => t.length > 0); if (tagList.length === 0) { setRelatedNotes([]); return; } let sql = "SELECT id, path, tags FROM notes WHERE path != $1 AND ("; const params: any[] = [currentFile]; tagList.forEach((tag, index) => { if (index > 0) sql += " OR "; sql += `tags LIKE $${index + 2}`; params.push(`%${tag}%`); }); sql += ") ORDER BY last_synced DESC LIMIT 5"; try { const results = await database.select<Note[]>(sql, params); setRelatedNotes(results); } catch (err) { console.error(err); } };
   const toggleFolderExpand = (path: string) => { const next = new Set(expandedFolders); if (next.has(path)) next.delete(path); else next.add(path); setExpandedFolders(next); };
   const isVisibleInTree = (nodePath: string) => { const parts = nodePath.split('/'); let currentPath = parts[0]; for (let i = 0; i < parts.length - 1; i++) { if (!expandedFolders.has(currentPath)) return false; currentPath += `/${parts[i + 1]}`; } return true; };
-  const handleCreateNote = async () => { const name = prompt(`Créer une note dans "${selectedFolder || 'Racine'}" :`); if (!name) return; const prefix = selectedFolder ? `${selectedFolder}/` : ""; const finalName = name.endsWith(".md") ? name : `${name}.md`; const fullPath = `${vaultPath}\\${prefix}${finalName}`.replace(/\//g, '\\'); const template = `# ${finalName.replace('.md', '')}\n\nCreated: ${new Date().toLocaleString()}\n\n`; try { await invoke("create_note", { path: fullPath, content: template }); await handleScan(); setActiveFile(`${prefix}${finalName}`); setBodyContent(template); } catch (e) { alert("Erreur : " + e); } };
+  const handleCreateNote = async () => {
+    try {
+      // FORCE INBOX FIRST STRATEGY
+      const targetFolder = selectedFolder || "01_Inbox";
+      const baseName = "Untitled";
+      let finalName = `${baseName}.md`;
+      let counter = 1;
+
+      // Simple client-side check for duplicates (not perfect but faster than roundtrip)
+      // Ideally backend handled, but logic here is sufficient for V3
+      while (fileTree.some(n => n.path === `${targetFolder}/${finalName}`)) {
+        finalName = `${baseName} ${counter}.md`;
+        counter++;
+      }
+
+      const fullPath = `${vaultPath}\\${targetFolder}\\${finalName}`.replace(/\//g, '\\');
+      const template = `# ${finalName.replace('.md', '')}\n\nCreated: ${new Date().toLocaleString()}\n\n`; // Empty content by default
+
+      // Ensure folder exists (if manual creation was missed)
+      if (targetFolder === "01_Inbox") {
+        await invoke("create_folder", { path: `${vaultPath}\\01_Inbox` });
+      }
+
+      await invoke("create_note", { path: fullPath, content: template });
+      await handleScan();
+
+      // Auto-open
+      setActiveFile(`${targetFolder}/${finalName}`);
+      setSelectedFolder(targetFolder);
+      setBodyContent(template);
+      setCurrentTab('COCKPIT');
+    } catch (e) {
+      alert("Erreur création auto: " + e);
+    }
+  };
   const handleCreateFolder = async () => { const name = prompt(`Créer un dossier dans "${selectedFolder || 'Racine'}" :`); if (!name) return; const prefix = selectedFolder ? `${selectedFolder}/` : ""; const fullPath = `${vaultPath}\\${prefix}${name}`.replace(/\//g, '\\'); try { await invoke("create_folder", { path: fullPath }); await handleScan(); } catch (e) { alert("Erreur : " + e); } };
   const handleDeleteFolder = async () => { if (!selectedFolder || !confirm(`DANGER : Supprimer "${selectedFolder}" ?`)) return; try { const fullPath = `${vaultPath}\\${selectedFolder.replace(/\//g, '\\')}`; await invoke("delete_folder", { path: fullPath }); if (db) await db.execute("DELETE FROM notes WHERE path LIKE $1", [`${selectedFolder}%`]); setSelectedFolder(""); await handleScan(); } catch (e) { alert("Erreur : " + e); } };
   const handleDeleteFile = async () => { if (!activeFile || !confirm(`Supprimer "${activeFile}" ?`)) return; try { const fullPath = `${vaultPath}\\${activeFile.replace(/\//g, '\\')}`; await invoke("delete_note", { path: fullPath }); if (db) await db.execute("DELETE FROM notes WHERE path = $1", [activeFile]); setActiveFile(""); setBodyContent(""); await handleScan(); } catch (e) { alert("Erreur : " + e); } };

@@ -107,7 +107,7 @@ fn create_vault_directory(path: String) -> Result<(), String> {
         std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
     }
     // Create basic structure
-    let inbox = std::path::Path::new(&path).join("00_Inbox");
+    let inbox = std::path::Path::new(&path).join("01_Inbox");
     let projects = std::path::Path::new(&path).join("10_Projects");
     if !inbox.exists() { std::fs::create_dir_all(inbox).map_err(|e| e.to_string())?; }
     if !projects.exists() { std::fs::create_dir_all(projects).map_err(|e| e.to_string())?; }
