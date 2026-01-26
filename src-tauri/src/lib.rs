@@ -6,7 +6,7 @@ use std::fs;
 
 // --- UTILITY FUNCTIONS ---
 
-// Helper function for recursive scanning (if needed internally, though scan_vault_recursive does similar)
+// Helper function for recursive scanning
 fn get_all_md_files(dir: &Path) -> std::io::Result<Vec<std::path::PathBuf>> {
     let mut files = Vec::new();
     if let Ok(entries) = fs::read_dir(dir) {
@@ -127,8 +127,6 @@ fn create_folder(path: String) -> Result<(), String> {
 fn get_active_vault(app: tauri::AppHandle) -> Result<String, String> {
     use tauri_plugin_store::StoreExt;
     let store = app.store("aegis_config.json").map_err(|e| e.to_string())?;
-    // Note: Store access from backend can be complex, usually better handled by frontend passing path
-    // But keeping structure for future use if needed.
     Err("Not implemented correctly yet - need direct store".to_string()) 
 }
 
@@ -189,6 +187,25 @@ fn move_file_system_entry(source_path: String, destination_folder: String) -> Re
 }
 
 #[tauri::command]
+fn rename_item(vault_path: String, old_path: String, new_name: String) -> Result<(), String> {
+    let root = std::path::Path::new(&vault_path);
+    let source = root.join(&old_path);
+    
+    if !source.exists() {
+        return Err("L'élément n'existe pas".to_string());
+    }
+
+    let parent = source.parent().ok_or("Erreur parent")?;
+    let new_path = parent.join(&new_name);
+
+    if new_path.exists() {
+        return Err("Un élément porte déjà ce nom".to_string());
+    }
+
+    std::fs::rename(source, new_path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn update_links_on_move(vault_path: String, old_path_rel: String, new_path_rel: String) -> Result<String, String> {
     let old_slash = old_path_rel.replace("\\", "/");
     let new_slash = new_path_rel.replace("\\", "/");
@@ -233,8 +250,6 @@ fn update_links_on_move(vault_path: String, old_path_rel: String, new_path_rel: 
  
                      // Remplacement Lien Nom Seul (si unique ou simple)
                      if new_content.contains(&old_link_base) {
-                          // Par sécurité, on remplace par le nouveau chemin relatif complet (sans extension)
-                          // pour éviter les ambiguités futures
                           new_content = new_content.replace(&old_link_base, &new_link_no_ext);
                           modified = true;
                      }
@@ -275,7 +290,8 @@ pub fn run() {
             create_folder,
             create_vault_directory,
             move_file_system_entry,
-            update_links_on_move
+            update_links_on_move,
+            rename_item // <--- La nouvelle commande
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
