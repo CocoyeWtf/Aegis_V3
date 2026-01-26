@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Database from "@tauri-apps/plugin-sql";
 import { LazyStore } from "@tauri-apps/plugin-store";
@@ -12,12 +12,7 @@ const ACTION_HEADER_MARKER = "## PLAN D'ACTION";
 const STORE_PATH = "aegis_config.json";
 
 // --- TYPES ---
-interface NoteMetadata {
-  id: string; // L'ID est maintenant obligatoire dans les métadonnées
-  type: string;
-  status: string;
-  tags: string;
-}
+interface NoteMetadata { id: string; type: string; status: string; tags: string; }
 interface ActionItem {
   id: string; code: string; status: boolean; created: string; deadline: string;
   owner: string; task: string; note_path?: string; collapsed?: boolean;
@@ -28,7 +23,6 @@ interface Note { id: string; path: string; tags?: string; }
 function generateUUID() { return crypto.randomUUID(); }
 function getTodayDate() { return new Date().toISOString().split('T')[0]; }
 
-// Fonction de hachage SHA-256 (Pour vérifier l'intégrité du contenu)
 async function computeContentHash(text: string): Promise<string> {
   const msgBuffer = new TextEncoder().encode(text);
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
@@ -37,12 +31,14 @@ async function computeContentHash(text: string): Promise<string> {
 }
 
 function App() {
-  // --- STATE ---
+  // --- STATE SYSTEME ---
   const [vaultPath, setVaultPath] = useState<string | null>(null);
   const [isStoreLoaded, setIsStoreLoaded] = useState(false);
   const [status, setStatus] = useState<string>("BOOTING...");
   const [db, setDb] = useState<Database | null>(null);
   const [syncStatus, setSyncStatus] = useState<string>("");
+
+  // UI STATE
   const [currentTab, setCurrentTab] = useState<'COCKPIT' | 'MASTER_PLAN'>('COCKPIT');
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [activeFile, setActiveFile] = useState<string>("");
@@ -50,20 +46,23 @@ function App() {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [isDirty, setIsDirty] = useState(false);
 
+  // CONTENT STATE
   const [bodyContent, setBodyContent] = useState<string>("");
   const [localActions, setLocalActions] = useState<ActionItem[]>([]);
   const [globalActions, setGlobalActions] = useState<ActionItem[]>([]);
   const [metadata, setMetadata] = useState<NoteMetadata>({ id: "", type: "NOTE", status: "ACTIVE", tags: "" });
+
+  // INTELLIGENCE RELATIONNELLE
   const [relatedNotes, setRelatedNotes] = useState<Note[]>([]);
+  const [detectedLinks, setDetectedLinks] = useState<string[]>([]);
+  const [backlinks, setBacklinks] = useState<Note[]>([]);
+
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   // --- INIT ---
   useEffect(() => {
     const loadConfig = async () => {
-      try {
-        const store = new LazyStore(STORE_PATH);
-        const path = await store.get<string>("vault_path");
-        if (path) setVaultPath(path);
-      } catch (e) { console.error(e); } finally { setIsStoreLoaded(true); }
+      try { const store = new LazyStore(STORE_PATH); const path = await store.get<string>("vault_path"); if (path) setVaultPath(path); } catch (e) { console.error(e); } finally { setIsStoreLoaded(true); }
     }; loadConfig();
   }, []);
 
@@ -72,13 +71,13 @@ function App() {
     const init = async () => {
       try {
         const sysMsg = await invoke<string>("check_system_status");
-        const database = await Database.load("sqlite:aegis_v4.db");
+        const database = await Database.load("sqlite:aegis_v7.db");
         setDb(database); setStatus(`${sysMsg}`); handleScan(database);
-      } catch (err) { setStatus("SYSTEM FAILURE"); }
+      } catch (err) { setStatus("SYSTEM FAILURE"); console.error(err); }
     }; init();
   }, [vaultPath]);
 
-  // --- PARSING & CONSTRUCTION (AVEC ID STABLE) ---
+  // --- PARSING ---
   const sortActionsSemantic = (actions: ActionItem[]) => {
     return [...actions].sort((a, b) => {
       if (a.note_path && b.note_path && a.note_path !== b.note_path) return a.note_path!.localeCompare(b.note_path!);
@@ -101,181 +100,87 @@ function App() {
     let actions: ActionItem[] = [];
     const seenCodes = new Set<string>();
 
-    // Extraction Metadata
     if (text.includes(METADATA_SEPARATOR)) {
-      const parts = text.split(METADATA_SEPARATOR);
-      text = parts[0];
-      const metaBlock = parts[1];
-      if (metaBlock) {
-        metaBlock.split("\n").forEach(line => {
-          if (line.startsWith("ID:")) meta.id = line.replace("ID:", "").trim();
-          if (line.startsWith("TYPE:")) meta.type = line.replace("TYPE:", "").trim();
-          if (line.startsWith("STATUS:")) meta.status = line.replace("STATUS:", "").trim();
-          if (line.startsWith("TAGS:")) meta.tags = line.replace("TAGS:", "").trim();
-        });
-      }
+      const parts = text.split(METADATA_SEPARATOR); text = parts[0]; const metaBlock = parts[1];
+      if (metaBlock) { metaBlock.split("\n").forEach(line => { if (line.startsWith("ID:")) meta.id = line.replace("ID:", "").trim(); if (line.startsWith("TYPE:")) meta.type = line.replace("TYPE:", "").trim(); if (line.startsWith("STATUS:")) meta.status = line.replace("STATUS:", "").trim(); if (line.startsWith("TAGS:")) meta.tags = line.replace("TAGS:", "").trim(); }); }
+    }
+    if (text.includes(ACTION_HEADER_MARKER)) {
+      const parts = text.split(ACTION_HEADER_MARKER); text = parts[0];
+      if (parts[1]) { parts[1].split("\n").forEach(line => { if (line.trim().startsWith("|") && !line.includes("---") && !line.includes("| ID |")) { const cols = line.split("|").map(c => c.trim()); if (cols.length >= 7) { const code = cols[1] || ""; if (code && !seenCodes.has(code)) { seenCodes.add(code); actions.push({ id: generateUUID(), code: code, status: cols[2].toLowerCase().includes("x"), created: cols[3], deadline: cols[4], owner: cols[5], task: cols[6], note_path: filePath, collapsed: false }); } } } }); }
     }
 
-    // Extraction Actions
-    if (text.includes(ACTION_HEADER_MARKER)) {
-      const parts = text.split(ACTION_HEADER_MARKER);
-      text = parts[0];
-      if (parts[1]) {
-        parts[1].split("\n").forEach(line => {
-          if (line.trim().startsWith("|") && !line.includes("---") && !line.includes("| ID |")) {
-            const cols = line.split("|").map(c => c.trim());
-            if (cols.length >= 7) {
-              const code = cols[1] || "";
-              if (code && !seenCodes.has(code)) {
-                seenCodes.add(code);
-                actions.push({ id: generateUUID(), code: code, status: cols[2].toLowerCase().includes("x"), created: cols[3], deadline: cols[4], owner: cols[5], task: cols[6], note_path: filePath, collapsed: false });
-              }
-            }
-          }
-        });
-      }
-    }
+    const linkRegex = /\[\[(.*?)\]\]/g;
+    const links: string[] = [];
+    let match;
+    while ((match = linkRegex.exec(text)) !== null) { links.push(match[1]); }
 
     setBodyContent(text.trim());
     setMetadata(meta);
     setLocalActions(sortActionsSemantic(actions));
-    if (db) findRelatedNotes(filePath, meta.tags, db);
+    setDetectedLinks(links);
+
+    if (db) {
+      findRelatedNotes(filePath, meta.tags, db);
+      findBacklinks(filePath, db);
+    }
+  };
+
+  const handleContentChange = (newContent: string) => {
+    setBodyContent(newContent); setIsDirty(true);
+    const linkRegex = /\[\[(.*?)\]\]/g; const links: string[] = []; let match;
+    while ((match = linkRegex.exec(newContent)) !== null) { links.push(match[1]); }
+    setDetectedLinks(links);
   };
 
   const constructFullFile = (content: string, actions: ActionItem[], meta: NoteMetadata) => {
     let file = content + "\n\n";
     if (actions.length > 0) {
-      const sortedActions = sortActionsSemantic(actions);
-      file += `${ACTION_HEADER_MARKER}\n`;
-      file += "| ID | Etat | Créé le | Deadline | Pilote | Action |\n";
-      file += "| :--- | :---: | :--- | :--- | :--- | :--- |\n";
-      sortedActions.forEach(a => { file += `| ${a.code} | [${a.status ? 'x' : ' '}] | ${a.created} | ${a.deadline} | ${a.owner} | ${a.task} |\n`; });
+      const sortedActions = sortActionsSemantic(actions); file += `${ACTION_HEADER_MARKER}\n`; file += "| ID | Etat | Créé le | Deadline | Pilote | Action |\n"; file += "| :--- | :---: | :--- | :--- | :--- | :--- |\n"; sortedActions.forEach(a => { file += `| ${a.code} | [${a.status ? 'x' : ' '}] | ${a.created} | ${a.deadline} | ${a.owner} | ${a.task} |\n`; });
     }
-    // ECRITURE DU PIED DE PAGE TECHNIQUE
-    file += `\n\n${METADATA_SEPARATOR}\n`;
-    file += `ID: ${meta.id || generateUUID()}\n`; // Sécurité si ID vide
-    file += `TYPE: ${meta.type}\nSTATUS: ${meta.status}\nTAGS: ${meta.tags}`;
-    return file;
+    file += `\n\n${METADATA_SEPARATOR}\n`; file += `ID: ${meta.id || generateUUID()}\n`; file += `TYPE: ${meta.type}\nSTATUS: ${meta.status}\nTAGS: ${meta.tags}`; return file;
   };
 
-  // --- SCAN INTELLIGENT (INJECTION D'ID) ---
   const handleScan = async (databaseInstance?: Database) => {
     const database = databaseInstance || db; if (!database) return; setSyncStatus("INDEXING...");
     try {
       const nodes = await invoke<FileNode[]>("scan_vault_recursive", { root: vaultPath });
       setFileTree(nodes.sort((a, b) => a.path.localeCompare(b.path)));
-
       await database.execute("DELETE FROM actions");
-
       for (const node of nodes) {
         if (node.is_dir || node.extension !== "md") continue;
+        let cleanContent = node.content.replace(/\r\n/g, "\n"); let fileId = ""; let type = "NOTE", status = "ACTIVE", tags = "";
 
-        let cleanContent = node.content.replace(/\r\n/g, "\n");
-        let fileId = "";
-        let type = "NOTE", status = "ACTIVE", tags = "";
-        let contentWasModified = false;
+        if (cleanContent.includes(METADATA_SEPARATOR)) { const parts = cleanContent.split(METADATA_SEPARATOR); const m = parts[1]; if (m) { if (m.includes("ID:")) fileId = m.split("ID:")[1].split("\n")[0].trim(); if (m.includes("TYPE:")) type = m.split("TYPE:")[1].split("\n")[0].trim(); if (m.includes("STATUS:")) status = m.split("STATUS:")[1].split("\n")[0].trim(); if (m.includes("TAGS:")) tags = m.split("TAGS:")[1].split("\n")[0].trim(); } }
+        if (fileId) { const conflict = await database.select<any[]>("SELECT path FROM notes WHERE id = $1 AND path != $2", [fileId, node.path]); if (conflict.length > 0) { fileId = ""; } }
+        if (!fileId) { fileId = generateUUID(); if (cleanContent.includes(METADATA_SEPARATOR)) cleanContent = cleanContent.split(METADATA_SEPARATOR)[0].trim(); cleanContent += `\n\n${METADATA_SEPARATOR}\nID: ${fileId}\nTYPE: ${type}\nSTATUS: ${status}\nTAGS: ${tags}`; await invoke("save_note", { path: `${vaultPath}\\${node.path.replace(/\//g, '\\')}`, content: cleanContent }); }
 
-        // 1. Détection de l'ID existant
-        if (cleanContent.includes(METADATA_SEPARATOR)) {
-          const parts = cleanContent.split(METADATA_SEPARATOR);
-          const m = parts[1];
-          if (m) {
-            if (m.includes("ID:")) fileId = m.split("ID:")[1].split("\n")[0].trim();
-            if (m.includes("TYPE:")) type = m.split("TYPE:")[1].split("\n")[0].trim();
-            if (m.includes("STATUS:")) status = m.split("STATUS:")[1].split("\n")[0].trim();
-            if (m.includes("TAGS:")) tags = m.split("TAGS:")[1].split("\n")[0].trim();
-          }
-        }
-
-        // 2. INJECTION D'ID si manquant (AI Readiness)
-        if (!fileId) {
-          fileId = generateUUID();
-          // On ajoute le bloc metadata proprement
-          const newMetadata = `\n\n${METADATA_SEPARATOR}\nID: ${fileId}\nTYPE: ${type}\nSTATUS: ${status}\nTAGS: ${tags}`;
-          cleanContent += newMetadata;
-          // Sauvegarde physique immédiate pour graver l'ID
-          await invoke("save_note", { path: `${vaultPath}\\${node.path.replace(/\//g, '\\')}`, content: cleanContent });
-          contentWasModified = true;
-        }
-
-        // 3. Calcul du Hash (pour intégrité future)
-        const contentHash = await computeContentHash(cleanContent);
-
-        // 4. Indexation DB (On utilise le VRAI ID du fichier, plus un ID aléatoire)
-        // Note: Pour V4, on stocke l'ID fichier dans la colonne 'id' de la DB.
-        // Si la DB a des vieux IDs, ce n'est pas grave, on écrase ou on insère.
+        const hash = await computeContentHash(cleanContent);
         const exists = await database.select<any[]>("SELECT id FROM notes WHERE path = $1", [node.path]);
+        if (exists.length === 0) { await database.execute("INSERT INTO notes (id, path, last_synced, content, type, status, tags, content_hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", [fileId, node.path, Date.now(), cleanContent, type, status, tags, hash]); }
+        else { await database.execute("UPDATE notes SET id=$1, last_synced=$2, content=$3, type=$4, status=$5, tags=$6, content_hash=$7 WHERE path=$8", [fileId, Date.now(), cleanContent, type, status, tags, hash, node.path]); }
 
-        if (exists.length === 0) {
-          // Nouvelle entrée
-          await database.execute(
-            "INSERT INTO notes (id, path, last_synced, content, type, status, tags) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-            [fileId, node.path, Date.now(), cleanContent, type, status, tags]
-          );
-        } else {
-          // Mise à jour (On force l'ID de la DB à matcher l'ID du fichier)
-          await database.execute(
-            "UPDATE notes SET id=$1, last_synced=$2, content=$3, type=$4, status=$5, tags=$6 WHERE path=$7",
-            [fileId, Date.now(), cleanContent, type, status, tags, node.path]
-          );
-        }
-
-        // 5. Indexation Actions
         const seenCodesInFile = new Set<string>();
-        if (cleanContent.includes(ACTION_HEADER_MARKER)) {
-          const parts = cleanContent.split(ACTION_HEADER_MARKER);
-          if (parts[1]) {
-            parts[1].split("\n").forEach(async (line) => {
-              if (line.trim().startsWith("|") && !line.includes("---") && !line.includes("| ID |")) {
-                const c = line.split("|").map(x => x.trim());
-                if (c.length >= 7) {
-                  const code = c[1];
-                  if (code && !seenCodesInFile.has(code)) {
-                    seenCodesInFile.add(code);
-                    await database.execute(
-                      "INSERT INTO actions (id, note_path, code, status, task, owner, created_at, deadline, comment) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-                      [generateUUID(), node.path, code, c[2].includes("x") ? 'DONE' : 'TODO', c[6], c[5], c[3], c[4], ""]
-                    );
-                  }
-                }
-              }
-            });
-          }
-        }
+        if (cleanContent.includes(ACTION_HEADER_MARKER)) { const parts = cleanContent.split(ACTION_HEADER_MARKER); if (parts[1]) { parts[1].split("\n").forEach(async (line) => { if (line.trim().startsWith("|") && !line.includes("---") && !line.includes("| ID |")) { const c = line.split("|").map(x => x.trim()); if (c.length >= 7) { const code = c[1]; if (code && !seenCodesInFile.has(code)) { seenCodesInFile.add(code); await database.execute("INSERT INTO actions (id, note_path, code, status, task, owner, created_at, deadline, comment) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", [generateUUID(), node.path, code, c[2].includes("x") ? 'DONE' : 'TODO', c[6], c[5], c[3], c[4], ""]); } } } }); } }
       }
-      setSyncStatus(`READY`);
-      const allActionsRaw = await database.select<any[]>("SELECT * FROM actions");
-      const allActionsTyped = allActionsRaw.map(a => ({ ...a, status: a.status === 'DONE', collapsed: false }));
-      setGlobalActions(sortActionsSemantic(allActionsTyped));
+      setSyncStatus(`READY`); const allActionsRaw = await database.select<any[]>("SELECT * FROM actions"); const allActionsTyped = allActionsRaw.map(a => ({ ...a, status: a.status === 'DONE', collapsed: false })); setGlobalActions(sortActionsSemantic(allActionsTyped));
     } catch (error) { console.error(error); setSyncStatus("SCAN ERROR"); }
   };
 
   const findRelatedNotes = async (currentFile: string, tags: string, database: Database) => { if (!tags) { setRelatedNotes([]); return; } const tagList = tags.split(/[;,]/).map(t => t.trim()).filter(t => t.length > 0); if (tagList.length === 0) { setRelatedNotes([]); return; } let sql = "SELECT id, path, tags FROM notes WHERE path != $1 AND ("; const params: any[] = [currentFile]; tagList.forEach((tag, index) => { if (index > 0) sql += " OR "; sql += `tags LIKE $${index + 2}`; params.push(`%${tag}%`); }); sql += ") ORDER BY last_synced DESC LIMIT 5"; try { const results = await database.select<Note[]>(sql, params); setRelatedNotes(results); } catch (err) { console.error(err); } };
 
-  // --- EVENTS ---
-  const handleVaultSelection = async (path: string) => { const store = new LazyStore(STORE_PATH); await store.set("vault_path", path); await store.save(); setVaultPath(path); };
-  const handleCloseVault = async () => { if (!confirm("Fermer le Cockpit ?")) return; const store = new LazyStore(STORE_PATH); await store.set("vault_path", null); await store.save(); setVaultPath(null); };
-
-  const handleCreateNote = async () => {
+  const findBacklinks = async (currentPath: string, database: Database) => {
     try {
-      const targetFolder = selectedFolder || "01_Inbox";
-      const baseName = "Untitled"; let finalName = `${baseName}.md`; let counter = 1;
-      while (fileTree.some(n => n.path === `${targetFolder}/${finalName}`)) { finalName = `${baseName} ${counter}.md`; counter++; }
-      const fullPath = `${vaultPath}\\${targetFolder}\\${finalName}`.replace(/\//g, '\\');
-
-      // CREATION AVEC ID
-      const newId = generateUUID();
-      const template = `# ${finalName.replace('.md', '')}\n\nCreated: ${new Date().toLocaleString()}\n\n\n\n${METADATA_SEPARATOR}\nID: ${newId}\nTYPE: NOTE\nSTATUS: ACTIVE\nTAGS: `;
-
-      if (targetFolder === "01_Inbox") await invoke("create_folder", { path: `${vaultPath}\\01_Inbox` });
-      await invoke("create_note", { path: fullPath, content: template });
-      await handleScan(); setActiveFile(`${targetFolder}/${finalName}`); setSelectedFolder(targetFolder);
-      // Parsing immédiat pour l'UI
-      parseFullFile(template, `${targetFolder}/${finalName}`);
-      setCurrentTab('COCKPIT');
-    } catch (e) { alert("Erreur: " + e); }
+      const nameNoExt = currentPath.split('/').pop()?.replace('.md', '') || "";
+      const pathNoExt = currentPath.replace('.md', '');
+      const sql = `SELECT id, path, tags FROM notes WHERE path != $1 AND (content LIKE $2 OR content LIKE $3)`;
+      const results = await database.select<Note[]>(sql, [currentPath, `%[[${pathNoExt}]]%`, `%[[${nameNoExt}]]%`]);
+      setBacklinks(results);
+    } catch (e) { console.error("Backlink error", e); }
   };
 
+  const handleVaultSelection = async (path: string) => { const store = new LazyStore(STORE_PATH); await store.set("vault_path", path); await store.save(); setVaultPath(path); };
+  const handleCloseVault = async () => { if (!confirm("Fermer le Cockpit ?")) return; const store = new LazyStore(STORE_PATH); await store.set("vault_path", null); await store.save(); setVaultPath(null); };
+  const handleCreateNote = async () => { try { const targetFolder = selectedFolder || "01_Inbox"; const baseName = "Untitled"; let finalName = `${baseName}.md`; let counter = 1; while (fileTree.some(n => n.path === `${targetFolder}/${finalName}`)) { finalName = `${baseName} ${counter}.md`; counter++; } const fullPath = `${vaultPath}\\${targetFolder}\\${finalName}`.replace(/\//g, '\\'); const newId = generateUUID(); const template = `# ${finalName.replace('.md', '')}\n\nCreated: ${new Date().toLocaleString()}\n\n\n\n${METADATA_SEPARATOR}\nID: ${newId}\nTYPE: NOTE\nSTATUS: ACTIVE\nTAGS: `; if (targetFolder === "01_Inbox") await invoke("create_folder", { path: `${vaultPath}\\01_Inbox` }); await invoke("create_note", { path: fullPath, content: template }); await handleScan(); setActiveFile(`${targetFolder}/${finalName}`); setSelectedFolder(targetFolder); parseFullFile(template, `${targetFolder}/${finalName}`); setCurrentTab('COCKPIT'); } catch (e) { alert("Erreur: " + e); } };
   const handleCreateFolder = async () => { const name = prompt("Nom du dossier :"); if (!name) return; const p = selectedFolder ? `${selectedFolder}/` : ""; await invoke("create_folder", { path: `${vaultPath}\\${p}${name}` }); await handleScan(); };
   const handleDeleteFolder = async () => { if (confirm("Supprimer ce dossier ?")) { await invoke("delete_folder", { path: `${vaultPath}\\${selectedFolder}` }); setSelectedFolder(""); await handleScan(); } };
   const handleDeleteFile = async () => { if (confirm("Supprimer ?")) { await invoke("delete_note", { path: `${vaultPath}\\${activeFile}` }); setActiveFile(""); await handleScan(); } };
@@ -283,85 +188,54 @@ function App() {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event; if (!over || active.id === over.id) return;
     try {
-      const fullSource = `${vaultPath}\\${(active.id as string).replace(/\//g, '\\')}`;
-      const fullDest = `${vaultPath}\\${(over.id as string).replace(/\//g, '\\')}`;
+      const activePath = active.id as string; const targetFolder = over.id as string;
+      const fullSource = `${vaultPath}\\${activePath.replace(/\//g, '\\')}`; const fullDest = `${vaultPath}\\${targetFolder.replace(/\//g, '\\')}`;
       await invoke("move_file_system_entry", { sourcePath: fullSource, destinationFolder: fullDest });
+      const fileName = activePath.split('/').pop() || ""; const oldLink = activePath.replace('.md', ''); const newLink = `${targetFolder}/${fileName.replace('.md', '')}`;
+      if (oldLink !== newLink) { await invoke("update_links_on_move", { vaultPath: vaultPath, oldPathRel: oldLink, newPathRel: newLink }); }
       await handleScan();
     } catch (e) { alert("Move Error: " + e); }
   };
 
+  const handleInsertLink = (node: FileNode) => {
+    if (!activeFile) return; const textArea = textAreaRef.current; if (!textArea) return;
+    const linkText = `[[${node.path.replace('.md', '')}]]`;
+    const startPos = textArea.selectionStart; const endPos = textArea.selectionEnd;
+    const charBefore = bodyContent.charAt(startPos - 1); const needsSpace = startPos > 0 && charBefore !== ' ' && charBefore !== '\n'; const textToInsert = (needsSpace ? ' ' : '') + linkText;
+    const newContent = bodyContent.substring(0, startPos) + textToInsert + bodyContent.substring(endPos);
+    handleContentChange(newContent);
+    setTimeout(() => { textArea.focus(); const newCursorPos = startPos + textToInsert.length; textArea.selectionStart = newCursorPos; textArea.selectionEnd = newCursorPos; }, 0);
+  };
+
   const toggleFolderExpand = (path: string) => { const next = new Set(expandedFolders); if (next.has(path)) next.delete(path); else next.add(path); setExpandedFolders(next); };
-
-  const handleNodeClick = async (node: FileNode) => {
-    if (node.is_dir) { setSelectedFolder(node.path === selectedFolder ? "" : node.path); setActiveFile(""); }
-    else {
-      setActiveFile(node.path); setSelectedFolder(node.path.split('/').slice(0, -1).join('/'));
-      const content = await invoke<string>("read_note", { path: `${vaultPath}\\${node.path}` });
-      parseFullFile(content, node.path);
-      setIsDirty(false); setCurrentTab('COCKPIT');
-    }
-  };
+  const handleNodeClick = async (node: FileNode) => { if (node.is_dir) { setSelectedFolder(node.path === selectedFolder ? "" : node.path); setActiveFile(""); } else { setActiveFile(node.path); setSelectedFolder(node.path.split('/').slice(0, -1).join('/')); const content = await invoke<string>("read_note", { path: `${vaultPath}\\${node.path}` }); parseFullFile(content, node.path); setIsDirty(false); setCurrentTab('COCKPIT'); } };
   const handleSave = async () => { if (activeFile) { const fullPath = `${vaultPath}\\${activeFile.replace(/\//g, '\\')}`; const finalContent = constructFullFile(bodyContent, localActions, metadata); await invoke("save_note", { path: fullPath, content: finalContent }); await handleScan(); setIsDirty(false); } };
-
-  // --- ACTIONS HELPERS ---
-  const addAction = (parentId?: string) => {
-    let newCode = "";
-    if (parentId) {
-      const siblings = localActions.filter(a => a.code.startsWith(parentId + ".") && a.code.split('.').length === parentId.split('.').length + 1);
-      let maxSuffix = 0; siblings.forEach(s => { const parts = s.code.split('.'); const suffix = parseInt(parts[parts.length - 1] || "0"); if (suffix > maxSuffix) maxSuffix = suffix; }); newCode = `${parentId}.${maxSuffix + 1}`;
-      setLocalActions(prev => prev.map(a => a.code === parentId ? { ...a, collapsed: false } : a));
-    } else {
-      const roots = localActions.filter(a => !a.code.includes("."));
-      let maxRoot = 0; roots.forEach(r => { const val = parseInt(r.code); if (val > maxRoot) maxRoot = val; }); newCode = (maxRoot + 1).toString();
-    }
-    const newItem = { id: generateUUID(), code: newCode, status: false, created: getTodayDate(), deadline: "", owner: "", task: "", collapsed: false, note_path: activeFile };
-    setLocalActions(prev => sortActionsSemantic([...prev, newItem])); setIsDirty(true);
-  };
+  const addAction = (parentId?: string) => { let newCode = ""; if (parentId) { const siblings = localActions.filter(a => a.code.startsWith(parentId + ".") && a.code.split('.').length === parentId.split('.').length + 1); let maxSuffix = 0; siblings.forEach(s => { const parts = s.code.split('.'); const suffix = parseInt(parts[parts.length - 1] || "0"); if (suffix > maxSuffix) maxSuffix = suffix; }); newCode = `${parentId}.${maxSuffix + 1}`; setLocalActions(prev => prev.map(a => a.code === parentId ? { ...a, collapsed: false } : a)); } else { const roots = localActions.filter(a => !a.code.includes(".")); let maxRoot = 0; roots.forEach(r => { const val = parseInt(r.code); if (val > maxRoot) maxRoot = val; }); newCode = (maxRoot + 1).toString(); } const newItem = { id: generateUUID(), code: newCode, status: false, created: getTodayDate(), deadline: "", owner: "", task: "", collapsed: false, note_path: activeFile }; setLocalActions(prev => sortActionsSemantic([...prev, newItem])); setIsDirty(true); };
   const updateAction = (id: string, field: keyof ActionItem, value: any) => { setLocalActions(prev => prev.map(a => a.id === id ? { ...a, [field]: value } : a)); setIsDirty(true); };
   const removeAction = (id: string, code: string) => { setLocalActions(prev => prev.filter(a => a.id !== id && !a.code.startsWith(code + "."))); setIsDirty(true); };
   const toggleLocalCollapse = (code: string) => { setLocalActions(prev => prev.map(a => a.code === code ? { ...a, collapsed: !a.collapsed } : a)); };
-  const isVisibleInCockpit = (action: ActionItem, list: ActionItem[]) => {
-    if (!action.code.includes('.')) return true;
-    const parts = action.code.split('.'); let currentCode = parts[0];
-    for (let i = 0; i < parts.length - 1; i++) { const parent = list.find(a => a.code === currentCode); if (parent && parent.collapsed) return false; currentCode += `.${parts[i + 1]}`; } return true;
-  };
-  const isVisibleInMaster = (action: ActionItem, list: ActionItem[]) => {
-    if (!action.code.includes('.')) return true;
-    const parts = action.code.split('.'); let currentCode = parts[0];
-    for (let i = 0; i < parts.length - 1; i++) { const parent = list.find(a => a.note_path === action.note_path && a.code === currentCode); if (parent && parent.collapsed) return false; currentCode += `.${parts[i + 1]}`; } return true;
-  };
+  const isVisibleInCockpit = (action: ActionItem, list: ActionItem[]) => { if (!action.code.includes('.')) return true; const parts = action.code.split('.'); let currentCode = parts[0]; for (let i = 0; i < parts.length - 1; i++) { const parent = list.find(a => a.code === currentCode); if (parent && parent.collapsed) return false; currentCode += `.${parts[i + 1]}`; } return true; };
+  const isVisibleInMaster = (action: ActionItem, list: ActionItem[]) => { if (!action.code.includes('.')) return true; const parts = action.code.split('.'); let currentCode = parts[0]; for (let i = 0; i < parts.length - 1; i++) { const parent = list.find(a => a.note_path === action.note_path && a.code === currentCode); if (parent && parent.collapsed) return false; currentCode += `.${parts[i + 1]}`; } return true; };
   const toggleGlobalCollapse = (notePath: string, code: string) => { setGlobalActions(prev => prev.map(a => (a.note_path === notePath && a.code === code) ? { ...a, collapsed: !a.collapsed } : a)); };
-
-  const openNote = async (notePath: string) => {
-    if (!notePath) return; try { const fullPath = `${vaultPath}\\${notePath.replace(/\//g, '\\')}`; const content = await invoke<string>("read_note", { path: fullPath }); setActiveFile(notePath); const folder = notePath.includes('/') ? notePath.substring(0, notePath.lastIndexOf('/')) : ""; setSelectedFolder(folder); parseFullFile(content, notePath); setIsDirty(false); setCurrentTab('COCKPIT'); } catch (e) { alert("Erreur ouverture: " + e); }
-  };
-  const toggleActionFromMaster = async (action: ActionItem) => {
-    if (!action.note_path) return;
-    try {
-      const fullPath = `${vaultPath}\\${action.note_path.replace(/\//g, '\\')}`;
-      const content = await invoke<string>("read_note", { path: fullPath });
-      // Parsing Rapide Normalisé
-      const clean = content.replace(/\r\n/g, "\n");
-      let fileBody = clean; let fileMeta = { id: "", type: "NOTE", status: "ACTIVE", tags: "" }; let fileActions: ActionItem[] = [];
-      if (clean.includes(METADATA_SEPARATOR)) { const parts = clean.split(METADATA_SEPARATOR); fileBody = parts[0]; const m = parts[1]; if (m) { if (m.includes("ID:")) fileMeta.id = m.split("ID:")[1].split("\n")[0].trim(); if (m.includes("TYPE:")) fileMeta.type = m.split("TYPE:")[1].split("\n")[0].trim(); if (m.includes("STATUS:")) fileMeta.status = m.split("STATUS:")[1].split("\n")[0].trim(); if (m.includes("TAGS:")) fileMeta.tags = m.split("TAGS:")[1].split("\n")[0].trim(); } }
-      if (clean.includes(ACTION_HEADER_MARKER)) { const parts = clean.split(ACTION_HEADER_MARKER); fileBody = parts[0]; if (parts[1]) parts[1].split("\n").forEach(l => { if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) { const c = l.split("|").map(x => x.trim()); if (c.length >= 7) fileActions.push({ id: generateUUID(), code: c[1], status: c[2].includes("x"), created: c[3], deadline: c[4], owner: c[5], task: c[6], note_path: action.note_path }); } }); }
-
-      const target = fileActions.find(a => a.code === action.code); if (target) target.status = !target.status;
-      const newContent = constructFullFile(fileBody.trim(), fileActions, fileMeta);
-      await invoke("save_note", { path: fullPath, content: newContent });
-      setGlobalActions(prev => prev.map(a => (a.note_path === action.note_path && a.code === action.code) ? { ...a, status: !a.status } : a));
-      if (db) await db.execute("UPDATE actions SET status = $1 WHERE note_path = $2 AND code = $3", [target?.status ? 'DONE' : 'TODO', action.note_path, action.code]);
-    } catch (err) { alert("Erreur Master: " + err); }
-  };
+  const openNote = async (notePath: string) => { if (!notePath) return; try { const fullPath = `${vaultPath}\\${notePath.replace(/\//g, '\\')}`; const content = await invoke<string>("read_note", { path: fullPath }); setActiveFile(notePath); const folder = notePath.includes('/') ? notePath.substring(0, notePath.lastIndexOf('/')) : ""; setSelectedFolder(folder); parseFullFile(content, notePath); setIsDirty(false); setCurrentTab('COCKPIT'); } catch (e) { alert("Erreur ouverture: " + e); } };
+  const toggleActionFromMaster = async (action: ActionItem) => { if (!action.note_path) return; try { const fullPath = `${vaultPath}\\${action.note_path.replace(/\//g, '\\')}`; const content = await invoke<string>("read_note", { path: fullPath }); const clean = content.replace(/\r\n/g, "\n"); let fileBody = clean; let fileMeta = { id: "", type: "NOTE", status: "ACTIVE", tags: "" }; let fileActions: ActionItem[] = []; if (clean.includes(METADATA_SEPARATOR)) { const parts = clean.split(METADATA_SEPARATOR); fileBody = parts[0]; const m = parts[1]; if (m) { if (m.includes("ID:")) fileMeta.id = m.split("ID:")[1].split("\n")[0].trim(); if (m.includes("TYPE:")) fileMeta.type = m.split("TYPE:")[1].split("\n")[0].trim(); if (m.includes("STATUS:")) fileMeta.status = m.split("STATUS:")[1].split("\n")[0].trim(); if (m.includes("TAGS:")) fileMeta.tags = m.split("TAGS:")[1].split("\n")[0].trim(); } } if (clean.includes(ACTION_HEADER_MARKER)) { const parts = clean.split(ACTION_HEADER_MARKER); fileBody = parts[0]; if (parts[1]) parts[1].split("\n").forEach(l => { if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) { const c = l.split("|").map(x => x.trim()); if (c.length >= 7) fileActions.push({ id: generateUUID(), code: c[1], status: c[2].includes("x"), created: c[3], deadline: c[4], owner: c[5], task: c[6], note_path: action.note_path }); } }); } const target = fileActions.find(a => a.code === action.code); if (target) target.status = !target.status; const newContent = constructFullFile(fileBody.trim(), fileActions, fileMeta); await invoke("save_note", { path: fullPath, content: newContent }); setGlobalActions(prev => prev.map(a => (a.note_path === action.note_path && a.code === action.code) ? { ...a, status: !a.status } : a)); if (db) await db.execute("UPDATE actions SET status = $1 WHERE note_path = $2 AND code = $3", [target?.status ? 'DONE' : 'TODO', action.note_path, action.code]); } catch (err) { alert("Erreur Master: " + err); } };
 
   if (!isStoreLoaded) return <div className="bg-black h-screen text-white flex items-center justify-center">LOADING...</div>;
   if (!vaultPath) return <WelcomeView onVaultSelected={handleVaultSelection} />;
 
   return (
     <div className="h-screen w-screen bg-black text-white flex flex-col overflow-hidden font-sans">
+      {/* STYLE POUR SCROLLBAR FINE */}
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #111; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #555; }
+      `}</style>
+
       <div className="h-10 bg-gray-950 border-b border-gray-900 flex items-center justify-between px-4">
         <div className="flex items-center gap-6">
-          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V4.3 AI READY</span>
+          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V9.1 UX CLEAN</span>
           <div className="flex gap-1 bg-gray-900 p-1 rounded">
             <button onClick={() => setCurrentTab('COCKPIT')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'COCKPIT' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>COCKPIT</button>
             <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-purple-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>
@@ -375,6 +249,7 @@ function App() {
           fileTree={fileTree} activeFile={activeFile} selectedFolder={selectedFolder} expandedFolders={expandedFolders}
           onToggleExpand={toggleFolderExpand} onNodeClick={handleNodeClick} onDragEnd={handleDragEnd}
           onCreateFolder={handleCreateFolder} onCreateNote={handleCreateNote} onDeleteFolder={handleDeleteFolder} onCloseVault={handleCloseVault}
+          onInsertLink={handleInsertLink}
         />
 
         <div className="flex-1 bg-black flex flex-col relative overflow-hidden">
@@ -389,6 +264,7 @@ function App() {
                     <button onClick={handleDeleteFile} className="text-xs bg-red-900/20 text-red-400 px-3 py-1.5 rounded">TRASH</button>
                   </div>
                 </div>
+
                 <div className="flex-1 overflow-auto p-6 max-w-6xl mx-auto w-full flex flex-col gap-6">
                   {/* ACTION PANEL */}
                   <div className="bg-gray-900/30 border border-gray-800 rounded-lg overflow-hidden flex flex-col max-h-[40vh]">
@@ -421,13 +297,20 @@ function App() {
                   </div>
                   {/* EDITOR */}
                   <div className="flex-1 min-h-[400px] border-t border-gray-900 pt-4">
-                    <textarea className="w-full h-full bg-black text-gray-300 font-mono text-base resize-none focus:outline-none leading-relaxed" value={bodyContent} onChange={(e) => { setBodyContent(e.target.value); setIsDirty(true); }} spellCheck={false} placeholder="Write your note here..." />
+                    <textarea
+                      ref={textAreaRef}
+                      className="w-full h-full bg-black text-gray-300 font-mono text-base resize-none focus:outline-none leading-relaxed"
+                      value={bodyContent}
+                      onChange={(e) => handleContentChange(e.target.value)}
+                      spellCheck={false}
+                      placeholder="Write your note here..."
+                    />
                   </div>
                 </div>
               </>
             ) : <div className="h-full flex items-center justify-center text-gray-800">NO FILE SELECTED</div>
           ) : (
-            // --- MASTER PLAN VIEW ---
+            // MASTER PLAN VIEW
             <div className="flex flex-col h-full bg-gray-950/50">
               <div className="h-16 border-b border-gray-900 flex items-center px-8 bg-black">
                 <h2 className="text-xl font-bold text-white tracking-widest flex items-center gap-3"><span className="text-purple-500">◈</span> GLOBAL MASTER PLAN</h2>
@@ -471,7 +354,40 @@ function App() {
             <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-900 pb-2">Context Pilot</h3>
             {activeFile ? (
               <>
-                <div className="space-y-4">
+                {/* --- MENTIONS ENTRANTES (BACKLINKS) --- */}
+                {backlinks.length > 0 && (
+                  <div className="mb-4">
+                    <h4 className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-2 flex items-center gap-2">Cited By <span className="bg-purple-900/30 text-purple-400 px-1.5 rounded-full text-[9px]">{backlinks.length}</span></h4>
+                    <ul className="space-y-1 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar">
+                      {backlinks.map(backlink => (
+                        <li key={backlink.id} onClick={() => openNote(backlink.path)} className="group cursor-pointer bg-purple-900/10 border border-purple-900/30 hover:bg-purple-900/30 p-2 rounded transition-all">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-purple-300 group-hover:text-white truncate font-medium">⬅ {backlink.path.replace('.md', '')}</span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* --- MENTIONS SORTANTES (DETECTED LINKS) --- */}
+                {detectedLinks.length > 0 && (
+                  <div className="mb-4">
+                    <h4 className="text-[10px] font-bold text-green-500 uppercase tracking-wider mb-2 flex items-center gap-2">Going To <span className="bg-green-900/30 text-green-400 px-1.5 rounded-full text-[9px]">{detectedLinks.length}</span></h4>
+                    <ul className="space-y-1 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar">
+                      {detectedLinks.map((link, idx) => (
+                        <li key={idx} onClick={() => openNote(link.endsWith('.md') ? link : `${link}.md`)} className="group cursor-pointer bg-green-900/10 border border-green-900/30 hover:bg-green-900/30 p-2 rounded transition-all">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-green-300 group-hover:text-white truncate font-medium">➡ {link}</span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* --- METADATA --- */}
+                <div className="space-y-4 pt-2 border-t border-gray-900">
                   <div>
                     <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">UUID (System)</label>
                     <input type="text" value={metadata.id} disabled className="w-full bg-gray-900/50 border border-gray-900 text-gray-600 text-[9px] rounded p-2 font-mono select-all" />
@@ -489,9 +405,11 @@ function App() {
                     <input type="text" value={metadata.tags} onChange={(e) => { setMetadata({ ...metadata, tags: e.target.value }); setIsDirty(true); }} className="w-full bg-gray-900 border border-gray-800 text-gray-300 text-xs rounded p-2 focus:border-blue-500 focus:outline-none font-mono" placeholder="tag1; tag2" />
                   </div>
                 </div>
+
+                {/* --- RELATED WORK (PAR TAGS) --- */}
                 <div className="mt-6 pt-6 border-t border-gray-900">
                   <h4 className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-3 flex items-center gap-2">Related Work <span className="bg-blue-900/30 text-blue-400 px-1.5 rounded-full text-[9px]">{relatedNotes.length}</span></h4>
-                  <ul className="space-y-2"> {relatedNotes.map(note => (<li key={note.id} onClick={() => { setActiveFile(note.path); openNote(note.path); }} className="group cursor-pointer bg-gray-900/30 border border-gray-900 hover:border-blue-800 hover:bg-gray-900 p-2 rounded transition-all"> <div className="flex items-center gap-2 mb-1"> <span className="text-[10px] opacity-50">doc</span> <span className="text-xs text-gray-300 group-hover:text-white truncate font-medium">{note.path.replace('.md', '')}</span> </div> <div className="flex gap-1 flex-wrap"> {metadata.tags && metadata.tags.split(';').map(t => (<span key={t} className="text-[9px] text-gray-600 bg-black px-1 rounded">{t}</span>))} </div> </li>))} </ul>
+                  <ul className="space-y-2 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar"> {relatedNotes.map(note => (<li key={note.id} onClick={() => { setActiveFile(note.path); openNote(note.path); }} className="group cursor-pointer bg-gray-900/30 border border-gray-900 hover:border-blue-800 hover:bg-gray-900 p-2 rounded transition-all"> <div className="flex items-center gap-2 mb-1"> <span className="text-[10px] opacity-50">doc</span> <span className="text-xs text-gray-300 group-hover:text-white truncate font-medium">{note.path.replace('.md', '')}</span> </div> <div className="flex gap-1 flex-wrap"> {metadata.tags && metadata.tags.split(';').map(t => (<span key={t} className="text-[9px] text-gray-600 bg-black px-1 rounded">{t}</span>))} </div> </li>))} </ul>
                 </div>
               </>
             ) : <div className="text-center text-gray-700 text-xs mt-10">No context available.</div>}

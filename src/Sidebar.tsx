@@ -9,7 +9,6 @@ import {
     PointerSensor
 } from "@dnd-kit/core";
 
-// --- TYPES ---
 export interface FileNode {
     path: string;
     name: string;
@@ -30,10 +29,10 @@ interface SidebarProps {
     onCreateNote: () => void;
     onDeleteFolder: () => void;
     onCloseVault: () => void;
+    onInsertLink: (node: FileNode) => void; // Nouvelle action
 }
 
-// --- SOUS-COMPOSANT : NOEUD INDIVIDUEL ---
-const SidebarNode = ({ node, activeFile, selectedFolder, expandedFolders, onToggleExpand, onNodeClick }: any) => {
+const SidebarNode = ({ node, activeFile, selectedFolder, expandedFolders, onToggleExpand, onNodeClick, onInsertLink }: any) => {
     const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({ id: node.path });
     const { setNodeRef: setDropRef, isOver } = useDroppable({ id: node.path, disabled: !node.is_dir });
 
@@ -46,7 +45,7 @@ const SidebarNode = ({ node, activeFile, selectedFolder, expandedFolders, onTogg
             ref={(el) => { setDragRef(el); if (node.is_dir) setDropRef(el); }}
             style={{ ...style, paddingLeft: `${depth * 12 + 8}px` }}
             {...listeners} {...attributes}
-            className={`cursor-pointer py-1.5 rounded text-sm flex items-center gap-2 truncate transition-colors border border-transparent 
+            className={`group/node py-1.5 rounded text-sm flex items-center gap-2 truncate transition-colors border border-transparent 
         ${activeFile === node.path ? "bg-blue-900/30 text-white border-blue-900" : ""} 
         ${isOver && node.is_dir ? "bg-purple-900/60 border-purple-500 scale-[1.02] shadow-lg shadow-purple-900/50" : ""}
         ${!isOver && selectedFolder === node.path && node.is_dir ? "bg-yellow-900/20 text-yellow-100 border-yellow-900/50" : ""}
@@ -58,29 +57,35 @@ const SidebarNode = ({ node, activeFile, selectedFolder, expandedFolders, onTogg
                 <span
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => { e.stopPropagation(); onToggleExpand(node.path); }}
-                    className="w-4 text-center hover:text-white font-bold text-[10px]"
+                    className="w-4 text-center hover:text-white font-bold text-[10px] cursor-pointer"
                 >
                     {isExpanded ? '▼' : '▶'}
                 </span>
             ) : <span className="w-4"></span>}
 
-            <span onClick={() => onNodeClick(node)} className="truncate flex-1 flex items-center gap-2">
+            <span onClick={() => onNodeClick(node)} className="truncate flex-1 flex items-center gap-2 cursor-pointer">
                 <span className="opacity-70 text-xs">{node.is_dir ? '📁' : '📝'}</span>
                 {node.name}
             </span>
+
+            {/* BOUTON MAGIQUE D'INSERTION DE LIEN (Visible au survol) */}
+            {!node.is_dir && (
+                <button
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); onInsertLink(node); }}
+                    className="opacity-0 group-hover/node:opacity-100 bg-blue-900 hover:bg-blue-600 text-white px-1.5 rounded text-[10px] mr-1 transition-opacity border border-blue-700"
+                    title="Insérer un lien vers cette note"
+                >
+                    🔗
+                </button>
+            )}
         </div>
     );
 };
 
-// --- COMPOSANT PRINCIPAL : SIDEBAR ---
 const Sidebar: React.FC<SidebarProps> = (props) => {
-    // CONFIGURATION CRITIQUE : Sépare le Clic du Drag (10px de marge)
     const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 10,
-            },
-        })
+        useSensor(PointerSensor, { activationConstraint: { distance: 10 } })
     );
 
     const isVisibleInTree = (nodePath: string) => {
@@ -113,6 +118,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                 expandedFolders={props.expandedFolders}
                                 onToggleExpand={props.onToggleExpand}
                                 onNodeClick={props.onNodeClick}
+                                onInsertLink={props.onInsertLink} // Passage de la fonction
                             />
                         );
                     })}
