@@ -1,10 +1,10 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::{Manager, Emitter}; // Ajout de Emitter pour l'événement de log si besoin
+use tauri::{Manager, Emitter}; 
 use std::fs;
 use std::path::Path;
-use std::process::Command; // Pour ouvrir les fichiers
+use std::process::Command;
 
 // --- TYPES ---
 #[derive(serde::Serialize, Clone)]
@@ -14,7 +14,7 @@ struct FileNode {
     is_dir: bool,
     children: Vec<FileNode>,
     extension: String,
-    content: String, // Préchargement léger (pour les .md)
+    content: String,
 }
 
 // --- COMMANDS ---
@@ -23,32 +23,21 @@ struct FileNode {
 fn open_file(path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        Command::new("cmd")
-            .args(["/C", "start", "", &path])
-            .spawn()
-            .map_err(|e| e.to_string())?;
+        Command::new("cmd").args(["/C", "start", "", &path]).spawn().map_err(|e| e.to_string())?;
     }
     #[cfg(target_os = "macos")]
     {
-        Command::new("open")
-            .arg(&path)
-            .spawn()
-            .map_err(|e| e.to_string())?;
+        Command::new("open").arg(&path).spawn().map_err(|e| e.to_string())?;
     }
     #[cfg(target_os = "linux")]
     {
-        Command::new("xdg-open")
-            .arg(&path)
-            .spawn()
-            .map_err(|e| e.to_string())?;
+        Command::new("xdg-open").arg(&path).spawn().map_err(|e| e.to_string())?;
     }
     Ok(())
 }
 
 #[tauri::command]
-fn check_system_status() -> String {
-    "SYSTEM_READY".to_string()
-}
+fn check_system_status() -> String { "SYSTEM_READY".to_string() }
 
 #[tauri::command]
 fn create_folder(path: String) -> Result<String, String> {
@@ -98,7 +87,6 @@ fn move_file_system_entry(source_path: String, destination_folder: String) -> Re
     Ok("OK".to_string())
 }
 
-// Fonction utilitaire pour la récursion
 fn visit_dirs(dir: &Path, root_str: &str) -> Vec<FileNode> {
     let mut nodes = Vec::new();
     if let Ok(entries) = fs::read_dir(dir) {
@@ -107,11 +95,9 @@ fn visit_dirs(dir: &Path, root_str: &str) -> Vec<FileNode> {
                 let path = entry.path();
                 let name = entry.file_name().to_string_lossy().to_string();
                 
-                // Ignorer .git, .vscode, et les fichiers systèmes cachés
                 if name.starts_with('.') || name == "System Volume Information" { continue; }
 
                 let is_dir = path.is_dir();
-                // Relativiser le path pour l'UI (ex: "01_Inbox/Note.md")
                 let full_path_str = path.to_string_lossy().to_string();
                 let relative_path = full_path_str.replace(root_str, "").trim_start_matches('\\').trim_start_matches('/').replace('\\', "/");
 
@@ -123,8 +109,8 @@ fn visit_dirs(dir: &Path, root_str: &str) -> Vec<FileNode> {
                     children = visit_dirs(&path, root_str);
                 } else {
                     if let Some(ext) = path.extension() {
-                        extension = ext.to_string_lossy().to_string();
-                        // Pré-lecture légère (seulement pour MD, limité à 1000 chars pour preview si besoin)
+                        extension = ext.to_string_lossy().to_string().to_lowercase(); // FIX: Lowercase forcé
+                        // Lecture contenu si c'est un MD (insensible à la casse)
                         if extension == "md" {
                              if let Ok(c) = fs::read_to_string(&path) {
                                  content = c; 
@@ -153,11 +139,8 @@ fn scan_vault_recursive(root: String) -> Vec<FileNode> {
     visit_dirs(root_path, &root)
 }
 
-// Placeholder pour les liens (logique complexe côté Rust simplifiée ici, le gros est fait en Front pour l'instant)
 #[tauri::command]
 fn update_links_on_move(_vault_path: String, _old_path_rel: String, _new_path_rel: String) -> Result<String, String> {
-    // Dans une version avancée, on ouvrirait tous les fichiers pour faire un replace(old, new)
-    // Pour l'instant, on laisse le front gérer ou on implémente un search/replace global plus tard.
     Ok("TODO_RUST_SEARCH_REPLACE".to_string())
 }
 
@@ -173,18 +156,9 @@ fn main() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
-            check_system_status,
-            create_folder,
-            create_note,
-            read_note,
-            save_note,
-            delete_note,
-            delete_folder,
-            rename_item,
-            move_file_system_entry,
-            scan_vault_recursive,
-            update_links_on_move,
-            open_file // <--- Nouvelle commande
+            check_system_status, create_folder, create_note, read_note, save_note,
+            delete_note, delete_folder, rename_item, move_file_system_entry,
+            scan_vault_recursive, update_links_on_move, open_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

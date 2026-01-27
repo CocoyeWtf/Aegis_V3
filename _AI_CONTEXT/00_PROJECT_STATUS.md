@@ -1,31 +1,36 @@
-# 00_PROJECT_STATUS - AEGIS V10.12 FULL-FIX
+# 00_PROJECT_STATUS - AEGIS V10.14 STABLE
 
-Ce document reflète l'état immédiat du projet en version **V10.12 STABLE**.
+Ce document reflète l'état immédiat du projet en version **V10.14 FINAL**.
 
 ## ✅ Fonctionnalités "DONE" et Stables
 
 1.  **Architecture Hybride** : Rust (Backend) + React (Frontend).
-2.  **Cockpit & Gestion Notes** :
-    * **Viewer Hybride** : Éditeur pour `.md`, Bouton "Ouvrir" système pour `.pdf/.xlsx`.
-    * **Rename** : Via Clic-Droit dans la Sidebar ou Bouton dédié en haut.
-    * **Drag & Drop** : Fichiers ET Dossiers déplaçables.
-3.  **Master Plan** : Vue groupée, Tri, Filtre, Commentaires.
-4.  **UX Avancée** :
-    * **Double Resize** : Sidebar Gauche (Navigation) et Droite (Métadonnées) redimensionnables à la souris.
-    * **Sensibilité Souris** : Utilisation de `MouseSensor` (seuil 5px) pour distinguer nettement le Clic du Drag.
+2.  **Moteur de Recherche (V10.13)** :
+    * Recherche Full-Text instantanée.
+    * Interface Sidebar dynamique (Arbre vs Résultats).
+3.  **Scan & Indexation (V10.14)** :
+    * **Récursif** : Le scan descend désormais dans tous les sous-dossiers (`flattenNodes`).
+    * **Robuste** : Insensible à la casse (`.MD` = `.md`).
+    * **Master Plan** : Se remplit correctement avec toutes les tâches du Vault.
+4.  **UX & Gestion de Fichiers (V10.12)** :
+    * **Viewer** : Délégation à l'OS pour PDF/Excel/Images.
+    * **Drag & Drop** : Fiabilisé (Seuil 5px, Sécurité anti-boucle).
+    * **Rename** : Contextuel et Bouton.
+    * **Layout** : Double redimensionnement (Gauche/Droite).
 
-## 🛠 Correctifs Récents (V10.12)
+## 🛠 Correctifs Récents
 
-### 1. Conflit Clic vs Drag (Sidebar)
+### 1. Scan Master Plan (V10.14)
 **État : CORRIGÉ**
-* Passage aux capteurs explicites (`MouseSensor` + `TouchSensor`) au lieu de `PointerSensor`.
-* Le "Drag" ne s'active qu'après un mouvement de 5 pixels, rendant le clic simple instantané et fiable.
+* Problème : Le Master Plan était vide car le scan ne lisait que la racine.
+* Solution : Ajout de `flattenNodes` dans `App.tsx` pour aplatir l'arborescence avant l'analyse.
+* Ajout de la gestion `to_lowercase()` pour les extensions de fichiers.
 
-### 2. Fonctionnalités Restaurées
-**État : CORRIGÉ**
-* **Rename** : Réintégration du menu contextuel (Clic-Droit) sur la Sidebar.
-* **Folder Drag** : Les dossiers sont de nouveau déplaçables.
+### 2. Search Engine & UX (V10.13)
+**État : DÉPLOYÉ**
+* Intégration de la barre de recherche dans la Sidebar.
+* Optimisation des capteurs souris/tactile pour éviter les conflits de clic.
 
 ## ⚠️ Points d'Attention
-* **Fichiers Externes** : Aegis ne tente plus d'afficher les binaires (PDF/Excel) pour éviter les erreurs, il délègue à l'OS (`open_file`).
-* **Sécurité** : Le Drag & Drop inclut une sécurité pour empêcher de déposer un fichier sur lui-même (Error 32).
+* **Base de Données** : Reconstruite à chaque démarrage/scan.
+* **Prochaine étape logique** : Export Word/Excel (Tâche 1.2 de la Roadmap) ou Amélioration du Parsing (Support des tâches `- [ ]` hors tableau).
