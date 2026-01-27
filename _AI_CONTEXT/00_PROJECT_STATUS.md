@@ -1,49 +1,31 @@
-# 00_PROJECT_STATUS - AEGIS V10.4 STABLE
+# 00_PROJECT_STATUS - AEGIS V10.12 FULL-FIX
 
-Ce document reflète l'état immédiat du projet en version **V10.4 STABLE**.
+Ce document reflète l'état immédiat du projet en version **V10.12 STABLE**.
 
 ## ✅ Fonctionnalités "DONE" et Stables
 
-Les fonctionnalités suivantes sont testées, validées et considérées comme stables :
+1.  **Architecture Hybride** : Rust (Backend) + React (Frontend).
+2.  **Cockpit & Gestion Notes** :
+    * **Viewer Hybride** : Éditeur pour `.md`, Bouton "Ouvrir" système pour `.pdf/.xlsx`.
+    * **Rename** : Via Clic-Droit dans la Sidebar ou Bouton dédié en haut.
+    * **Drag & Drop** : Fichiers ET Dossiers déplaçables.
+3.  **Master Plan** : Vue groupée, Tri, Filtre, Commentaires.
+4.  **UX Avancée** :
+    * **Double Resize** : Sidebar Gauche (Navigation) et Droite (Métadonnées) redimensionnables à la souris.
+    * **Sensibilité Souris** : Utilisation de `MouseSensor` (seuil 5px) pour distinguer nettement le Clic du Drag.
 
-1.  **Architecture Hybride (Rust/React)** : Le backend Rust gère le FileSystem et le SQLite, le frontend React gère l'UI et l'état.
-2.  **Cockpit UI** : Interface sombre, système d'onglets (Cockpit / Master Plan), Sidebar latérale avec Drag & Drop.
-3.  **Gestion des Notes (CRUD)** :
-    *   Création contextuelle (dans le dossier sélectionné ou parent du fichier actif).
-    *   Renommage et Suppression (avec mise à jour des liens bidirectionnels).
-    *   Éditeur "Pure Text" (pas d'injection HTML dans le Markdown).
-4.  **Système de Flashnote** :
-    *   Bouton "FLASH NOTE" fonctionnel.
-    *   Routing automatique vers le dossier `01_Inbox` (création auto si manquant).
-    *   Nommage horodaté pour éviter les collisions.
-5.  **Scan Récursif (`handleScan`)** :
-    *   Parcourt tout le Vault (hors `.git`).
-    *   Indexe les fichiers Markdown et leur contenu dans SQLite (`notes` table).
-    *   Détecte et indexe les actions (`## PLAN D'ACTION`) dans SQLite (`actions` table).
-6.  **Master Plan (Global)** :
-    *   Vue agrégée de toutes les actions du Vault.
-    *   Interaction bidirectionnelle : cocher une case ici met à jour le fichier Markdown source.
+## 🛠 Correctifs Récents (V10.12)
 
-## 🛠 Correctifs Récentes (Validés)
-
-### 1. Synchronisation Master Plan (`handleScan`)
+### 1. Conflit Clic vs Drag (Sidebar)
 **État : CORRIGÉ**
-*   L'ancien problème de concurrence (`forEach` asynchrone) a été résolu.
-*   **Solution Implémentée** : Utilisation d'une boucle `for (const node of nodes)` explicite dans `handleScan` (dans `App.tsx`) qui attend (`await`) l'exécution des requêtes SQL (`INSERT`/`UPDATE`) pour chaque note avant de passer à la suivante.
-*   Cela garantit que l'étape de lecture du Master Plan (`SELECT * FROM actions`) ne se déclenche qu'une fois la base de données totalement peuplée.
+* Passage aux capteurs explicites (`MouseSensor` + `TouchSensor`) au lieu de `PointerSensor`.
+* Le "Drag" ne s'active qu'après un mouvement de 5 pixels, rendant le clic simple instantané et fiable.
 
-### 2. Création de Note Contextuelle
+### 2. Fonctionnalités Restaurées
 **État : CORRIGÉ**
-*   **Logique Actuelle** :
-    1.  Si un dossier est sélectionné (`selectedFolder`) -> La note est créée dedans.
-    2.  Si aucun dossier n'est sélectionné mais qu'un fichier est actif (`activeFile`) -> Le dossier parent est détecté et utilisé.
-    3.  Sinon -> Création à la racine (ou comportement par défaut).
-*   Plus de fallback forcé vers "Inbox" si l'utilisateur est dans un projet spécifique (sauf pour la Flashnote qui force l'Inbox).
-
-### 3. Flashnote Routing
-**État : CORRIGÉ**
-*   La fonction `handleFlashNote` cible explicitement `01_Inbox` et vérifie son existence avant écriture.
+* **Rename** : Réintégration du menu contextuel (Clic-Droit) sur la Sidebar.
+* **Folder Drag** : Les dossiers sont de nouveau déplaçables.
 
 ## ⚠️ Points d'Attention
-*   **Lucide React** : Bien que mentionné dans les specs idéales, la bibliothèque n'est PAS installée dans la V10.4. L'interface utilise actuellement des émojis standard (standardisation prévue ultérieurement).
-*   **Séparateur Métadonnées** : Le système repose strictement sur le séparateur `--- AEGIS METADATA ---`. Tout contenu technique doit se trouver APRES ce marqueur pour ne pas polluer l'éditeur.
+* **Fichiers Externes** : Aegis ne tente plus d'afficher les binaires (PDF/Excel) pour éviter les erreurs, il délègue à l'OS (`open_file`).
+* **Sécurité** : Le Drag & Drop inclut une sécurité pour empêcher de déposer un fichier sur lui-même (Error 32).

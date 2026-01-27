@@ -6,15 +6,17 @@ import {
     useDroppable,
     useSensor,
     useSensors,
-    PointerSensor
-} from "@dnd-kit/core";
+    MouseSensor,
+    TouchSensor
+} from '@dnd-kit/core';
 
 export interface FileNode {
-    path: string;
-    name: string;
+    name: String;
+    path: String;
     is_dir: boolean;
-    extension: string;
-    content: string;
+    children: FileNode[];
+    extension: String;
+    content: String;
 }
 
 interface SidebarProps {
@@ -35,105 +37,121 @@ interface SidebarProps {
     onClearSelection: () => void;
 }
 
-// Composant pour rendre la racine "Droppable" (Déposable)
-const RootDroppable = ({ children, isSelected, onClick }: any) => {
-    const { setNodeRef, isOver } = useDroppable({ id: "ROOT_ZONE" });
+// --- COMPOSANT FICHIER (Draggable) ---
+const FileItem = ({ node, activeFile, onNodeClick, onRename, depth, onInsertLink }: any) => {
+    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: node.path });
+    const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 999 } : undefined;
+
     return (
         <div
             ref={setNodeRef}
-            onClick={(e) => { e.stopPropagation(); onClick(); }}
-            className={`px-2 py-2 mb-2 rounded text-xs font-bold cursor-pointer flex items-center gap-2 border border-dashed transition-colors 
-        ${isOver ? "bg-green-900/40 border-green-500 text-green-300 scale-[1.02]" : ""}
-        ${isSelected ? "bg-blue-900/20 border-blue-500 text-blue-300" : "border-gray-800 text-gray-500 hover:text-gray-300 hover:border-gray-600"}
-      `}
+            style={style}
+            {...listeners}
+            {...attributes}
+            className={`group flex items-center gap-2 py-1 px-2 cursor-pointer select-none text-xs hover:bg-gray-800 ${activeFile === node.path ? "bg-blue-900/40 text-blue-200 border-r-2 border-blue-500" : "text-gray-400"} ${isDragging ? "opacity-50" : ""}`}
+            onClick={(e) => { e.stopPropagation(); onNodeClick(node); }}
+            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onNodeClick(node); onRename(); }}
         >
-            <span>🏠</span> VAULT ROOT (Racine)
-            {children}
+            <span style={{ marginLeft: `${depth * 12}px` }} className="opacity-50 shrink-0">{node.extension === 'md' ? '📄' : '📦'}</span>
+            <span className="truncate flex-1">{node.name}</span>
+            {node.extension === 'md' && (<button onClick={(e) => { e.stopPropagation(); onInsertLink(node); }} className="opacity-0 group-hover:opacity-100 text-[9px] text-gray-500 hover:text-white bg-gray-700 px-1 rounded ml-auto">LINK</button>)}
         </div>
     );
 };
 
-const SidebarNode = ({ node, activeFile, selectedFolder, expandedFolders, onToggleExpand, onNodeClick, onInsertLink }: any) => {
+// --- COMPOSANT DOSSIER (Draggable AND Droppable) ---
+const FolderItem = ({ node, activeFile, selectedFolder, expandedFolders, onToggleExpand, onNodeClick, onRename, children, depth, onCreateNote }: any) => {
+    // 1. Drop Zone Logic (Recevoir des fichiers)
+    const { setNodeRef: setDropRef, isOver } = useDroppable({ id: node.path });
+
+    // 2. Drag Logic (Être déplacé)
     const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({ id: node.path });
-    const { setNodeRef: setDropRef, isOver } = useDroppable({ id: node.path, disabled: !node.is_dir });
 
-    const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 9999, position: 'relative' as 'relative' } : undefined;
-    const depth = node.path.split('/').length - 1;
-    const isExpanded = expandedFolders.has(node.path);
-
-    // Correction de la logique de sélection visuelle
-    const isSelected = activeFile === node.path || (node.is_dir && selectedFolder === node.path);
+    const isSelected = selectedFolder === node.path;
+    const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 999 } : undefined;
 
     return (
-        <div
-            ref={(el) => { setDragRef(el); if (node.is_dir) setDropRef(el); }}
-            style={{ ...style, paddingLeft: `${depth * 12 + 8}px` }}
-            {...listeners} {...attributes}
-            className={`group/node py-1.5 rounded text-sm flex items-center gap-2 truncate transition-colors border border-transparent 
-        ${isSelected ? "bg-blue-900/30 text-white border-blue-900" : "text-gray-400 hover:bg-gray-900"}
-        ${isOver && node.is_dir ? "bg-purple-900/60 border-purple-500 scale-[1.02] shadow-lg shadow-purple-900/50" : ""}
-        ${isDragging ? "opacity-30 bg-gray-800" : ""}
-      `}
-        >
-            {node.is_dir ? (
-                <span onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onToggleExpand(node.path); }} className="w-4 text-center hover:text-white font-bold text-[10px] cursor-pointer">{isExpanded ? '▼' : '▶'}</span>
-            ) : <span className="w-4"></span>}
-
-            <span onClick={() => onNodeClick(node)} className="truncate flex-1 flex items-center gap-2 cursor-pointer">
-                <span className="opacity-70 text-xs">{node.is_dir ? '📁' : '📝'}</span>
-                {node.name}
-            </span>
-
-            {!node.is_dir && (
-                <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onInsertLink(node); }} className="opacity-0 group-hover/node:opacity-100 bg-blue-900 hover:bg-blue-600 text-white px-1.5 rounded text-[10px] mr-1 transition-opacity border border-blue-700">🔗</button>
-            )}
+        <div ref={setDropRef} className={`${isOver ? "bg-gray-800 ring-1 ring-blue-500" : ""}`}>
+            <div
+                ref={setDragRef}
+                style={style}
+                {...listeners}
+                {...attributes}
+                className={`group flex items-center gap-2 py-1 px-2 cursor-pointer select-none text-xs hover:bg-gray-800 ${isSelected ? "bg-gray-800 text-white font-bold" : "text-gray-400"} ${isDragging ? "opacity-50" : ""}`}
+                onClick={(e) => { e.stopPropagation(); onNodeClick(node); }}
+                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onNodeClick(node); onRename(); }}
+            >
+                <button
+                    onClick={(e) => { e.stopPropagation(); onToggleExpand(node.path); }}
+                    // On empêche le drag sur la flèche pour faciliter le clic
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="p-0.5 hover:text-white w-4 text-center shrink-0"
+                    style={{ marginLeft: `${depth * 12}px` }}
+                >
+                    {expandedFolders.has(node.path) ? '▼' : '▶'}
+                </button>
+                <span className="truncate flex-1 font-medium">{node.name}</span>
+            </div>
+            {expandedFolders.has(node.path) && <div>{children}</div>}
         </div>
     );
 };
 
-const Sidebar: React.FC<SidebarProps> = (props) => {
-    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 10 } }));
-    const isVisibleInTree = (nodePath: string) => { const parts = nodePath.split('/'); let currentPath = parts[0]; for (let i = 0; i < parts.length - 1; i++) { if (!props.expandedFolders.has(currentPath)) return false; currentPath += `/${parts[i + 1]}`; } return true; };
+// Fonction récursive
+const renderTree = (nodes: FileNode[], props: any, depth = 0) => {
+    return nodes.map((node) => {
+        if (node.is_dir) {
+            return (
+                <FolderItem key={node.path} node={node} depth={depth} {...props}>
+                    {renderTree(node.children, props, depth + 1)}
+                </FolderItem>
+            );
+        } else {
+            return <FileItem key={node.path} node={node} depth={depth} {...props} />;
+        }
+    });
+};
+
+const Sidebar = (props: SidebarProps) => {
+    const { setNodeRef: setRootRef, isOver: isOverRoot } = useDroppable({ id: "ROOT_ZONE" });
+
+    const sensors = useSensors(
+        useSensor(MouseSensor, {
+            activationConstraint: {
+                distance: 5, // 5px est suffisant pour éviter les faux clics, 10px était peut-être trop
+            },
+        }),
+        useSensor(TouchSensor, {
+            activationConstraint: { delay: 250, tolerance: 5 },
+        })
+    );
 
     return (
-        <div className="w-64 bg-gray-950 border-r border-gray-900 flex flex-col font-sans select-none">
-            <div className="p-3 border-b border-gray-900 flex flex-col gap-2 bg-gray-950 shadow-sm z-10">
-                <button onClick={props.onFlashNote} className="w-full bg-yellow-600/90 hover:bg-yellow-500 text-white border border-yellow-700 py-2 rounded text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-yellow-900/20 transition-all hover:scale-[1.02]">
+        <div className="flex flex-col h-full w-full">
+            <div className="p-4 bg-gray-950 border-b border-gray-900 shrink-0">
+                <button onClick={props.onFlashNote} className="w-full bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-2 px-4 rounded text-xs flex items-center justify-center gap-2 shadow-lg shadow-yellow-900/20 transition-all">
                     <span>⚡</span> FLASH NOTE
                 </button>
-                <div className="grid grid-cols-2 gap-2 mt-1">
-                    <button onClick={props.onCreateFolder} className="bg-gray-900 hover:bg-gray-800 text-gray-300 border border-gray-800 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 transition-colors" title={props.selectedFolder ? `DANS : ${props.selectedFolder}` : "A LA RACINE"}>
-                        <span>📁+</span> {props.selectedFolder ? "SUB" : "ROOT"}
-                    </button>
-                    <button onClick={props.onCreateNote} className="bg-gray-900 hover:bg-gray-800 text-gray-300 border border-gray-800 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 transition-colors" title={props.selectedFolder ? `DANS : ${props.selectedFolder}` : "DANS INBOX"}>
-                        <span>📝+</span> {props.selectedFolder ? "HERE" : "INBOX"}
-                    </button>
+                <div className="flex gap-2 mt-2">
+                    <button onClick={props.onCreateFolder} className="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-400 py-1.5 rounded text-[10px] border border-gray-800 transition-colors flex justify-center items-center gap-1">📁 + SUB</button>
+                    <button onClick={props.onCreateNote} className="flex-1 bg-gray-900 hover:bg-gray-800 text-gray-400 py-1.5 rounded text-[10px] border border-gray-800 transition-colors flex justify-center items-center gap-1">📄 + HERE</button>
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-2">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-2" onClick={props.onClearSelection}>
                 <DndContext onDragEnd={props.onDragEnd} sensors={sensors}>
-                    {/* ZONE RACINE (Drop & Click) */}
-                    <RootDroppable isSelected={props.selectedFolder === ""} onClick={props.onClearSelection} />
-
-                    {props.fileTree.map((node) => {
-                        if (!isVisibleInTree(node.path)) return null;
-                        return <SidebarNode key={node.path} node={node} activeFile={props.activeFile} selectedFolder={props.selectedFolder} expandedFolders={props.expandedFolders} onToggleExpand={props.onToggleExpand} onNodeClick={props.onNodeClick} onInsertLink={props.onInsertLink} />;
-                    })}
+                    <div ref={setRootRef} className={`min-h-full pb-10 ${isOverRoot ? "bg-gray-900/30" : ""}`}>
+                        {props.selectedFolder === "" && <div className="px-2 py-1 text-[10px] text-blue-500 font-bold uppercase tracking-wider mb-2 border-b border-blue-900/30">🏠 VAULT ROOT (Racine)</div>}
+                        {renderTree(props.fileTree, props)}
+                    </div>
                 </DndContext>
-                <div className="h-full min-h-[50px] cursor-default" onClick={props.onClearSelection} title="Cliquer ici pour désélectionner"></div>
             </div>
 
-            <div className="p-2 border-t border-gray-900 mt-auto flex flex-col gap-2 bg-gray-950 z-10">
-                {(props.selectedFolder || props.activeFile) && (
-                    <div className="flex gap-1 animate-pulse-once">
-                        <button onClick={props.onRename} className="flex-1 bg-blue-900/20 hover:bg-blue-900/40 text-blue-400 border border-blue-900/50 py-1 rounded text-[10px] font-bold transition-colors">RENAME</button>
-                        <button onClick={props.onDelete} className="flex-1 bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-900/50 py-1 rounded text-[10px] font-bold transition-colors">DELETE</button>
-                    </div>
-                )}
-                <button onClick={props.onCloseVault} className="flex items-center justify-center gap-2 w-full text-gray-600 hover:text-white text-[10px] py-1 rounded transition-colors hover:bg-gray-900">CLOSE VAULT</button>
+            <div className="p-2 border-t border-gray-900 shrink-0">
+                <button onClick={props.onCloseVault} className="w-full text-[10px] text-gray-600 hover:text-red-500 py-2 uppercase tracking-widest transition-colors">CLOSE VAULT</button>
             </div>
         </div>
     );
 };
+
 export default Sidebar;
