@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { downloadDir, join } from '@tauri-apps/api/path'; // NOUVEAU : API Path
 import Database from "@tauri-apps/plugin-sql";
 import { LazyStore } from "@tauri-apps/plugin-store";
 import { DragEndEvent } from "@dnd-kit/core";
@@ -95,10 +96,10 @@ function App() {
     } catch (e) { console.error("Search error:", e); }
   };
 
-  // FIX V10.17 : Export Excel Natif (Rust FS)
+  // FIX V10.18 : Export vers le dossier DOWNLOADS
   const handleExportExcel = async (actionsToExport: ActionItem[], filename: string) => {
     if (!actionsToExport || actionsToExport.length === 0) {
-      alert("Rien à exporter. Vérifiez que des tâches sont affichées.");
+      alert("Rien à exporter.");
       return;
     }
 
@@ -125,23 +126,23 @@ function App() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Actions");
 
-      // 1. Generation Buffer
-      // Important: type 'array' génère un Uint8Array que Rust peut comprendre
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
 
-      // 2. Préparation Chemin & Données
       const cleanName = (filename || "Export").replace(/[^a-z0-9]/gi, '_');
       const finalName = `AEGIS_${cleanName}_${getTodayDate()}.xlsx`;
-      const fullPath = `${vaultPath}\\${finalName}`; // Sauvegarde à la racine du Vault
 
-      // 3. Envoi à Rust
-      // On convertit le buffer en Array simple pour le passer via Tauri
+      // 1. Récupération du dossier Téléchargements système
+      const downloadDirPath = await downloadDir();
+      // 2. Construction du chemin complet
+      const fullPath = await join(downloadDirPath, finalName);
+
+      // 3. Ecriture
       await invoke("save_binary_file", { path: fullPath, content: Array.from(new Uint8Array(wbout)) });
 
-      alert(`Succès ! Fichier généré à la racine du coffre :\n${finalName}`);
+      alert(`Fichier exporté dans vos Téléchargements :\n${finalName}`);
 
     } catch (e) {
-      alert("Erreur Critique Export : " + e);
+      alert("Erreur Export : " + e);
       console.error(e);
     }
   };
@@ -219,7 +220,7 @@ function App() {
   const isVisibleInMasterGroup = (action: ActionItem, list: ActionItem[]) => { if (!action.code.includes('.')) return true; const parts = action.code.split('.'); let currentCode = parts[0]; for (let i = 0; i < parts.length - 1; i++) { const parent = list.find(a => a.note_path === action.note_path && a.code === currentCode); if (parent && parent.collapsed) return false; currentCode += `.${parts[i + 1]}`; } return true; };
   const toggleGlobalCollapse = (notePath: string, code: string) => { setGlobalActions(prev => prev.map(a => (a.note_path === notePath && a.code === code) ? { ...a, collapsed: !a.collapsed } : a)); };
   const openNote = async (notePath: string) => { if (!notePath) return; try { const fullPath = `${vaultPath}\\${notePath.replace(/\//g, '\\')}`; const content = await invoke<string>("read_note", { path: fullPath }); setActiveFile(notePath); const folder = notePath.includes('/') ? notePath.substring(0, notePath.lastIndexOf('/')) : ""; setSelectedFolder(folder); parseFullFile(content, notePath); setIsDirty(false); setCurrentTab('COCKPIT'); } catch (e) { alert("Erreur ouverture: " + e); } };
-  const toggleActionFromMaster = async (action: ActionItem) => { if (!action.note_path) return; try { const fullPath = `${vaultPath}\\${action.note_path.replace(/\//g, '\\')}`; const content = await invoke<string>("read_note", { path: fullPath }); const clean = content.replace(/\r\n/g, "\n"); let fileBody = clean; let fileMeta = { id: "", type: "NOTE", status: "ACTIVE", tags: "" }; let fileActions: ActionItem[] = []; if (clean.includes(METADATA_SEPARATOR)) { const parts = clean.split(METADATA_SEPARATOR); fileBody = parts[0]; const m = parts[1]; if (m) { if (m.includes("ID:")) fileMeta.id = m.split("ID:")[1].split("\n")[0].trim(); if (m.includes("TYPE:")) fileMeta.type = m.split("TYPE:")[1].split("\n")[0].trim(); if (m.includes("STATUS:")) fileMeta.status = m.split("STATUS:")[1].split("\n")[0].trim(); if (m.includes("TAGS:")) fileMeta.tags = m.split("TAGS:")[1].split("\n")[0].trim(); } } if (clean.includes(ACTION_HEADER_MARKER)) { const parts = clean.split(ACTION_HEADER_MARKER); fileBody = parts[0]; if (parts[1]) parts[1].split("\n").forEach(l => { if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) { const c = l.split("|").map(x => x.trim()); if (c.length >= 7) fileActions.push({ id: generateUUID(), code: c[1], status: c[2].includes("x"), created: c[3], deadline: c[4], owner: c[5], task: c[6], comment: c[7] || "", note_path: action.note_path }); } }); } const target = fileActions.find(a => a.code === action.code); if (target) target.status = !target.status; const newContent = constructFullFile(fileBody.trim(), fileActions, fileMeta); await invoke("save_note", { path: fullPath, content: newContent }); setGlobalActions(prev => prev.map(a => (a.note_path === action.note_path && a.code === action.code) ? { ...a, status: !a.status } : a)); if (db) await db.execute("UPDATE actions SET status = $1 WHERE note_path = $2 AND code = $3", [target?.status ? 'DONE' : 'TODO', action.note_path, action.code]); } catch (err) { alert("Erreur Master: " + err); } };
+  const toggleActionFromMaster = async (action: ActionItem) => { if (!action.note_path) return; try { const fullPath = `${vaultPath}\\${action.note_path.replace(/\//g, '\\')}`; const content = await invoke<string>("read_note", { path: fullPath }); const clean = content.replace(/\r\n/g, "\n"); let fileBody = clean; let fileMeta = { id: "", type: "NOTE", status: "ACTIVE", tags: "" }; let fileActions: ActionItem[] = []; if (clean.includes(METADATA_SEPARATOR)) { const parts = clean.split(METADATA_SEPARATOR); fileBody = parts[0]; const m = parts[1]; if (m) { if (m.includes("ID:")) fileMeta.id = m.split("ID:")[1].split("\n")[0].trim(); if (m.includes("TYPE:")) fileMeta.type = m.split("TYPE:")[1].split("\n")[0].trim(); if (m.includes("STATUS:")) fileMeta.status = m.split("STATUS:")[1].split("\n")[0].trim(); if (m.includes("TAGS:")) fileMeta.tags = m.split("TAGS:")[1].split("\n")[0].trim(); } } if (clean.includes(ACTION_HEADER_MARKER)) { const parts = clean.split(ACTION_HEADER_MARKER); fileBody = parts[0]; if (parts[1]) parts[1].split("\n").forEach(l => { if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) { const c = l.split("|").map(x => x.trim()); if (c.length >= 7) { const code = c[1]; if (code && !codes.has(code)) { codes.add(code); acts.push({ id: generateUUID(), code: c[1], status: c[2].includes("x"), created: c[3], deadline: c[4], owner: c[5], task: c[6], comment: c[7] || "", note_path: action.note_path }); } } } }); } const target = fileActions.find(a => a.code === action.code); if (target) target.status = !target.status; const newContent = constructFullFile(fileBody.trim(), fileActions, fileMeta); await invoke("save_note", { path: fullPath, content: newContent }); setGlobalActions(prev => prev.map(a => (a.note_path === action.note_path && a.code === action.code) ? { ...a, status: !a.status } : a)); if (db) await db.execute("UPDATE actions SET status = $1 WHERE note_path = $2 AND code = $3", [target?.status ? 'DONE' : 'TODO', action.note_path, action.code]); } catch (err) { alert("Erreur Master: " + err); } };
   const requestSort = (key: keyof ActionItem) => { let direction: 'asc' | 'desc' = 'asc'; if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') { direction = 'desc'; } setSortConfig({ key, direction }); };
   const filteredActions = globalActions.filter(action => { if (!filterText) return true; const lowerSearch = filterText.toLowerCase(); return ((action.task && action.task.toLowerCase().includes(lowerSearch)) || (action.owner && action.owner.toLowerCase().includes(lowerSearch)) || (action.comment && action.comment.toLowerCase().includes(lowerSearch)) || (action.note_path && action.note_path.toLowerCase().includes(lowerSearch))); });
   const uniqueSources = Array.from(new Set(filteredActions.map(a => a.note_path || "Inconnu"))).sort();
@@ -302,7 +303,7 @@ function App() {
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }`}</style>
       <div className="h-10 bg-gray-950 border-b border-gray-900 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-6">
-          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V10.17 XLS-NATIVE</span>
+          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V10.18 DOWNLOADS</span>
           <div className="flex gap-1 bg-gray-900 p-1 rounded">
             <button onClick={() => setCurrentTab('COCKPIT')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'COCKPIT' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>COCKPIT</button>
             <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-purple-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>
@@ -349,6 +350,7 @@ function App() {
                 {renderContent()}
               </>
             ) : (
+              /* V10.15 : GESTION FOLDER VIEW SI AUCUN FICHIER */
               renderContent()
             )
           ) : (
@@ -359,6 +361,7 @@ function App() {
                 <div className="flex items-center gap-4">
                   <button onClick={() => handleScan(db)} className="text-gray-500 hover:text-white transition-colors" title="Force Reload">↻</button>
                   <input type="text" placeholder="Filter..." value={filterText} onChange={(e) => setFilterText(e.target.value)} className="ml-4 bg-gray-900 border border-gray-800 text-xs text-white px-3 py-1 rounded w-64 focus:border-purple-500 focus:outline-none" />
+                  {/* V10.15 BOUTON EXPORT GLOBAL */}
                   <button onClick={() => handleExportExcel(filteredActions, "Master_Plan")} className="bg-green-800 hover:bg-green-700 text-white text-xs px-4 py-1.5 rounded font-bold transition-colors">EXPORT XLS</button>
                 </div>
                 <div className="ml-auto text-xs text-gray-500">{filteredActions.length} actions</div>
