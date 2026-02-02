@@ -1,10 +1,11 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use reqwest::blocking::Client;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager}; // Le moteur HTTP
 
 // --- TYPES ---
 #[derive(serde::Serialize, Clone)]
@@ -18,6 +19,24 @@ struct FileNode {
 }
 
 // --- COMMANDS ---
+
+// V10.19 : Test de connexion Internet (Microsoft)
+#[tauri::command]
+fn check_microsoft_connection() -> Result<String, String> {
+    let client = Client::new();
+    // On tente de joindre la page de login Microsoft pour voir si le firewall laisse passer
+    let res = client
+        .get("https://login.microsoftonline.com")
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .map_err(|e| format!("Erreur Connexion: {}", e))?;
+
+    if res.status().is_success() {
+        Ok("CONNEXION_OK".to_string())
+    } else {
+        Ok(format!("STATUS_{}", res.status()))
+    }
+}
 
 #[tauri::command]
 fn open_file(path: String) -> Result<(), String> {
@@ -45,7 +64,6 @@ fn open_file(path: String) -> Result<(), String> {
     Ok(())
 }
 
-// NOUVEAU V10.17 : Ecriture binaire pour Excel
 #[tauri::command]
 fn save_binary_file(path: String, content: Vec<u8>) -> Result<String, String> {
     fs::write(&path, content).map_err(|e| e.to_string())?;
@@ -189,6 +207,7 @@ fn main() {
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             check_system_status,
             create_folder,
@@ -202,7 +221,8 @@ fn main() {
             scan_vault_recursive,
             update_links_on_move,
             open_file,
-            save_binary_file // <--- AJOUTE ICI
+            save_binary_file,
+            check_microsoft_connection // <--- NOUVEAU
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
