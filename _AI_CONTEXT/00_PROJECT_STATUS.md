@@ -1,27 +1,34 @@
-# 00_PROJECT_STATUS - AEGIS V10.15 PREPARATION
+# 00_PROJECT_STATUS - AEGIS V10.18 EXCEL & UX COMPLETE
 
-Ce document définit les priorités immédiates pour le cycle de développement V10.15.
+Ce document reflète l'état immédiat du projet en version **V10.18 STABLE**.
 
-## 🎯 Objectifs de la Session (V10.15)
+## ✅ Fonctionnalités "DONE" et Stables
 
-1.  **Export Excel (Master Plan & Note)** :
-    * Format `.xlsx`.
-    * Conservation de la hiérarchie (WBS 1 -> 1.1 -> 1.1.1).
-    * Utilisation des "Outline Levels" Excel (Groupes +/-) pour plier/déplier.
-2.  **UX Fix : Gestion des Dossiers** :
-    * Problème actuel : Impossible de supprimer un dossier car la barre d'outils disparaît si aucun fichier n'est actif.
-    * Solution : Afficher un header contextuel "Dossier" avec boutons Rename/Trash quand un dossier est sélectionné.
+1.  **Architecture Hybride** : Rust (Backend) + React (Frontend).
+2.  **Moteur de Recherche (V10.13)** : Full-Text, intégré sidebar.
+3.  **Scan & Indexation (V10.16)** :
+    * **Récursif** : Lit tous les sous-dossiers.
+    * **Robuste** : Insensible à la casse (`.md`/`.MD`).
+4.  **UX & Gestion de Fichiers (V10.15)** :
+    * **Dossiers** : Renommage et Suppression via panneau dédié.
+    * **Drag & Drop** : Fiabilisé.
+    * **Viewer** : Délégation OS pour fichiers externes.
+5.  **Export Excel (V10.18)** :
+    * **Natif** : Utilise l'API Rust binaire pour écrire sur le disque.
+    * **Destination** : Dossier système `Downloads` automatique.
+    * **Format** : `.xlsx` avec conservation de la hiérarchie (Groupes +/-).
 
-## ✅ Fonctionnalités "DONE" (V10.14)
+## 🛠 Correctifs Récents
 
-1.  **Architecture Hybride** : Rust/React + SQLite.
-2.  **Moteur de Recherche** : Full-text sidebar.
-3.  **Scan Récursif** : Analyse complète des sous-dossiers.
-4.  **UX Avancée** : Drag&Drop, Viewer externe, Resize double.
+### 1. Export Excel (V10.17 - V10.18)
+**État : DÉPLOYÉ**
+* Passage d'une logique "Téléchargement Web" à une écriture "Fichier Natif" (`save_binary_file`).
+* Ciblage automatique du dossier `Downloads` via `@tauri-apps/api/path`.
 
-## 🛠 Stack Technique Ajoutée
-* **Librairie Excel** : Nous allons utiliser `xlsx` (SheetJS) pour le frontend.
+### 2. Scan & Master Plan (V10.14 - V10.16)
+**État : CORRIGÉ**
+* Correction de l'algorithme de scan pour inclure les sous-dossiers (`flattenNodes`).
+* Sécurisation des boucles pour éviter qu'un fichier corrompu ne vide le Master Plan.
 
-## ⚠️ Règles de Développement
-* **Sauvegarde** : Toujours vérifier le `handleScan` après modif.
-* **Git** : Travailler sur `feature/excel-export-fix`.
+## ⚠️ Points d'Attention
+* **Git** : Penser à utiliser `git push --set-upstream origin <branch>` lors de la création d'une nouvelle feature.
