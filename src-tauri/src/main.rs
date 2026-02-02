@@ -1,10 +1,10 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::{Manager, Emitter}; 
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use tauri::{Emitter, Manager};
 
 // --- TYPES ---
 #[derive(serde::Serialize, Clone)]
@@ -23,21 +23,39 @@ struct FileNode {
 fn open_file(path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        Command::new("cmd").args(["/C", "start", "", &path]).spawn().map_err(|e| e.to_string())?;
+        Command::new("cmd")
+            .args(["/C", "start", "", &path])
+            .spawn()
+            .map_err(|e| e.to_string())?;
     }
     #[cfg(target_os = "macos")]
     {
-        Command::new("open").arg(&path).spawn().map_err(|e| e.to_string())?;
+        Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
     }
     #[cfg(target_os = "linux")]
     {
-        Command::new("xdg-open").arg(&path).spawn().map_err(|e| e.to_string())?;
+        Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
 
+// NOUVEAU V10.17 : Ecriture binaire pour Excel
 #[tauri::command]
-fn check_system_status() -> String { "SYSTEM_READY".to_string() }
+fn save_binary_file(path: String, content: Vec<u8>) -> Result<String, String> {
+    fs::write(&path, content).map_err(|e| e.to_string())?;
+    Ok("OK".to_string())
+}
+
+#[tauri::command]
+fn check_system_status() -> String {
+    "SYSTEM_READY".to_string()
+}
 
 #[tauri::command]
 fn create_folder(path: String) -> Result<String, String> {
@@ -71,7 +89,11 @@ fn delete_folder(path: String) -> Result<String, String> {
 
 #[tauri::command]
 fn rename_item(vault_path: String, old_path: String, new_name: String) -> Result<String, String> {
-    let old_full = if old_path.contains(&vault_path) { old_path.clone() } else { format!("{}\\{}", vault_path, old_path) };
+    let old_full = if old_path.contains(&vault_path) {
+        old_path.clone()
+    } else {
+        format!("{}\\{}", vault_path, old_path)
+    };
     let parent = Path::new(&old_full).parent().ok_or("No parent")?;
     let new_full = parent.join(&new_name);
     fs::rename(old_full, new_full).map_err(|e| e.to_string())?;
@@ -79,7 +101,10 @@ fn rename_item(vault_path: String, old_path: String, new_name: String) -> Result
 }
 
 #[tauri::command]
-fn move_file_system_entry(source_path: String, destination_folder: String) -> Result<String, String> {
+fn move_file_system_entry(
+    source_path: String,
+    destination_folder: String,
+) -> Result<String, String> {
     let src = Path::new(&source_path);
     let file_name = src.file_name().ok_or("Invalid source name")?;
     let dest = Path::new(&destination_folder).join(file_name);
@@ -94,12 +119,18 @@ fn visit_dirs(dir: &Path, root_str: &str) -> Vec<FileNode> {
             if let Ok(entry) = entry {
                 let path = entry.path();
                 let name = entry.file_name().to_string_lossy().to_string();
-                
-                if name.starts_with('.') || name == "System Volume Information" { continue; }
+
+                if name.starts_with('.') || name == "System Volume Information" {
+                    continue;
+                }
 
                 let is_dir = path.is_dir();
                 let full_path_str = path.to_string_lossy().to_string();
-                let relative_path = full_path_str.replace(root_str, "").trim_start_matches('\\').trim_start_matches('/').replace('\\', "/");
+                let relative_path = full_path_str
+                    .replace(root_str, "")
+                    .trim_start_matches('\\')
+                    .trim_start_matches('/')
+                    .replace('\\', "/");
 
                 let mut extension = "".to_string();
                 let mut content = "".to_string();
@@ -109,12 +140,11 @@ fn visit_dirs(dir: &Path, root_str: &str) -> Vec<FileNode> {
                     children = visit_dirs(&path, root_str);
                 } else {
                     if let Some(ext) = path.extension() {
-                        extension = ext.to_string_lossy().to_string().to_lowercase(); // FIX: Lowercase forcé
-                        // Lecture contenu si c'est un MD (insensible à la casse)
+                        extension = ext.to_string_lossy().to_string().to_lowercase();
                         if extension == "md" {
-                             if let Ok(c) = fs::read_to_string(&path) {
-                                 content = c; 
-                             }
+                            if let Ok(c) = fs::read_to_string(&path) {
+                                content = c;
+                            }
                         }
                     }
                 }
@@ -125,7 +155,7 @@ fn visit_dirs(dir: &Path, root_str: &str) -> Vec<FileNode> {
                     is_dir,
                     children,
                     extension,
-                    content
+                    content,
                 });
             }
         }
@@ -140,7 +170,11 @@ fn scan_vault_recursive(root: String) -> Vec<FileNode> {
 }
 
 #[tauri::command]
-fn update_links_on_move(_vault_path: String, _old_path_rel: String, _new_path_rel: String) -> Result<String, String> {
+fn update_links_on_move(
+    _vault_path: String,
+    _old_path_rel: String,
+    _new_path_rel: String,
+) -> Result<String, String> {
     Ok("TODO_RUST_SEARCH_REPLACE".to_string())
 }
 
@@ -156,9 +190,19 @@ fn main() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
-            check_system_status, create_folder, create_note, read_note, save_note,
-            delete_note, delete_folder, rename_item, move_file_system_entry,
-            scan_vault_recursive, update_links_on_move, open_file
+            check_system_status,
+            create_folder,
+            create_note,
+            read_note,
+            save_note,
+            delete_note,
+            delete_folder,
+            rename_item,
+            move_file_system_entry,
+            scan_vault_recursive,
+            update_links_on_move,
+            open_file,
+            save_binary_file // <--- AJOUTE ICI
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

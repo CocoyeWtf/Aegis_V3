@@ -3,12 +3,13 @@ import { invoke } from "@tauri-apps/api/core";
 import Database from "@tauri-apps/plugin-sql";
 import { LazyStore } from "@tauri-apps/plugin-store";
 import { DragEndEvent } from "@dnd-kit/core";
+import * as XLSX from 'xlsx';
 import WelcomeView from "./WelcomeView";
 import Sidebar, { FileNode } from "./Sidebar";
 
 // --- CONSTANTES ---
 const METADATA_SEPARATOR = "--- AEGIS METADATA ---";
-const ACTION_HEADER_MARKER = "## PLAN D'ACTION"; // Strict pour l'instant, on pourra assouplir
+const ACTION_HEADER_MARKER = "## PLAN D'ACTION";
 const STORE_PATH = "aegis_config.json";
 
 interface NoteMetadata { id: string; type: string; status: string; tags: string; }
@@ -19,12 +20,12 @@ function generateUUID() { return crypto.randomUUID(); }
 function getTodayDate() { return new Date().toISOString().split('T')[0]; }
 async function computeContentHash(text: string): Promise<string> { const msgBuffer = new TextEncoder().encode(text); const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer); const hashArray = Array.from(new Uint8Array(hashBuffer)); return hashArray.map(b => b.toString(16).padStart(2, '0')).join(''); }
 
-// FIX V10.14: Fonction pour récupérer TOUS les fichiers, même dans les sous-dossiers
 const flattenNodes = (nodes: FileNode[]): FileNode[] => {
   let flat: FileNode[] = [];
+  if (!nodes) return flat;
   for (const node of nodes) {
     flat.push(node);
-    if (node.children && node.children.length > 0) {
+    if (node.children && Array.isArray(node.children) && node.children.length > 0) {
       flat = flat.concat(flattenNodes(node.children));
     }
   }
@@ -46,11 +47,9 @@ function App() {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [isDirty, setIsDirty] = useState(false);
 
-  // SEARCH ENGINE STATES
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchResults, setSearchResults] = useState<FileNode[]>([]);
 
-  // UX States
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [rightSidebarWidth, setRightSidebarWidth] = useState(320);
   const [resizingTarget, setResizingTarget] = useState<'LEFT' | 'RIGHT' | null>(null);
@@ -73,7 +72,6 @@ function App() {
   useEffect(() => { const load = async () => { try { const s = new LazyStore(STORE_PATH); const p = await s.get<string>("vault_path"); if (p) setVaultPath(p); } catch (e) { console.error(e); } finally { setIsStoreLoaded(true); } }; load(); }, []);
   useEffect(() => { if (!vaultPath) return; const init = async () => { try { const m = await invoke<string>("check_system_status"); const d = await Database.load("sqlite:aegis_v7.db"); setDb(d); setStatus(m); handleScan(d); } catch (e) { setStatus("FAIL"); } }; init(); }, [vaultPath]);
 
-  // RESIZE LOGIC
   const startResizingLeft = useCallback(() => setResizingTarget('LEFT'), []);
   const startResizingRight = useCallback(() => setResizingTarget('RIGHT'), []);
   const stopResizing = useCallback(() => setResizingTarget(null), []);
@@ -86,19 +84,66 @@ function App() {
   const handleVaultSelection = async (p: string) => { const s = new LazyStore(STORE_PATH); await s.set("vault_path", p); await s.save(); setVaultPath(p); };
   const handleCloseVault = async () => { if (!confirm("Fermer le Cockpit ?")) return; const s = new LazyStore(STORE_PATH); await s.set("vault_path", null); await s.save(); setVaultPath(null); };
 
-  // SEARCH ENGINE LOGIC
   const handleGlobalSearch = async (query: string) => {
     setSearchQuery(query);
     if (!query || query.length < 2) { setSearchResults([]); return; }
     if (!db) return;
     try {
-      const results = await db.select<any[]>(
-        `SELECT path FROM notes WHERE content LIKE $1 OR path LIKE $1 OR tags LIKE $1 LIMIT 50`,
-        [`%${query}%`]
-      );
+      const results = await db.select<any[]>(`SELECT path FROM notes WHERE content LIKE $1 OR path LIKE $1 OR tags LIKE $1 LIMIT 50`, [`%${query}%`]);
       const nodes: FileNode[] = results.map(r => ({ name: r.path.split('/').pop() || r.path, path: r.path, is_dir: false, children: [], extension: 'md', content: '' }));
       setSearchResults(nodes);
     } catch (e) { console.error("Search error:", e); }
+  };
+
+  // FIX V10.17 : Export Excel Natif (Rust FS)
+  const handleExportExcel = async (actionsToExport: ActionItem[], filename: string) => {
+    if (!actionsToExport || actionsToExport.length === 0) {
+      alert("Rien à exporter. Vérifiez que des tâches sont affichées.");
+      return;
+    }
+
+    try {
+      const data = actionsToExport.map(a => ({
+        WBS: a.code,
+        Action: a.task,
+        Statut: a.status ? "FAIT" : "A FAIRE",
+        Pilote: a.owner,
+        Deadline: a.deadline,
+        Commentaire: a.comment,
+        Source: a.note_path
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      const rows: any[] = [];
+      actionsToExport.forEach(a => {
+        const level = a.code ? (a.code.split('.').length - 1) : 0;
+        rows.push({ level: level, hidden: false });
+      });
+      if (!ws['!rows']) ws['!rows'] = rows;
+      ws['!cols'] = [{ wch: 10 }, { wch: 50 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 30 }, { wch: 20 }];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Actions");
+
+      // 1. Generation Buffer
+      // Important: type 'array' génère un Uint8Array que Rust peut comprendre
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+
+      // 2. Préparation Chemin & Données
+      const cleanName = (filename || "Export").replace(/[^a-z0-9]/gi, '_');
+      const finalName = `AEGIS_${cleanName}_${getTodayDate()}.xlsx`;
+      const fullPath = `${vaultPath}\\${finalName}`; // Sauvegarde à la racine du Vault
+
+      // 3. Envoi à Rust
+      // On convertit le buffer en Array simple pour le passer via Tauri
+      await invoke("save_binary_file", { path: fullPath, content: Array.from(new Uint8Array(wbout)) });
+
+      alert(`Succès ! Fichier généré à la racine du coffre :\n${finalName}`);
+
+    } catch (e) {
+      alert("Erreur Critique Export : " + e);
+      console.error(e);
+    }
   };
 
   const sortActionsSemantic = (actions: ActionItem[]) => { return [...actions].sort((a, b) => { if (a.note_path && b.note_path && a.note_path !== b.note_path) return a.note_path!.localeCompare(b.note_path!); const partsA = a.code.split('.').map(n => parseInt(n, 10)); const partsB = b.code.split('.').map(n => parseInt(n, 10)); const len = Math.max(partsA.length, partsB.length); for (let i = 0; i < len; i++) { const valA = partsA[i] !== undefined ? partsA[i] : -1; const valB = partsB[i] !== undefined ? partsB[i] : -1; if (valA === -1) return -1; if (valB === -1) return 1; if (valA !== valB) return valA - valB; } return 0; }); };
@@ -111,61 +156,44 @@ function App() {
     try {
       const treeNodes = await invoke<FileNode[]>("scan_vault_recursive", { root: vaultPath });
       setFileTree(treeNodes.sort((a, b) => a.path.localeCompare(b.path)));
-
-      // FIX V10.14: APLATIR L'ARBRE POUR LE SCANNER
       const allFiles = flattenNodes(treeNodes);
-
       await database.execute("DROP TABLE IF EXISTS actions");
       await database.execute("CREATE TABLE actions (id TEXT, note_path TEXT, code TEXT, status TEXT, task TEXT, owner TEXT, created TEXT, deadline TEXT, comment TEXT)");
-
-      // On itère sur TOUS les fichiers (pas juste la racine)
       for (const node of allFiles) {
-        if (node.is_dir || node.extension.toLowerCase() !== "md") continue;
-
-        let content = node.content.replace(/\r\n/g, "\n");
-        let fileId = ""; let type = "NOTE", status = "ACTIVE", tags = "";
-
-        if (content.includes(METADATA_SEPARATOR)) { const p = content.split(METADATA_SEPARATOR); const m = p[1]; if (m) { if (m.includes("ID:")) fileId = m.split("ID:")[1].split("\n")[0].trim(); if (m.includes("TYPE:")) type = m.split("TYPE:")[1].split("\n")[0].trim(); if (m.includes("STATUS:")) status = m.split("STATUS:")[1].split("\n")[0].trim(); if (m.includes("TAGS:")) tags = m.split("TAGS:")[1].split("\n")[0].trim(); } }
-
-        if (fileId) { const c = await database.select<any[]>("SELECT path FROM notes WHERE id = $1 AND path != $2", [fileId, node.path]); if (c.length > 0) fileId = ""; }
-        if (!fileId) { fileId = generateUUID(); if (content.includes(METADATA_SEPARATOR)) content = content.split(METADATA_SEPARATOR)[0].trim(); content += `\n\n${METADATA_SEPARATOR}\nID: ${fileId}\nTYPE: ${type}\nSTATUS: ${status}\nTAGS: ${tags}`; await invoke("save_note", { path: `${vaultPath}\\${node.path.replace(/\//g, '\\')}`, content }); }
-
-        const hash = await computeContentHash(content);
-        const ex = await database.select<any[]>("SELECT id FROM notes WHERE path = $1", [node.path]);
-        if (ex.length === 0) await database.execute("INSERT INTO notes (id, path, last_synced, content, type, status, tags, content_hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", [fileId, node.path, Date.now(), content, type, status, tags, hash]);
-        else await database.execute("UPDATE notes SET id=$1, last_synced=$2, content=$3, type=$4, status=$5, tags=$6, content_hash=$7 WHERE path=$8", [fileId, Date.now(), content, type, status, tags, hash, node.path]);
-
-        const codes = new Set<string>();
-        // Recherche insensible à la casse pour le header
-        const headerRegex = new RegExp(ACTION_HEADER_MARKER, 'i');
-        if (headerRegex.test(content)) {
-          const p = content.split(headerRegex);
-          if (p[1]) {
-            const lines = p[1].split("\n");
-            for (const l of lines) {
-              if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) {
-                const c = l.split("|").map(x => x.trim());
-                if (c.length >= 7) {
-                  const code = c[1];
-                  if (code && !codes.has(code)) {
-                    codes.add(code);
-                    await database.execute("INSERT INTO actions VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-                      [generateUUID(), node.path, code, c[2].includes("x") ? 'DONE' : 'TODO', c[6], c[5], c[3], c[4], c[7] || ""]);
+        try {
+          if (node.is_dir || !node.extension || node.extension.toLowerCase() !== "md") continue;
+          let content = node.content.replace(/\r\n/g, "\n");
+          let fileId = ""; let type = "NOTE", status = "ACTIVE", tags = "";
+          if (content.includes(METADATA_SEPARATOR)) { const p = content.split(METADATA_SEPARATOR); const m = p[1]; if (m) { if (m.includes("ID:")) fileId = m.split("ID:")[1].split("\n")[0].trim(); if (m.includes("TYPE:")) type = m.split("TYPE:")[1].split("\n")[0].trim(); if (m.includes("STATUS:")) status = m.split("STATUS:")[1].split("\n")[0].trim(); if (m.includes("TAGS:")) tags = m.split("TAGS:")[1].split("\n")[0].trim(); } }
+          if (fileId) { const c = await database.select<any[]>("SELECT path FROM notes WHERE id = $1 AND path != $2", [fileId, node.path]); if (c.length > 0) fileId = ""; }
+          if (!fileId) { fileId = generateUUID(); if (content.includes(METADATA_SEPARATOR)) content = content.split(METADATA_SEPARATOR)[0].trim(); content += `\n\n${METADATA_SEPARATOR}\nID: ${fileId}\nTYPE: ${type}\nSTATUS: ${status}\nTAGS: ${tags}`; await invoke("save_note", { path: `${vaultPath}\\${node.path.replace(/\//g, '\\')}`, content }); }
+          const hash = await computeContentHash(content);
+          const ex = await database.select<any[]>("SELECT id FROM notes WHERE path = $1", [node.path]);
+          if (ex.length === 0) await database.execute("INSERT INTO notes (id, path, last_synced, content, type, status, tags, content_hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", [fileId, node.path, Date.now(), content, type, status, tags, hash]);
+          else await database.execute("UPDATE notes SET id=$1, last_synced=$2, content=$3, type=$4, status=$5, tags=$6, content_hash=$7 WHERE path=$8", [fileId, Date.now(), content, type, status, tags, hash, node.path]);
+          const headerRegex = new RegExp(ACTION_HEADER_MARKER, 'i');
+          if (headerRegex.test(content)) {
+            const p = content.split(headerRegex);
+            if (p[1]) {
+              const lines = p[1].split("\n");
+              for (const l of lines) {
+                if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) {
+                  const c = l.split("|").map(x => x.trim());
+                  if (c.length >= 7) {
+                    const code = c[1];
+                    if (code) { await database.execute("INSERT INTO actions VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", [generateUUID(), node.path, code, c[2].includes("x") ? 'DONE' : 'TODO', c[6], c[5], c[3], c[4], c[7] || ""]); }
                   }
                 }
               }
             }
           }
-        }
+        } catch (fileErr) { console.error("Skipped bad file:", node.path, fileErr); }
       }
       setSyncStatus("READY");
-
       const acts = await database.select<any[]>("SELECT * FROM actions");
-      console.log("SCAN FIX APPLIED: ", acts.length, " actions loaded.");
       setGlobalActions(acts.map(a => ({ ...a, status: a.status === 'DONE', collapsed: false })));
       const allSources = new Set(acts.map(a => a.note_path || "Unknown"));
       setExpandedSources(allSources);
-
     } catch (e) { setSyncStatus("ERROR"); console.error(e); }
   };
 
@@ -198,14 +226,35 @@ function App() {
   const handleOpenExternal = async () => { if (!activeFile || !vaultPath) return; const fullPath = `${vaultPath}\\${activeFile.replace(/\//g, '\\')}`; try { await invoke("open_file", { path: fullPath }); } catch (e) { alert("Erreur ouverture: " + e); } };
 
   const renderContent = () => {
-    if (!activeFile) return <div className="h-full flex items-center justify-center text-gray-800">NO FILE SELECTED</div>;
+    if (!activeFile) {
+      if (selectedFolder) {
+        return (
+          <div className="h-full flex flex-col items-center justify-center text-gray-500 gap-6">
+            <div className="text-6xl opacity-50">📂</div>
+            <div className="text-center">
+              <div className="text-xl font-bold text-gray-300 mb-2">Dossier Sélectionné</div>
+              <div className="text-sm font-mono bg-gray-900 px-3 py-1 rounded text-blue-300 mb-6">{selectedFolder}</div>
+              <div className="flex gap-4">
+                <button onClick={handleRename} className="bg-gray-800 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded border border-gray-700 transition-colors">RENAME</button>
+                <button onClick={handleDelete} className="bg-red-900/50 hover:bg-red-900 text-red-200 font-bold py-2 px-6 rounded border border-red-800 transition-colors">DELETE</button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+      return <div className="h-full flex items-center justify-center text-gray-800">NO FILE SELECTED</div>;
+    }
+
     if (activeExtension === 'md') {
       return (
         <div className="flex-1 overflow-auto p-6 max-w-6xl mx-auto w-full flex flex-col gap-6">
           <div className="bg-gray-900/30 border border-gray-800 rounded-lg overflow-hidden flex flex-col max-h-[40vh]">
             <div className="bg-gray-900 px-4 py-2 border-b border-gray-800 flex justify-between items-center shrink-0">
               <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider">⚡ Action Plan</h3>
-              <button onClick={() => addAction()} className="text-[10px] bg-blue-900/30 hover:bg-blue-900/50 text-blue-300 px-2 py-1 rounded border border-blue-900/50">+ TASK</button>
+              <div className="flex gap-2">
+                <button onClick={() => handleExportExcel(localActions, activeFile.replace('.md', ''))} className="text-[10px] bg-green-900/30 hover:bg-green-900/50 text-green-300 px-2 py-1 rounded border border-green-900/50">📊 EXPORT XLS</button>
+                <button onClick={() => addAction()} className="text-[10px] bg-blue-900/30 hover:bg-blue-900/50 text-blue-300 px-2 py-1 rounded border border-blue-900/50">+ TASK</button>
+              </div>
             </div>
             <div className="p-2 overflow-y-auto flex-1">
               {localActions.map((action) => {
@@ -253,7 +302,7 @@ function App() {
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }`}</style>
       <div className="h-10 bg-gray-950 border-b border-gray-900 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-6">
-          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V10.14 SCAN-FIX</span>
+          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V10.17 XLS-NATIVE</span>
           <div className="flex gap-1 bg-gray-900 p-1 rounded">
             <button onClick={() => setCurrentTab('COCKPIT')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'COCKPIT' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>COCKPIT</button>
             <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-purple-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>
@@ -299,11 +348,21 @@ function App() {
                 </div>
                 {renderContent()}
               </>
-            ) : <div className="h-full flex items-center justify-center text-gray-800">NO FILE SELECTED</div>
+            ) : (
+              renderContent()
+            )
           ) : (
             <div className="flex flex-col h-full bg-gray-950/50">
               {/* ... MASTER PLAN UI ... */}
-              <div className="h-16 border-b border-gray-900 flex items-center px-8 bg-black shrink-0"> <h2 className="text-xl font-bold text-white tracking-widest flex items-center gap-3"><span className="text-purple-500">◈</span> GLOBAL MASTER PLAN</h2> <input type="text" placeholder="Filter..." value={filterText} onChange={(e) => setFilterText(e.target.value)} className="ml-8 bg-gray-900 border border-gray-800 text-xs text-white px-3 py-1 rounded w-64 focus:border-purple-500 focus:outline-none" /> <div className="ml-auto text-xs text-gray-500">{filteredActions.length} actions</div> </div>
+              <div className="h-16 border-b border-gray-900 flex items-center px-8 bg-black shrink-0">
+                <h2 className="text-xl font-bold text-white tracking-widest flex items-center gap-3"><span className="text-purple-500">◈</span> GLOBAL MASTER PLAN</h2>
+                <div className="flex items-center gap-4">
+                  <button onClick={() => handleScan(db)} className="text-gray-500 hover:text-white transition-colors" title="Force Reload">↻</button>
+                  <input type="text" placeholder="Filter..." value={filterText} onChange={(e) => setFilterText(e.target.value)} className="ml-4 bg-gray-900 border border-gray-800 text-xs text-white px-3 py-1 rounded w-64 focus:border-purple-500 focus:outline-none" />
+                  <button onClick={() => handleExportExcel(filteredActions, "Master_Plan")} className="bg-green-800 hover:bg-green-700 text-white text-xs px-4 py-1.5 rounded font-bold transition-colors">EXPORT XLS</button>
+                </div>
+                <div className="ml-auto text-xs text-gray-500">{filteredActions.length} actions</div>
+              </div>
               <div className="flex-1 overflow-auto p-8">
                 <div className="flex gap-2 px-4 py-2 bg-gray-900/50 text-[10px] text-gray-500 uppercase tracking-wider font-bold shrink-0 border-b border-gray-800 mb-2"> <div className="w-6"></div><div className="w-10">ID</div><div className="flex-1">Action</div> <div onClick={() => requestSort('owner')} className="w-20 text-center cursor-pointer">Pilot</div> <div onClick={() => requestSort('deadline')} className="w-24 text-center cursor-pointer">Deadline</div> <div className="w-64 text-center">Comment</div> <div className="w-24 text-center">Open</div> </div>
                 <div className="space-y-4"> {uniqueSources.map(source => { let actionsInSource = filteredActions.filter(a => (a.note_path || "Inconnu") === source); if (sortConfig) { actionsInSource.sort((a, b) => { const valA = a[sortConfig.key] || ""; const valB = b[sortConfig.key] || ""; if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; return 0; }); } const isExpanded = expandedSources.has(source); return (<div key={source} className="border border-gray-800/50 rounded overflow-hidden bg-gray-900/10"> <div onClick={() => toggleSourceExpand(source)} className="flex items-center gap-3 px-4 py-2 bg-gray-900 cursor-pointer hover:bg-gray-800 transition-colors select-none"> <span className="text-xs text-gray-400">{isExpanded ? '▼' : '▶'}</span> <span className="text-sm font-bold text-purple-300 font-mono truncate">{source}</span> <span className="text-[10px] bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full">{actionsInSource.length}</span> </div> {isExpanded && (<div className="p-2 border-t border-gray-800 bg-black/20"> {actionsInSource.map((action) => { if (!isVisibleInMasterGroup(action, actionsInSource)) return null; const depth = action.code.split('.').length - 1; const hasChildren = actionsInSource.some(a => a.code.startsWith(action.code + ".")); return (<div key={action.id} style={{ marginLeft: `${depth * 24}px` }} className="flex items-center gap-2 bg-gray-900/20 p-1.5 rounded border border-gray-800/50 group hover:border-purple-500/30 hover:bg-gray-900/40 transition-all mb-1"> {hasChildren ? (<button onClick={() => toggleGlobalCollapse(action.note_path || "", action.code)} className="text-gray-500 w-4 text-[10px] hover:text-white font-mono border border-gray-700 rounded bg-gray-900 h-4 flex items-center justify-center"> {action.collapsed ? '+' : '-'} </button>) : <div className="w-4"></div>} <input type="checkbox" checked={action.status} onChange={() => toggleActionFromMaster(action)} className="w-4 h-4 cursor-pointer accent-purple-500 shrink-0" /> <div className="w-10 bg-gray-900/50 text-xs text-center text-blue-400 rounded font-mono py-1 border border-gray-800">{action.code}</div> <div className={`flex-1 text-sm ${action.status ? 'text-gray-500 line-through' : 'text-gray-300'} truncate px-2`} title={action.task}>{action.task}</div> <div className="w-20 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-500 rounded py-1">{action.owner || '-'}</div> <div className="w-24 bg-gray-900/50 border border-gray-800 text-xs text-center text-yellow-700/70 rounded py-1">{action.deadline || '-'}</div> <div className="w-64 bg-gray-900/50 border border-gray-800 text-xs text-left text-gray-400 rounded py-1 px-2 italic whitespace-normal break-words leading-tight" title={action.comment}>{action.comment}</div> <button onClick={() => openNote(action.note_path || "")} className="w-24 bg-gray-900/50 hover:bg-blue-900/30 border border-gray-800 hover:border-blue-700 text-[10px] text-gray-500 hover:text-blue-300 rounded py-1 truncate transition-colors text-center"> Ouvrir </button> </div>); })} </div>)} </div>); })} </div>
