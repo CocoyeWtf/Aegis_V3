@@ -17,7 +17,7 @@ interface NoteMetadata { id: string; type: string; status: string; tags: string;
 interface ActionItem { id: string; code: string; status: boolean; created: string; deadline: string; owner: string; task: string; comment: string; note_path?: string; collapsed?: boolean; }
 interface Note { id: string; path: string; tags?: string; }
 
-// V10.19 : TYPES EMAIL
+// TYPES EMAIL (Simplifié pour le mode manuel)
 interface EmailItem {
   id: string;
   subject: string;
@@ -50,9 +50,7 @@ function App() {
   const [db, setDb] = useState<Database | null>(null);
   const [syncStatus, setSyncStatus] = useState<string>("");
 
-  // TABS: COCKPIT | MASTER_PLAN | MAILBOX
   const [currentTab, setCurrentTab] = useState<'COCKPIT' | 'MASTER_PLAN' | 'MAILBOX'>('COCKPIT');
-
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [activeFile, setActiveFile] = useState<string>("");
   const [activeExtension, setActiveExtension] = useState<string>("");
@@ -62,12 +60,6 @@ function App() {
 
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchResults, setSearchResults] = useState<FileNode[]>([]);
-
-  // MAILBOX STATES
-  const [isConnected, setIsConnected] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState("DISCONNECTED");
-  const [emails, setEmails] = useState<EmailItem[]>([]);
-  const [selectedEmail, setSelectedEmail] = useState<EmailItem | null>(null);
 
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [rightSidebarWidth, setRightSidebarWidth] = useState(320);
@@ -114,25 +106,46 @@ function App() {
     } catch (e) { console.error("Search error:", e); }
   };
 
-  // MAILBOX FUNCTIONS (V10.19)
-  const handleConnectOutlook = async () => {
-    setConnectionStatus("TESTING NETWORK...");
+  // MAILBOX V10.21 : PORTAIL OUTLOOK & PRESSE-PAPIER
+  const handleOpenOutlookPortal = async () => {
     try {
-      // Appel de la commande Rust de test
-      const res = await invoke<string>("check_microsoft_connection");
-      if (res === "CONNEXION_OK") {
-        setConnectionStatus("ONLINE - WAITING AUTH");
-        // Simulation pour l'instant : on peuple avec des faux mails
-        setEmails([
-          { id: "1", subject: "Compte rendu Réunion MEA", sender: "Dominic Verleyen", received: "10:30", body_preview: "Voici le CR de la réunion...", is_read: false },
-          { id: "2", subject: "Validation Budget 2026", sender: "Michel", received: "Hier", body_preview: "Merci de valider le budget avant...", is_read: true },
-        ]);
-        setIsConnected(true);
-      } else {
-        setConnectionStatus("NETWORK ERROR: " + res);
-      }
+      await invoke("open_outlook_window");
     } catch (e) {
-      setConnectionStatus("FATAL ERROR: " + e);
+      alert("Erreur: " + e);
+    }
+  };
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text || text.trim().length === 0) { alert("Presse-papier vide !"); return; }
+
+      // Analyse simple : 1ère ligne = Titre
+      const lines = text.split('\n');
+      let title = lines[0].substring(0, 50).replace(/[^a-zA-Z0-9 ]/g, "").trim() || "Mail Importé";
+      if (title.length === 0) title = "Mail Importé";
+      const body = text;
+
+      // Création de la note
+      const inboxPath = "01_Inbox";
+      await invoke("create_folder", { path: `${vaultPath}\\${inboxPath}` });
+      const fileName = `${getTodayDate()}_MAIL_${title}.md`;
+      const fullPath = `${vaultPath}\\${inboxPath}\\${fileName}`;
+
+      const content = `# ${title}\n\n*Importé depuis Outlook le ${new Date().toLocaleString()}*\n\n${body}\n\n\n${METADATA_SEPARATOR}\nID: ${generateUUID()}\nTYPE: MAIL\nSTATUS: INBOX\nTAGS: email`;
+
+      await invoke("create_note", { path: fullPath, content });
+      await handleScan();
+      alert(`Note créée dans Inbox :\n${fileName}`);
+
+      // Switch vers Cockpit pour voir le résultat
+      setCurrentTab('COCKPIT');
+      setActiveFile(`${inboxPath}/${fileName}`);
+      setSelectedFolder(inboxPath);
+      parseFullFile(content, `${inboxPath}/${fileName}`);
+
+    } catch (e) {
+      alert("Erreur lors du collage : " + e);
     }
   };
 
@@ -186,67 +199,32 @@ function App() {
   const uniqueSources = Array.from(new Set(filteredActions.map(a => a.note_path || "Inconnu"))).sort();
   const handleOpenExternal = async () => { if (!activeFile || !vaultPath) return; const fullPath = `${vaultPath}\\${activeFile.replace(/\//g, '\\')}`; try { await invoke("open_file", { path: fullPath }); } catch (e) { alert("Erreur ouverture: " + e); } };
 
-  // RENDERING
+  // V10.21 : RENDER MAILBOX (Mode Portail)
   const renderMailbox = () => {
     return (
-      <div className="flex h-full bg-gray-900/50 text-white">
-        {/* MAIL FOLDERS */}
-        <div className="w-48 bg-gray-950 border-r border-gray-900 p-4 flex flex-col gap-2">
-          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Dossiers</h3>
-          <button className="text-left px-3 py-1.5 rounded bg-blue-900/30 text-blue-300 font-bold text-xs">📥 Inbox</button>
-          <button className="text-left px-3 py-1.5 rounded hover:bg-gray-900 text-gray-400 text-xs">📤 Sent</button>
-          <button className="text-left px-3 py-1.5 rounded hover:bg-gray-900 text-gray-400 text-xs">🗄️ Archive</button>
-          <div className="mt-auto pt-4 border-t border-gray-900">
-            <div className="text-[10px] text-gray-600 mb-2">STATUS: <span className={isConnected ? "text-green-500" : "text-red-500"}>{connectionStatus}</span></div>
-            <button onClick={handleConnectOutlook} className="w-full bg-blue-700 hover:bg-blue-600 text-white text-[10px] py-2 rounded font-bold uppercase">Connect Outlook</button>
-          </div>
+      <div className="flex flex-col h-full bg-gray-900/50 text-white items-center justify-center p-20 gap-8">
+        <div className="text-center space-y-4">
+          <div className="text-6xl mb-4">📧</div>
+          <h2 className="text-2xl font-bold tracking-widest text-blue-400">OUTLOOK PORTAL</h2>
+          <p className="text-gray-400 max-w-md mx-auto text-sm leading-relaxed">
+            En raison des restrictions de sécurité de votre entreprise (Admin Access),
+            Aegis utilise le mode <strong>"Portail Sécurisé"</strong>.
+          </p>
+          <p className="text-gray-500 text-xs italic">
+            1. Cliquez sur le bouton pour ouvrir Outlook.<br />
+            2. Copiez le texte d'un mail (CTRL+C).<br />
+            3. Cliquez sur "Coller & Créer Note" ici.
+          </p>
         </div>
 
-        {/* MAIL LIST */}
-        <div className="w-80 bg-black border-r border-gray-900 overflow-y-auto">
-          {emails.length === 0 ? (
-            <div className="p-10 text-center text-gray-600 text-xs">Aucun message.<br />Cliquez sur Connect.</div>
-          ) : (
-            emails.map(email => (
-              <div key={email.id} onClick={() => setSelectedEmail(email)} className={`p-4 border-b border-gray-900 cursor-pointer hover:bg-gray-900/50 ${selectedEmail?.id === email.id ? 'bg-blue-900/10 border-l-2 border-l-blue-500' : ''}`}>
-                <div className="flex justify-between mb-1">
-                  <span className={`text-xs font-bold ${email.is_read ? 'text-gray-500' : 'text-white'}`}>{email.sender}</span>
-                  <span className="text-[10px] text-gray-600">{email.received}</span>
-                </div>
-                <div className={`text-sm mb-1 truncate ${email.is_read ? 'text-gray-400' : 'text-gray-200 font-medium'}`}>{email.subject}</div>
-                <div className="text-xs text-gray-600 truncate">{email.body_preview}</div>
-              </div>
-            ))
-          )}
-        </div>
+        <div className="flex gap-6">
+          <button onClick={handleOpenOutlookPortal} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-lg shadow-lg shadow-blue-900/20 transition-all flex items-center gap-3 border border-blue-500">
+            <span>🚀</span> OPEN OUTLOOK
+          </button>
 
-        {/* READING PANE */}
-        <div className="flex-1 bg-gray-950 p-8 overflow-y-auto">
-          {selectedEmail ? (
-            <div>
-              <h2 className="text-2xl font-bold text-white mb-4">{selectedEmail.subject}</h2>
-              <div className="flex gap-4 items-center mb-8 border-b border-gray-800 pb-4">
-                <div className="w-10 h-10 rounded-full bg-purple-900 flex items-center justify-center text-lg font-bold text-purple-300">
-                  {selectedEmail.sender.charAt(0)}
-                </div>
-                <div>
-                  <div className="text-sm font-bold text-white">{selectedEmail.sender}</div>
-                  <div className="text-xs text-gray-500">Reçu le {selectedEmail.received}</div>
-                </div>
-                <div className="ml-auto flex gap-2">
-                  <button className="px-3 py-1 bg-gray-800 text-gray-300 text-xs rounded hover:bg-gray-700">Répondre</button>
-                  <button className="px-3 py-1 bg-blue-900/30 text-blue-300 text-xs rounded hover:bg-blue-900/50 border border-blue-900">Convertir en Note</button>
-                </div>
-              </div>
-              <div className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">
-                {selectedEmail.body_preview}
-                <br /><br />
-                (Contenu complet non chargé dans cette version démo)
-              </div>
-            </div>
-          ) : (
-            <div className="h-full flex items-center justify-center text-gray-700">Sélectionnez un email pour le lire</div>
-          )}
+          <button onClick={handlePasteFromClipboard} className="bg-gray-800 hover:bg-gray-700 text-green-400 font-bold py-4 px-8 rounded-lg shadow-lg border border-gray-700 transition-all flex items-center gap-3">
+            <span>📋</span> COLLER & CRÉER NOTE
+          </button>
         </div>
       </div>
     );
@@ -257,11 +235,10 @@ function App() {
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }`}</style>
       <div className="h-10 bg-gray-950 border-b border-gray-900 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-6">
-          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V10.19 MESSAGERIE</span>
+          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V10.21 PORTAL</span>
           <div className="flex gap-1 bg-gray-900 p-1 rounded">
             <button onClick={() => setCurrentTab('COCKPIT')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'COCKPIT' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>COCKPIT</button>
             <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-purple-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>
-            {/* NEW TAB BUTTON */}
             <button onClick={() => setCurrentTab('MAILBOX')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MAILBOX' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MESSAGERIE</button>
           </div>
         </div>
@@ -409,7 +386,7 @@ function App() {
               </div>
             </div>
           ) : (
-            // MAILBOX RENDER
+            // MAILBOX RENDER (Mode Portail)
             renderMailbox()
           )}
         </div>

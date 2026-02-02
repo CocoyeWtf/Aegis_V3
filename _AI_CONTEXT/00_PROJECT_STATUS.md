@@ -1,28 +1,29 @@
-# 00_PROJECT_STATUS - AEGIS V10.19 MAILBOX FOUNDATION
+# 00_PROJECT_STATUS - AEGIS V10.21 OUTLOOK PORTAL
 
-Ce document reflète l'état du projet en cours de développement sur la branche `feature/email-ingestion`.
+Ce document reflète l'état du projet arrêté le 02/02/2026.
 
-## 🎯 État Actuel : Transition vers Mode Portail (V10.21)
-L'utilisateur a arrêté la session juste avant d'implémenter la logique "WebView Outlook".
-* **Dernière action réussie** : Compilation stable avec la stack réseau (`reqwest`, `rustls`) + Interface UI Messagerie + Test de connexion Microsoft OK ("ONLINE").
-* **Prochaine action** : Appliquer le code V10.21 (Backend `open_outlook_window` + Frontend Capture).
+## 🎯 État Actuel : Messagerie "Mode Portail"
+Suite à des blocages de sécurité stricts (Admin Approval Required sur API Graph), la stratégie "Native" a été abandonnée au profit de la stratégie "Portail".
+
+* **Lecture / Rédaction** : Se fait via le navigateur par défaut (Edge/Chrome) lancé depuis Aegis. Cela garantit le fonctionnement du SSO/MFA et l'accès à toutes les fonctionnalités Outlook.
+* **Ingestion (Capture)** : Se fait via le bouton "Coller & Créer Note" qui analyse le presse-papier pour créer une note Markdown formatée.
 
 ## ✅ Fonctionnalités "DONE" et Stables
 
-1.  **Architecture Hybride** : Rust (Backend) + React (Frontend).
-2.  **Moteur de Recherche (V10.13)** : Full-Text sidebar.
-3.  **Scan & Indexation (V10.16)** : Récursif & Robuste.
-4.  **Export Excel (V10.18)** : Natif vers dossier Downloads.
-5.  **Messagerie (V10.19 - WIP)** :
-    * Onglet dédié créé.
-    * Stack technique Windows-Safe (`rustls-tls`) opérationnelle.
-    * Test de connectivité réussi.
+1.  **Architecture** : Rust (Backend) + React (Frontend).
+2.  **Moteur de Recherche** : Full-Text, sidebar.
+3.  **Scan & Indexation** : Récursif.
+4.  **Export Excel** : Natif.
+5.  **Messagerie (V10.21)** :
+    * Bouton "OPEN OUTLOOK" : Lance le navigateur système (Fiable 100%).
+    * Bouton "COLLER & CRÉER" : Transforme un mail copié en Note Aegis structurée.
 
-## 🛠 Stack Technique Ajoutée (Branche Mails)
-* **Network** : `reqwest` (HTTP Client), `tauri-plugin-dialog`, `walkdir`, `open`.
-* **Fix Windows** : Utilisation forcée de `rustls` pour contourner les erreurs OpenSSL.
+## ❌ Tentatives Échouées (Documentation Technique)
+* **IMAP/SMTP** : Ports bloqués par le pare-feu entreprise.
+* **Graph API (Device Code)** : Bloqué par politique Azure "Admin Consent Required" (Erreur AADSTS65002), même en utilisant des Client ID publics (PowerShell/Office).
 
 ## ⚠️ Point de Reprise
-* **Branche** : `feature/email-ingestion`.
-* **Contexte** : Impossible d'utiliser l'API Graph (Pas d'admin Azure). Pivot validé vers une solution "WebView Portail" + "Presse-papier".
-* **Instruction** : Reprendre à **"Étape 1 : Nettoyage du Backend (main.rs)"** de la proposition V10.21.
+* **Branche** : `feature/email-ingestion`
+* **Prochaine étape possible** :
+    * Améliorer le "Parsing" du collage (détecter mieux l'expéditeur/date).
+    * Ou passer à la tâche suivante (Export Word ou Finalisation UI).

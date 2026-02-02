@@ -1,11 +1,10 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use reqwest::blocking::Client;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
-use tauri::{Emitter, Manager}; // Le moteur HTTP
+use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 // --- TYPES ---
 #[derive(serde::Serialize, Clone)]
@@ -20,17 +19,21 @@ struct FileNode {
 
 // --- COMMANDS ---
 
-// V10.19 : Test de connexion Internet (Microsoft)
+#[tauri::command]
+fn open_outlook_window(_app: tauri::AppHandle) -> Result<(), String> {
+    // On utilise le navigateur système pour garantir l'accès (SSO/MFA)
+    open::that("https://outlook.office.com/mail/").map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[tauri::command]
 fn check_microsoft_connection() -> Result<String, String> {
     let client = Client::new();
-    // On tente de joindre la page de login Microsoft pour voir si le firewall laisse passer
     let res = client
         .get("https://login.microsoftonline.com")
         .timeout(std::time::Duration::from_secs(5))
         .send()
-        .map_err(|e| format!("Erreur Connexion: {}", e))?;
-
+        .map_err(|e| format!("{}", e))?;
     if res.status().is_success() {
         Ok("CONNEXION_OK".to_string())
     } else {
@@ -47,64 +50,42 @@ fn open_file(path: String) -> Result<(), String> {
             .spawn()
             .map_err(|e| e.to_string())?;
     }
-    #[cfg(target_os = "macos")]
-    {
-        Command::new("open")
-            .arg(&path)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        Command::new("xdg-open")
-            .arg(&path)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
     Ok(())
 }
-
 #[tauri::command]
 fn save_binary_file(path: String, content: Vec<u8>) -> Result<String, String> {
     fs::write(&path, content).map_err(|e| e.to_string())?;
     Ok("OK".to_string())
 }
-
 #[tauri::command]
 fn check_system_status() -> String {
     "SYSTEM_READY".to_string()
 }
-
 #[tauri::command]
 fn create_folder(path: String) -> Result<String, String> {
     fs::create_dir_all(&path).map_err(|e| e.to_string())?;
     Ok("OK".to_string())
 }
-
 #[tauri::command]
 fn create_note(path: String, content: String) -> Result<String, String> {
     fs::write(&path, content).map_err(|e| e.to_string())?;
     Ok("OK".to_string())
 }
-
 #[tauri::command]
 fn read_note(path: String) -> Result<String, String> {
     let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
     Ok(content)
 }
-
 #[tauri::command]
 fn delete_note(path: String) -> Result<String, String> {
     fs::remove_file(&path).map_err(|e| e.to_string())?;
     Ok("OK".to_string())
 }
-
 #[tauri::command]
 fn delete_folder(path: String) -> Result<String, String> {
     fs::remove_dir_all(&path).map_err(|e| e.to_string())?;
     Ok("OK".to_string())
 }
-
 #[tauri::command]
 fn rename_item(vault_path: String, old_path: String, new_name: String) -> Result<String, String> {
     let old_full = if old_path.contains(&vault_path) {
@@ -117,7 +98,6 @@ fn rename_item(vault_path: String, old_path: String, new_name: String) -> Result
     fs::rename(old_full, new_full).map_err(|e| e.to_string())?;
     Ok("OK".to_string())
 }
-
 #[tauri::command]
 fn move_file_system_entry(
     source_path: String,
@@ -129,7 +109,6 @@ fn move_file_system_entry(
     fs::rename(src, dest).map_err(|e| e.to_string())?;
     Ok("OK".to_string())
 }
-
 fn visit_dirs(dir: &Path, root_str: &str) -> Vec<FileNode> {
     let mut nodes = Vec::new();
     if let Ok(entries) = fs::read_dir(dir) {
@@ -137,11 +116,9 @@ fn visit_dirs(dir: &Path, root_str: &str) -> Vec<FileNode> {
             if let Ok(entry) = entry {
                 let path = entry.path();
                 let name = entry.file_name().to_string_lossy().to_string();
-
                 if name.starts_with('.') || name == "System Volume Information" {
                     continue;
                 }
-
                 let is_dir = path.is_dir();
                 let full_path_str = path.to_string_lossy().to_string();
                 let relative_path = full_path_str
@@ -149,11 +126,9 @@ fn visit_dirs(dir: &Path, root_str: &str) -> Vec<FileNode> {
                     .trim_start_matches('\\')
                     .trim_start_matches('/')
                     .replace('\\', "/");
-
                 let mut extension = "".to_string();
                 let mut content = "".to_string();
                 let mut children = Vec::new();
-
                 if is_dir {
                     children = visit_dirs(&path, root_str);
                 } else {
@@ -166,7 +141,6 @@ fn visit_dirs(dir: &Path, root_str: &str) -> Vec<FileNode> {
                         }
                     }
                 }
-
                 nodes.push(FileNode {
                     name,
                     path: relative_path,
@@ -180,22 +154,15 @@ fn visit_dirs(dir: &Path, root_str: &str) -> Vec<FileNode> {
     }
     nodes
 }
-
 #[tauri::command]
 fn scan_vault_recursive(root: String) -> Vec<FileNode> {
     let root_path = Path::new(&root);
     visit_dirs(root_path, &root)
 }
-
 #[tauri::command]
-fn update_links_on_move(
-    _vault_path: String,
-    _old_path_rel: String,
-    _new_path_rel: String,
-) -> Result<String, String> {
-    Ok("TODO_RUST_SEARCH_REPLACE".to_string())
+fn update_links_on_move(_vp: String, _old: String, _new: String) -> Result<String, String> {
+    Ok("TODO".to_string())
 }
-
 #[tauri::command]
 fn save_note(path: String, content: String) -> Result<String, String> {
     fs::write(&path, content).map_err(|e| e.to_string())?;
@@ -222,7 +189,8 @@ fn main() {
             update_links_on_move,
             open_file,
             save_binary_file,
-            check_microsoft_connection // <--- NOUVEAU
+            check_microsoft_connection,
+            open_outlook_window // <--- Retour à la simplicité
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
