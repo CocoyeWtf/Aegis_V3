@@ -12,6 +12,7 @@ import Sidebar, { FileNode } from "./Sidebar";
 const METADATA_SEPARATOR = "--- AEGIS METADATA ---";
 const ACTION_HEADER_MARKER = "## PLAN D'ACTION";
 const STORE_PATH = "aegis_config.json";
+const PROTOCOLS_FILENAME = "00_PROTOCOLS.md"; // V11.4: Fichier Souverain
 
 // --- TYPES ---
 interface NoteMetadata { id: string; type: string; status: string; tags: string; }
@@ -21,9 +22,9 @@ interface Note { id: string; path: string; tags?: string; }
 interface Ritual {
   id: string;
   name: string;
-  target_time: string; // "08:00"
-  frequency: string;   // "DAILY", "WEEKLY", "WORKDAYS"
-  category: string;    // "WORK", "PERSO", "HEALTH"
+  target_time: string;
+  frequency: string;
+  category: string;
   created_at: string;
 }
 interface RitualLog { ritual_id: string; date: string; status: boolean; }
@@ -74,7 +75,7 @@ function App() {
   const [detectedLinks, setDetectedLinks] = useState<string[]>([]);
   const [backlinks, setBacklinks] = useState<Note[]>([]);
 
-  // V11.3: RITUELS STATES
+  // V11.4: RITUELS STATES
   const [rituals, setRituals] = useState<Ritual[]>([]);
   const [ritualLogs, setRitualLogs] = useState<RitualLog[]>([]);
   const [newRitualName, setNewRitualName] = useState("");
@@ -108,13 +109,35 @@ function App() {
     init();
   }, [vaultPath]);
 
+  // V11.4: SYNC SOUVERAINE (Markdown)
+  const syncProtocolsToMarkdown = async (ritualsList: Ritual[]) => {
+    if (!vaultPath) return;
+    const header = `# AEGIS PROTOCOLS DEFINITION\n\n*Fichier généré automatiquement par Aegis. Ne pas modifier manuellement sous peine de désynchronisation.*\n\nDernière mise à jour : ${new Date().toLocaleString()}\n\n`;
+    const tableHeader = `| Categorie | Heure | Fréquence | Rituel |\n| :--- | :---: | :---: | :--- |\n`;
+
+    const rows = ritualsList.map(r => {
+      return `| ${r.category} | ${r.target_time || "--:--"} | ${r.frequency} | ${r.name} |`;
+    }).join("\n");
+
+    const content = header + tableHeader + rows + "\n";
+    const fullPath = `${vaultPath}\\${PROTOCOLS_FILENAME}`;
+
+    // On utilise save_note qui écrit un fichier texte (md)
+    try {
+      await invoke("save_note", { path: fullPath, content });
+      // Optionnel : Re-scanner pour voir le fichier apparaître dans la sidebar
+      handleScan();
+    } catch (e) {
+      console.error("Erreur sauvegarde protocols.md", e);
+    }
+  };
+
   const refreshRituals = async (database: Database) => {
-    // V11.3 FIX: TRI PAR HEURE STRICTE (Les vides en premier ou dernier selon standard, mais groupés)
-    // CASE WHEN pour gérer les heures vides proprement si besoin, mais le tri string standard suffit souvent ("" < "08:00")
     const r = await database.select<Ritual[]>("SELECT * FROM rituals ORDER BY target_time ASC, name ASC");
     const l = await database.select<any[]>("SELECT ritual_id, date, status FROM ritual_logs");
     setRituals(r);
     setRitualLogs(l.map(x => ({ ...x, status: x.status === 1 })));
+    // On ne sync pas ici pour éviter les boucles, on sync seulement sur modification
   };
 
   const addRitual = async () => {
@@ -127,6 +150,22 @@ function App() {
     setNewRitualName("");
     setNewRitualTime("");
     await refreshRituals(db);
+
+    // V11.4: Sync Souveraine
+    const updatedList = await db.select<Ritual[]>("SELECT * FROM rituals ORDER BY target_time ASC, name ASC");
+    await syncProtocolsToMarkdown(updatedList);
+  };
+
+  const deleteRitual = async (id: string) => {
+    if (!confirm("Supprimer ce rituel et son historique ?")) return;
+    if (!db) return;
+    await db.execute("DELETE FROM rituals WHERE id = $1", [id]);
+    await db.execute("DELETE FROM ritual_logs WHERE ritual_id = $1", [id]);
+    await refreshRituals(db);
+
+    // V11.4: Sync Souveraine
+    const updatedList = await db.select<Ritual[]>("SELECT * FROM rituals ORDER BY target_time ASC, name ASC");
+    await syncProtocolsToMarkdown(updatedList);
   };
 
   const toggleRitualDate = async (ritualId: string, dateStr: string) => {
@@ -139,14 +178,6 @@ function App() {
     } else {
       await db.execute("INSERT INTO ritual_logs VALUES ($1, $2, $3, $4)", [generateUUID(), ritualId, dateStr, 1]);
     }
-    await refreshRituals(db);
-  };
-
-  const deleteRitual = async (id: string) => {
-    if (!confirm("Supprimer ce rituel et son historique ?")) return;
-    if (!db) return;
-    await db.execute("DELETE FROM rituals WHERE id = $1", [id]);
-    await db.execute("DELETE FROM ritual_logs WHERE ritual_id = $1", [id]);
     await refreshRituals(db);
   };
 
@@ -166,7 +197,7 @@ function App() {
   const resize = useCallback((e: MouseEvent) => { if (resizingTarget === 'LEFT') { setSidebarWidth(Math.max(200, Math.min(800, e.clientX))); } else if (resizingTarget === 'RIGHT') { const newWidth = document.body.clientWidth - e.clientX; setRightSidebarWidth(Math.max(250, Math.min(800, newWidth))); } else if (resizingTarget === 'ACTION_PLAN') { const newHeight = e.clientY - 90; setActionPlanHeight(Math.max(100, Math.min(800, newHeight))); } }, [resizingTarget]);
   useEffect(() => { window.addEventListener("mousemove", resize); window.addEventListener("mouseup", stopResizing); return () => { window.removeEventListener("mousemove", resize); window.removeEventListener("mouseup", stopResizing); }; }, [resize, stopResizing]);
 
-  // -- STANDARD APP FUNCTIONS --
+  // -- APP FUNCTIONS --
   const handleVaultSelection = async (p: string) => { const s = new LazyStore(STORE_PATH); await s.set("vault_path", p); await s.save(); setVaultPath(p); };
   const handleCloseVault = async () => { if (!confirm("Fermer le Cockpit ?")) return; const s = new LazyStore(STORE_PATH); await s.set("vault_path", null); await s.save(); setVaultPath(null); };
   const handleGlobalSearch = async (query: string) => { setSearchQuery(query); if (!query || query.length < 2) { setSearchResults([]); return; } if (!db) return; try { const results = await db.select<any[]>(`SELECT path FROM notes WHERE content LIKE $1 OR path LIKE $1 OR tags LIKE $1 LIMIT 50`, [`%${query}%`]); const nodes: FileNode[] = results.map(r => ({ name: r.path.split('/').pop() || r.path, path: r.path, is_dir: false, children: [], extension: 'md', content: '' })); setSearchResults(nodes); } catch (e) { console.error("Search error:", e); } };
@@ -281,7 +312,7 @@ function App() {
     );
   };
 
-  // --- V11.3: TRACKER GRID VIEW & FORM (CORRIGÉS) ---
+  // --- V11.4: TRACKER GRID VIEW & FORM ---
   const renderTrackerGrid = () => {
     const year = calDate.getFullYear();
     const month = calDate.getMonth();
@@ -301,28 +332,33 @@ function App() {
           </div>
         </div>
 
-        {/* FORMULAIRE DE CRÉATION */}
+        {/* V11.4: FORMULAIRE DE CRÉATION COMPLET */}
         <div className="bg-gray-900/50 border border-gray-800 p-3 rounded flex gap-2 items-center shrink-0">
           <input type="text" placeholder="Nouveau rituel (ex: Sport, Lecture...)" className="flex-1 bg-black border border-gray-700 text-gray-300 text-xs rounded px-3 py-2 focus:border-amber-500 focus:outline-none" value={newRitualName} onChange={(e) => setNewRitualName(e.target.value)} />
+
           <select value={newRitualFreq} onChange={(e) => setNewRitualFreq(e.target.value)} className="bg-black border border-gray-700 text-gray-300 text-xs rounded px-2 py-2 focus:border-amber-500 outline-none w-32">
             <option value="DAILY">Quotidien</option>
             <option value="WEEKLY">Hebdo</option>
             <option value="WORKDAYS">Lun-Ven</option>
           </select>
+
           <select value={newRitualCat} onChange={(e) => setNewRitualCat(e.target.value)} className="bg-black border border-gray-700 text-gray-300 text-xs rounded px-2 py-2 focus:border-amber-500 outline-none w-32">
             <option value="WORK">Travail</option>
             <option value="PERSO">Perso</option>
             <option value="HEALTH">Santé</option>
           </select>
+
           <input type="time" className="bg-black border border-gray-700 text-gray-300 text-xs rounded px-2 py-2 focus:border-amber-500 outline-none" value={newRitualTime} onChange={(e) => setNewRitualTime(e.target.value)} />
+
           <button onClick={addRitual} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-4 py-2 rounded transition-colors">+ AJOUTER</button>
         </div>
 
-        {/* THE GRID (V11.3: Colonne HEURE explicite) */}
+        {/* THE GRID */}
         <div className="flex-1 overflow-auto border border-gray-800 rounded-lg bg-black/40 shadow-2xl relative">
           <div className="min-w-max">
             <div className="flex border-b border-gray-800 bg-gray-900 sticky top-0 z-10">
               <div className="w-64 p-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-r border-gray-800 sticky left-0 bg-gray-900 z-20">RITUEL</div>
+              {/* V11.4: Colonne HEURE */}
               <div className="w-16 p-3 text-[10px] font-bold text-gray-500 border-r border-gray-800 text-center">HEURE</div>
               {Array.from({ length: daysInMonth }).map((_, i) => (
                 <div key={i} className={`w-8 p-3 text-[10px] font-bold text-center border-r border-gray-800 ${i + 1 === new Date().getDate() && month === new Date().getMonth() ? 'text-amber-500 bg-amber-900/20' : 'text-gray-600'}`}>
@@ -336,11 +372,12 @@ function App() {
               const monthLogs = ritualLogs.filter(l => l.ritual_id === ritual.id && l.date.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`));
               const successCount = monthLogs.filter(l => l.status).length;
               const rate = Math.round((successCount / daysInMonth) * 100);
+
+              // Color dot based on category
               const catColor = ritual.category === 'WORK' ? 'bg-blue-500' : ritual.category === 'HEALTH' ? 'bg-green-500' : 'bg-purple-500';
 
               return (
                 <div key={ritual.id} className="flex border-b border-gray-800/50 hover:bg-gray-900/30 transition-colors">
-                  {/* NOM + BADGE FREQUENCE */}
                   <div className="w-64 p-3 text-xs font-bold text-gray-300 border-r border-gray-800 sticky left-0 bg-black z-10 flex justify-between items-center group">
                     <div className="flex items-center gap-2">
                       <div className={`w-1.5 h-1.5 rounded-full ${catColor}`}></div>
@@ -349,7 +386,7 @@ function App() {
                     </div>
                     <button onClick={() => deleteRitual(ritual.id)} className="text-gray-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">×</button>
                   </div>
-                  {/* COLONNE HEURE (V11.3) */}
+                  {/* V11.4: HEURE */}
                   <div className="w-16 p-3 text-[10px] font-mono text-amber-600/80 border-r border-gray-800 text-center font-bold">
                     {ritual.target_time || "-"}
                   </div>
@@ -379,7 +416,7 @@ function App() {
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }`}</style>
       <div className="h-10 bg-gray-950 border-b border-gray-900 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-6">
-          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V11.30 CHRONO MASTER</span>
+          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V11.40 SOVEREIGN</span>
           <div className="flex gap-1 bg-gray-900 p-1 rounded">
             <button onClick={() => setCurrentTab('COCKPIT')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'COCKPIT' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>COCKPIT</button>
             <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>
@@ -536,7 +573,7 @@ function App() {
               </div>
             </div>
           ) : (
-            // V11.3 : TRACKER VIEW (GRID)
+            // V11.4 : TRACKER VIEW (GRID)
             renderTrackerGrid()
           )}
         </div>
@@ -572,17 +609,17 @@ function App() {
             {/* V11.3 : RITUELS DU JOUR (TRI CHRONOLOGIQUE) */}
             <div className="bg-black/40 border border-gray-800 rounded-lg p-3 flex flex-col gap-2 mt-4 shadow-lg">
               <div className="flex justify-between items-center border-b border-gray-800 pb-2">
-                <h3 className="text-xs font-bold text-amber-500 uppercase tracking-widest flex items-center gap-2"><span>⚔️</span> TODAY'S RITUALS</h3>
+                <h3 className="text-xs font-bold text-amber-500 uppercase tracking-widest flex items-center gap-2"><span>⚔️</span> TODAY'S RITUELS</h3>
               </div>
               <div className="flex flex-col gap-1 max-h-[200px] overflow-y-auto custom-scrollbar">
-                {rituals.filter(isRitualDueToday).map(ritual => {
+                {rituals.filter(isRitualDueToday).sort((a, b) => (a.target_time || "23:59").localeCompare(b.target_time || "23:59")).map(ritual => {
                   const today = getTodayDate();
                   const isDone = ritualLogs.some(l => l.ritual_id === ritual.id && l.date === today && l.status);
 
                   // TIME HIGHLIGHT LOGIC
                   const currentHour = new Date().getHours();
                   const targetH = ritual.target_time ? parseInt(ritual.target_time.split(':')[0]) : -1;
-                  const isTime = targetH === currentHour; // Highlight si c'est l'heure
+                  const isTime = targetH === currentHour;
 
                   return (
                     <div key={ritual.id} className={`flex items-center gap-2 p-1.5 rounded group transition-all ${isTime && !isDone ? 'bg-amber-900/40 border border-amber-600/50 shadow-amber-900/20 shadow-lg' : 'hover:bg-gray-900/50'}`}>
