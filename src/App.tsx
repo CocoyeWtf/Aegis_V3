@@ -23,35 +23,19 @@ interface Ritual { id: string; name: string; target_time: string; frequency: str
 interface RitualLog { ritual_id: string; date: string; status: boolean; }
 interface EmailItem { id: string; subject: string; sender: string; sender_addr: string; received: string; body_preview: string; body_content: string; is_read: boolean; }
 
-// --- COMPOSANT UTILITAIRE : TEXTAREA AUTO-RESIZE ---
-// Permet d'avoir des champs qui grandissent avec le texte
+// --- COMPOSANTS UTILITAIRES ---
 const AutoResizeTextarea = ({ value, onChange, placeholder, className, style }: { value: string, onChange: (e: any) => void, placeholder?: string, className?: string, style?: any }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
   useLayoutEffect(() => {
     if (textareaRef.current) {
-      // Reset height to shrink if needed
       textareaRef.current.style.height = 'auto';
-      // Set height to scrollHeight to expand
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [value]);
-
-  return (
-    <textarea
-      ref={textareaRef}
-      value={value}
-      onChange={onChange}
-      placeholder={placeholder}
-      className={className}
-      rows={1}
-      style={{ ...style, resize: 'none', overflow: 'hidden' }}
-      spellCheck={false}
-    />
-  );
+  return <textarea ref={textareaRef} value={value} onChange={onChange} placeholder={placeholder} className={className} rows={1} style={{ ...style, resize: 'none', overflow: 'hidden' }} spellCheck={false} />;
 };
 
-// --- UTILITAIRES ---
+// --- UTILITAIRES DATES ---
 const getEasterDate = (year: number) => { const f = Math.floor, G = year % 19, C = f(year / 100), H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30, I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11)), J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7, L = I - J, month = 3 + f((L + 40) / 44), day = L + 28 - 31 * f(month / 4); return new Date(year, month - 1, day); };
 const getFrenchHolidays = (year: number) => { const easter = getEasterDate(year); const ascension = new Date(easter); ascension.setDate(easter.getDate() + 39); const pentecost = new Date(easter); pentecost.setDate(easter.getDate() + 50); const fmt = (d: Date) => d.toISOString().split('T')[0]; return { [`${year}-01-01`]: "Jour de l'An", [`${year}-05-01`]: "Fête du Travail", [`${year}-05-08`]: "Victoire 1945", [`${year}-07-14`]: "Fête Nationale", [`${year}-08-15`]: "Assomption", [`${year}-11-01`]: "Toussaint", [`${year}-11-11`]: "Armistice 1918", [`${year}-12-25`]: "Noël", [fmt(new Date(easter.setDate(easter.getDate() + 1)))]: "Lundi de Pâques", [fmt(ascension)]: "Ascension", [fmt(pentecost)]: "Lundi de Pentecôte" }; };
 const getWeekNumber = (d: Date) => { d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7)); var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1)); return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7); };
@@ -118,7 +102,6 @@ function App() {
         setDb(d);
         setStatus(m);
 
-        // Tables Rituels
         await d.execute("CREATE TABLE IF NOT EXISTS rituals (id TEXT PRIMARY KEY, name TEXT, created_at TEXT)");
         try { await d.execute("ALTER TABLE rituals ADD COLUMN target_time TEXT"); } catch (e) { }
         try { await d.execute("ALTER TABLE rituals ADD COLUMN frequency TEXT DEFAULT 'DAILY'"); } catch (e) { }
@@ -158,16 +141,15 @@ function App() {
     return () => { unlistenDrop.then(f => f()); unlistenHover.then(f => f()); unlistenLeave.then(f => f()); };
   }, [vaultPath, selectedFolder, activeFile]);
 
-  // --- SYNC SOUVERAINE MARKDOWN ---
+  // --- FUNCTIONS RITUELS & CORE ---
   const syncProtocolsToMarkdown = async (ritualsList: Ritual[]) => {
     if (!vaultPath) return;
-    const header = `# AEGIS PROTOCOLS DEFINITION\n\n*Fichier généré automatiquement par Aegis. Ne pas modifier manuellement sous peine de désynchronisation.*\n\nDernière mise à jour : ${new Date().toLocaleString()}\n\n`;
+    const header = `# AEGIS PROTOCOLS DEFINITION\n\n*Fichier généré automatiquement.*\n\n`;
     const tableHeader = `| Categorie | Heure | Fréquence | Rituel |\n| :--- | :---: | :---: | :--- |\n`;
     const rows = ritualsList.map(r => `| ${r.category} | ${r.target_time || "--:--"} | ${r.frequency} | ${r.name} |`).join("\n");
     try { await invoke("save_note", { path: `${vaultPath}\\${PROTOCOLS_FILENAME}`, content: header + tableHeader + rows }); handleScan(); } catch (e) { console.error(e); }
   };
 
-  // --- LOGIQUE RITUELS ---
   const refreshRituals = async (database: Database) => {
     const r = await database.select<Ritual[]>("SELECT * FROM rituals ORDER BY target_time ASC, name ASC");
     const l = await database.select<any[]>("SELECT ritual_id, date, status FROM ritual_logs");
@@ -212,7 +194,7 @@ function App() {
     return true;
   };
 
-  // --- RESIZING & UI UTILS ---
+  // --- CORE SYSTEM (Identique V11.55) ---
   const startResizingLeft = useCallback(() => setResizingTarget('LEFT'), []);
   const startResizingRight = useCallback(() => setResizingTarget('RIGHT'), []);
   const startResizingActionPlan = useCallback(() => setResizingTarget('ACTION_PLAN'), []);
@@ -220,7 +202,6 @@ function App() {
   const resize = useCallback((e: MouseEvent) => { if (resizingTarget === 'LEFT') { setSidebarWidth(Math.max(200, Math.min(800, e.clientX))); } else if (resizingTarget === 'RIGHT') { const newWidth = document.body.clientWidth - e.clientX; setRightSidebarWidth(Math.max(250, Math.min(800, newWidth))); } else if (resizingTarget === 'ACTION_PLAN') { const newHeight = e.clientY - 90; setActionPlanHeight(Math.max(100, Math.min(800, newHeight))); } }, [resizingTarget]);
   useEffect(() => { window.addEventListener("mousemove", resize); window.addEventListener("mouseup", stopResizing); return () => { window.removeEventListener("mousemove", resize); window.removeEventListener("mouseup", stopResizing); }; }, [resize, stopResizing]);
 
-  // --- CORE FEATURES ---
   const handleVaultSelection = async (p: string) => { const s = new LazyStore(STORE_PATH); await s.set("vault_path", p); await s.save(); setVaultPath(p); };
   const handleCloseVault = async () => { if (!confirm("Fermer le Cockpit ?")) return; const s = new LazyStore(STORE_PATH); await s.set("vault_path", null); await s.save(); setVaultPath(null); };
   const handleGlobalSearch = async (query: string) => { setSearchQuery(query); if (!query || query.length < 2) { setSearchResults([]); return; } if (!db) return; try { const results = await db.select<any[]>(`SELECT path FROM notes WHERE content LIKE $1 OR path LIKE $1 OR tags LIKE $1 LIMIT 50`, [`%${query}%`]); const nodes: FileNode[] = results.map(r => ({ name: r.path.split('/').pop() || r.path, path: r.path, is_dir: false, children: [], extension: 'md', content: '' })); setSearchResults(nodes); } catch (e) { console.error("Search error:", e); } };
@@ -266,70 +247,94 @@ function App() {
         <div className="text-center space-y-4">
           <div className="text-6xl mb-4 text-amber-500">📧</div>
           <h2 className="text-2xl font-bold tracking-widest text-amber-400">OUTLOOK PORTAL</h2>
-          <p className="text-gray-400 max-w-md mx-auto text-sm leading-relaxed">
-            En raison des restrictions de sécurité de votre entreprise (Admin Access),
-            Aegis utilise le mode <strong>"Portail Sécurisé"</strong>.
-          </p>
-          <p className="text-gray-500 text-xs italic">
-            1. Cliquez sur le bouton pour ouvrir Outlook.<br />
-            2. Copiez le texte d'un mail (CTRL+C).<br />
-            3. Cliquez sur "Coller & Créer Note" ici.
-          </p>
+          <p className="text-gray-400 max-w-md mx-auto text-sm leading-relaxed">En raison des restrictions de sécurité de votre entreprise, Aegis utilise le mode <strong>"Portail Sécurisé"</strong>.</p>
+          <p className="text-gray-500 text-xs italic">1. Cliquez pour ouvrir Outlook.<br />2. Copiez le texte (CTRL+C).<br />3. "Coller & Créer Note" ici.</p>
         </div>
         <div className="flex gap-6">
-          <button onClick={handleOpenOutlookPortal} className="bg-amber-700 hover:bg-amber-600 text-white font-bold py-4 px-8 rounded-lg shadow-lg shadow-amber-900/20 transition-all flex items-center gap-3 border border-amber-600">
-            <span>🚀</span> OPEN OUTLOOK
-          </button>
-          <button onClick={handlePasteFromClipboard} className="bg-gray-800 hover:bg-gray-700 text-green-400 font-bold py-4 px-8 rounded-lg shadow-lg border border-gray-700 transition-all flex items-center gap-3">
-            <span>📋</span> COLLER & CRÉER NOTE
-          </button>
+          <button onClick={handleOpenOutlookPortal} className="bg-amber-700 hover:bg-amber-600 text-white font-bold py-4 px-8 rounded-lg shadow-lg shadow-amber-900/20 transition-all flex items-center gap-3 border border-amber-600"><span>🚀</span> OPEN OUTLOOK</button>
+          <button onClick={handlePasteFromClipboard} className="bg-gray-800 hover:bg-gray-700 text-green-400 font-bold py-4 px-8 rounded-lg shadow-lg border border-gray-700 transition-all flex items-center gap-3"><span>📋</span> COLLER & CRÉER NOTE</button>
         </div>
       </div>
     );
   };
 
+  // --- V11.56 FIXED MINI CALENDAR (8 COLUMNS LOGIC) ---
   const MiniCalendar = () => {
     const year = calDate.getFullYear();
     const month = calDate.getMonth();
     const firstDayOfMonth = new Date(year, month, 1);
     const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    // 0 = Lundi, 6 = Dimanche (Transformation pour l'Europe)
+    // firstDayOfMonth.getDay() : 0=Sun, 1=Mon... -> (d + 6) % 7 -> Mon=0, Sun=6
     const startDay = (firstDayOfMonth.getDay() + 6) % 7;
+
     const holidays = getFrenchHolidays(year);
     const todayStr = getTodayDate();
     const prevMonth = () => setCalDate(new Date(year, month - 1, 1));
     const nextMonth = () => setCalDate(new Date(year, month + 1, 1));
 
+    // Génération explicite de la liste des cellules (flat list) pour la grille CSS
+    const calendarCells = [];
+
+    // 1. HEADERS (8 items)
+    calendarCells.push(<div key="h-w" className="text-gray-600 font-bold text-[9px] py-1 border-r border-gray-800">W</div>);
+    ['L', 'M', 'M', 'J', 'V', 'S', 'D'].forEach(d => {
+      calendarCells.push(<div key={`h-${d}`} className="text-gray-500 font-bold text-[9px] py-1">{d}</div>);
+    });
+
+    // 2. BODY (6 semaines max * 8 colonnes = 48 cellules)
+    for (let w = 0; w < 6; w++) {
+      // A. Numéro de semaine (Colonne 1)
+      // On calcule la date du Lundi de cette semaine 'w'
+      // Index du lundi par rapport au début du mois = (w * 7) - startDay + 1
+      // Si c'est négatif (mois précédent), JS gère très bien new Date(year, month, -2)
+      const mondayDate = new Date(year, month, (w * 7) - startDay + 1);
+
+      calendarCells.push(
+        <div key={`wk-${w}`} className="text-gray-600 text-[9px] py-1 border-r border-gray-800 font-mono bg-black/20 flex items-center justify-center">
+          {getWeekNumber(mondayDate)}
+        </div>
+      );
+
+      // B. Les 7 jours (Colonnes 2 à 8)
+      for (let d = 0; d < 7; d++) {
+        // Index linéaire du jour dans le mois
+        const dayIndex = (w * 7) + d - startDay + 1;
+        const currentD = new Date(year, month, dayIndex);
+        const dateStr = currentD.toISOString().split('T')[0];
+
+        // Est-ce un jour du mois affiché ?
+        const isCurrentMonth = dayIndex > 0 && dayIndex <= daysInMonth;
+        const isHoliday = holidays[dateStr];
+        const isToday = dateStr === todayStr;
+
+        if (!isCurrentMonth) {
+          // Case vide (hors mois)
+          calendarCells.push(<div key={`empty-${w}-${d}`} className="text-gray-800 text-[9px] py-1 border-r border-gray-800 bg-black/20"></div>);
+        } else {
+          // Jour du mois
+          calendarCells.push(
+            <div key={`day-${dayIndex}`} className={`py-1 rounded cursor-default relative group text-center ${isToday ? 'bg-orange-600 text-white font-bold' : ''} ${isHoliday ? 'text-red-400 font-bold border border-red-900/50 bg-red-900/10' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`} title={isHoliday || ""}>
+              {dayIndex}
+              {isHoliday && <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block whitespace-nowrap bg-black border border-red-900 text-red-200 text-[9px] px-2 py-1 rounded z-50 shadow-xl">{isHoliday}</div>}
+            </div>
+          );
+        }
+      }
+    }
+
     return (
       <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-800 shadow-lg mt-0 text-xs select-none">
         <div className="flex justify-between items-center mb-2 px-1">
-          <button onClick={prevMonth} className="text-amber-500 hover:text-white p-1.5 rounded hover:bg-gray-800 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
-          </button>
+          <button onClick={prevMonth} className="text-amber-500 hover:text-white p-1.5 rounded hover:bg-gray-800 transition-colors">◄</button>
           <span className="font-bold text-gray-300 uppercase tracking-widest">
             {calDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}
           </span>
-          <button onClick={nextMonth} className="text-amber-500 hover:text-white p-1.5 rounded hover:bg-gray-800 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
-          </button>
+          <button onClick={nextMonth} className="text-amber-500 hover:text-white p-1.5 rounded hover:bg-gray-800 transition-colors">►</button>
         </div>
         <div className="grid grid-cols-8 gap-1 text-center">
-          <div className="text-gray-600 font-bold text-[9px] py-1 border-r border-gray-800">W</div>
-          {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map(d => <div key={d} className="text-gray-500 font-bold text-[9px] py-1">{d}</div>)}
-          {Array.from({ length: 42 }).map((_, i) => {
-            const dayNum = i - startDay + 1;
-            if (dayNum <= 0 || dayNum > daysInMonth) {
-              if (i % 7 === 0) {
-                const d = new Date(year, month, dayNum > 0 ? dayNum : 1);
-                return <div key={i} className="text-gray-700 text-[9px] py-1 border-r border-gray-800 bg-black/20">{getWeekNumber(d)}</div>;
-              }
-              return <div key={i}></div>;
-            }
-            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
-            const isHoliday = holidays[dateStr];
-            const isToday = dateStr === todayStr;
-            if (i % 7 === 0) { const d = new Date(year, month, dayNum); return (<div key={`wk-${i}`} className="text-gray-600 text-[9px] py-1 border-r border-gray-800 font-mono bg-black/20">{getWeekNumber(d)}</div>); }
-            return (<div key={i} className={`py-1 rounded cursor-default relative group ${isToday ? 'bg-orange-600 text-white font-bold' : ''} ${isHoliday ? 'text-red-400 font-bold border border-red-900/50 bg-red-900/10' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`} title={isHoliday || ""}>{dayNum}{isHoliday && <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block whitespace-nowrap bg-black border border-red-900 text-red-200 text-[9px] px-2 py-1 rounded z-50 shadow-xl">{isHoliday}</div>}</div>);
-          })}
+          {calendarCells}
         </div>
       </div>
     );
@@ -438,7 +443,7 @@ function App() {
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }`}</style>
       <div className="h-10 bg-gray-950 border-b border-gray-900 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-6">
-          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V11.55 TEXT ERGO</span>
+          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V11.56 CALENDAR FIX</span>
           <div className="flex gap-1 bg-gray-900 p-1 rounded">
             <button onClick={() => setCurrentTab('COCKPIT')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'COCKPIT' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>COCKPIT</button>
             <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>
@@ -521,7 +526,6 @@ function App() {
                               const hasChildren = localActions.some(a => a.code.startsWith(action.code + "."));
                               return (
                                 <div key={action.id} style={{ marginLeft: `${(action.code.split('.').length - 1) * 24}px` }} className="flex items-start gap-2 bg-black/40 p-1.5 rounded border border-gray-800/50 group hover:border-amber-900/50 transition-colors mb-1">
-                                  {/* V11.55 ERGO : ALIGNEMENT TOP (items-start) pour les multiline */}
                                   <div className="pt-1">
                                     {hasChildren ? (<button onClick={() => toggleLocalCollapse(action.code)} className="text-gray-500 w-4 text-[10px] hover:text-white font-mono border border-gray-700 rounded bg-gray-900 h-4 flex items-center justify-center">{action.collapsed ? '+' : '-'}</button>) : <div className="w-4"></div>}
                                   </div>
@@ -531,30 +535,14 @@ function App() {
                                   <div className="pt-0.5">
                                     <input type="text" value={action.code} onChange={(e) => updateAction(action.id, 'code', e.target.value)} className="w-10 bg-gray-800 border-none text-xs text-center text-amber-300 rounded focus:bg-gray-700 font-mono" />
                                   </div>
-
-                                  {/* V11.55 ERGO : TEXTAREA AUTO-RESIZE */}
-                                  <AutoResizeTextarea
-                                    value={action.task}
-                                    onChange={(e) => updateAction(action.id, 'task', e.target.value)}
-                                    className={`flex-1 bg-transparent border-none text-sm focus:outline-none ${action.status ? 'text-gray-500 line-through' : 'text-gray-200'}`}
-                                    placeholder="Action..."
-                                  />
-
+                                  <AutoResizeTextarea value={action.task} onChange={(e) => updateAction(action.id, 'task', e.target.value)} className={`flex-1 bg-transparent border-none text-sm focus:outline-none ${action.status ? 'text-gray-500 line-through' : 'text-gray-200'}`} placeholder="Action..." />
                                   <div className="pt-0.5">
                                     <input type="text" value={action.owner} onChange={(e) => updateAction(action.id, 'owner', e.target.value)} className="w-20 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-amber-300 focus:border-amber-800" placeholder="Pilot" />
                                   </div>
                                   <div className="pt-0.5">
                                     <input type="date" value={action.deadline} onChange={(e) => updateAction(action.id, 'deadline', e.target.value)} className="w-24 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-yellow-500 focus:border-yellow-800" />
                                   </div>
-
-                                  {/* V11.55 ERGO : TEXTAREA COMMENTAIRE */}
-                                  <AutoResizeTextarea
-                                    value={action.comment || ""}
-                                    onChange={(e) => updateAction(action.id, 'comment', e.target.value)}
-                                    className="w-56 bg-gray-900/50 border border-gray-800 text-xs text-gray-400 rounded focus:text-white focus:border-gray-600 px-2"
-                                    placeholder="Comment..."
-                                  />
-
+                                  <AutoResizeTextarea value={action.comment || ""} onChange={(e) => updateAction(action.id, 'comment', e.target.value)} className="w-56 bg-gray-900/50 border border-gray-800 text-xs text-gray-400 rounded focus:text-white focus:border-gray-600 px-2" placeholder="Comment..." />
                                   <div className="pt-1">
                                     <button onClick={() => addAction(action.code)} className="text-[9px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded hover:bg-gray-700 hover:text-white mr-1" title="Sub-task">↪</button>
                                     <button onClick={() => removeAction(action.id)} className="text-gray-700 hover:text-red-500 px-1 opacity-0 group-hover:opacity-100 transition-opacity">×</button>
@@ -654,7 +642,7 @@ function App() {
               </>
             ) : <div className="text-center text-gray-700 text-xs mt-10">No context available.</div>}
 
-            {/* MINI CALENDAR (ALWAYS VISIBLE) */}
+            {/* V11.56 : MINI CALENDAR (ALWAYS VISIBLE, CORRECTED GRID) */}
             <MiniCalendar />
 
             {/* V11.3 : RITUELS DU JOUR (TRI CHRONOLOGIQUE) */}
