@@ -30,14 +30,8 @@ interface EmailItem {
 }
 
 // --- UTILITAIRES CALENDRIER ---
-const getEasterDate = (year: number) => {
-  const f = Math.floor, G = year % 19, C = f(year / 100), H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30, I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11)), J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7, L = I - J, month = 3 + f((L + 40) / 44), day = L + 28 - 31 * f(month / 4);
-  return new Date(year, month - 1, day);
-};
-const getFrenchHolidays = (year: number) => {
-  const easter = getEasterDate(year); const ascension = new Date(easter); ascension.setDate(easter.getDate() + 39); const pentecost = new Date(easter); pentecost.setDate(easter.getDate() + 50); const fmt = (d: Date) => d.toISOString().split('T')[0];
-  return { [`${year}-01-01`]: "Jour de l'An", [`${year}-05-01`]: "Fête du Travail", [`${year}-05-08`]: "Victoire 1945", [`${year}-07-14`]: "Fête Nationale", [`${year}-08-15`]: "Assomption", [`${year}-11-01`]: "Toussaint", [`${year}-11-11`]: "Armistice 1918", [`${year}-12-25`]: "Noël", [fmt(new Date(easter.setDate(easter.getDate() + 1)))]: "Lundi de Pâques", [fmt(ascension)]: "Ascension", [fmt(pentecost)]: "Lundi de Pentecôte" };
-};
+const getEasterDate = (year: number) => { const f = Math.floor, G = year % 19, C = f(year / 100), H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30, I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11)), J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7, L = I - J, month = 3 + f((L + 40) / 44), day = L + 28 - 31 * f(month / 4); return new Date(year, month - 1, day); };
+const getFrenchHolidays = (year: number) => { const easter = getEasterDate(year); const ascension = new Date(easter); ascension.setDate(easter.getDate() + 39); const pentecost = new Date(easter); pentecost.setDate(easter.getDate() + 50); const fmt = (d: Date) => d.toISOString().split('T')[0]; return { [`${year}-01-01`]: "Jour de l'An", [`${year}-05-01`]: "Fête du Travail", [`${year}-05-08`]: "Victoire 1945", [`${year}-07-14`]: "Fête Nationale", [`${year}-08-15`]: "Assomption", [`${year}-11-01`]: "Toussaint", [`${year}-11-11`]: "Armistice 1918", [`${year}-12-25`]: "Noël", [fmt(new Date(easter.setDate(easter.getDate() + 1)))]: "Lundi de Pâques", [fmt(ascension)]: "Ascension", [fmt(pentecost)]: "Lundi de Pentecôte" }; };
 const getWeekNumber = (d: Date) => { d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7)); var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1)); return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7); };
 
 // --- LOGIQUE METIER ---
@@ -193,7 +187,6 @@ function App() {
     return (
       <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-800 shadow-lg mt-auto text-xs select-none">
         <div className="flex justify-between items-center mb-2 px-1">
-          {/* V10.42: ICONES SVG POUR LES FLÈCHES DU CALENDRIER (SQUARE FIXED) */}
           <button onClick={prevMonth} className="text-amber-500 hover:text-white p-1.5 rounded hover:bg-gray-800 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -248,10 +241,11 @@ function App() {
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }`}</style>
       <div className="h-10 bg-gray-950 border-b border-gray-900 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-6">
-          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V10.43 STABLE</span>
+          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V10.46 GOLD MASTER</span>
           <div className="flex gap-1 bg-gray-900 p-1 rounded">
             <button onClick={() => setCurrentTab('COCKPIT')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'COCKPIT' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>COCKPIT</button>
-            <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-purple-900 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>
+            {/* V10.45 FIX : BOUTON MASTER PLAN GOLD */}
+            <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>
             <button onClick={() => setCurrentTab('MAILBOX')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MAILBOX' ? 'bg-amber-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MESSAGERIE</button>
           </div>
         </div>
@@ -416,19 +410,62 @@ function App() {
             )
           ) : currentTab === 'MASTER_PLAN' ? (
             <div className="flex flex-col h-full bg-gray-950/50">
-              {/* ... MASTER PLAN UI ... */}
+              {/* --- V10.46 : MASTER PLAN GOLD EDITION FINAL --- */}
               <div className="h-16 border-b border-gray-900 flex items-center px-8 bg-black shrink-0">
-                <h2 className="text-xl font-bold text-white tracking-widest flex items-center gap-3"><span className="text-purple-500">◈</span> GLOBAL MASTER PLAN</h2>
+                <h2 className="text-xl font-bold text-white tracking-widest flex items-center gap-3"><span className="text-amber-500">◈</span> GLOBAL MASTER PLAN</h2>
                 <div className="flex items-center gap-4">
                   <button onClick={() => handleScan(db)} className="text-gray-500 hover:text-white transition-colors" title="Force Reload">↻</button>
-                  <input type="text" placeholder="Filter..." value={filterText} onChange={(e) => setFilterText(e.target.value)} className="ml-4 bg-gray-900 border border-gray-800 text-xs text-white px-3 py-1 rounded w-64 focus:border-purple-500 focus:outline-none" />
-                  <button onClick={() => handleExportExcel(filteredActions, "Master_Plan")} className="bg-green-800 hover:bg-green-700 text-white text-xs px-4 py-1.5 rounded font-bold transition-colors">EXPORT XLS</button>
+                  <input type="text" placeholder="Filter..." value={filterText} onChange={(e) => setFilterText(e.target.value)} className="ml-4 bg-gray-900 border border-gray-800 text-xs text-white px-3 py-1 rounded w-64 focus:border-amber-500 focus:outline-none" />
+                  {/* BOUTON EXPORT GOLD */}
+                  <button onClick={() => handleExportExcel(filteredActions, "Master_Plan")} className="bg-black border border-amber-600 hover:bg-amber-900/20 text-amber-500 text-xs px-4 py-1.5 rounded font-bold transition-all shadow-sm hover:shadow-amber-900/20">📊 EXPORT XLS</button>
                 </div>
                 <div className="ml-auto text-xs text-gray-500">{filteredActions.length} actions</div>
               </div>
               <div className="flex-1 overflow-auto p-8">
-                <div className="flex gap-2 px-4 py-2 bg-gray-900/50 text-[10px] text-gray-500 uppercase tracking-wider font-bold shrink-0 border-b border-gray-800 mb-2"> <div className="w-6"></div><div className="w-10">ID</div><div className="flex-1">Action</div> <div onClick={() => requestSort('owner')} className="w-20 text-center cursor-pointer">Pilot</div> <div onClick={() => requestSort('deadline')} className="w-24 text-center cursor-pointer">Deadline</div> <div className="w-64 text-center">Comment</div> <div className="w-24 text-center">Open</div> </div>
-                <div className="space-y-4"> {uniqueSources.map(source => { let actionsInSource = filteredActions.filter(a => (a.note_path || "Inconnu") === source); if (sortConfig) { actionsInSource.sort((a, b) => { const valA = a[sortConfig.key] || ""; const valB = b[sortConfig.key] || ""; if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; return 0; }); } const isExpanded = expandedSources.has(source); return (<div key={source} className="border border-gray-800/50 rounded overflow-hidden bg-gray-900/10"> <div onClick={() => toggleSourceExpand(source)} className="flex items-center gap-3 px-4 py-2 bg-gray-900 cursor-pointer hover:bg-gray-800 transition-colors select-none"> <span className="text-xs text-gray-400">{isExpanded ? '▼' : '▶'}</span> <span className="text-sm font-bold text-purple-300 font-mono truncate">{source}</span> <span className="text-[10px] bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full">{actionsInSource.length}</span> </div> {isExpanded && (<div className="p-2 border-t border-gray-800 bg-black/20"> {actionsInSource.map((action) => { if (!isVisibleInMasterGroup(action, actionsInSource)) return null; const depth = action.code.split('.').length - 1; const hasChildren = actionsInSource.some(a => a.code.startsWith(action.code + ".")); return (<div key={action.id} style={{ marginLeft: `${depth * 24}px` }} className="flex items-center gap-2 bg-gray-900/20 p-1.5 rounded border border-gray-800/50 group hover:border-purple-500/30 hover:bg-gray-900/40 transition-all mb-1"> {hasChildren ? (<button onClick={() => toggleGlobalCollapse(action.note_path || "", action.code)} className="text-gray-500 w-4 text-[10px] hover:text-white font-mono border border-gray-700 rounded bg-gray-900 h-4 flex items-center justify-center"> {action.collapsed ? '+' : '-'} </button>) : <div className="w-4"></div>} <input type="checkbox" checked={action.status} onChange={() => toggleActionFromMaster(action)} className="w-4 h-4 cursor-pointer accent-purple-500 shrink-0" /> <div className="w-10 bg-gray-900/50 text-xs text-center text-blue-400 rounded font-mono py-1 border border-gray-800">{action.code}</div> <div className={`flex-1 text-sm ${action.status ? 'text-gray-500 line-through' : 'text-gray-300'} truncate px-2`} title={action.task}>{action.task}</div> <div className="w-20 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-500 rounded py-1">{action.owner || '-'}</div> <div className="w-24 bg-gray-900/50 border border-gray-800 text-xs text-center text-yellow-700/70 rounded py-1">{action.deadline || '-'}</div> <div className="w-64 bg-gray-900/50 border border-gray-800 text-xs text-left text-gray-400 rounded py-1 px-2 italic whitespace-normal break-words leading-tight" title={action.comment}>{action.comment}</div> <button onClick={() => openNote(action.note_path || "")} className="w-24 bg-gray-900/50 hover:bg-blue-900/30 border border-gray-800 hover:border-blue-700 text-[10px] text-gray-500 hover:text-blue-300 rounded py-1 truncate transition-colors text-center"> Ouvrir </button> </div>); })} </div>)} </div>); })} </div>
+                {/* HEADERS TABLEAU */}
+                <div className="flex gap-2 px-4 py-2 bg-gray-900/50 text-[10px] text-gray-500 uppercase tracking-wider font-bold shrink-0 border-b border-gray-800 mb-2"> <div className="w-6"></div><div className="w-10">ID</div><div className="flex-1">Action</div> <div onClick={() => requestSort('owner')} className="w-20 text-center cursor-pointer hover:text-amber-500 transition-colors">Pilot</div> <div onClick={() => requestSort('deadline')} className="w-24 text-center cursor-pointer hover:text-amber-500 transition-colors">Deadline</div> <div className="w-64 text-center">Comment</div> <div className="w-24 text-center">Open</div> </div>
+
+                <div className="space-y-4">
+                  {uniqueSources.map(source => {
+                    let actionsInSource = filteredActions.filter(a => (a.note_path || "Inconnu") === source);
+                    if (sortConfig) { actionsInSource.sort((a, b) => { const valA = a[sortConfig.key] || ""; const valB = b[sortConfig.key] || ""; if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; return 0; }); }
+                    const isExpanded = expandedSources.has(source);
+                    return (
+                      <div key={source} className="border border-gray-800/50 rounded overflow-hidden bg-gray-900/10">
+                        <div onClick={() => toggleSourceExpand(source)} className="flex items-center gap-3 px-4 py-2 bg-gray-900 cursor-pointer hover:bg-gray-800 transition-colors select-none">
+                          {/* V10.46: FLÈCHES MASTER PLAN OR (NO EMOJI) */}
+                          <span className="w-5 h-5 flex items-center justify-center text-amber-500 bg-gray-800 border border-gray-700 rounded text-[10px] font-bold mr-2">
+                            {isExpanded ? '▾' : '▸'}
+                          </span>
+                          {/* TITRE SOURCE GOLD */}
+                          <span className="text-sm font-bold text-amber-200 font-mono truncate">{source}</span>
+                          <span className="text-[10px] bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full">{actionsInSource.length}</span>
+                        </div>
+                        {isExpanded && (
+                          <div className="p-2 border-t border-gray-800 bg-black/20">
+                            {actionsInSource.map((action) => {
+                              if (!isVisibleInMasterGroup(action, actionsInSource)) return null;
+                              const depth = action.code.split('.').length - 1;
+                              const hasChildren = actionsInSource.some(a => a.code.startsWith(action.code + "."));
+                              return (
+                                <div key={action.id} style={{ marginLeft: `${depth * 24}px` }} className="flex items-center gap-2 bg-gray-900/20 p-1.5 rounded border border-gray-800/50 group hover:border-amber-500/50 hover:bg-gray-900/40 transition-all mb-1">
+                                  {hasChildren ? (<button onClick={() => toggleGlobalCollapse(action.note_path || "", action.code)} className="text-gray-500 w-4 text-[10px] hover:text-white font-mono border border-gray-700 rounded bg-gray-900 h-4 flex items-center justify-center"> {action.collapsed ? '+' : '-'} </button>) : <div className="w-4"></div>}
+                                  {/* CHECKBOX GOLD */}
+                                  <input type="checkbox" checked={action.status} onChange={() => toggleActionFromMaster(action)} className="w-4 h-4 cursor-pointer accent-amber-500 shrink-0" />
+                                  {/* ID GOLD */}
+                                  <div className="w-10 bg-gray-900/50 text-xs text-center text-amber-500 rounded font-mono py-1 border border-gray-800">{action.code}</div>
+                                  <div className={`flex-1 text-sm ${action.status ? 'text-gray-500 line-through' : 'text-gray-300'} truncate px-2`} title={action.task}>{action.task}</div>
+                                  <div className="w-20 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-500 rounded py-1">{action.owner || '-'}</div>
+                                  <div className="w-24 bg-gray-900/50 border border-gray-800 text-xs text-center text-yellow-700/70 rounded py-1">{action.deadline || '-'}</div>
+                                  <div className="w-64 bg-gray-900/50 border border-gray-800 text-xs text-left text-gray-400 rounded py-1 px-2 italic whitespace-normal break-words leading-tight" title={action.comment}>{action.comment}</div>
+                                  {/* BOUTON OPEN GOLD */}
+                                  <button onClick={() => openNote(action.note_path || "")} className="w-24 bg-gray-900/50 hover:bg-amber-900/30 border border-gray-800 hover:border-amber-700 text-[10px] text-gray-500 hover:text-amber-300 rounded py-1 truncate transition-colors text-center"> Ouvrir </button>
+                                </div>);
+                            })}
+                          </div>)}
+                      </div>);
+                  })}
+                </div>
               </div>
             </div>
           ) : (
