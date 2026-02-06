@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event"; // Pour le Drag & Drop
 import { downloadDir, join } from '@tauri-apps/api/path';
 import Database from "@tauri-apps/plugin-sql";
 import { LazyStore } from "@tauri-apps/plugin-store";
@@ -12,23 +13,14 @@ import Sidebar, { FileNode } from "./Sidebar";
 const METADATA_SEPARATOR = "--- AEGIS METADATA ---";
 const ACTION_HEADER_MARKER = "## PLAN D'ACTION";
 const STORE_PATH = "aegis_config.json";
-const PROTOCOLS_FILENAME = "00_PROTOCOLS.md"; // V11.4: Fichier Souverain
+const PROTOCOLS_FILENAME = "00_PROTOCOLS.md";
 
 // --- TYPES ---
 interface NoteMetadata { id: string; type: string; status: string; tags: string; }
 interface ActionItem { id: string; code: string; status: boolean; created: string; deadline: string; owner: string; task: string; comment: string; note_path?: string; collapsed?: boolean; }
 interface Note { id: string; path: string; tags?: string; }
-
-interface Ritual {
-  id: string;
-  name: string;
-  target_time: string;
-  frequency: string;
-  category: string;
-  created_at: string;
-}
+interface Ritual { id: string; name: string; target_time: string; frequency: string; category: string; created_at: string; }
 interface RitualLog { ritual_id: string; date: string; status: boolean; }
-
 interface EmailItem { id: string; subject: string; sender: string; sender_addr: string; received: string; body_preview: string; body_content: string; is_read: boolean; }
 
 // --- UTILITAIRES ---
@@ -58,11 +50,12 @@ function App() {
   const [searchResults, setSearchResults] = useState<FileNode[]>([]);
   const [calDate, setCalDate] = useState(new Date());
 
-  // -- RESIZING STATES --
+  // -- STATES UI --
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [rightSidebarWidth, setRightSidebarWidth] = useState(320);
   const [actionPlanHeight, setActionPlanHeight] = useState(300);
   const [resizingTarget, setResizingTarget] = useState<'LEFT' | 'RIGHT' | 'ACTION_PLAN' | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
 
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<{ key: keyof ActionItem; direction: 'asc' | 'desc' } | null>(null);
@@ -75,7 +68,7 @@ function App() {
   const [detectedLinks, setDetectedLinks] = useState<string[]>([]);
   const [backlinks, setBacklinks] = useState<Note[]>([]);
 
-  // V11.4: RITUELS STATES
+  // -- STATES RITUELS --
   const [rituals, setRituals] = useState<Ritual[]>([]);
   const [ritualLogs, setRitualLogs] = useState<RitualLog[]>([]);
   const [newRitualName, setNewRitualName] = useState("");
@@ -85,6 +78,7 @@ function App() {
 
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
+  // --- INIT ---
   useEffect(() => { const load = async () => { try { const s = new LazyStore(STORE_PATH); const p = await s.get<string>("vault_path"); if (p) setVaultPath(p); } catch (e) { console.error(e); } finally { setIsStoreLoaded(true); } }; load(); }, []);
 
   useEffect(() => {
@@ -109,63 +103,77 @@ function App() {
     init();
   }, [vaultPath]);
 
-  // V11.4: SYNC SOUVERAINE (Markdown)
+  // --- V11.5 FIXED: LISTENERS AVEC LES BONS NOMS D'EVENEMENTS TAURI V2 ---
+  useEffect(() => {
+    if (!vaultPath) return;
+
+    const getTargetFolder = () => {
+      if (selectedFolder) return selectedFolder;
+      if (activeFile && activeFile.includes('/')) return activeFile.substring(0, activeFile.lastIndexOf('/'));
+      return "";
+    };
+
+    // CORRECTION ICI : 'tauri://drag-drop' au lieu de 'tauri://drop'
+    const unlistenDrop = listen('tauri://drag-drop', async (event) => {
+      setIsDraggingFile(false);
+      // En Tauri V2, le payload contient "paths" et "position"
+      const payload = event.payload as { paths: string[], position: { x: number, y: number } };
+
+      if (payload && payload.paths && payload.paths.length > 0) {
+        const target = getTargetFolder();
+        let count = 0;
+        for (const path of payload.paths) {
+          try {
+            await invoke("import_file", { vaultPath, targetFolder: target, sourcePath: path });
+            count++;
+          } catch (e) {
+            console.error("Erreur import", path, e);
+          }
+        }
+        if (count > 0) {
+          await handleScan();
+          alert(`${count} fichier(s) importé(s) dans ${target || "RACINE"}`);
+        }
+      }
+    });
+
+    // CORRECTION : 'tauri://drag-enter'
+    const unlistenHover = listen('tauri://drag-enter', () => setIsDraggingFile(true));
+
+    // CORRECTION : 'tauri://drag-leave'
+    const unlistenLeave = listen('tauri://drag-leave', () => setIsDraggingFile(false));
+
+    return () => {
+      unlistenDrop.then(f => f());
+      unlistenHover.then(f => f());
+      unlistenLeave.then(f => f());
+    };
+  }, [vaultPath, selectedFolder, activeFile]);
+
+  // --- SYNC SOUVERAINE MARKDOWN ---
   const syncProtocolsToMarkdown = async (ritualsList: Ritual[]) => {
     if (!vaultPath) return;
     const header = `# AEGIS PROTOCOLS DEFINITION\n\n*Fichier généré automatiquement par Aegis. Ne pas modifier manuellement sous peine de désynchronisation.*\n\nDernière mise à jour : ${new Date().toLocaleString()}\n\n`;
     const tableHeader = `| Categorie | Heure | Fréquence | Rituel |\n| :--- | :---: | :---: | :--- |\n`;
-
-    const rows = ritualsList.map(r => {
-      return `| ${r.category} | ${r.target_time || "--:--"} | ${r.frequency} | ${r.name} |`;
-    }).join("\n");
-
-    const content = header + tableHeader + rows + "\n";
-    const fullPath = `${vaultPath}\\${PROTOCOLS_FILENAME}`;
-
-    // On utilise save_note qui écrit un fichier texte (md)
-    try {
-      await invoke("save_note", { path: fullPath, content });
-      // Optionnel : Re-scanner pour voir le fichier apparaître dans la sidebar
-      handleScan();
-    } catch (e) {
-      console.error("Erreur sauvegarde protocols.md", e);
-    }
+    const rows = ritualsList.map(r => `| ${r.category} | ${r.target_time || "--:--"} | ${r.frequency} | ${r.name} |`).join("\n");
+    try { await invoke("save_note", { path: `${vaultPath}\\${PROTOCOLS_FILENAME}`, content: header + tableHeader + rows }); handleScan(); } catch (e) { console.error(e); }
   };
 
+  // --- LOGIQUE RITUELS ---
   const refreshRituals = async (database: Database) => {
     const r = await database.select<Ritual[]>("SELECT * FROM rituals ORDER BY target_time ASC, name ASC");
     const l = await database.select<any[]>("SELECT ritual_id, date, status FROM ritual_logs");
     setRituals(r);
     setRitualLogs(l.map(x => ({ ...x, status: x.status === 1 })));
-    // On ne sync pas ici pour éviter les boucles, on sync seulement sur modification
   };
 
   const addRitual = async () => {
     if (!newRitualName.trim() || !db) return;
-    const id = generateUUID();
-    await db.execute(
-      "INSERT INTO rituals (id, name, created_at, target_time, frequency, category) VALUES ($1, $2, $3, $4, $5, $6)",
-      [id, newRitualName.trim(), new Date().toISOString(), newRitualTime, newRitualFreq, newRitualCat]
-    );
-    setNewRitualName("");
-    setNewRitualTime("");
+    await db.execute("INSERT INTO rituals (id, name, created_at, target_time, frequency, category) VALUES ($1, $2, $3, $4, $5, $6)", [generateUUID(), newRitualName.trim(), new Date().toISOString(), newRitualTime, newRitualFreq, newRitualCat]);
+    setNewRitualName(""); setNewRitualTime("");
     await refreshRituals(db);
-
-    // V11.4: Sync Souveraine
-    const updatedList = await db.select<Ritual[]>("SELECT * FROM rituals ORDER BY target_time ASC, name ASC");
-    await syncProtocolsToMarkdown(updatedList);
-  };
-
-  const deleteRitual = async (id: string) => {
-    if (!confirm("Supprimer ce rituel et son historique ?")) return;
-    if (!db) return;
-    await db.execute("DELETE FROM rituals WHERE id = $1", [id]);
-    await db.execute("DELETE FROM ritual_logs WHERE ritual_id = $1", [id]);
-    await refreshRituals(db);
-
-    // V11.4: Sync Souveraine
-    const updatedList = await db.select<Ritual[]>("SELECT * FROM rituals ORDER BY target_time ASC, name ASC");
-    await syncProtocolsToMarkdown(updatedList);
+    const updated = await db.select<Ritual[]>("SELECT * FROM rituals ORDER BY target_time ASC");
+    await syncProtocolsToMarkdown(updated);
   };
 
   const toggleRitualDate = async (ritualId: string, dateStr: string) => {
@@ -173,23 +181,30 @@ function App() {
     const existing = ritualLogs.find(l => l.ritual_id === ritualId && l.date === dateStr);
     const newStatus = existing ? !existing.status : true;
     const check = await db.select<any[]>("SELECT id FROM ritual_logs WHERE ritual_id = $1 AND date = $2", [ritualId, dateStr]);
-    if (check.length > 0) {
-      await db.execute("UPDATE ritual_logs SET status = $1 WHERE ritual_id = $2 AND date = $3", [newStatus ? 1 : 0, ritualId, dateStr]);
-    } else {
-      await db.execute("INSERT INTO ritual_logs VALUES ($1, $2, $3, $4)", [generateUUID(), ritualId, dateStr, 1]);
-    }
+    if (check.length > 0) await db.execute("UPDATE ritual_logs SET status = $1 WHERE ritual_id = $2 AND date = $3", [newStatus ? 1 : 0, ritualId, dateStr]);
+    else await db.execute("INSERT INTO ritual_logs VALUES ($1, $2, $3, $4)", [generateUUID(), ritualId, dateStr, 1]);
     await refreshRituals(db);
+  };
+
+  const deleteRitual = async (id: string) => {
+    if (!confirm("Supprimer ce rituel ?")) return;
+    if (!db) return;
+    await db.execute("DELETE FROM rituals WHERE id = $1", [id]);
+    await db.execute("DELETE FROM ritual_logs WHERE ritual_id = $1", [id]);
+    await refreshRituals(db);
+    const updated = await db.select<Ritual[]>("SELECT * FROM rituals ORDER BY target_time ASC");
+    await syncProtocolsToMarkdown(updated);
   };
 
   const isRitualDueToday = (r: Ritual) => {
     const day = new Date().getDay();
     if (r.frequency === 'DAILY') return true;
     if (r.frequency === 'WORKDAYS') return day >= 1 && day <= 5;
-    if (r.frequency === 'WEEKLY') { const creationDay = new Date(r.created_at).getDay(); return day === creationDay; }
+    if (r.frequency === 'WEEKLY') { return day === new Date(r.created_at).getDay(); }
     return true;
   };
 
-  // -- RESIZING --
+  // --- RESIZING & UI UTILS ---
   const startResizingLeft = useCallback(() => setResizingTarget('LEFT'), []);
   const startResizingRight = useCallback(() => setResizingTarget('RIGHT'), []);
   const startResizingActionPlan = useCallback(() => setResizingTarget('ACTION_PLAN'), []);
@@ -197,7 +212,7 @@ function App() {
   const resize = useCallback((e: MouseEvent) => { if (resizingTarget === 'LEFT') { setSidebarWidth(Math.max(200, Math.min(800, e.clientX))); } else if (resizingTarget === 'RIGHT') { const newWidth = document.body.clientWidth - e.clientX; setRightSidebarWidth(Math.max(250, Math.min(800, newWidth))); } else if (resizingTarget === 'ACTION_PLAN') { const newHeight = e.clientY - 90; setActionPlanHeight(Math.max(100, Math.min(800, newHeight))); } }, [resizingTarget]);
   useEffect(() => { window.addEventListener("mousemove", resize); window.addEventListener("mouseup", stopResizing); return () => { window.removeEventListener("mousemove", resize); window.removeEventListener("mouseup", stopResizing); }; }, [resize, stopResizing]);
 
-  // -- APP FUNCTIONS --
+  // --- CORE FEATURES ---
   const handleVaultSelection = async (p: string) => { const s = new LazyStore(STORE_PATH); await s.set("vault_path", p); await s.save(); setVaultPath(p); };
   const handleCloseVault = async () => { if (!confirm("Fermer le Cockpit ?")) return; const s = new LazyStore(STORE_PATH); await s.set("vault_path", null); await s.save(); setVaultPath(null); };
   const handleGlobalSearch = async (query: string) => { setSearchQuery(query); if (!query || query.length < 2) { setSearchResults([]); return; } if (!db) return; try { const results = await db.select<any[]>(`SELECT path FROM notes WHERE content LIKE $1 OR path LIKE $1 OR tags LIKE $1 LIMIT 50`, [`%${query}%`]); const nodes: FileNode[] = results.map(r => ({ name: r.path.split('/').pop() || r.path, path: r.path, is_dir: false, children: [], extension: 'md', content: '' })); setSearchResults(nodes); } catch (e) { console.error("Search error:", e); } };
@@ -413,10 +428,22 @@ function App() {
 
   return (
     <div className="h-screen w-screen bg-black text-white flex flex-col overflow-hidden font-sans select-none" onMouseUp={stopResizing}>
+      {/* V11.5: DRAG & DROP OVERLAY (STEALTH GOLD) */}
+      {isDraggingFile && (
+        <div className="fixed inset-0 z-[9999] bg-black/90 flex flex-col items-center justify-center border-[6px] border-dashed border-amber-500 backdrop-blur-sm transition-all animate-pulse pointer-events-none">
+          <div className="text-8xl mb-6">📂</div>
+          <h2 className="text-4xl font-bold text-amber-500 tracking-widest uppercase">Importer un fichier</h2>
+          <p className="text-gray-400 mt-4 text-xl">Relâchez pour ajouter au dossier :</p>
+          <div className="bg-gray-800 text-amber-300 font-mono text-lg px-6 py-3 rounded mt-2 border border-amber-500/50">
+            {selectedFolder ? selectedFolder : (activeFile && activeFile.includes('/') ? activeFile.substring(0, activeFile.lastIndexOf('/')) : "RACINE")}
+          </div>
+        </div>
+      )}
+
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }`}</style>
       <div className="h-10 bg-gray-950 border-b border-gray-900 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-6">
-          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V11.40 SOVEREIGN</span>
+          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V11.50 DRAG DROP</span>
           <div className="flex gap-1 bg-gray-900 p-1 rounded">
             <button onClick={() => setCurrentTab('COCKPIT')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'COCKPIT' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>COCKPIT</button>
             <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>

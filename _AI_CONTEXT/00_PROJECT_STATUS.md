@@ -1,27 +1,26 @@
-# 00_PROJECT_STATUS - AEGIS V11.40 (SOVEREIGN PROTOCOLS)
+# 00_PROJECT_STATUS - AEGIS V11.50 (DRAG & DROP MASTER)
 
 Dernière mise à jour : 06/02/2026
-Branche active : `feat/protocols` -> Prêt pour merge sur `main`
+Branche active : `main`
 
-## 🎯 État Actuel : MODULE RITUELS TERMINÉ
-Le module "Protocols" est opérationnel et sécurisé. Il permet de gérer la discipline quotidienne sans quitter l'écosystème Aegis.
+## 🎯 État Actuel : IMPORT FLUIDE & SOUVERAINETÉ
+L'application permet désormais d'importer n'importe quel fichier depuis Windows (Explorateur, Outlook via Bureau) par simple glisser-déposer. L'architecture Rust a été nettoyée et standardisée.
 
-## ✅ Session du 06/02/2026 - Rituels & Souveraineté
-1.  **Architecture Double (Stratégie vs Exécution)** :
-    * **Onglet RITUELS** : Création et visualisation globale (Matrice mensuelle).
-    * **Onglet COCKPIT** : Exécution tactique (Liste filtrée "Aujourd'hui").
-2.  **Gestion du Temps & Catégories** :
-    * Tri chronologique strict dans le Cockpit (08:00 avant 14:00).
-    * Codes couleurs discrets pour les catégories (Travail/Perso/Santé).
-    * Mise en avant (Highlight) du rituel de l'heure courante.
-3.  **Souveraineté des Données** :
-    * **Sync Auto** : Chaque modification de la liste des rituels régénère instantanément le fichier `00_PROTOCOLS.md` à la racine.
-    * **Format** : Tableau Markdown lisible universellement.
+## ✅ Session du 06/02/2026 - Drag & Drop & Refactoring
+1.  **Drag & Drop (V11.5)** :
+    * Import de fichiers externes vers le dossier actif (ou Inbox par défaut).
+    * Overlay visuel (Voile Noir & Or) lors du survol avec un fichier.
+    * Contournement des restrictions UIPI Windows (User vs Admin).
+2.  **Architecture (Rust)** :
+    * Refactoring complet : `main.rs` minimaliste, tout le cerveau déplacé dans `lib.rs`.
+    * Nettoyage des dépendances inutilisées (`walkdir`, `opener`).
+3.  **Rituels (V11.4)** :
+    * Sync automatique vers `00_PROTOCOLS.md` pour la pérennité des données.
 
 ## 🛠 Technique
-* **Base de données** : Ajout colonnes `target_time`, `frequency`, `category` (Migration silencieuse).
-* **Frontend** : Composants React optimisés pour la grille (performance d'affichage).
+* **Stack** : Tauri v2 (Events `tauri://drag-drop`).
+* **Backend** : `std::fs` pour la copie, gestion intelligente des doublons (timestamp).
 
 ## ⚠️ Point de Reprise
-* Fusionner la branche `feat/protocols` vers `main` pour la prochaine session.
-* Prochain cycle : Export Word ou Dashboard IA.
+* Système prêt pour usage intensif.
+* Prochaine étape : Exploitation des données (Dashboard ou IA).
