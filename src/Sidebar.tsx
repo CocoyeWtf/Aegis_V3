@@ -74,32 +74,47 @@ const FileItem = ({ node, level, activeFile, selectedFolder, expandedFolders, on
                     onNodeClick(node);
                 }}
             >
+                {/* FLÈCHE D'EXPANSION (GOLD FIXED - NO EMOJI) */}
                 {node.is_dir ? (
                     <span
-                        onClick={(e) => { e.stopPropagation(); onToggleExpand(node.path); }}
-                        className="w-4 h-4 flex items-center justify-center hover:text-white"
+                        onPointerDown={(e) => e.stopPropagation()} // Stop Drag
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleExpand(node.path);
+                        }}
+                        // Utilisation de text-amber-500 forcé et caractères géométriques
+                        className="w-5 h-5 flex items-center justify-center text-amber-500 hover:text-amber-300 hover:bg-gray-800 rounded transition-colors font-bold text-[10px]"
+                        title="Développer/Réduire"
                     >
-                        {expandedFolders.has(node.path) ? '▼' : '▶'}
+                        {/* Utilisation de ▸ et ▾ au lieu de ▶ et ▼ pour éviter le rendu Emoji bleu Windows */}
+                        {expandedFolders.has(node.path) ? '▾' : '▸'}
                     </span>
                 ) : (
-                    <span className="w-4"></span>
+                    <span className="w-5"></span>
                 )}
 
-                <span className="text-[10px]">{node.is_dir ? '📁' : node.extension === 'md' ? '📝' : '📄'}</span>
+                {/* ICÔNE TYPE */}
+                <span className={`text-[10px] ${node.is_dir ? 'text-amber-600' : 'text-gray-500'}`}>
+                    {node.is_dir ? '📁' : node.extension === 'md' ? '📝' : '📄'}
+                </span>
 
+                {/* NOM DU FICHIER */}
                 <span className="truncate flex-1">{node.name}</span>
 
+                {/* LIEN RAPIDE */}
                 {!node.is_dir && node.extension === 'md' && (
                     <button
+                        onPointerDown={(e) => e.stopPropagation()}
                         onClick={(e) => { e.stopPropagation(); onInsertLink(node); }}
                         className="opacity-0 group-hover:opacity-100 text-[9px] text-gray-500 hover:text-amber-400 px-1"
-                        title="Insérer lien"
+                        title="Insérer lien vers cette note"
                     >
                         🔗
                     </button>
                 )}
             </div>
 
+            {/* ENFANTS */}
             {node.is_dir && expandedFolders.has(node.path) && (
                 <div>
                     {node.children.map((child: any) => (
@@ -145,11 +160,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                         value={searchQuery}
                         onChange={(e) => onSearch(e.target.value)}
                     />
-                    {/* BOUTON CROIX (Nouveau) */}
+                    {/* BOUTON CROIX */}
                     {searchQuery && (
                         <button
                             onClick={() => onSearch("")}
-                            className="absolute right-2 top-1 text-gray-600 hover:text-amber-500 text-[10px] font-bold h-full flex items-center transition-colors"
+                            className="absolute right-2 top-1 text-gray-600 hover:text-amber-500 text-[10px] font-bold h-full flex items-center transition-colors px-1"
                             title="Effacer la recherche"
                         >
                             ✕
@@ -159,13 +174,13 @@ const Sidebar: React.FC<SidebarProps> = ({
 
                 {/* Action Buttons Gold */}
                 <div className="flex gap-1">
-                    <button onClick={(e) => { e.stopPropagation(); onFlashNote(); }} className="flex-1 bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-bold py-1.5 rounded flex items-center justify-center gap-1 shadow-sm transition-colors">
+                    <button onClick={(e) => { e.stopPropagation(); onFlashNote(); }} className="flex-1 bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-bold py-1.5 rounded flex items-center justify-center gap-1 shadow-sm transition-colors border border-amber-500">
                         <span>⚡</span> FLASH
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); onCreateFolder(); }} className="bg-gray-900 hover:bg-gray-800 text-gray-400 hover:text-amber-200 border border-gray-800 px-2 rounded" title="New Folder">
+                    <button onClick={(e) => { e.stopPropagation(); onCreateFolder(); }} className="bg-gray-900 hover:bg-gray-800 text-gray-400 hover:text-amber-200 border border-gray-800 px-2 rounded transition-colors" title="New Folder">
                         📁+
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); onCreateNote(); }} className="bg-gray-900 hover:bg-gray-800 text-gray-400 hover:text-amber-200 border border-gray-800 px-2 rounded" title="New Note">
+                    <button onClick={(e) => { e.stopPropagation(); onCreateNote(); }} className="bg-gray-900 hover:bg-gray-800 text-gray-400 hover:text-amber-200 border border-gray-800 px-2 rounded transition-colors" title="New Note">
                         📝+
                     </button>
                 </div>
@@ -207,9 +222,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                             ref={setRootDropRef}
                             className={`min-h-full pb-10 ${isOverRoot ? 'bg-amber-900/10' : ''}`}
                         >
-                            <div className="px-3 py-2 text-[10px] font-bold text-gray-600 uppercase tracking-widest flex items-center gap-2">
+                            {/* Root Label Gold */}
+                            <div className="px-3 py-2 text-[10px] font-bold text-amber-700/50 uppercase tracking-widest flex items-center gap-2">
                                 <span>🏠</span> VAULT ROOT
                             </div>
+
                             {fileTree.map((node) => (
                                 <FileItem
                                     key={node.path}
@@ -232,7 +249,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div className="p-2 border-t border-gray-900 bg-black flex justify-center">
                 <button
                     onClick={onCloseVault}
-                    className="text-[9px] text-gray-700 hover:text-red-500 uppercase tracking-widest font-bold transition-colors"
+                    className="text-[9px] text-gray-600 hover:text-red-500 uppercase tracking-widest font-bold transition-colors"
                 >
                     Close Vault
                 </button>

@@ -1,28 +1,26 @@
-# 00_PROJECT_STATUS - AEGIS V10.28
+# 00_PROJECT_STATUS - AEGIS V10.30
 
 Dernière mise à jour : 02/02/2026
 Branche active : `main`
 
-## 🎯 État Actuel : Stable & Polished
-L'interface est désormais cohérente ("Stealth Gold") et les interactions sont fluides.
+## 🎯 État Actuel : Version "Gold Edition" Finalisée
+L'interface est stable, cohérente (thème Stealth Gold) et tous les problèmes d'interaction connus (Drag/Click, Dialogues) sont résolus.
 
-## ✅ Derniers Ajouts (V10.28)
-1.  **Sidebar UX** :
-    * Correction du bug de clic sur les résultats de recherche.
-    * Ajout d'un bouton "✕" pour effacer la recherche rapidement.
-    * Design complet en Ambre/Gris (plus de bleu).
-2.  **Sécurité** :
-    * Suppression via boîte de dialogue native (bloquante).
-    * Protection contre la désynchronisation lors du Drag & Drop.
-3.  **Fonctionnalités Socle** :
-    * Calendrier perpétuel (Fériés FR).
-    * Mode Portail pour Outlook.
+## ✅ Session du 02/02/2026 - Clôture
+1.  **Sidebar (V10.30)** :
+    * **Fix** : Remplacement des flèches `▶/▼` (qui s'affichaient en bleu Emoji sous Windows) par les caractères géométriques `▸/▾` pour garantir la couleur Or.
+    * **Fix** : Protection stricte (`stopPropagation`) sur les flèches pour éviter les conflits avec le Drag & Drop.
+2.  **Fonctionnalités Validées** :
+    * Barre de recherche avec bouton "Clear" et résultats cliquables.
+    * Création de note avec nommage immédiat.
+    * Suppression sécurisée par dialogue natif.
+    * Calendrier perpétuel intégré.
+    * Messagerie en mode Portail (Outlook Web).
 
 ## 🛠 Technique
-* **Frontend** : React 19 + Tailwind.
-* **Backend** : Rust (Tauri v2).
-* **Stockage** : Markdown First (Source de vérité) + SQLite (Index).
+* **Stack** : Tauri v2, React 19, SQLite, TailwindCSS.
+* **Design System** : "Stealth Gold" (Neutral-900 / Amber-500).
 
 ## ⚠️ Point de Reprise
-* Le système est prêt pour une utilisation quotidienne "en production".
-* Prochaines évolutions possibles : Export Word, Amélioration du parsing mail.
+* Le socle V10 est terminé.
+* Prochains chantiers possibles : Export Word, Amélioration du parsing mail, ou Dashboard analytique.
