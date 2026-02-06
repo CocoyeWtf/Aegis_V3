@@ -35,12 +35,62 @@ const AutoResizeTextarea = ({ value, onChange, placeholder, className, style }: 
   return <textarea ref={textareaRef} value={value} onChange={onChange} placeholder={placeholder} className={className} rows={1} style={{ ...style, resize: 'none', overflow: 'hidden' }} spellCheck={false} />;
 };
 
-// --- UTILITAIRES DATES ---
-const getEasterDate = (year: number) => { const f = Math.floor, G = year % 19, C = f(year / 100), H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30, I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11)), J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7, L = I - J, month = 3 + f((L + 40) / 44), day = L + 28 - 31 * f(month / 4); return new Date(year, month - 1, day); };
-const getFrenchHolidays = (year: number) => { const easter = getEasterDate(year); const ascension = new Date(easter); ascension.setDate(easter.getDate() + 39); const pentecost = new Date(easter); pentecost.setDate(easter.getDate() + 50); const fmt = (d: Date) => d.toISOString().split('T')[0]; return { [`${year}-01-01`]: "Jour de l'An", [`${year}-05-01`]: "Fête du Travail", [`${year}-05-08`]: "Victoire 1945", [`${year}-07-14`]: "Fête Nationale", [`${year}-08-15`]: "Assomption", [`${year}-11-01`]: "Toussaint", [`${year}-11-11`]: "Armistice 1918", [`${year}-12-25`]: "Noël", [fmt(new Date(easter.setDate(easter.getDate() + 1)))]: "Lundi de Pâques", [fmt(ascension)]: "Ascension", [fmt(pentecost)]: "Lundi de Pentecôte" }; };
-const getWeekNumber = (d: Date) => { d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7)); var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1)); return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7); };
+// --- UTILITAIRES DATES (CORRIGÉS V11.60) ---
+
+// 1. Force le format YYYY-MM-DD en heure LOCALE (Fix du bug UTC)
+const toLocalISOString = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getEasterDate = (year: number) => {
+  const f = Math.floor, G = year % 19, C = f(year / 100), H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30, I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11)), J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7, L = I - J, month = 3 + f((L + 40) / 44), day = L + 28 - 31 * f(month / 4);
+  return new Date(year, month - 1, day);
+};
+
+const getFrenchHolidays = (year: number) => {
+  // Fêtes fixes
+  const holidays: Record<string, string> = {
+    [`${year}-01-01`]: "Jour de l'An",
+    [`${year}-05-01`]: "Fête du Travail",
+    [`${year}-05-08`]: "Victoire 1945",
+    [`${year}-07-14`]: "Fête Nationale",
+    [`${year}-08-15`]: "Assomption",
+    [`${year}-11-01`]: "Toussaint",
+    [`${year}-11-11`]: "Armistice 1918",
+    [`${year}-12-25`]: "Noël"
+  };
+
+  // Fêtes mobiles (Calculées par rapport à Pâques)
+  const easter = getEasterDate(year);
+
+  const easterMonday = new Date(easter);
+  easterMonday.setDate(easter.getDate() + 1);
+
+  const ascension = new Date(easter);
+  ascension.setDate(easter.getDate() + 39);
+
+  const pentecostMonday = new Date(easter);
+  pentecostMonday.setDate(easter.getDate() + 50);
+
+  holidays[toLocalISOString(easterMonday)] = "Lundi de Pâques";
+  holidays[toLocalISOString(ascension)] = "Ascension";
+  holidays[toLocalISOString(pentecostMonday)] = "Lundi de Pentecôte";
+
+  return holidays;
+};
+
+const getWeekNumber = (d: Date) => {
+  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+};
+
 function generateUUID() { return crypto.randomUUID(); }
-function getTodayDate() { return new Date().toISOString().split('T')[0]; }
+function getTodayDate() { return toLocalISOString(new Date()); } // Utilise le correctif Local
 async function computeContentHash(text: string): Promise<string> { const msgBuffer = new TextEncoder().encode(text); const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer); const hashArray = Array.from(new Uint8Array(hashBuffer)); return hashArray.map(b => b.toString(16).padStart(2, '0')).join(''); }
 const flattenNodes = (nodes: FileNode[]): FileNode[] => { let flat: FileNode[] = []; if (!nodes) return flat; for (const node of nodes) { flat.push(node); if (node.children && Array.isArray(node.children) && node.children.length > 0) { flat = flat.concat(flattenNodes(node.children)); } } return flat; };
 function stripHtml(html: string) { let doc = new DOMParser().parseFromString(html, 'text/html'); return doc.body.textContent || ""; }
@@ -194,7 +244,7 @@ function App() {
     return true;
   };
 
-  // --- CORE SYSTEM (Identique V11.55) ---
+  // --- CORE SYSTEM ---
   const startResizingLeft = useCallback(() => setResizingTarget('LEFT'), []);
   const startResizingRight = useCallback(() => setResizingTarget('RIGHT'), []);
   const startResizingActionPlan = useCallback(() => setResizingTarget('ACTION_PLAN'), []);
@@ -258,62 +308,48 @@ function App() {
     );
   };
 
-  // --- V11.56 FIXED MINI CALENDAR (8 COLUMNS LOGIC) ---
+  // --- V11.60 FIXED MINI CALENDAR (LOCAL TIMEZONES & GOLD ARROWS) ---
   const MiniCalendar = () => {
     const year = calDate.getFullYear();
     const month = calDate.getMonth();
     const firstDayOfMonth = new Date(year, month, 1);
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-    // 0 = Lundi, 6 = Dimanche (Transformation pour l'Europe)
-    // firstDayOfMonth.getDay() : 0=Sun, 1=Mon... -> (d + 6) % 7 -> Mon=0, Sun=6
     const startDay = (firstDayOfMonth.getDay() + 6) % 7;
 
     const holidays = getFrenchHolidays(year);
-    const todayStr = getTodayDate();
+    const todayStr = getTodayDate(); // now uses Local ISO
     const prevMonth = () => setCalDate(new Date(year, month - 1, 1));
     const nextMonth = () => setCalDate(new Date(year, month + 1, 1));
 
-    // Génération explicite de la liste des cellules (flat list) pour la grille CSS
     const calendarCells = [];
 
-    // 1. HEADERS (8 items)
     calendarCells.push(<div key="h-w" className="text-gray-600 font-bold text-[9px] py-1 border-r border-gray-800">W</div>);
     ['L', 'M', 'M', 'J', 'V', 'S', 'D'].forEach(d => {
       calendarCells.push(<div key={`h-${d}`} className="text-gray-500 font-bold text-[9px] py-1">{d}</div>);
     });
 
-    // 2. BODY (6 semaines max * 8 colonnes = 48 cellules)
     for (let w = 0; w < 6; w++) {
-      // A. Numéro de semaine (Colonne 1)
-      // On calcule la date du Lundi de cette semaine 'w'
-      // Index du lundi par rapport au début du mois = (w * 7) - startDay + 1
-      // Si c'est négatif (mois précédent), JS gère très bien new Date(year, month, -2)
       const mondayDate = new Date(year, month, (w * 7) - startDay + 1);
-
       calendarCells.push(
         <div key={`wk-${w}`} className="text-gray-600 text-[9px] py-1 border-r border-gray-800 font-mono bg-black/20 flex items-center justify-center">
           {getWeekNumber(mondayDate)}
         </div>
       );
 
-      // B. Les 7 jours (Colonnes 2 à 8)
       for (let d = 0; d < 7; d++) {
-        // Index linéaire du jour dans le mois
         const dayIndex = (w * 7) + d - startDay + 1;
         const currentD = new Date(year, month, dayIndex);
-        const dateStr = currentD.toISOString().split('T')[0];
 
-        // Est-ce un jour du mois affiché ?
+        // V11.60: Use Local ISO String for Comparison
+        const dateStr = toLocalISOString(currentD);
+
         const isCurrentMonth = dayIndex > 0 && dayIndex <= daysInMonth;
         const isHoliday = holidays[dateStr];
         const isToday = dateStr === todayStr;
 
         if (!isCurrentMonth) {
-          // Case vide (hors mois)
           calendarCells.push(<div key={`empty-${w}-${d}`} className="text-gray-800 text-[9px] py-1 border-r border-gray-800 bg-black/20"></div>);
         } else {
-          // Jour du mois
           calendarCells.push(
             <div key={`day-${dayIndex}`} className={`py-1 rounded cursor-default relative group text-center ${isToday ? 'bg-orange-600 text-white font-bold' : ''} ${isHoliday ? 'text-red-400 font-bold border border-red-900/50 bg-red-900/10' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`} title={isHoliday || ""}>
               {dayIndex}
@@ -327,11 +363,12 @@ function App() {
     return (
       <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-800 shadow-lg mt-0 text-xs select-none">
         <div className="flex justify-between items-center mb-2 px-1">
-          <button onClick={prevMonth} className="text-amber-500 hover:text-white p-1.5 rounded hover:bg-gray-800 transition-colors">◄</button>
+          {/* V11.60: GOLD GEOMETRIC ARROWS */}
+          <button onClick={prevMonth} className="text-orange-600 hover:text-amber-400 p-1.5 transition-colors text-[10px]">◀</button>
           <span className="font-bold text-gray-300 uppercase tracking-widest">
             {calDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}
           </span>
-          <button onClick={nextMonth} className="text-amber-500 hover:text-white p-1.5 rounded hover:bg-gray-800 transition-colors">►</button>
+          <button onClick={nextMonth} className="text-amber-600 hover:text-amber-400 p-1.5 transition-colors text-[10px]">▶</button>
         </div>
         <div className="grid grid-cols-8 gap-1 text-center">
           {calendarCells}
@@ -352,9 +389,10 @@ function App() {
             <span>⚔️</span> PROTOCOLS TRACKER
           </h2>
           <div className="flex items-center gap-4">
-            <button onClick={() => setCalDate(new Date(year, month - 1, 1))} className="text-gray-500 hover:text-white text-lg font-bold">◄</button>
+            {/* V11.60: GOLD ARROWS CONSISTENCY */}
+            <button onClick={() => setCalDate(new Date(year, month - 1, 1))} className="text-gray-500 hover:text-white text-lg font-bold">◀</button>
             <span className="text-sm font-bold text-gray-300 w-32 text-center">{calDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' }).toUpperCase()}</span>
-            <button onClick={() => setCalDate(new Date(year, month + 1, 1))} className="text-gray-500 hover:text-white text-lg font-bold">►</button>
+            <button onClick={() => setCalDate(new Date(year, month + 1, 1))} className="text-gray-500 hover:text-white text-lg font-bold">▶</button>
           </div>
         </div>
 
@@ -407,7 +445,9 @@ function App() {
                     {ritual.target_time || "-"}
                   </div>
                   {Array.from({ length: daysInMonth }).map((_, i) => {
-                    const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`;
+                    // V11.60: Use Local ISO also for Tracker
+                    const currentD = new Date(year, month, i + 1);
+                    const dayStr = toLocalISOString(currentD);
                     const isDone = ritualLogs.some(l => l.ritual_id === ritual.id && l.date === dayStr && l.status);
                     return (
                       <div key={i} onClick={() => toggleRitualDate(ritual.id, dayStr)} className={`w-8 border-r border-gray-800 cursor-pointer flex items-center justify-center transition-colors hover:bg-white/5`}>
@@ -443,7 +483,7 @@ function App() {
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }`}</style>
       <div className="h-10 bg-gray-950 border-b border-gray-900 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-6">
-          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V11.56 CALENDAR FIX</span>
+          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V11.60 CALENDAR PERPETUAL</span>
           <div className="flex gap-1 bg-gray-900 p-1 rounded">
             <button onClick={() => setCurrentTab('COCKPIT')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'COCKPIT' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>COCKPIT</button>
             <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>
@@ -627,7 +667,7 @@ function App() {
               <>
                 {activeExtension === 'md' ? (
                   <>
-                    {backlinks.length > 0 && (<div className="mb-4"> <h4 className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-2 flex items-center gap-2">Cited By <span className="bg-purple-900/30 text-purple-400 px-1.5 rounded-full text-[9px]">{backlinks.length}</span></h4> <ul className="space-y-1 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar"> {backlinks.map(backlink => (<li key={backlink.id} onClick={() => openNote(backlink.path)} className="group cursor-pointer bg-purple-900/10 border border-purple-900/30 hover:bg-purple-900/30 p-2 rounded transition-all"> <div className="flex items-center gap-2"> <span className="text-xs text-purple-300 group-hover:text-white truncate font-medium">⬅ {backlink.path.replace('.md', '')}</span> </div> </li>))} </ul> </div>)}
+                    {backlinks.length > 0 && (<div className="mb-4"> <h4 className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-2 flex items-center gap-2">Cited By <span className="bg-amber-600/30 text-purple-400 px-1.5 rounded-full text-[9px]">{backlinks.length}</span></h4> <ul className="space-y-1 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar"> {backlinks.map(backlink => (<li key={backlink.id} onClick={() => openNote(backlink.path)} className="group cursor-pointer bg-purple-900/10 border border-purple-900/30 hover:bg-purple-900/30 p-2 rounded transition-all"> <div className="flex items-center gap-2"> <span className="text-xs text-purple-300 group-hover:text-white truncate font-medium">⬅ {backlink.path.replace('.md', '')}</span> </div> </li>))} </ul> </div>)}
                     {detectedLinks.length > 0 && (<div className="mb-4"> <h4 className="text-[10px] font-bold text-green-500 uppercase tracking-wider mb-2 flex items-center gap-2">Going To <span className="bg-green-900/30 text-green-400 px-1.5 rounded-full text-[9px]">{detectedLinks.length}</span></h4> <ul className="space-y-1 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar"> {detectedLinks.map(link => (<li key={link} onClick={() => openNote(link.endsWith('.md') ? link : `${link}.md`)} className="group cursor-pointer bg-green-900/10 border border-green-900/30 hover:bg-green-900/30 p-2 rounded transition-all"> <div className="flex items-center gap-2"> <span className="text-xs text-green-300 group-hover:text-white truncate font-medium">➡ {link}</span> </div> </li>))} </ul> </div>)}
                     <div className="space-y-4 pt-2 border-t border-gray-900">
                       <div> <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">UUID (System)</label> <input type="text" value={metadata.id} disabled className="w-full bg-gray-900/50 border border-gray-900 text-gray-600 text-[9px] rounded p-2 font-mono select-all" /> </div>
@@ -642,7 +682,7 @@ function App() {
               </>
             ) : <div className="text-center text-gray-700 text-xs mt-10">No context available.</div>}
 
-            {/* V11.56 : MINI CALENDAR (ALWAYS VISIBLE, CORRECTED GRID) */}
+            {/* V11.60 : MINI CALENDAR (LOCAL FIX & GOLD ARROWS) */}
             <MiniCalendar />
 
             {/* V11.3 : RITUELS DU JOUR (TRI CHRONOLOGIQUE) */}
@@ -652,7 +692,8 @@ function App() {
               </div>
               <div className="flex flex-col gap-1 max-h-[200px] overflow-y-auto custom-scrollbar">
                 {rituals.filter(isRitualDueToday).sort((a, b) => (a.target_time || "23:59").localeCompare(b.target_time || "23:59")).map(ritual => {
-                  const today = getTodayDate();
+                  // V11.60: Use Local ISO to check "isDone" correctly
+                  const today = toLocalISOString(new Date());
                   const isDone = ritualLogs.some(l => l.ritual_id === ritual.id && l.date === today && l.status);
 
                   // TIME HIGHLIGHT LOGIC
