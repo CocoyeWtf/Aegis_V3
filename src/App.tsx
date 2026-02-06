@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event"; // Pour le Drag & Drop
+import { listen } from "@tauri-apps/api/event";
 import { downloadDir, join } from '@tauri-apps/api/path';
 import Database from "@tauri-apps/plugin-sql";
 import { LazyStore } from "@tauri-apps/plugin-store";
@@ -22,6 +22,34 @@ interface Note { id: string; path: string; tags?: string; }
 interface Ritual { id: string; name: string; target_time: string; frequency: string; category: string; created_at: string; }
 interface RitualLog { ritual_id: string; date: string; status: boolean; }
 interface EmailItem { id: string; subject: string; sender: string; sender_addr: string; received: string; body_preview: string; body_content: string; is_read: boolean; }
+
+// --- COMPOSANT UTILITAIRE : TEXTAREA AUTO-RESIZE ---
+// Permet d'avoir des champs qui grandissent avec le texte
+const AutoResizeTextarea = ({ value, onChange, placeholder, className, style }: { value: string, onChange: (e: any) => void, placeholder?: string, className?: string, style?: any }) => {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    if (textareaRef.current) {
+      // Reset height to shrink if needed
+      textareaRef.current.style.height = 'auto';
+      // Set height to scrollHeight to expand
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [value]);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      className={className}
+      rows={1}
+      style={{ ...style, resize: 'none', overflow: 'hidden' }}
+      spellCheck={false}
+    />
+  );
+};
 
 // --- UTILITAIRES ---
 const getEasterDate = (year: number) => { const f = Math.floor, G = year % 19, C = f(year / 100), H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30, I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11)), J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7, L = I - J, month = 3 + f((L + 40) / 44), day = L + 28 - 31 * f(month / 4); return new Date(year, month - 1, day); };
@@ -90,6 +118,7 @@ function App() {
         setDb(d);
         setStatus(m);
 
+        // Tables Rituels
         await d.execute("CREATE TABLE IF NOT EXISTS rituals (id TEXT PRIMARY KEY, name TEXT, created_at TEXT)");
         try { await d.execute("ALTER TABLE rituals ADD COLUMN target_time TEXT"); } catch (e) { }
         try { await d.execute("ALTER TABLE rituals ADD COLUMN frequency TEXT DEFAULT 'DAILY'"); } catch (e) { }
@@ -103,51 +132,30 @@ function App() {
     init();
   }, [vaultPath]);
 
-  // --- V11.5 FIXED: LISTENERS AVEC LES BONS NOMS D'EVENEMENTS TAURI V2 ---
+  // --- LISTENERS ---
   useEffect(() => {
     if (!vaultPath) return;
-
     const getTargetFolder = () => {
       if (selectedFolder) return selectedFolder;
       if (activeFile && activeFile.includes('/')) return activeFile.substring(0, activeFile.lastIndexOf('/'));
       return "";
     };
-
-    // CORRECTION ICI : 'tauri://drag-drop' au lieu de 'tauri://drop'
     const unlistenDrop = listen('tauri://drag-drop', async (event) => {
       setIsDraggingFile(false);
-      // En Tauri V2, le payload contient "paths" et "position"
       const payload = event.payload as { paths: string[], position: { x: number, y: number } };
-
       if (payload && payload.paths && payload.paths.length > 0) {
         const target = getTargetFolder();
         let count = 0;
         for (const path of payload.paths) {
-          try {
-            await invoke("import_file", { vaultPath, targetFolder: target, sourcePath: path });
-            count++;
-          } catch (e) {
-            console.error("Erreur import", path, e);
-          }
+          try { await invoke("import_file", { vaultPath, targetFolder: target, sourcePath: path }); count++; }
+          catch (e) { console.error("Erreur import", path, e); }
         }
-        if (count > 0) {
-          await handleScan();
-          alert(`${count} fichier(s) importé(s) dans ${target || "RACINE"}`);
-        }
+        if (count > 0) { await handleScan(); alert(`${count} fichier(s) importé(s) dans ${target || "RACINE"}`); }
       }
     });
-
-    // CORRECTION : 'tauri://drag-enter'
     const unlistenHover = listen('tauri://drag-enter', () => setIsDraggingFile(true));
-
-    // CORRECTION : 'tauri://drag-leave'
     const unlistenLeave = listen('tauri://drag-leave', () => setIsDraggingFile(false));
-
-    return () => {
-      unlistenDrop.then(f => f());
-      unlistenHover.then(f => f());
-      unlistenLeave.then(f => f());
-    };
+    return () => { unlistenDrop.then(f => f()); unlistenHover.then(f => f()); unlistenLeave.then(f => f()); };
   }, [vaultPath, selectedFolder, activeFile]);
 
   // --- SYNC SOUVERAINE MARKDOWN ---
@@ -327,7 +335,6 @@ function App() {
     );
   };
 
-  // --- V11.4: TRACKER GRID VIEW & FORM ---
   const renderTrackerGrid = () => {
     const year = calDate.getFullYear();
     const month = calDate.getMonth();
@@ -335,7 +342,6 @@ function App() {
 
     return (
       <div className="flex flex-col h-full bg-gray-950 text-white p-6 overflow-hidden gap-4">
-        {/* HEADER & NAV */}
         <div className="flex items-center justify-between shrink-0 border-b border-gray-800 pb-4">
           <h2 className="text-xl font-bold tracking-widest text-amber-500 uppercase flex items-center gap-3">
             <span>⚔️</span> PROTOCOLS TRACKER
@@ -347,33 +353,26 @@ function App() {
           </div>
         </div>
 
-        {/* V11.4: FORMULAIRE DE CRÉATION COMPLET */}
         <div className="bg-gray-900/50 border border-gray-800 p-3 rounded flex gap-2 items-center shrink-0">
           <input type="text" placeholder="Nouveau rituel (ex: Sport, Lecture...)" className="flex-1 bg-black border border-gray-700 text-gray-300 text-xs rounded px-3 py-2 focus:border-amber-500 focus:outline-none" value={newRitualName} onChange={(e) => setNewRitualName(e.target.value)} />
-
           <select value={newRitualFreq} onChange={(e) => setNewRitualFreq(e.target.value)} className="bg-black border border-gray-700 text-gray-300 text-xs rounded px-2 py-2 focus:border-amber-500 outline-none w-32">
             <option value="DAILY">Quotidien</option>
             <option value="WEEKLY">Hebdo</option>
             <option value="WORKDAYS">Lun-Ven</option>
           </select>
-
           <select value={newRitualCat} onChange={(e) => setNewRitualCat(e.target.value)} className="bg-black border border-gray-700 text-gray-300 text-xs rounded px-2 py-2 focus:border-amber-500 outline-none w-32">
             <option value="WORK">Travail</option>
             <option value="PERSO">Perso</option>
             <option value="HEALTH">Santé</option>
           </select>
-
           <input type="time" className="bg-black border border-gray-700 text-gray-300 text-xs rounded px-2 py-2 focus:border-amber-500 outline-none" value={newRitualTime} onChange={(e) => setNewRitualTime(e.target.value)} />
-
           <button onClick={addRitual} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-4 py-2 rounded transition-colors">+ AJOUTER</button>
         </div>
 
-        {/* THE GRID */}
         <div className="flex-1 overflow-auto border border-gray-800 rounded-lg bg-black/40 shadow-2xl relative">
           <div className="min-w-max">
             <div className="flex border-b border-gray-800 bg-gray-900 sticky top-0 z-10">
               <div className="w-64 p-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-r border-gray-800 sticky left-0 bg-gray-900 z-20">RITUEL</div>
-              {/* V11.4: Colonne HEURE */}
               <div className="w-16 p-3 text-[10px] font-bold text-gray-500 border-r border-gray-800 text-center">HEURE</div>
               {Array.from({ length: daysInMonth }).map((_, i) => (
                 <div key={i} className={`w-8 p-3 text-[10px] font-bold text-center border-r border-gray-800 ${i + 1 === new Date().getDate() && month === new Date().getMonth() ? 'text-amber-500 bg-amber-900/20' : 'text-gray-600'}`}>
@@ -387,8 +386,6 @@ function App() {
               const monthLogs = ritualLogs.filter(l => l.ritual_id === ritual.id && l.date.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`));
               const successCount = monthLogs.filter(l => l.status).length;
               const rate = Math.round((successCount / daysInMonth) * 100);
-
-              // Color dot based on category
               const catColor = ritual.category === 'WORK' ? 'bg-blue-500' : ritual.category === 'HEALTH' ? 'bg-green-500' : 'bg-purple-500';
 
               return (
@@ -401,7 +398,6 @@ function App() {
                     </div>
                     <button onClick={() => deleteRitual(ritual.id)} className="text-gray-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">×</button>
                   </div>
-                  {/* V11.4: HEURE */}
                   <div className="w-16 p-3 text-[10px] font-mono text-amber-600/80 border-r border-gray-800 text-center font-bold">
                     {ritual.target_time || "-"}
                   </div>
@@ -428,7 +424,6 @@ function App() {
 
   return (
     <div className="h-screen w-screen bg-black text-white flex flex-col overflow-hidden font-sans select-none" onMouseUp={stopResizing}>
-      {/* V11.5: DRAG & DROP OVERLAY (STEALTH GOLD) */}
       {isDraggingFile && (
         <div className="fixed inset-0 z-[9999] bg-black/90 flex flex-col items-center justify-center border-[6px] border-dashed border-amber-500 backdrop-blur-sm transition-all animate-pulse pointer-events-none">
           <div className="text-8xl mb-6">📂</div>
@@ -443,7 +438,7 @@ function App() {
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }`}</style>
       <div className="h-10 bg-gray-950 border-b border-gray-900 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-6">
-          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V11.50 DRAG DROP</span>
+          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V11.55 TEXT ERGO</span>
           <div className="flex gap-1 bg-gray-900 p-1 rounded">
             <button onClick={() => setCurrentTab('COCKPIT')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'COCKPIT' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>COCKPIT</button>
             <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>
@@ -525,16 +520,45 @@ function App() {
                               if (!isVisibleInCockpit(action, localActions)) return null;
                               const hasChildren = localActions.some(a => a.code.startsWith(action.code + "."));
                               return (
-                                <div key={action.id} style={{ marginLeft: `${(action.code.split('.').length - 1) * 24}px` }} className="flex items-center gap-2 bg-black/40 p-1.5 rounded border border-gray-800/50 group hover:border-amber-900/50 transition-colors mb-1">
-                                  {hasChildren ? (<button onClick={() => toggleLocalCollapse(action.code)} className="text-gray-500 w-4 text-[10px] hover:text-white font-mono border border-gray-700 rounded bg-gray-900 h-4 flex items-center justify-center">{action.collapsed ? '+' : '-'}</button>) : <div className="w-4"></div>}
-                                  <input type="checkbox" checked={action.status} onChange={(e) => updateAction(action.id, 'status', e.target.checked)} className="w-4 h-4 cursor-pointer accent-amber-500 shrink-0" />
-                                  <input type="text" value={action.code} onChange={(e) => updateAction(action.id, 'code', e.target.value)} className="w-10 bg-gray-800 border-none text-xs text-center text-amber-300 rounded focus:bg-gray-700 font-mono" />
-                                  <input type="text" value={action.task} onChange={(e) => updateAction(action.id, 'task', e.target.value)} className={`flex-1 bg-transparent border-none text-sm focus:outline-none ${action.status ? 'text-gray-500 line-through' : 'text-gray-200'}`} placeholder="Action..." />
-                                  <input type="text" value={action.owner} onChange={(e) => updateAction(action.id, 'owner', e.target.value)} className="w-20 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-amber-300 focus:border-amber-800" placeholder="Pilot" />
-                                  <input type="date" value={action.deadline} onChange={(e) => updateAction(action.id, 'deadline', e.target.value)} className="w-24 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-yellow-500 focus:border-yellow-800" />
-                                  <input type="text" value={action.comment || ""} onChange={(e) => updateAction(action.id, 'comment', e.target.value)} className="w-56 bg-gray-900/50 border border-gray-800 text-xs text-gray-400 rounded focus:text-white focus:border-gray-600 px-2" placeholder="Comment..." />
-                                  <button onClick={() => addAction(action.code)} className="text-[9px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded hover:bg-gray-700 hover:text-white" title="Sub-task">↪</button>
-                                  <button onClick={() => removeAction(action.id)} className="text-gray-700 hover:text-red-500 px-1 opacity-0 group-hover:opacity-100 transition-opacity">×</button>
+                                <div key={action.id} style={{ marginLeft: `${(action.code.split('.').length - 1) * 24}px` }} className="flex items-start gap-2 bg-black/40 p-1.5 rounded border border-gray-800/50 group hover:border-amber-900/50 transition-colors mb-1">
+                                  {/* V11.55 ERGO : ALIGNEMENT TOP (items-start) pour les multiline */}
+                                  <div className="pt-1">
+                                    {hasChildren ? (<button onClick={() => toggleLocalCollapse(action.code)} className="text-gray-500 w-4 text-[10px] hover:text-white font-mono border border-gray-700 rounded bg-gray-900 h-4 flex items-center justify-center">{action.collapsed ? '+' : '-'}</button>) : <div className="w-4"></div>}
+                                  </div>
+                                  <div className="pt-1.5">
+                                    <input type="checkbox" checked={action.status} onChange={(e) => updateAction(action.id, 'status', e.target.checked)} className="w-4 h-4 cursor-pointer accent-amber-500 shrink-0" />
+                                  </div>
+                                  <div className="pt-0.5">
+                                    <input type="text" value={action.code} onChange={(e) => updateAction(action.id, 'code', e.target.value)} className="w-10 bg-gray-800 border-none text-xs text-center text-amber-300 rounded focus:bg-gray-700 font-mono" />
+                                  </div>
+
+                                  {/* V11.55 ERGO : TEXTAREA AUTO-RESIZE */}
+                                  <AutoResizeTextarea
+                                    value={action.task}
+                                    onChange={(e) => updateAction(action.id, 'task', e.target.value)}
+                                    className={`flex-1 bg-transparent border-none text-sm focus:outline-none ${action.status ? 'text-gray-500 line-through' : 'text-gray-200'}`}
+                                    placeholder="Action..."
+                                  />
+
+                                  <div className="pt-0.5">
+                                    <input type="text" value={action.owner} onChange={(e) => updateAction(action.id, 'owner', e.target.value)} className="w-20 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-amber-300 focus:border-amber-800" placeholder="Pilot" />
+                                  </div>
+                                  <div className="pt-0.5">
+                                    <input type="date" value={action.deadline} onChange={(e) => updateAction(action.id, 'deadline', e.target.value)} className="w-24 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-yellow-500 focus:border-yellow-800" />
+                                  </div>
+
+                                  {/* V11.55 ERGO : TEXTAREA COMMENTAIRE */}
+                                  <AutoResizeTextarea
+                                    value={action.comment || ""}
+                                    onChange={(e) => updateAction(action.id, 'comment', e.target.value)}
+                                    className="w-56 bg-gray-900/50 border border-gray-800 text-xs text-gray-400 rounded focus:text-white focus:border-gray-600 px-2"
+                                    placeholder="Comment..."
+                                  />
+
+                                  <div className="pt-1">
+                                    <button onClick={() => addAction(action.code)} className="text-[9px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded hover:bg-gray-700 hover:text-white mr-1" title="Sub-task">↪</button>
+                                    <button onClick={() => removeAction(action.id)} className="text-gray-700 hover:text-red-500 px-1 opacity-0 group-hover:opacity-100 transition-opacity">×</button>
+                                  </div>
                                 </div>
                               );
                             })}
