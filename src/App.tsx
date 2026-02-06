@@ -35,62 +35,13 @@ const AutoResizeTextarea = ({ value, onChange, placeholder, className, style }: 
   return <textarea ref={textareaRef} value={value} onChange={onChange} placeholder={placeholder} className={className} rows={1} style={{ ...style, resize: 'none', overflow: 'hidden' }} spellCheck={false} />;
 };
 
-// --- UTILITAIRES DATES (CORRIGÉS V11.60) ---
-
-// 1. Force le format YYYY-MM-DD en heure LOCALE (Fix du bug UTC)
-const toLocalISOString = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const getEasterDate = (year: number) => {
-  const f = Math.floor, G = year % 19, C = f(year / 100), H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30, I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11)), J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7, L = I - J, month = 3 + f((L + 40) / 44), day = L + 28 - 31 * f(month / 4);
-  return new Date(year, month - 1, day);
-};
-
-const getFrenchHolidays = (year: number) => {
-  // Fêtes fixes
-  const holidays: Record<string, string> = {
-    [`${year}-01-01`]: "Jour de l'An",
-    [`${year}-05-01`]: "Fête du Travail",
-    [`${year}-05-08`]: "Victoire 1945",
-    [`${year}-07-14`]: "Fête Nationale",
-    [`${year}-08-15`]: "Assomption",
-    [`${year}-11-01`]: "Toussaint",
-    [`${year}-11-11`]: "Armistice 1918",
-    [`${year}-12-25`]: "Noël"
-  };
-
-  // Fêtes mobiles (Calculées par rapport à Pâques)
-  const easter = getEasterDate(year);
-
-  const easterMonday = new Date(easter);
-  easterMonday.setDate(easter.getDate() + 1);
-
-  const ascension = new Date(easter);
-  ascension.setDate(easter.getDate() + 39);
-
-  const pentecostMonday = new Date(easter);
-  pentecostMonday.setDate(easter.getDate() + 50);
-
-  holidays[toLocalISOString(easterMonday)] = "Lundi de Pâques";
-  holidays[toLocalISOString(ascension)] = "Ascension";
-  holidays[toLocalISOString(pentecostMonday)] = "Lundi de Pentecôte";
-
-  return holidays;
-};
-
-const getWeekNumber = (d: Date) => {
-  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-};
-
+// --- UTILITAIRES DATES ---
+const toLocalISOString = (date: Date) => { const year = date.getFullYear(); const month = String(date.getMonth() + 1).padStart(2, '0'); const day = String(date.getDate()).padStart(2, '0'); return `${year}-${month}-${day}`; };
+const getEasterDate = (year: number) => { const f = Math.floor, G = year % 19, C = f(year / 100), H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30, I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11)), J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7, L = I - J, month = 3 + f((L + 40) / 44), day = L + 28 - 31 * f(month / 4); return new Date(year, month - 1, day); };
+const getFrenchHolidays = (year: number) => { const holidays: Record<string, string> = { [`${year}-01-01`]: "Jour de l'An", [`${year}-05-01`]: "Fête du Travail", [`${year}-05-08`]: "Victoire 1945", [`${year}-07-14`]: "Fête Nationale", [`${year}-08-15`]: "Assomption", [`${year}-11-01`]: "Toussaint", [`${year}-11-11`]: "Armistice 1918", [`${year}-12-25`]: "Noël" }; const easter = getEasterDate(year); const easterMonday = new Date(easter); easterMonday.setDate(easter.getDate() + 1); const ascension = new Date(easter); ascension.setDate(easter.getDate() + 39); const pentecostMonday = new Date(easter); pentecostMonday.setDate(easter.getDate() + 50); holidays[toLocalISOString(easterMonday)] = "Lundi de Pâques"; holidays[toLocalISOString(ascension)] = "Ascension"; holidays[toLocalISOString(pentecostMonday)] = "Lundi de Pentecôte"; return holidays; };
+const getWeekNumber = (d: Date) => { d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7)); var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1)); return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7); };
 function generateUUID() { return crypto.randomUUID(); }
-function getTodayDate() { return toLocalISOString(new Date()); } // Utilise le correctif Local
+function getTodayDate() { return toLocalISOString(new Date()); }
 async function computeContentHash(text: string): Promise<string> { const msgBuffer = new TextEncoder().encode(text); const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer); const hashArray = Array.from(new Uint8Array(hashBuffer)); return hashArray.map(b => b.toString(16).padStart(2, '0')).join(''); }
 const flattenNodes = (nodes: FileNode[]): FileNode[] => { let flat: FileNode[] = []; if (!nodes) return flat; for (const node of nodes) { flat.push(node); if (node.children && Array.isArray(node.children) && node.children.length > 0) { flat = flat.concat(flattenNodes(node.children)); } } return flat; };
 function stripHtml(html: string) { let doc = new DOMParser().parseFromString(html, 'text/html'); return doc.body.textContent || ""; }
@@ -119,11 +70,16 @@ function App() {
   const [resizingTarget, setResizingTarget] = useState<'LEFT' | 'RIGHT' | 'ACTION_PLAN' | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
 
+  // -- STATES MASTER PLAN --
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<{ key: keyof ActionItem; direction: 'asc' | 'desc' } | null>(null);
   const [filterText, setFilterText] = useState<string>("");
+  const [showLateOnly, setShowLateOnly] = useState<boolean>(false);
+
+  // -- STATES EDITOR --
   const [bodyContent, setBodyContent] = useState<string>("");
   const [localActions, setLocalActions] = useState<ActionItem[]>([]);
+  const [showLateLocal, setShowLateLocal] = useState<boolean>(false); // V11.80: Filtre Retard Local
   const [globalActions, setGlobalActions] = useState<ActionItem[]>([]);
   const [metadata, setMetadata] = useState<NoteMetadata>({ id: "", type: "NOTE", status: "ACTIVE", tags: "" });
   const [relatedNotes, setRelatedNotes] = useState<Note[]>([]);
@@ -151,19 +107,27 @@ function App() {
         const d = await Database.load("sqlite:aegis_v7.db");
         setDb(d);
         setStatus(m);
-
         await d.execute("CREATE TABLE IF NOT EXISTS rituals (id TEXT PRIMARY KEY, name TEXT, created_at TEXT)");
         try { await d.execute("ALTER TABLE rituals ADD COLUMN target_time TEXT"); } catch (e) { }
         try { await d.execute("ALTER TABLE rituals ADD COLUMN frequency TEXT DEFAULT 'DAILY'"); } catch (e) { }
         try { await d.execute("ALTER TABLE rituals ADD COLUMN category TEXT DEFAULT 'WORK'"); } catch (e) { }
         await d.execute("CREATE TABLE IF NOT EXISTS ritual_logs (id TEXT PRIMARY KEY, ritual_id TEXT, date TEXT, status INTEGER)");
-
         await refreshRituals(d);
         handleScan(d);
       } catch (e) { setStatus("FAIL"); }
     };
     init();
   }, [vaultPath]);
+
+  // --- V11.80: FIX - FORCE REFRESH REFERENCES ON FILE CHANGE ---
+  useEffect(() => {
+    if (activeFile && db && activeExtension === 'md') {
+      // Force le re-calcul des backlinks quand on change de fichier
+      // Cela corrige le bug où les références n'apparaissaient pas à droite
+      findRelated(activeFile, metadata.tags, db);
+      findBacklinks(activeFile, db);
+    }
+  }, [activeFile, activeExtension, db, metadata.tags]);
 
   // --- LISTENERS ---
   useEffect(() => {
@@ -262,7 +226,7 @@ function App() {
   const parseFullFile = (raw: string, path: string) => { let txt = raw.replace(/\r\n/g, "\n"); let m = { id: "", type: "NOTE", status: "ACTIVE", tags: "" }; let acts: ActionItem[] = []; const codes = new Set<string>(); if (txt.includes(METADATA_SEPARATOR)) { const p = txt.split(METADATA_SEPARATOR); txt = p[0]; p[1].split("\n").forEach(l => { if (l.startsWith("ID:")) m.id = l.replace("ID:", "").trim(); if (l.startsWith("TYPE:")) m.type = l.replace("TYPE:", "").trim(); if (l.startsWith("STATUS:")) m.status = l.replace("STATUS:", "").trim(); if (l.startsWith("TAGS:")) m.tags = l.replace("TAGS:", "").trim(); }); } if (txt.includes(ACTION_HEADER_MARKER)) { const p = txt.split(ACTION_HEADER_MARKER); txt = p[0]; if (p[1]) p[1].split("\n").forEach(l => { if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) { const c = l.split("|").map(x => x.trim()); if (c.length >= 7) { const code = c[1]; if (code && !codes.has(code)) { codes.add(code); acts.push({ id: generateUUID(), code: c[1], status: c[2].includes("x"), created: c[3], deadline: c[4], owner: c[5], task: c[6], comment: c[7] || "", note_path: path, collapsed: false }); } } } }); } const links: string[] = []; let match; const rgx = /\[\[(.*?)\]\]/g; while ((match = rgx.exec(txt)) !== null) links.push(match[1]); setBodyContent(txt.trim()); setMetadata(m); setLocalActions(sortActionsSemantic(acts)); setDetectedLinks(links); if (db) { findRelated(path, m.tags, db); findBacklinks(path, db); } };
   const handleContentChange = (nc: string) => { setBodyContent(nc); setIsDirty(true); const rx = /\[\[(.*?)\]\]/g; const l: string[] = []; let m; while ((m = rx.exec(nc)) !== null) l.push(m[1]); setDetectedLinks(l); };
   const constructFullFile = (c: string, a: ActionItem[], m: NoteMetadata) => { let f = c + "\n\n"; if (a.length > 0) { const s = sortActionsSemantic(a); f += `${ACTION_HEADER_MARKER}\n| ID | Etat | Créé le | Deadline | Pilote | Action | Commentaire |\n| :--- | :---: | :--- | :--- | :--- | :--- | :--- |\n`; s.forEach(i => { f += `| ${i.code} | [${i.status ? 'x' : ' '}] | ${i.created} | ${i.deadline} | ${i.owner} | ${i.task} | ${i.comment} |\n`; }); } f += `\n\n${METADATA_SEPARATOR}\nID: ${m.id || generateUUID()}\nTYPE: ${m.type}\nSTATUS: ${m.status}\nTAGS: ${m.tags}`; return f; };
-  const handleScan = async (dbInst?: Database) => { const database = dbInst || db; if (!database) return; setSyncStatus("INDEXING..."); try { const treeNodes = await invoke<FileNode[]>("scan_vault_recursive", { root: vaultPath }); setFileTree(treeNodes.sort((a, b) => a.path.localeCompare(b.path))); const allFiles = flattenNodes(treeNodes); await database.execute("DROP TABLE IF EXISTS actions"); await database.execute("CREATE TABLE actions (id TEXT, note_path TEXT, code TEXT, status TEXT, task TEXT, owner TEXT, created TEXT, deadline TEXT, comment TEXT)"); for (const node of allFiles) { try { if (node.is_dir || !node.extension || node.extension.toLowerCase() !== "md") continue; let content = node.content.replace(/\r\n/g, "\n"); let fileId = ""; let type = "NOTE", status = "ACTIVE", tags = ""; if (content.includes(METADATA_SEPARATOR)) { const p = content.split(METADATA_SEPARATOR); const m = p[1]; if (m) { if (m.includes("ID:")) fileId = m.split("ID:")[1].split("\n")[0].trim(); if (m.includes("TYPE:")) type = m.split("TYPE:")[1].split("\n")[0].trim(); if (m.includes("STATUS:")) status = m.split("STATUS:")[1].split("\n")[0].trim(); if (m.includes("TAGS:")) tags = m.split("TAGS:")[1].split("\n")[0].trim(); } } if (fileId) { const c = await database.select<any[]>("SELECT path FROM notes WHERE id = $1 AND path != $2", [fileId, node.path]); if (c.length > 0) fileId = ""; } if (!fileId) { fileId = generateUUID(); if (content.includes(METADATA_SEPARATOR)) content = content.split(METADATA_SEPARATOR)[0].trim(); content += `\n\n${METADATA_SEPARATOR}\nID: ${fileId}\nTYPE: ${type}\nSTATUS: ${status}\nTAGS: ${tags}`; await invoke("save_note", { path: `${vaultPath}\\${node.path.replace(/\//g, '\\')}`, content }); } const hash = await computeContentHash(content); const ex = await database.select<any[]>("SELECT id FROM notes WHERE path = $1", [node.path]); if (ex.length === 0) await database.execute("INSERT INTO notes (id, path, last_synced, content, type, status, tags, content_hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", [fileId, node.path, Date.now(), content, type, status, tags, hash]); else await database.execute("UPDATE notes SET id=$1, last_synced=$2, content=$3, type=$4, status=$5, tags=$6, content_hash=$7 WHERE path=$8", [fileId, Date.now(), content, type, status, tags, hash, node.path]); const headerRegex = new RegExp(ACTION_HEADER_MARKER, 'i'); if (headerRegex.test(content)) { const p = content.split(headerRegex); if (p[1]) { const lines = p[1].split("\n"); for (const l of lines) { if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) { const c = l.split("|").map(x => x.trim()); if (c.length >= 7) { const code = c[1]; if (code) { await database.execute("INSERT INTO actions VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", [generateUUID(), node.path, code, c[2].includes("x") ? 'DONE' : 'TODO', c[6], c[5], c[3], c[4], c[7] || ""]); } } } } } } } catch (fileErr) { console.error("Skipped bad file:", node.path, fileErr); } } setSyncStatus("READY"); const acts = await database.select<any[]>("SELECT * FROM actions"); setGlobalActions(acts.map(a => ({ ...a, status: a.status === 'DONE', collapsed: false }))); const allSources = new Set(acts.map(a => a.note_path || "Unknown")); setExpandedSources(allSources); } catch (e) { setSyncStatus("ERROR"); console.error(e); } };
+  const handleScan = async (dbInst?: Database) => { const database = dbInst || db; if (!database) return; setSyncStatus("INDEXING..."); try { const treeNodes = await invoke<FileNode[]>("scan_vault_recursive", { root: vaultPath }); setFileTree(treeNodes.sort((a, b) => a.path.localeCompare(b.path))); const allFiles = flattenNodes(treeNodes); await database.execute("DROP TABLE IF EXISTS actions"); await database.execute("CREATE TABLE actions (id TEXT, note_path TEXT, code TEXT, status TEXT, task TEXT, owner TEXT, created TEXT, deadline TEXT, comment TEXT)"); for (const node of allFiles) { try { if (node.is_dir || !node.extension || node.extension.toLowerCase() !== "md") continue; let content = node.content.replace(/\r\n/g, "\n"); let fileId = ""; let type = "NOTE", status = "ACTIVE", tags = ""; if (content.includes(METADATA_SEPARATOR)) { const p = content.split(METADATA_SEPARATOR); const m = p[1]; if (m) { if (m.includes("ID:")) fileId = m.split("ID:")[1].split("\n")[0].trim(); if (m.includes("TYPE:")) type = m.split("TYPE:")[1].split("\n")[0].trim(); if (m.includes("STATUS:")) status = m.split("STATUS:")[1].split("\n")[0].trim(); if (m.includes("TAGS:")) tags = m.split("TAGS:")[1].split("\n")[0].trim(); } } if (fileId) { const c = await database.select<any[]>("SELECT path FROM notes WHERE id = $1 AND path != $2", [fileId, node.path]); if (c.length > 0) fileId = ""; } if (!fileId) { fileId = generateUUID(); if (content.includes(METADATA_SEPARATOR)) content = content.split(METADATA_SEPARATOR)[0].trim(); content += `\n\n${METADATA_SEPARATOR}\nID: ${fileId}\nTYPE: ${type}\nSTATUS: ${status}\nTAGS: ${tags}`; await invoke("save_note", { path: `${vaultPath}\\${node.path.replace(/\//g, '\\')}`, content }); } const hash = await computeContentHash(content); const ex = await database.select<any[]>("SELECT id FROM notes WHERE path = $1", [node.path]); if (ex.length === 0) await database.execute("INSERT INTO notes (id, path, last_synced, content, type, status, tags, content_hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", [fileId, node.path, Date.now(), content, type, status, tags, hash]); else await database.execute("UPDATE notes SET id=$1, last_synced=$2, content=$3, type=$4, status=$5, tags=$6, content_hash=$7 WHERE path=$8", [fileId, Date.now(), content, type, status, tags, hash, node.path]); const headerRegex = new RegExp(ACTION_HEADER_MARKER, 'i'); if (headerRegex.test(content)) { const p = content.split(headerRegex); if (p[1]) { const lines = p[1].split("\n"); for (const l of lines) { if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) { const c = l.split("|").map(x => x.trim()); if (c.length >= 7) { const code = c[1]; if (code) { await database.execute("INSERT INTO actions VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", [generateUUID(), node.path, code, c[2].includes("x") ? 'DONE' : 'TODO', c[6], c[5], c[3], c[4], c[7] || ""]); } } } } } } } catch (fileErr) { console.error("Skipped bad file:", node.path, fileErr); } } setSyncStatus("READY"); const acts = await database.select<any[]>("SELECT * FROM actions"); setGlobalActions(acts.map(a => ({ ...a, status: a.status === 'DONE', collapsed: false }))); setExpandedSources(new Set()); } catch (e) { setSyncStatus("ERROR"); console.error(e); } };
   const findRelated = async (path: string, tags: string, d: Database) => { if (!tags) { setRelatedNotes([]); return; } const t = tags.split(/[;,]/).map(x => x.trim()).filter(x => x); if (t.length === 0) { setRelatedNotes([]); return; } let sql = "SELECT id, path, tags FROM notes WHERE path != $1 AND ("; const p: any[] = [path]; t.forEach((tag, i) => { if (i > 0) sql += " OR "; sql += `tags LIKE $${i + 2}`; p.push(`%${tag}%`); }); sql += ") LIMIT 5"; const r = await d.select<Note[]>(sql, p); setRelatedNotes(r); };
   const findBacklinks = async (path: string, d: Database) => { const n = path.split('/').pop()?.replace('.md', '') || ""; const p = path.replace('.md', ''); const r = await d.select<Note[]>("SELECT id, path FROM notes WHERE path != $1 AND (content LIKE $2 OR content LIKE $3)", [path, `%[[${p}]]%`, `%[[${n}]]%`]); setBacklinks(r); };
   const handleRename = async () => { const target = activeFile || selectedFolder; if (!target) return; const oldName = target.split('/').pop() || ""; let newName = prompt(`Renommer "${oldName}" en :`, oldName); if (!newName || newName === oldName) return; if (target.endsWith('.md') && !newName.endsWith('.md')) { newName += '.md'; } try { await invoke("rename_item", { vaultPath, oldPath: target, newName }); if (target.endsWith('.md')) { const folder = target.includes('/') ? target.substring(0, target.lastIndexOf('/')) : ""; const newPathRel = folder ? `${folder}/${newName}` : newName; const oldLink = target.replace('.md', ''); const newLink = newPathRel.replace('.md', ''); await invoke("update_links_on_move", { vaultPath, oldPathRel: oldLink, newPathRel: newLink }); setActiveFile(newPathRel); } else { setSelectedFolder(""); } await handleScan(); } catch (e) { alert("Erreur Renommage: " + e); } };
@@ -286,7 +250,16 @@ function App() {
   const openNote = async (notePath: string) => { if (!notePath) return; try { const fullPath = `${vaultPath}\\${notePath.replace(/\//g, '\\')}`; const content = await invoke<string>("read_note", { path: fullPath }); setActiveFile(notePath); const folder = notePath.includes('/') ? notePath.substring(0, notePath.lastIndexOf('/')) : ""; setSelectedFolder(folder); parseFullFile(content, notePath); setIsDirty(false); setCurrentTab('COCKPIT'); } catch (e) { alert("Erreur ouverture: " + e); } };
   const toggleActionFromMaster = async (action: ActionItem) => { if (!action.note_path) return; try { const fullPath = `${vaultPath}\\${action.note_path.replace(/\//g, '\\')}`; const content = await invoke<string>("read_note", { path: fullPath }); const clean = content.replace(/\r\n/g, "\n"); let fileBody = clean; let fileMeta = { id: "", type: "NOTE", status: "ACTIVE", tags: "" }; let fileActions: ActionItem[] = []; if (clean.includes(METADATA_SEPARATOR)) { const parts = clean.split(METADATA_SEPARATOR); fileBody = parts[0]; const m = parts[1]; if (m) { if (m.includes("ID:")) fileMeta.id = m.split("ID:")[1].split("\n")[0].trim(); if (m.includes("TYPE:")) fileMeta.type = m.split("TYPE:")[1].split("\n")[0].trim(); if (m.includes("STATUS:")) fileMeta.status = m.split("STATUS:")[1].split("\n")[0].trim(); if (m.includes("TAGS:")) fileMeta.tags = m.split("TAGS:")[1].split("\n")[0].trim(); } } if (clean.includes(ACTION_HEADER_MARKER)) { const parts = clean.split(ACTION_HEADER_MARKER); fileBody = parts[0]; if (parts[1]) parts[1].split("\n").forEach(l => { if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) { const c = l.split("|").map(x => x.trim()); if (c.length >= 7) fileActions.push({ id: generateUUID(), code: c[1], status: c[2].includes("x"), created: c[3], deadline: c[4], owner: c[5], task: c[6], comment: c[7] || "", note_path: action.note_path }); } }); } const target = fileActions.find(a => a.code === action.code); if (target) target.status = !target.status; const newContent = constructFullFile(fileBody.trim(), fileActions, fileMeta); await invoke("save_note", { path: fullPath, content: newContent }); setGlobalActions(prev => prev.map(a => (a.note_path === action.note_path && a.code === action.code) ? { ...a, status: !a.status } : a)); if (db) await db.execute("UPDATE actions SET status = $1 WHERE note_path = $2 AND code = $3", [target?.status ? 'DONE' : 'TODO', action.note_path, action.code]); } catch (err) { alert("Erreur Master: " + err); } };
   const requestSort = (key: keyof ActionItem) => { let direction: 'asc' | 'desc' = 'asc'; if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') { direction = 'desc'; } setSortConfig({ key, direction }); };
-  const filteredActions = globalActions.filter(action => { if (!filterText) return true; const lowerSearch = filterText.toLowerCase(); return ((action.task && action.task.toLowerCase().includes(lowerSearch)) || (action.owner && action.owner.toLowerCase().includes(lowerSearch)) || (action.comment && action.comment.toLowerCase().includes(lowerSearch)) || (action.note_path && action.note_path.toLowerCase().includes(lowerSearch))); });
+  const filteredActions = globalActions.filter(action => {
+    if (showLateOnly) {
+      if (action.status) return false;
+      if (!action.deadline) return false;
+      if (action.deadline >= getTodayDate()) return false;
+    }
+    if (!filterText) return true;
+    const lowerSearch = filterText.toLowerCase();
+    return ((action.task && action.task.toLowerCase().includes(lowerSearch)) || (action.owner && action.owner.toLowerCase().includes(lowerSearch)) || (action.comment && action.comment.toLowerCase().includes(lowerSearch)) || (action.note_path && action.note_path.toLowerCase().includes(lowerSearch)));
+  });
   const uniqueSources = Array.from(new Set(filteredActions.map(a => a.note_path || "Inconnu"))).sort();
   const handleOpenExternal = async () => { if (!activeFile || !vaultPath) return; const fullPath = `${vaultPath}\\${activeFile.replace(/\//g, '\\')}`; try { await invoke("open_file", { path: fullPath }); } catch (e) { alert("Erreur ouverture: " + e); } };
 
@@ -308,163 +281,40 @@ function App() {
     );
   };
 
-  // --- V11.60 FIXED MINI CALENDAR (LOCAL TIMEZONES & GOLD ARROWS) ---
   const MiniCalendar = () => {
     const year = calDate.getFullYear();
     const month = calDate.getMonth();
     const firstDayOfMonth = new Date(year, month, 1);
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const startDay = (firstDayOfMonth.getDay() + 6) % 7;
-
     const holidays = getFrenchHolidays(year);
-    const todayStr = getTodayDate(); // now uses Local ISO
+    const todayStr = getTodayDate();
     const prevMonth = () => setCalDate(new Date(year, month - 1, 1));
     const nextMonth = () => setCalDate(new Date(year, month + 1, 1));
-
     const calendarCells = [];
-
     calendarCells.push(<div key="h-w" className="text-gray-600 font-bold text-[9px] py-1 border-r border-gray-800">W</div>);
-    ['L', 'M', 'M', 'J', 'V', 'S', 'D'].forEach(d => {
-      calendarCells.push(<div key={`h-${d}`} className="text-gray-500 font-bold text-[9px] py-1">{d}</div>);
-    });
-
+    ['L', 'M', 'M', 'J', 'V', 'S', 'D'].forEach(d => { calendarCells.push(<div key={`h-${d}`} className="text-gray-500 font-bold text-[9px] py-1">{d}</div>); });
     for (let w = 0; w < 6; w++) {
       const mondayDate = new Date(year, month, (w * 7) - startDay + 1);
-      calendarCells.push(
-        <div key={`wk-${w}`} className="text-gray-600 text-[9px] py-1 border-r border-gray-800 font-mono bg-black/20 flex items-center justify-center">
-          {getWeekNumber(mondayDate)}
-        </div>
-      );
-
+      calendarCells.push(<div key={`wk-${w}`} className="text-gray-600 text-[9px] py-1 border-r border-gray-800 font-mono bg-black/20 flex items-center justify-center">{getWeekNumber(mondayDate)}</div>);
       for (let d = 0; d < 7; d++) {
         const dayIndex = (w * 7) + d - startDay + 1;
         const currentD = new Date(year, month, dayIndex);
-
-        // V11.60: Use Local ISO String for Comparison
         const dateStr = toLocalISOString(currentD);
-
         const isCurrentMonth = dayIndex > 0 && dayIndex <= daysInMonth;
         const isHoliday = holidays[dateStr];
         const isToday = dateStr === todayStr;
-
-        if (!isCurrentMonth) {
-          calendarCells.push(<div key={`empty-${w}-${d}`} className="text-gray-800 text-[9px] py-1 border-r border-gray-800 bg-black/20"></div>);
-        } else {
-          calendarCells.push(
-            <div key={`day-${dayIndex}`} className={`py-1 rounded cursor-default relative group text-center ${isToday ? 'bg-orange-600 text-white font-bold' : ''} ${isHoliday ? 'text-red-400 font-bold border border-red-900/50 bg-red-900/10' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`} title={isHoliday || ""}>
-              {dayIndex}
-              {isHoliday && <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block whitespace-nowrap bg-black border border-red-900 text-red-200 text-[9px] px-2 py-1 rounded z-50 shadow-xl">{isHoliday}</div>}
-            </div>
-          );
-        }
+        if (!isCurrentMonth) { calendarCells.push(<div key={`empty-${w}-${d}`} className="text-gray-800 text-[9px] py-1 border-r border-gray-800 bg-black/20"></div>); } else { calendarCells.push(<div key={`day-${dayIndex}`} className={`py-1 rounded cursor-default relative group text-center ${isToday ? 'bg-orange-600 text-white font-bold' : ''} ${isHoliday ? 'text-red-400 font-bold border border-red-900/50 bg-red-900/10' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`} title={isHoliday || ""}>{dayIndex}{isHoliday && <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block whitespace-nowrap bg-black border border-red-900 text-red-200 text-[9px] px-2 py-1 rounded z-50 shadow-xl">{isHoliday}</div>}</div>); }
       }
     }
-
-    return (
-      <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-800 shadow-lg mt-0 text-xs select-none">
-        <div className="flex justify-between items-center mb-2 px-1">
-          {/* V11.60: GOLD GEOMETRIC ARROWS */}
-          <button onClick={prevMonth} className="text-orange-600 hover:text-amber-400 p-1.5 transition-colors text-[10px]">◀</button>
-          <span className="font-bold text-gray-300 uppercase tracking-widest">
-            {calDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}
-          </span>
-          <button onClick={nextMonth} className="text-amber-600 hover:text-amber-400 p-1.5 transition-colors text-[10px]">▶</button>
-        </div>
-        <div className="grid grid-cols-8 gap-1 text-center">
-          {calendarCells}
-        </div>
-      </div>
-    );
+    return (<div className="bg-gray-900/50 p-3 rounded-lg border border-gray-800 shadow-lg mt-0 text-xs select-none"> <div className="flex justify-between items-center mb-2 px-1"> <button onClick={prevMonth} className="text-amber-600 hover:text-amber-400 p-1.5 transition-colors text-[10px]">◀</button> <span className="font-bold text-gray-300 uppercase tracking-widest">{calDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}</span> <button onClick={nextMonth} className="text-amber-600 hover:text-amber-400 p-1.5 transition-colors text-[10px]">▶</button> </div> <div className="grid grid-cols-8 gap-1 text-center">{calendarCells}</div> </div>);
   };
 
   const renderTrackerGrid = () => {
     const year = calDate.getFullYear();
     const month = calDate.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-    return (
-      <div className="flex flex-col h-full bg-gray-950 text-white p-6 overflow-hidden gap-4">
-        <div className="flex items-center justify-between shrink-0 border-b border-gray-800 pb-4">
-          <h2 className="text-xl font-bold tracking-widest text-amber-500 uppercase flex items-center gap-3">
-            <span>⚔️</span> PROTOCOLS TRACKER
-          </h2>
-          <div className="flex items-center gap-4">
-            {/* V11.60: GOLD ARROWS CONSISTENCY */}
-            <button onClick={() => setCalDate(new Date(year, month - 1, 1))} className="text-gray-500 hover:text-white text-lg font-bold">◀</button>
-            <span className="text-sm font-bold text-gray-300 w-32 text-center">{calDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' }).toUpperCase()}</span>
-            <button onClick={() => setCalDate(new Date(year, month + 1, 1))} className="text-gray-500 hover:text-white text-lg font-bold">▶</button>
-          </div>
-        </div>
-
-        <div className="bg-gray-900/50 border border-gray-800 p-3 rounded flex gap-2 items-center shrink-0">
-          <input type="text" placeholder="Nouveau rituel (ex: Sport, Lecture...)" className="flex-1 bg-black border border-gray-700 text-gray-300 text-xs rounded px-3 py-2 focus:border-amber-500 focus:outline-none" value={newRitualName} onChange={(e) => setNewRitualName(e.target.value)} />
-          <select value={newRitualFreq} onChange={(e) => setNewRitualFreq(e.target.value)} className="bg-black border border-gray-700 text-gray-300 text-xs rounded px-2 py-2 focus:border-amber-500 outline-none w-32">
-            <option value="DAILY">Quotidien</option>
-            <option value="WEEKLY">Hebdo</option>
-            <option value="WORKDAYS">Lun-Ven</option>
-          </select>
-          <select value={newRitualCat} onChange={(e) => setNewRitualCat(e.target.value)} className="bg-black border border-gray-700 text-gray-300 text-xs rounded px-2 py-2 focus:border-amber-500 outline-none w-32">
-            <option value="WORK">Travail</option>
-            <option value="PERSO">Perso</option>
-            <option value="HEALTH">Santé</option>
-          </select>
-          <input type="time" className="bg-black border border-gray-700 text-gray-300 text-xs rounded px-2 py-2 focus:border-amber-500 outline-none" value={newRitualTime} onChange={(e) => setNewRitualTime(e.target.value)} />
-          <button onClick={addRitual} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-4 py-2 rounded transition-colors">+ AJOUTER</button>
-        </div>
-
-        <div className="flex-1 overflow-auto border border-gray-800 rounded-lg bg-black/40 shadow-2xl relative">
-          <div className="min-w-max">
-            <div className="flex border-b border-gray-800 bg-gray-900 sticky top-0 z-10">
-              <div className="w-64 p-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-r border-gray-800 sticky left-0 bg-gray-900 z-20">RITUEL</div>
-              <div className="w-16 p-3 text-[10px] font-bold text-gray-500 border-r border-gray-800 text-center">HEURE</div>
-              {Array.from({ length: daysInMonth }).map((_, i) => (
-                <div key={i} className={`w-8 p-3 text-[10px] font-bold text-center border-r border-gray-800 ${i + 1 === new Date().getDate() && month === new Date().getMonth() ? 'text-amber-500 bg-amber-900/20' : 'text-gray-600'}`}>
-                  {i + 1}
-                </div>
-              ))}
-              <div className="w-20 p-3 text-[10px] font-bold text-gray-500 text-center">STAT</div>
-            </div>
-
-            {rituals.map(ritual => {
-              const monthLogs = ritualLogs.filter(l => l.ritual_id === ritual.id && l.date.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`));
-              const successCount = monthLogs.filter(l => l.status).length;
-              const rate = Math.round((successCount / daysInMonth) * 100);
-              const catColor = ritual.category === 'WORK' ? 'bg-blue-500' : ritual.category === 'HEALTH' ? 'bg-green-500' : 'bg-purple-500';
-
-              return (
-                <div key={ritual.id} className="flex border-b border-gray-800/50 hover:bg-gray-900/30 transition-colors">
-                  <div className="w-64 p-3 text-xs font-bold text-gray-300 border-r border-gray-800 sticky left-0 bg-black z-10 flex justify-between items-center group">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-1.5 h-1.5 rounded-full ${catColor}`}></div>
-                      <span>{ritual.name}</span>
-                      <span className="text-[8px] text-gray-600 uppercase bg-gray-900 px-1 rounded border border-gray-800">{ritual.frequency.substring(0, 3)}</span>
-                    </div>
-                    <button onClick={() => deleteRitual(ritual.id)} className="text-gray-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">×</button>
-                  </div>
-                  <div className="w-16 p-3 text-[10px] font-mono text-amber-600/80 border-r border-gray-800 text-center font-bold">
-                    {ritual.target_time || "-"}
-                  </div>
-                  {Array.from({ length: daysInMonth }).map((_, i) => {
-                    // V11.60: Use Local ISO also for Tracker
-                    const currentD = new Date(year, month, i + 1);
-                    const dayStr = toLocalISOString(currentD);
-                    const isDone = ritualLogs.some(l => l.ritual_id === ritual.id && l.date === dayStr && l.status);
-                    return (
-                      <div key={i} onClick={() => toggleRitualDate(ritual.id, dayStr)} className={`w-8 border-r border-gray-800 cursor-pointer flex items-center justify-center transition-colors hover:bg-white/5`}>
-                        {isDone && <div className="w-4 h-4 bg-amber-500 rounded-sm shadow-sm shadow-amber-500/50"></div>}
-                      </div>
-                    );
-                  })}
-                  <div className="w-20 p-3 text-xs font-bold text-gray-500 text-center flex items-center justify-center">
-                    <div className="text-amber-600">{rate}%</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    );
+    return (<div className="flex flex-col h-full bg-gray-950 text-white p-6 overflow-hidden gap-4"> <div className="flex items-center justify-between shrink-0 border-b border-gray-800 pb-4"> <h2 className="text-xl font-bold tracking-widest text-amber-500 uppercase flex items-center gap-3"><span>⚔️</span> PROTOCOLS TRACKER</h2> <div className="flex items-center gap-4"> <button onClick={() => setCalDate(new Date(year, month - 1, 1))} className="text-gray-500 hover:text-white text-lg font-bold">◀</button> <span className="text-sm font-bold text-gray-300 w-32 text-center">{calDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' }).toUpperCase()}</span> <button onClick={() => setCalDate(new Date(year, month + 1, 1))} className="text-gray-500 hover:text-white text-lg font-bold">▶</button> </div> </div> <div className="bg-gray-900/50 border border-gray-800 p-3 rounded flex gap-2 items-center shrink-0"> <input type="text" placeholder="Nouveau rituel (ex: Sport, Lecture...)" className="flex-1 bg-black border border-gray-700 text-gray-300 text-xs rounded px-3 py-2 focus:border-amber-500 focus:outline-none" value={newRitualName} onChange={(e) => setNewRitualName(e.target.value)} /> <select value={newRitualFreq} onChange={(e) => setNewRitualFreq(e.target.value)} className="bg-black border border-gray-700 text-gray-300 text-xs rounded px-2 py-2 focus:border-amber-500 outline-none w-32"> <option value="DAILY">Quotidien</option> <option value="WEEKLY">Hebdo</option> <option value="WORKDAYS">Lun-Ven</option> </select> <select value={newRitualCat} onChange={(e) => setNewRitualCat(e.target.value)} className="bg-black border border-gray-700 text-gray-300 text-xs rounded px-2 py-2 focus:border-amber-500 outline-none w-32"> <option value="WORK">Travail</option> <option value="PERSO">Perso</option> <option value="HEALTH">Santé</option> </select> <input type="time" className="bg-black border border-gray-700 text-gray-300 text-xs rounded px-2 py-2 focus:border-amber-500 outline-none" value={newRitualTime} onChange={(e) => setNewRitualTime(e.target.value)} /> <button onClick={addRitual} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-4 py-2 rounded transition-colors">+ AJOUTER</button> </div> <div className="flex-1 overflow-auto border border-gray-800 rounded-lg bg-black/40 shadow-2xl relative"> <div className="min-w-max"> <div className="flex border-b border-gray-800 bg-gray-900 sticky top-0 z-10"> <div className="w-64 p-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-r border-gray-800 sticky left-0 bg-gray-900 z-20">RITUEL</div> <div className="w-16 p-3 text-[10px] font-bold text-gray-500 border-r border-gray-800 text-center">HEURE</div> {Array.from({ length: daysInMonth }).map((_, i) => (<div key={i} className={`w-8 p-3 text-[10px] font-bold text-center border-r border-gray-800 ${i + 1 === new Date().getDate() && month === new Date().getMonth() ? 'text-amber-500 bg-amber-900/20' : 'text-gray-600'}`}>{i + 1}</div>))} <div className="w-20 p-3 text-[10px] font-bold text-gray-500 text-center">STAT</div> </div> {rituals.map(ritual => { const monthLogs = ritualLogs.filter(l => l.ritual_id === ritual.id && l.date.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`)); const successCount = monthLogs.filter(l => l.status).length; const rate = Math.round((successCount / daysInMonth) * 100); const catColor = ritual.category === 'WORK' ? 'bg-blue-500' : ritual.category === 'HEALTH' ? 'bg-green-500' : 'bg-purple-500'; return (<div key={ritual.id} className="flex border-b border-gray-800/50 hover:bg-gray-900/30 transition-colors"> <div className="w-64 p-3 text-xs font-bold text-gray-300 border-r border-gray-800 sticky left-0 bg-black z-10 flex justify-between items-center group"> <div className="flex items-center gap-2"> <div className={`w-1.5 h-1.5 rounded-full ${catColor}`}></div> <span>{ritual.name}</span> <span className="text-[8px] text-gray-600 uppercase bg-gray-900 px-1 rounded border border-gray-800">{ritual.frequency.substring(0, 3)}</span> </div> <button onClick={() => deleteRitual(ritual.id)} className="text-gray-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">×</button> </div> <div className="w-16 p-3 text-[10px] font-mono text-amber-600/80 border-r border-gray-800 text-center font-bold">{ritual.target_time || "-"}</div> {Array.from({ length: daysInMonth }).map((_, i) => { const currentD = new Date(year, month, i + 1); const dayStr = toLocalISOString(currentD); const isDone = ritualLogs.some(l => l.ritual_id === ritual.id && l.date === dayStr && l.status); return (<div key={i} onClick={() => toggleRitualDate(ritual.id, dayStr)} className={`w-8 border-r border-gray-800 cursor-pointer flex items-center justify-center transition-colors hover:bg-white/5`}>{isDone && <div className="w-4 h-4 bg-amber-500 rounded-sm shadow-sm shadow-amber-500/50"></div>}</div>); })} <div className="w-20 p-3 text-xs font-bold text-gray-500 text-center flex items-center justify-center"><div className="text-amber-600">{rate}%</div></div> </div>); })} </div> </div> </div>);
   };
 
   return (
@@ -474,16 +324,14 @@ function App() {
           <div className="text-8xl mb-6">📂</div>
           <h2 className="text-4xl font-bold text-amber-500 tracking-widest uppercase">Importer un fichier</h2>
           <p className="text-gray-400 mt-4 text-xl">Relâchez pour ajouter au dossier :</p>
-          <div className="bg-gray-800 text-amber-300 font-mono text-lg px-6 py-3 rounded mt-2 border border-amber-500/50">
-            {selectedFolder ? selectedFolder : (activeFile && activeFile.includes('/') ? activeFile.substring(0, activeFile.lastIndexOf('/')) : "RACINE")}
-          </div>
+          <div className="bg-gray-800 text-amber-300 font-mono text-lg px-6 py-3 rounded mt-2 border border-amber-500/50">{selectedFolder ? selectedFolder : (activeFile && activeFile.includes('/') ? activeFile.substring(0, activeFile.lastIndexOf('/')) : "RACINE")}</div>
         </div>
       )}
 
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }`}</style>
       <div className="h-10 bg-gray-950 border-b border-gray-900 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-6">
-          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V11.60 CALENDAR PERPETUAL</span>
+          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V11.80 COCKPIT FIX</span>
           <div className="flex gap-1 bg-gray-900 p-1 rounded">
             <button onClick={() => setCurrentTab('COCKPIT')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'COCKPIT' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>COCKPIT</button>
             <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>
@@ -531,31 +379,17 @@ function App() {
                 </div>
                 {/* RENDER CONTENT */}
                 {(() => {
-                  if (!activeFile) {
-                    if (selectedFolder) {
-                      return (
-                        <div className="h-full flex flex-col items-center justify-center text-gray-500 gap-6">
-                          <div className="text-6xl opacity-50">📂</div>
-                          <div className="text-center">
-                            <div className="text-xl font-bold text-gray-300 mb-2">Dossier Sélectionné</div>
-                            <div className="text-sm font-mono bg-gray-900 px-3 py-1 rounded text-blue-300 mb-6">{selectedFolder}</div>
-                            <div className="flex gap-4">
-                              <button onClick={handleRename} className="bg-gray-800 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded border border-gray-700 transition-colors">RENAME</button>
-                              <button onClick={handleDelete} className="bg-red-900/50 hover:bg-red-900 text-red-200 font-bold py-2 px-6 rounded border border-red-800 transition-colors">DELETE</button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
-                    return <div className="h-full flex items-center justify-center text-gray-800">NO FILE SELECTED</div>;
-                  }
+                  if (!activeFile) { return <div className="h-full flex flex-col items-center justify-center text-gray-500 gap-6"><div className="text-6xl opacity-50">📂</div><div className="text-center"><div className="text-xl font-bold text-gray-300 mb-2">Dossier Sélectionné</div><div className="text-sm font-mono bg-gray-900 px-3 py-1 rounded text-blue-300 mb-6">{selectedFolder}</div><div className="flex gap-4"><button onClick={handleRename} className="bg-gray-800 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded border border-gray-700 transition-colors">RENAME</button><button onClick={handleDelete} className="bg-red-900/50 hover:bg-red-900 text-red-200 font-bold py-2 px-6 rounded border border-red-800 transition-colors">DELETE</button></div></div></div>; }
                   if (activeExtension === 'md') {
                     return (
                       <div className="flex-1 overflow-auto p-6 max-w-6xl mx-auto w-full flex flex-col gap-0">
                         <div style={{ height: actionPlanHeight }} className="bg-gray-900/30 border border-gray-800 rounded-t-lg overflow-hidden flex flex-col shrink-0">
                           <div className="bg-gray-900 px-4 py-2 border-b border-gray-800 flex justify-between items-center shrink-0">
                             <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider">⚡ Action Plan</h3>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 items-center">
+                              {/* V11.80: COCKPIT LATE BUTTON */}
+                              <button onClick={() => setShowLateLocal(!showLateLocal)} className={`text-[10px] px-2 py-1 rounded border transition-all ${showLateLocal ? 'bg-red-900/50 border-red-600 text-red-400 font-bold' : 'bg-gray-900/50 border-gray-700 text-gray-500 hover:text-white'}`}>🔥 LATE</button>
+                              <div className="w-px h-4 bg-gray-700 mx-1"></div>
                               <button onClick={() => handleExportExcel(localActions, activeFile.replace('.md', ''))} className="text-[10px] bg-green-900/30 hover:bg-green-900/50 text-green-300 px-2 py-1 rounded border border-green-900/50">📊 EXPORT XLS</button>
                               <button onClick={() => addAction()} className="text-[10px] bg-amber-900/30 hover:bg-amber-900/50 text-amber-300 px-2 py-1 rounded border border-amber-900/50">+ TASK</button>
                             </div>
@@ -563,6 +397,14 @@ function App() {
                           <div className="p-2 overflow-y-auto flex-1 custom-scrollbar">
                             {localActions.map((action) => {
                               if (!isVisibleInCockpit(action, localActions)) return null;
+
+                              // V11.80: FILTER LATE LOCAL
+                              if (showLateLocal) {
+                                if (action.status) return null; // Hide DONE
+                                if (!action.deadline) return null; // Hide NO DATE
+                                if (action.deadline >= getTodayDate()) return null; // Hide FUTURE
+                              }
+
                               const hasChildren = localActions.some(a => a.code.startsWith(action.code + "."));
                               return (
                                 <div key={action.id} style={{ marginLeft: `${(action.code.split('.').length - 1) * 24}px` }} className="flex items-start gap-2 bg-black/40 p-1.5 rounded border border-gray-800/50 group hover:border-amber-900/50 transition-colors mb-1">
@@ -580,7 +422,7 @@ function App() {
                                     <input type="text" value={action.owner} onChange={(e) => updateAction(action.id, 'owner', e.target.value)} className="w-20 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-amber-300 focus:border-amber-800" placeholder="Pilot" />
                                   </div>
                                   <div className="pt-0.5">
-                                    <input type="date" value={action.deadline} onChange={(e) => updateAction(action.id, 'deadline', e.target.value)} className="w-24 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-yellow-500 focus:border-yellow-800" />
+                                    <input type="date" value={action.deadline} onChange={(e) => updateAction(action.id, 'deadline', e.target.value)} className={`w-24 bg-gray-900/50 border border-gray-800 text-xs text-center rounded focus:text-yellow-500 focus:border-yellow-800 ${action.deadline && action.deadline < getTodayDate() && !action.status ? 'text-red-500 font-bold border-red-900/50' : 'text-gray-400'}`} />
                                   </div>
                                   <AutoResizeTextarea value={action.comment || ""} onChange={(e) => updateAction(action.id, 'comment', e.target.value)} className="w-56 bg-gray-900/50 border border-gray-800 text-xs text-gray-400 rounded focus:text-white focus:border-gray-600 px-2" placeholder="Comment..." />
                                   <div className="pt-1">
@@ -598,19 +440,7 @@ function App() {
                         </div>
                       </div>
                     );
-                  } else {
-                    return (
-                      <div className="h-full flex flex-col items-center justify-center text-gray-500 gap-6">
-                        <div className="text-6xl opacity-50">{activeExtension === 'pdf' ? '📕' : activeExtension === 'xlsx' ? '📊' : '📦'}</div>
-                        <div className="text-center">
-                          <div className="text-xl font-bold text-gray-300 mb-2">Fichier Externe</div>
-                          <div className="text-sm font-mono bg-gray-900 px-3 py-1 rounded text-blue-300 mb-4">{activeFile}</div>
-                          <p className="max-w-md text-center text-xs text-gray-600 mb-6">Pour garantir un affichage parfait, Aegis délègue la lecture de ce fichier<br /> à votre application système par défaut.</p>
-                          <button onClick={handleOpenExternal} className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-8 rounded shadow-lg shadow-amber-900/20 transition-all flex items-center gap-3"><span>🚀</span> OUVRIR LE FICHIER</button>
-                        </div>
-                      </div>
-                    );
-                  }
+                  } else { return <div className="h-full flex flex-col items-center justify-center text-gray-500 gap-6"><div className="text-6xl opacity-50">{activeExtension === 'pdf' ? '📕' : activeExtension === 'xlsx' ? '📊' : '📦'}</div><div className="text-center"><div className="text-xl font-bold text-gray-300 mb-2">Fichier Externe</div><div className="text-sm font-mono bg-gray-900 px-3 py-1 rounded text-blue-300 mb-4">{activeFile}</div><p className="max-w-md text-center text-xs text-gray-600 mb-6">Pour garantir un affichage parfait, Aegis délègue la lecture de ce fichier<br /> à votre application système par défaut.</p><button onClick={handleOpenExternal} className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-8 rounded shadow-lg shadow-amber-900/20 transition-all flex items-center gap-3"><span>🚀</span> OUVRIR LE FICHIER</button></div></div>; }
                 })()}
               </>
             ) : (
@@ -635,7 +465,15 @@ function App() {
                 <h2 className="text-xl font-bold text-white tracking-widest flex items-center gap-3"><span className="text-amber-500">◈</span> GLOBAL MASTER PLAN</h2>
                 <div className="flex items-center gap-4">
                   <button onClick={() => handleScan(db)} className="text-gray-500 hover:text-white transition-colors" title="Force Reload">↻</button>
-                  <input type="text" placeholder="Filter..." value={filterText} onChange={(e) => setFilterText(e.target.value)} className="ml-4 bg-gray-900 border border-gray-800 text-xs text-white px-3 py-1 rounded w-64 focus:border-amber-500 focus:outline-none" />
+
+                  {/* SEARCH & FILTER BAR */}
+                  <div className="relative">
+                    <input type="text" placeholder="Pilot, Project, Task..." value={filterText} onChange={(e) => setFilterText(e.target.value)} className="ml-4 bg-gray-900 border border-gray-800 text-xs text-white px-3 py-1 rounded w-64 focus:border-amber-500 focus:outline-none pr-8" />
+                    {filterText && <button onClick={() => setFilterText("")} className="absolute right-2 top-1.5 text-gray-500 hover:text-white text-[10px]">✕</button>}
+                  </div>
+
+                  <button onClick={() => setShowLateOnly(!showLateOnly)} className={`text-xs px-3 py-1 rounded font-bold transition-all border ${showLateOnly ? 'bg-red-900/50 border-red-600 text-red-400' : 'bg-gray-900 border-gray-800 text-gray-500 hover:text-white'}`}>🔥 LATE</button>
+
                   <button onClick={() => handleExportExcel(filteredActions, "Master_Plan")} className="bg-black border border-amber-600 hover:bg-amber-900/20 text-amber-500 text-xs px-4 py-1.5 rounded font-bold transition-all shadow-sm hover:shadow-amber-900/20">📊 EXPORT XLS</button>
                 </div>
                 <div className="ml-auto text-xs text-gray-500">{filteredActions.length} actions</div>
@@ -646,8 +484,12 @@ function App() {
                   {uniqueSources.map(source => {
                     let actionsInSource = filteredActions.filter(a => (a.note_path || "Inconnu") === source);
                     if (sortConfig) { actionsInSource.sort((a, b) => { const valA = a[sortConfig.key] || ""; const valB = b[sortConfig.key] || ""; if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; return 0; }); }
-                    const isExpanded = expandedSources.has(source);
-                    return (<div key={source} className="border border-gray-800/50 rounded overflow-hidden bg-gray-900/10"> <div onClick={() => toggleSourceExpand(source)} className="flex items-center gap-3 px-4 py-2 bg-gray-900 cursor-pointer hover:bg-gray-800 transition-colors select-none"> <span className="w-5 h-5 flex items-center justify-center text-amber-500 bg-gray-800 border border-gray-700 rounded text-[10px] font-bold mr-2">{isExpanded ? '▾' : '▸'}</span> <span className="text-sm font-bold text-amber-200 font-mono truncate">{source}</span> <span className="text-[10px] bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full">{actionsInSource.length}</span> </div> {isExpanded && (<div className="p-2 border-t border-gray-800 bg-black/20"> {actionsInSource.map((action) => { if (!isVisibleInMasterGroup(action, actionsInSource)) return null; const depth = action.code.split('.').length - 1; const hasChildren = actionsInSource.some(a => a.code.startsWith(action.code + ".")); return (<div key={action.id} style={{ marginLeft: `${depth * 24}px` }} className="flex items-center gap-2 bg-gray-900/20 p-1.5 rounded border border-gray-800/50 group hover:border-amber-500/50 hover:bg-gray-900/40 transition-all mb-1"> {hasChildren ? (<button onClick={() => toggleGlobalCollapse(action.note_path || "", action.code)} className="text-gray-500 w-4 text-[10px] hover:text-white font-mono border border-gray-700 rounded bg-gray-900 h-4 flex items-center justify-center"> {action.collapsed ? '+' : '-'} </button>) : <div className="w-4"></div>} <input type="checkbox" checked={action.status} onChange={() => toggleActionFromMaster(action)} className="w-4 h-4 cursor-pointer accent-amber-500 shrink-0" /> <div className="w-10 bg-gray-900/50 text-xs text-center text-amber-500 rounded font-mono py-1 border border-gray-800">{action.code}</div> <div className={`flex-1 text-sm ${action.status ? 'text-gray-500 line-through' : 'text-gray-300'} truncate px-2`} title={action.task}>{action.task}</div> <div className="w-20 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-500 rounded py-1">{action.owner || '-'}</div> <div className="w-24 bg-gray-900/50 border border-gray-800 text-xs text-center text-yellow-700/70 rounded py-1">{action.deadline || '-'}</div> <div className="w-64 bg-gray-900/50 border border-gray-800 text-xs text-left text-gray-400 rounded py-1 px-2 italic whitespace-normal break-words leading-tight" title={action.comment}>{action.comment}</div> <button onClick={() => openNote(action.note_path || "")} className="w-24 bg-gray-900/50 hover:bg-amber-900/30 border border-gray-800 hover:border-amber-700 text-[10px] text-gray-500 hover:text-amber-300 rounded py-1 truncate transition-colors text-center"> Ouvrir </button> </div>); })} </div>)} </div>);
+
+                    // Si le filtre est actif (texte ou retard), on ouvre automatiquement les dossiers correspondants pour voir les résultats
+                    // Sinon, on respecte l'état d'ouverture manuel (fermé par défaut)
+                    const isExpanded = (filterText || showLateOnly) ? true : expandedSources.has(source);
+
+                    return (<div key={source} className="border border-gray-800/50 rounded overflow-hidden bg-gray-900/10"> <div onClick={() => toggleSourceExpand(source)} className="flex items-center gap-3 px-4 py-2 bg-gray-900 cursor-pointer hover:bg-gray-800 transition-colors select-none"> <span className="w-5 h-5 flex items-center justify-center text-amber-500 bg-gray-800 border border-gray-700 rounded text-[10px] font-bold mr-2">{isExpanded ? '▾' : '▸'}</span> <span className="text-sm font-bold text-amber-200 font-mono truncate">{source}</span> <span className="text-[10px] bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full">{actionsInSource.length}</span> </div> {isExpanded && (<div className="p-2 border-t border-gray-800 bg-black/20"> {actionsInSource.map((action) => { if (!isVisibleInMasterGroup(action, actionsInSource)) return null; const depth = action.code.split('.').length - 1; const hasChildren = actionsInSource.some(a => a.code.startsWith(action.code + ".")); return (<div key={action.id} style={{ marginLeft: `${depth * 24}px` }} className="flex items-center gap-2 bg-gray-900/20 p-1.5 rounded border border-gray-800/50 group hover:border-amber-500/50 hover:bg-gray-900/40 transition-all mb-1"> {hasChildren ? (<button onClick={() => toggleGlobalCollapse(action.note_path || "", action.code)} className="text-gray-500 w-4 text-[10px] hover:text-white font-mono border border-gray-700 rounded bg-gray-900 h-4 flex items-center justify-center"> {action.collapsed ? '+' : '-'} </button>) : <div className="w-4"></div>} <input type="checkbox" checked={action.status} onChange={() => toggleActionFromMaster(action)} className="w-4 h-4 cursor-pointer accent-amber-500 shrink-0" /> <div className="w-10 bg-gray-900/50 text-xs text-center text-amber-500 rounded font-mono py-1 border border-gray-800">{action.code}</div> <div className={`flex-1 text-sm ${action.status ? 'text-gray-500 line-through' : 'text-gray-300'} truncate px-2`} title={action.task}>{action.task}</div> <div className="w-20 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-500 rounded py-1">{action.owner || '-'}</div> <div className={`w-24 bg-gray-900/50 border border-gray-800 text-xs text-center rounded py-1 ${action.deadline && action.deadline < getTodayDate() && !action.status ? 'text-red-500 font-bold border-red-900/50' : 'text-yellow-700/70'}`}>{action.deadline || '-'}</div> <div className="w-64 bg-gray-900/50 border border-gray-800 text-xs text-left text-gray-400 rounded py-1 px-2 italic whitespace-normal break-words leading-tight" title={action.comment}>{action.comment}</div> <button onClick={() => openNote(action.note_path || "")} className="w-24 bg-gray-900/50 hover:bg-amber-900/30 border border-gray-800 hover:border-amber-700 text-[10px] text-gray-500 hover:text-amber-300 rounded py-1 truncate transition-colors text-center"> Ouvrir </button> </div>); })} </div>)} </div>);
                   })} </div>
               </div>
             </div>
@@ -667,8 +509,10 @@ function App() {
               <>
                 {activeExtension === 'md' ? (
                   <>
-                    {backlinks.length > 0 && (<div className="mb-4"> <h4 className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-2 flex items-center gap-2">Cited By <span className="bg-amber-600/30 text-purple-400 px-1.5 rounded-full text-[9px]">{backlinks.length}</span></h4> <ul className="space-y-1 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar"> {backlinks.map(backlink => (<li key={backlink.id} onClick={() => openNote(backlink.path)} className="group cursor-pointer bg-purple-900/10 border border-purple-900/30 hover:bg-purple-900/30 p-2 rounded transition-all"> <div className="flex items-center gap-2"> <span className="text-xs text-purple-300 group-hover:text-white truncate font-medium">⬅ {backlink.path.replace('.md', '')}</span> </div> </li>))} </ul> </div>)}
+                    {/* BACKLINKS SECTION */}
+                    {backlinks.length > 0 && (<div className="mb-4"> <h4 className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-2 flex items-center gap-2">Cited By <span className="bg-purple-900/30 text-purple-400 px-1.5 rounded-full text-[9px]">{backlinks.length}</span></h4> <ul className="space-y-1 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar"> {backlinks.map(backlink => (<li key={backlink.id} onClick={() => openNote(backlink.path)} className="group cursor-pointer bg-purple-900/10 border border-purple-900/30 hover:bg-purple-900/30 p-2 rounded transition-all"> <div className="flex items-center gap-2"> <span className="text-xs text-purple-300 group-hover:text-white truncate font-medium">⬅ {backlink.path.replace('.md', '')}</span> </div> </li>))} </ul> </div>)}
                     {detectedLinks.length > 0 && (<div className="mb-4"> <h4 className="text-[10px] font-bold text-green-500 uppercase tracking-wider mb-2 flex items-center gap-2">Going To <span className="bg-green-900/30 text-green-400 px-1.5 rounded-full text-[9px]">{detectedLinks.length}</span></h4> <ul className="space-y-1 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar"> {detectedLinks.map(link => (<li key={link} onClick={() => openNote(link.endsWith('.md') ? link : `${link}.md`)} className="group cursor-pointer bg-green-900/10 border border-green-900/30 hover:bg-green-900/30 p-2 rounded transition-all"> <div className="flex items-center gap-2"> <span className="text-xs text-green-300 group-hover:text-white truncate font-medium">➡ {link}</span> </div> </li>))} </ul> </div>)}
+
                     <div className="space-y-4 pt-2 border-t border-gray-900">
                       <div> <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">UUID (System)</label> <input type="text" value={metadata.id} disabled className="w-full bg-gray-900/50 border border-gray-900 text-gray-600 text-[9px] rounded p-2 font-mono select-all" /> </div>
                       <div> <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">Project Status</label> <select value={metadata.status} onChange={(e) => { setMetadata({ ...metadata, status: e.target.value }); setIsDirty(true); }} className="w-full bg-gray-900 border border-gray-800 text-gray-300 text-xs rounded p-2 focus:border-amber-500 focus:outline-none"> <option value="ACTIVE">🟢 ACTIVE</option> <option value="HOLD">🟠 ON HOLD</option> <option value="DONE">🔵 COMPLETED</option> <option value="ARCHIVED">⚫ ARCHIVED</option> </select> </div>
@@ -682,7 +526,7 @@ function App() {
               </>
             ) : <div className="text-center text-gray-700 text-xs mt-10">No context available.</div>}
 
-            {/* V11.60 : MINI CALENDAR (LOCAL FIX & GOLD ARROWS) */}
+            {/* V11.60 : MINI CALENDAR (ALWAYS VISIBLE, CORRECTED GRID) */}
             <MiniCalendar />
 
             {/* V11.3 : RITUELS DU JOUR (TRI CHRONOLOGIQUE) */}
