@@ -6,7 +6,6 @@ import { LazyStore } from "@tauri-apps/plugin-store";
 import { DragEndEvent } from "@dnd-kit/core";
 import { ask } from '@tauri-apps/plugin-dialog';
 import * as XLSX from 'xlsx';
-import WelcomeView from "./WelcomeView";
 import Sidebar, { FileNode } from "./Sidebar";
 
 // --- CONSTANTES ---
@@ -14,27 +13,27 @@ const METADATA_SEPARATOR = "--- AEGIS METADATA ---";
 const ACTION_HEADER_MARKER = "## PLAN D'ACTION";
 const STORE_PATH = "aegis_config.json";
 
+// --- TYPES ---
 interface NoteMetadata { id: string; type: string; status: string; tags: string; }
 interface ActionItem { id: string; code: string; status: boolean; created: string; deadline: string; owner: string; task: string; comment: string; note_path?: string; collapsed?: boolean; }
 interface Note { id: string; path: string; tags?: string; }
 
-interface EmailItem {
+interface Ritual {
   id: string;
-  subject: string;
-  sender: string;
-  sender_addr: string;
-  received: string;
-  body_preview: string;
-  body_content: string;
-  is_read: boolean;
+  name: string;
+  target_time: string; // "08:00"
+  frequency: string;   // "DAILY", "WEEKLY", "WORKDAYS"
+  category: string;    // "WORK", "PERSO", "HEALTH"
+  created_at: string;
 }
+interface RitualLog { ritual_id: string; date: string; status: boolean; }
 
-// --- UTILITAIRES CALENDRIER ---
+interface EmailItem { id: string; subject: string; sender: string; sender_addr: string; received: string; body_preview: string; body_content: string; is_read: boolean; }
+
+// --- UTILITAIRES ---
 const getEasterDate = (year: number) => { const f = Math.floor, G = year % 19, C = f(year / 100), H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30, I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11)), J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7, L = I - J, month = 3 + f((L + 40) / 44), day = L + 28 - 31 * f(month / 4); return new Date(year, month - 1, day); };
 const getFrenchHolidays = (year: number) => { const easter = getEasterDate(year); const ascension = new Date(easter); ascension.setDate(easter.getDate() + 39); const pentecost = new Date(easter); pentecost.setDate(easter.getDate() + 50); const fmt = (d: Date) => d.toISOString().split('T')[0]; return { [`${year}-01-01`]: "Jour de l'An", [`${year}-05-01`]: "Fête du Travail", [`${year}-05-08`]: "Victoire 1945", [`${year}-07-14`]: "Fête Nationale", [`${year}-08-15`]: "Assomption", [`${year}-11-01`]: "Toussaint", [`${year}-11-11`]: "Armistice 1918", [`${year}-12-25`]: "Noël", [fmt(new Date(easter.setDate(easter.getDate() + 1)))]: "Lundi de Pâques", [fmt(ascension)]: "Ascension", [fmt(pentecost)]: "Lundi de Pentecôte" }; };
 const getWeekNumber = (d: Date) => { d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7)); var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1)); return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7); };
-
-// --- LOGIQUE METIER ---
 function generateUUID() { return crypto.randomUUID(); }
 function getTodayDate() { return new Date().toISOString().split('T')[0]; }
 async function computeContentHash(text: string): Promise<string> { const msgBuffer = new TextEncoder().encode(text); const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer); const hashArray = Array.from(new Uint8Array(hashBuffer)); return hashArray.map(b => b.toString(16).padStart(2, '0')).join(''); }
@@ -47,7 +46,7 @@ function App() {
   const [status, setStatus] = useState<string>("BOOTING...");
   const [db, setDb] = useState<Database | null>(null);
   const [syncStatus, setSyncStatus] = useState<string>("");
-  const [currentTab, setCurrentTab] = useState<'COCKPIT' | 'MASTER_PLAN' | 'MAILBOX'>('COCKPIT');
+  const [currentTab, setCurrentTab] = useState<'COCKPIT' | 'MASTER_PLAN' | 'MAILBOX' | 'TRACKER'>('COCKPIT');
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [activeFile, setActiveFile] = useState<string>("");
   const [activeExtension, setActiveExtension] = useState<string>("");
@@ -57,13 +56,10 @@ function App() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchResults, setSearchResults] = useState<FileNode[]>([]);
   const [calDate, setCalDate] = useState(new Date());
-  const [emails, setEmails] = useState<EmailItem[]>([]);
-  const [selectedEmail, setSelectedEmail] = useState<EmailItem | null>(null);
 
   // -- RESIZING STATES --
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [rightSidebarWidth, setRightSidebarWidth] = useState(320);
-  // V10.47: Hauteur ajustable du plan d'action (défaut 300px)
   const [actionPlanHeight, setActionPlanHeight] = useState(300);
   const [resizingTarget, setResizingTarget] = useState<'LEFT' | 'RIGHT' | 'ACTION_PLAN' | null>(null);
 
@@ -77,33 +73,100 @@ function App() {
   const [relatedNotes, setRelatedNotes] = useState<Note[]>([]);
   const [detectedLinks, setDetectedLinks] = useState<string[]>([]);
   const [backlinks, setBacklinks] = useState<Note[]>([]);
+
+  // V11.3: RITUELS STATES
+  const [rituals, setRituals] = useState<Ritual[]>([]);
+  const [ritualLogs, setRitualLogs] = useState<RitualLog[]>([]);
+  const [newRitualName, setNewRitualName] = useState("");
+  const [newRitualTime, setNewRitualTime] = useState("");
+  const [newRitualFreq, setNewRitualFreq] = useState("DAILY");
+  const [newRitualCat, setNewRitualCat] = useState("WORK");
+
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => { const load = async () => { try { const s = new LazyStore(STORE_PATH); const p = await s.get<string>("vault_path"); if (p) setVaultPath(p); } catch (e) { console.error(e); } finally { setIsStoreLoaded(true); } }; load(); }, []);
-  useEffect(() => { if (!vaultPath) return; const init = async () => { try { const m = await invoke<string>("check_system_status"); const d = await Database.load("sqlite:aegis_v7.db"); setDb(d); setStatus(m); handleScan(d); } catch (e) { setStatus("FAIL"); } }; init(); }, [vaultPath]);
 
-  // -- RESIZING LOGIC --
+  useEffect(() => {
+    if (!vaultPath) return;
+    const init = async () => {
+      try {
+        const m = await invoke<string>("check_system_status");
+        const d = await Database.load("sqlite:aegis_v7.db");
+        setDb(d);
+        setStatus(m);
+
+        await d.execute("CREATE TABLE IF NOT EXISTS rituals (id TEXT PRIMARY KEY, name TEXT, created_at TEXT)");
+        try { await d.execute("ALTER TABLE rituals ADD COLUMN target_time TEXT"); } catch (e) { }
+        try { await d.execute("ALTER TABLE rituals ADD COLUMN frequency TEXT DEFAULT 'DAILY'"); } catch (e) { }
+        try { await d.execute("ALTER TABLE rituals ADD COLUMN category TEXT DEFAULT 'WORK'"); } catch (e) { }
+        await d.execute("CREATE TABLE IF NOT EXISTS ritual_logs (id TEXT PRIMARY KEY, ritual_id TEXT, date TEXT, status INTEGER)");
+
+        await refreshRituals(d);
+        handleScan(d);
+      } catch (e) { setStatus("FAIL"); }
+    };
+    init();
+  }, [vaultPath]);
+
+  const refreshRituals = async (database: Database) => {
+    // V11.3 FIX: TRI PAR HEURE STRICTE (Les vides en premier ou dernier selon standard, mais groupés)
+    // CASE WHEN pour gérer les heures vides proprement si besoin, mais le tri string standard suffit souvent ("" < "08:00")
+    const r = await database.select<Ritual[]>("SELECT * FROM rituals ORDER BY target_time ASC, name ASC");
+    const l = await database.select<any[]>("SELECT ritual_id, date, status FROM ritual_logs");
+    setRituals(r);
+    setRitualLogs(l.map(x => ({ ...x, status: x.status === 1 })));
+  };
+
+  const addRitual = async () => {
+    if (!newRitualName.trim() || !db) return;
+    const id = generateUUID();
+    await db.execute(
+      "INSERT INTO rituals (id, name, created_at, target_time, frequency, category) VALUES ($1, $2, $3, $4, $5, $6)",
+      [id, newRitualName.trim(), new Date().toISOString(), newRitualTime, newRitualFreq, newRitualCat]
+    );
+    setNewRitualName("");
+    setNewRitualTime("");
+    await refreshRituals(db);
+  };
+
+  const toggleRitualDate = async (ritualId: string, dateStr: string) => {
+    if (!db) return;
+    const existing = ritualLogs.find(l => l.ritual_id === ritualId && l.date === dateStr);
+    const newStatus = existing ? !existing.status : true;
+    const check = await db.select<any[]>("SELECT id FROM ritual_logs WHERE ritual_id = $1 AND date = $2", [ritualId, dateStr]);
+    if (check.length > 0) {
+      await db.execute("UPDATE ritual_logs SET status = $1 WHERE ritual_id = $2 AND date = $3", [newStatus ? 1 : 0, ritualId, dateStr]);
+    } else {
+      await db.execute("INSERT INTO ritual_logs VALUES ($1, $2, $3, $4)", [generateUUID(), ritualId, dateStr, 1]);
+    }
+    await refreshRituals(db);
+  };
+
+  const deleteRitual = async (id: string) => {
+    if (!confirm("Supprimer ce rituel et son historique ?")) return;
+    if (!db) return;
+    await db.execute("DELETE FROM rituals WHERE id = $1", [id]);
+    await db.execute("DELETE FROM ritual_logs WHERE ritual_id = $1", [id]);
+    await refreshRituals(db);
+  };
+
+  const isRitualDueToday = (r: Ritual) => {
+    const day = new Date().getDay();
+    if (r.frequency === 'DAILY') return true;
+    if (r.frequency === 'WORKDAYS') return day >= 1 && day <= 5;
+    if (r.frequency === 'WEEKLY') { const creationDay = new Date(r.created_at).getDay(); return day === creationDay; }
+    return true;
+  };
+
+  // -- RESIZING --
   const startResizingLeft = useCallback(() => setResizingTarget('LEFT'), []);
   const startResizingRight = useCallback(() => setResizingTarget('RIGHT'), []);
-  // V10.47: Handler pour le plan d'action
   const startResizingActionPlan = useCallback(() => setResizingTarget('ACTION_PLAN'), []);
   const stopResizing = useCallback(() => setResizingTarget(null), []);
-
-  const resize = useCallback((e: MouseEvent) => {
-    if (resizingTarget === 'LEFT') {
-      setSidebarWidth(Math.max(200, Math.min(800, e.clientX)));
-    } else if (resizingTarget === 'RIGHT') {
-      const newWidth = document.body.clientWidth - e.clientX;
-      setRightSidebarWidth(Math.max(250, Math.min(800, newWidth)));
-    } else if (resizingTarget === 'ACTION_PLAN') {
-      // V10.47: Calcul de la hauteur verticale (Offset du haut ~90px)
-      const newHeight = e.clientY - 90;
-      setActionPlanHeight(Math.max(100, Math.min(800, newHeight)));
-    }
-  }, [resizingTarget]);
-
+  const resize = useCallback((e: MouseEvent) => { if (resizingTarget === 'LEFT') { setSidebarWidth(Math.max(200, Math.min(800, e.clientX))); } else if (resizingTarget === 'RIGHT') { const newWidth = document.body.clientWidth - e.clientX; setRightSidebarWidth(Math.max(250, Math.min(800, newWidth))); } else if (resizingTarget === 'ACTION_PLAN') { const newHeight = e.clientY - 90; setActionPlanHeight(Math.max(100, Math.min(800, newHeight))); } }, [resizingTarget]);
   useEffect(() => { window.addEventListener("mousemove", resize); window.addEventListener("mouseup", stopResizing); return () => { window.removeEventListener("mousemove", resize); window.removeEventListener("mouseup", stopResizing); }; }, [resize, stopResizing]);
 
+  // -- STANDARD APP FUNCTIONS --
   const handleVaultSelection = async (p: string) => { const s = new LazyStore(STORE_PATH); await s.set("vault_path", p); await s.save(); setVaultPath(p); };
   const handleCloseVault = async () => { if (!confirm("Fermer le Cockpit ?")) return; const s = new LazyStore(STORE_PATH); await s.set("vault_path", null); await s.save(); setVaultPath(null); };
   const handleGlobalSearch = async (query: string) => { setSearchQuery(query); if (!query || query.length < 2) { setSearchResults([]); return; } if (!db) return; try { const results = await db.select<any[]>(`SELECT path FROM notes WHERE content LIKE $1 OR path LIKE $1 OR tags LIKE $1 LIMIT 50`, [`%${query}%`]); const nodes: FileNode[] = results.map(r => ({ name: r.path.split('/').pop() || r.path, path: r.path, is_dir: false, children: [], extension: 'md', content: '' })); setSearchResults(nodes); } catch (e) { console.error("Search error:", e); } };
@@ -123,29 +186,7 @@ function App() {
   const handleCreateNote = async () => { try { const nameInput = prompt("Nom de la nouvelle note :", "Nouvelle Note"); if (!nameInput || nameInput.trim() === "") return; let targetFolder = selectedFolder; if (!targetFolder && activeFile) { const lastSlash = activeFile.lastIndexOf('/'); if (lastSlash !== -1) { targetFolder = activeFile.substring(0, lastSlash); } } let finalName = nameInput.trim(); if (!finalName.endsWith('.md')) finalName += '.md'; const getRelPath = (name: string) => targetFolder ? `${targetFolder}/${name}` : name; let counter = 1; let baseName = finalName.replace('.md', ''); while (fileTree.some(n => n.path === getRelPath(finalName))) { finalName = `${baseName} ${counter}.md`; counter++; } const fullPath = targetFolder ? `${vaultPath}\\${targetFolder}\\${finalName}`.replace(/\//g, '\\') : `${vaultPath}\\${finalName}`; const newId = generateUUID(); const content = `# ${finalName.replace('.md', '')}\n\nCreated: ${new Date().toLocaleString()}\n\n\n\n${METADATA_SEPARATOR}\nID: ${newId}\nTYPE: NOTE\nSTATUS: ACTIVE\nTAGS: `; await invoke("create_note", { path: fullPath, content }); await handleScan(); const relativePath = getRelPath(finalName); setActiveFile(relativePath); setSelectedFolder(targetFolder); parseFullFile(content, relativePath); setCurrentTab('COCKPIT'); } catch (e) { alert("Erreur Création Note: " + e); } };
   const handleCreateFolder = async () => { const parent = selectedFolder ? `DANS ${selectedFolder}` : "à la RACINE"; const name = prompt(`Nom du nouveau dossier (${parent}) :`); if (!name) return; const path = selectedFolder ? `${selectedFolder}/${name}` : name; await invoke("create_folder", { path: `${vaultPath}\\${path.replace(/\//g, '\\')}` }); await handleScan(); };
   const handleDelete = async () => { const target = activeFile || selectedFolder; if (!target) return; const confirmation = await ask(`Confirmer la suppression de :\n"${target}" ?`, { title: 'Confirmation Requise', kind: 'warning', okLabel: 'Supprimer', cancelLabel: 'Annuler' }); if (!confirmation) return; try { if (target.endsWith('.md')) { await invoke("delete_note", { path: `${vaultPath}\\${target.replace(/\//g, '\\')}` }); } else { await invoke("delete_folder", { path: `${vaultPath}\\${target.replace(/\//g, '\\')}` }); } setActiveFile(""); setSelectedFolder(""); await handleScan(); } catch (e) { alert("Erreur: " + e); } };
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event; if (!over || active.id === over.id) return;
-    try {
-      const activePath = active.id as string;
-      let targetFolder = "";
-      if (over.id !== "ROOT_TOP" && over.id !== "ROOT_BOTTOM") {
-        targetFolder = over.id as string;
-      }
-      if (activePath === targetFolder || targetFolder.startsWith(activePath + "/")) return;
-      const currentFolder = activePath.substring(0, activePath.lastIndexOf('/'));
-      if (currentFolder === targetFolder) return;
-      const fullSource = `${vaultPath}\\${activePath.replace(/\//g, '\\')}`;
-      const fullDest = targetFolder ? `${vaultPath}\\${targetFolder.replace(/\//g, '\\')}` : `${vaultPath}`;
-      await invoke("move_file_system_entry", { sourcePath: fullSource, destinationFolder: fullDest });
-      const fileName = activePath.split('/').pop() || ""; const newPathRel = targetFolder ? `${targetFolder}/${fileName}` : fileName;
-      const oldLink = activePath.replace('.md', ''); const newLink = newPathRel.replace('.md', '');
-      if (oldLink !== newLink) await invoke("update_links_on_move", { vaultPath, oldPathRel: oldLink, newPathRel: newLink });
-      if (activeFile === activePath) { setActiveFile(newPathRel); setSelectedFolder(targetFolder); }
-      await handleScan();
-    } catch (e) { alert("Move Error: " + e); }
-  };
-
+  const handleDragEnd = async (event: DragEndEvent) => { const { active, over } = event; if (!over || active.id === over.id) return; try { const activePath = active.id as string; let targetFolder = ""; if (over.id !== "ROOT_TOP" && over.id !== "ROOT_BOTTOM") { targetFolder = over.id as string; } if (activePath === targetFolder || targetFolder.startsWith(activePath + "/")) return; const currentFolder = activePath.substring(0, activePath.lastIndexOf('/')); if (currentFolder === targetFolder) return; const fullSource = `${vaultPath}\\${activePath.replace(/\//g, '\\')}`; const fullDest = targetFolder ? `${vaultPath}\\${targetFolder.replace(/\//g, '\\')}` : `${vaultPath}`; await invoke("move_file_system_entry", { sourcePath: fullSource, destinationFolder: fullDest }); const fileName = activePath.split('/').pop() || ""; const newPathRel = targetFolder ? `${targetFolder}/${fileName}` : fileName; const oldLink = activePath.replace('.md', ''); const newLink = newPathRel.replace('.md', ''); if (oldLink !== newLink) await invoke("update_links_on_move", { vaultPath, oldPathRel: oldLink, newPathRel: newLink }); if (activeFile === activePath) { setActiveFile(newPathRel); setSelectedFolder(targetFolder); } await handleScan(); } catch (e) { alert("Move Error: " + e); } };
   const handleInsertLink = (node: FileNode) => { if (!activeFile) return; const ta = textAreaRef.current; if (!ta) return; const txt = `[[${node.path.replace('.md', '')}]]`; const s = ta.selectionStart; const e = ta.selectionEnd; const prev = bodyContent.charAt(s - 1); const pad = (s > 0 && prev !== ' ' && prev !== '\n') ? ' ' : ''; const n = bodyContent.substring(0, s) + pad + txt + bodyContent.substring(e); handleContentChange(n); setTimeout(() => { ta.focus(); const pos = s + pad.length + txt.length; ta.selectionStart = pos; ta.selectionEnd = pos; }, 0); };
   const toggleFolderExpand = (path: string) => { const next = new Set(expandedFolders); if (next.has(path)) next.delete(path); else next.add(path); setExpandedFolders(next); };
   const toggleSourceExpand = (source: string) => { const next = new Set(expandedSources); if (next.has(source)) next.delete(source); else next.add(source); setExpandedSources(next); };
@@ -205,21 +246,16 @@ function App() {
     const nextMonth = () => setCalDate(new Date(year, month + 1, 1));
 
     return (
-      <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-800 shadow-lg mt-auto text-xs select-none">
+      <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-800 shadow-lg mt-0 text-xs select-none">
         <div className="flex justify-between items-center mb-2 px-1">
-          {/* V10.42: ICONES SVG POUR LES FLÈCHES DU CALENDRIER (SQUARE FIXED) */}
           <button onClick={prevMonth} className="text-amber-500 hover:text-white p-1.5 rounded hover:bg-gray-800 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-            </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
           </button>
           <span className="font-bold text-gray-300 uppercase tracking-widest">
             {calDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}
           </span>
           <button onClick={nextMonth} className="text-amber-500 hover:text-white p-1.5 rounded hover:bg-gray-800 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-            </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
           </button>
         </div>
         <div className="grid grid-cols-8 gap-1 text-center">
@@ -237,21 +273,102 @@ function App() {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
             const isHoliday = holidays[dateStr];
             const isToday = dateStr === todayStr;
-            if (i % 7 === 0) {
-              const d = new Date(year, month, dayNum);
+            if (i % 7 === 0) { const d = new Date(year, month, dayNum); return (<div key={`wk-${i}`} className="text-gray-600 text-[9px] py-1 border-r border-gray-800 font-mono bg-black/20">{getWeekNumber(d)}</div>); }
+            return (<div key={i} className={`py-1 rounded cursor-default relative group ${isToday ? 'bg-orange-600 text-white font-bold' : ''} ${isHoliday ? 'text-red-400 font-bold border border-red-900/50 bg-red-900/10' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`} title={isHoliday || ""}>{dayNum}{isHoliday && <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block whitespace-nowrap bg-black border border-red-900 text-red-200 text-[9px] px-2 py-1 rounded z-50 shadow-xl">{isHoliday}</div>}</div>);
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // --- V11.3: TRACKER GRID VIEW & FORM (CORRIGÉS) ---
+  const renderTrackerGrid = () => {
+    const year = calDate.getFullYear();
+    const month = calDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    return (
+      <div className="flex flex-col h-full bg-gray-950 text-white p-6 overflow-hidden gap-4">
+        {/* HEADER & NAV */}
+        <div className="flex items-center justify-between shrink-0 border-b border-gray-800 pb-4">
+          <h2 className="text-xl font-bold tracking-widest text-amber-500 uppercase flex items-center gap-3">
+            <span>⚔️</span> PROTOCOLS TRACKER
+          </h2>
+          <div className="flex items-center gap-4">
+            <button onClick={() => setCalDate(new Date(year, month - 1, 1))} className="text-gray-500 hover:text-white text-lg font-bold">◄</button>
+            <span className="text-sm font-bold text-gray-300 w-32 text-center">{calDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' }).toUpperCase()}</span>
+            <button onClick={() => setCalDate(new Date(year, month + 1, 1))} className="text-gray-500 hover:text-white text-lg font-bold">►</button>
+          </div>
+        </div>
+
+        {/* FORMULAIRE DE CRÉATION */}
+        <div className="bg-gray-900/50 border border-gray-800 p-3 rounded flex gap-2 items-center shrink-0">
+          <input type="text" placeholder="Nouveau rituel (ex: Sport, Lecture...)" className="flex-1 bg-black border border-gray-700 text-gray-300 text-xs rounded px-3 py-2 focus:border-amber-500 focus:outline-none" value={newRitualName} onChange={(e) => setNewRitualName(e.target.value)} />
+          <select value={newRitualFreq} onChange={(e) => setNewRitualFreq(e.target.value)} className="bg-black border border-gray-700 text-gray-300 text-xs rounded px-2 py-2 focus:border-amber-500 outline-none w-32">
+            <option value="DAILY">Quotidien</option>
+            <option value="WEEKLY">Hebdo</option>
+            <option value="WORKDAYS">Lun-Ven</option>
+          </select>
+          <select value={newRitualCat} onChange={(e) => setNewRitualCat(e.target.value)} className="bg-black border border-gray-700 text-gray-300 text-xs rounded px-2 py-2 focus:border-amber-500 outline-none w-32">
+            <option value="WORK">Travail</option>
+            <option value="PERSO">Perso</option>
+            <option value="HEALTH">Santé</option>
+          </select>
+          <input type="time" className="bg-black border border-gray-700 text-gray-300 text-xs rounded px-2 py-2 focus:border-amber-500 outline-none" value={newRitualTime} onChange={(e) => setNewRitualTime(e.target.value)} />
+          <button onClick={addRitual} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-4 py-2 rounded transition-colors">+ AJOUTER</button>
+        </div>
+
+        {/* THE GRID (V11.3: Colonne HEURE explicite) */}
+        <div className="flex-1 overflow-auto border border-gray-800 rounded-lg bg-black/40 shadow-2xl relative">
+          <div className="min-w-max">
+            <div className="flex border-b border-gray-800 bg-gray-900 sticky top-0 z-10">
+              <div className="w-64 p-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-r border-gray-800 sticky left-0 bg-gray-900 z-20">RITUEL</div>
+              <div className="w-16 p-3 text-[10px] font-bold text-gray-500 border-r border-gray-800 text-center">HEURE</div>
+              {Array.from({ length: daysInMonth }).map((_, i) => (
+                <div key={i} className={`w-8 p-3 text-[10px] font-bold text-center border-r border-gray-800 ${i + 1 === new Date().getDate() && month === new Date().getMonth() ? 'text-amber-500 bg-amber-900/20' : 'text-gray-600'}`}>
+                  {i + 1}
+                </div>
+              ))}
+              <div className="w-20 p-3 text-[10px] font-bold text-gray-500 text-center">STAT</div>
+            </div>
+
+            {rituals.map(ritual => {
+              const monthLogs = ritualLogs.filter(l => l.ritual_id === ritual.id && l.date.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`));
+              const successCount = monthLogs.filter(l => l.status).length;
+              const rate = Math.round((successCount / daysInMonth) * 100);
+              const catColor = ritual.category === 'WORK' ? 'bg-blue-500' : ritual.category === 'HEALTH' ? 'bg-green-500' : 'bg-purple-500';
+
               return (
-                <div key={`wk-${i}`} className="text-gray-600 text-[9px] py-1 border-r border-gray-800 font-mono bg-black/20">
-                  {getWeekNumber(d)}
+                <div key={ritual.id} className="flex border-b border-gray-800/50 hover:bg-gray-900/30 transition-colors">
+                  {/* NOM + BADGE FREQUENCE */}
+                  <div className="w-64 p-3 text-xs font-bold text-gray-300 border-r border-gray-800 sticky left-0 bg-black z-10 flex justify-between items-center group">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-1.5 h-1.5 rounded-full ${catColor}`}></div>
+                      <span>{ritual.name}</span>
+                      <span className="text-[8px] text-gray-600 uppercase bg-gray-900 px-1 rounded border border-gray-800">{ritual.frequency.substring(0, 3)}</span>
+                    </div>
+                    <button onClick={() => deleteRitual(ritual.id)} className="text-gray-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">×</button>
+                  </div>
+                  {/* COLONNE HEURE (V11.3) */}
+                  <div className="w-16 p-3 text-[10px] font-mono text-amber-600/80 border-r border-gray-800 text-center font-bold">
+                    {ritual.target_time || "-"}
+                  </div>
+                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`;
+                    const isDone = ritualLogs.some(l => l.ritual_id === ritual.id && l.date === dayStr && l.status);
+                    return (
+                      <div key={i} onClick={() => toggleRitualDate(ritual.id, dayStr)} className={`w-8 border-r border-gray-800 cursor-pointer flex items-center justify-center transition-colors hover:bg-white/5`}>
+                        {isDone && <div className="w-4 h-4 bg-amber-500 rounded-sm shadow-sm shadow-amber-500/50"></div>}
+                      </div>
+                    );
+                  })}
+                  <div className="w-20 p-3 text-xs font-bold text-gray-500 text-center flex items-center justify-center">
+                    <div className="text-amber-600">{rate}%</div>
+                  </div>
                 </div>
               );
-            }
-            return (
-              <div key={i} className={`py-1 rounded cursor-default relative group ${isToday ? 'bg-orange-600 text-white font-bold' : ''} ${isHoliday ? 'text-red-400 font-bold border border-red-900/50 bg-red-900/10' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`} title={isHoliday || ""}>
-                {dayNum}
-                {isHoliday && <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block whitespace-nowrap bg-black border border-red-900 text-red-200 text-[9px] px-2 py-1 rounded z-50 shadow-xl">{isHoliday}</div>}
-              </div>
-            );
-          })}
+            })}
+          </div>
         </div>
       </div>
     );
@@ -262,11 +379,12 @@ function App() {
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }`}</style>
       <div className="h-10 bg-gray-950 border-b border-gray-900 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-6">
-          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V10.47 ERGONOMIC</span>
+          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V11.30 CHRONO MASTER</span>
           <div className="flex gap-1 bg-gray-900 p-1 rounded">
             <button onClick={() => setCurrentTab('COCKPIT')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'COCKPIT' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>COCKPIT</button>
             <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>
             <button onClick={() => setCurrentTab('MAILBOX')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MAILBOX' ? 'bg-amber-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MESSAGERIE</button>
+            <button onClick={() => { setCurrentTab('TRACKER'); refreshRituals(db!); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'TRACKER' ? 'bg-amber-800 text-white' : 'text-gray-500 hover:text-gray-300'}`}>RITUELS</button>
           </div>
         </div>
         <div className="text-[10px] text-gray-600">{syncStatus}</div>
@@ -286,7 +404,6 @@ function App() {
             onSearch={handleGlobalSearch}
             searchResults={searchResults}
           />
-          {/* V10.40: POIGNÉE VISIBLE & LARGE (4px) */}
           <div onMouseDown={startResizingLeft} className="absolute right-0 top-0 w-1.5 h-full cursor-col-resize bg-gray-800 hover:bg-amber-500 transition-colors z-50"></div>
         </div>
 
@@ -331,7 +448,6 @@ function App() {
                   if (activeExtension === 'md') {
                     return (
                       <div className="flex-1 overflow-auto p-6 max-w-6xl mx-auto w-full flex flex-col gap-0">
-                        {/* V10.47 : ZONE PLAN D'ACTION REDIMENSIONNABLE */}
                         <div style={{ height: actionPlanHeight }} className="bg-gray-900/30 border border-gray-800 rounded-t-lg overflow-hidden flex flex-col shrink-0">
                           <div className="bg-gray-900 px-4 py-2 border-b border-gray-800 flex justify-between items-center shrink-0">
                             <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider">⚡ Action Plan</h3>
@@ -360,15 +476,7 @@ function App() {
                             })}
                           </div>
                         </div>
-                        {/* V10.47: POIGNÉE DE REDIMENSIONNEMENT HORIZONTALE (GOLD) */}
-                        <div
-                          onMouseDown={startResizingActionPlan}
-                          className="h-1.5 bg-gray-900 border-t border-b border-gray-800 hover:bg-amber-600 cursor-row-resize flex items-center justify-center shrink-0 transition-colors z-10 mb-4"
-                          title="Ajuster la hauteur"
-                        >
-                          <div className="w-10 h-0.5 bg-gray-600 rounded-full"></div>
-                        </div>
-
+                        <div onMouseDown={startResizingActionPlan} className="h-1.5 bg-gray-900 border-t border-b border-gray-800 hover:bg-amber-600 cursor-row-resize flex items-center justify-center shrink-0 transition-colors z-10 mb-4" title="Ajuster la hauteur"><div className="w-10 h-0.5 bg-gray-600 rounded-full"></div></div>
                         <div className="flex-1 min-h-[100px] border-t border-gray-900 pt-0">
                           <textarea ref={textAreaRef} className="w-full h-full bg-black text-gray-300 font-mono text-base resize-none focus:outline-none leading-relaxed p-2" value={bodyContent} onChange={(e) => handleContentChange(e.target.value)} spellCheck={false} placeholder="Write your note here..." />
                         </div>
@@ -406,74 +514,36 @@ function App() {
             )
           ) : currentTab === 'MASTER_PLAN' ? (
             <div className="flex flex-col h-full bg-gray-950/50">
-              {/* --- V10.46 : MASTER PLAN GOLD EDITION FINAL --- */}
+              {/* --- MASTER PLAN UI --- */}
               <div className="h-16 border-b border-gray-900 flex items-center px-8 bg-black shrink-0">
                 <h2 className="text-xl font-bold text-white tracking-widest flex items-center gap-3"><span className="text-amber-500">◈</span> GLOBAL MASTER PLAN</h2>
                 <div className="flex items-center gap-4">
                   <button onClick={() => handleScan(db)} className="text-gray-500 hover:text-white transition-colors" title="Force Reload">↻</button>
                   <input type="text" placeholder="Filter..." value={filterText} onChange={(e) => setFilterText(e.target.value)} className="ml-4 bg-gray-900 border border-gray-800 text-xs text-white px-3 py-1 rounded w-64 focus:border-amber-500 focus:outline-none" />
-                  {/* BOUTON EXPORT GOLD */}
                   <button onClick={() => handleExportExcel(filteredActions, "Master_Plan")} className="bg-black border border-amber-600 hover:bg-amber-900/20 text-amber-500 text-xs px-4 py-1.5 rounded font-bold transition-all shadow-sm hover:shadow-amber-900/20">📊 EXPORT XLS</button>
                 </div>
                 <div className="ml-auto text-xs text-gray-500">{filteredActions.length} actions</div>
               </div>
               <div className="flex-1 overflow-auto p-8">
-                {/* HEADERS TABLEAU */}
                 <div className="flex gap-2 px-4 py-2 bg-gray-900/50 text-[10px] text-gray-500 uppercase tracking-wider font-bold shrink-0 border-b border-gray-800 mb-2"> <div className="w-6"></div><div className="w-10">ID</div><div className="flex-1">Action</div> <div onClick={() => requestSort('owner')} className="w-20 text-center cursor-pointer hover:text-amber-500 transition-colors">Pilot</div> <div onClick={() => requestSort('deadline')} className="w-24 text-center cursor-pointer hover:text-amber-500 transition-colors">Deadline</div> <div className="w-64 text-center">Comment</div> <div className="w-24 text-center">Open</div> </div>
-
                 <div className="space-y-4">
                   {uniqueSources.map(source => {
                     let actionsInSource = filteredActions.filter(a => (a.note_path || "Inconnu") === source);
                     if (sortConfig) { actionsInSource.sort((a, b) => { const valA = a[sortConfig.key] || ""; const valB = b[sortConfig.key] || ""; if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; return 0; }); }
                     const isExpanded = expandedSources.has(source);
-                    return (
-                      <div key={source} className="border border-gray-800/50 rounded overflow-hidden bg-gray-900/10">
-                        <div onClick={() => toggleSourceExpand(source)} className="flex items-center gap-3 px-4 py-2 bg-gray-900 cursor-pointer hover:bg-gray-800 transition-colors select-none">
-                          {/* V10.46: FLÈCHES MASTER PLAN OR (NO EMOJI) */}
-                          <span className="w-5 h-5 flex items-center justify-center text-amber-500 bg-gray-800 border border-gray-700 rounded text-[10px] font-bold mr-2">
-                            {isExpanded ? '▾' : '▸'}
-                          </span>
-                          {/* TITRE SOURCE GOLD */}
-                          <span className="text-sm font-bold text-amber-200 font-mono truncate">{source}</span>
-                          <span className="text-[10px] bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full">{actionsInSource.length}</span>
-                        </div>
-                        {isExpanded && (
-                          <div className="p-2 border-t border-gray-800 bg-black/20">
-                            {actionsInSource.map((action) => {
-                              if (!isVisibleInMasterGroup(action, actionsInSource)) return null;
-                              const depth = action.code.split('.').length - 1;
-                              const hasChildren = actionsInSource.some(a => a.code.startsWith(action.code + "."));
-                              return (
-                                <div key={action.id} style={{ marginLeft: `${depth * 24}px` }} className="flex items-center gap-2 bg-gray-900/20 p-1.5 rounded border border-gray-800/50 group hover:border-amber-500/50 hover:bg-gray-900/40 transition-all mb-1">
-                                  {hasChildren ? (<button onClick={() => toggleGlobalCollapse(action.note_path || "", action.code)} className="text-gray-500 w-4 text-[10px] hover:text-white font-mono border border-gray-700 rounded bg-gray-900 h-4 flex items-center justify-center"> {action.collapsed ? '+' : '-'} </button>) : <div className="w-4"></div>}
-                                  {/* CHECKBOX GOLD */}
-                                  <input type="checkbox" checked={action.status} onChange={() => toggleActionFromMaster(action)} className="w-4 h-4 cursor-pointer accent-amber-500 shrink-0" />
-                                  {/* ID GOLD */}
-                                  <div className="w-10 bg-gray-900/50 text-xs text-center text-amber-500 rounded font-mono py-1 border border-gray-800">{action.code}</div>
-                                  <div className={`flex-1 text-sm ${action.status ? 'text-gray-500 line-through' : 'text-gray-300'} truncate px-2`} title={action.task}>{action.task}</div>
-                                  <div className="w-20 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-500 rounded py-1">{action.owner || '-'}</div>
-                                  <div className="w-24 bg-gray-900/50 border border-gray-800 text-xs text-center text-yellow-700/70 rounded py-1">{action.deadline || '-'}</div>
-                                  <div className="w-64 bg-gray-900/50 border border-gray-800 text-xs text-left text-gray-400 rounded py-1 px-2 italic whitespace-normal break-words leading-tight" title={action.comment}>{action.comment}</div>
-                                  {/* BOUTON OPEN GOLD */}
-                                  <button onClick={() => openNote(action.note_path || "")} className="w-24 bg-gray-900/50 hover:bg-amber-900/30 border border-gray-800 hover:border-amber-700 text-[10px] text-gray-500 hover:text-amber-300 rounded py-1 truncate transition-colors text-center"> Ouvrir </button>
-                                </div>);
-                            })}
-                          </div>)}
-                      </div>);
-                  })}
-                </div>
+                    return (<div key={source} className="border border-gray-800/50 rounded overflow-hidden bg-gray-900/10"> <div onClick={() => toggleSourceExpand(source)} className="flex items-center gap-3 px-4 py-2 bg-gray-900 cursor-pointer hover:bg-gray-800 transition-colors select-none"> <span className="w-5 h-5 flex items-center justify-center text-amber-500 bg-gray-800 border border-gray-700 rounded text-[10px] font-bold mr-2">{isExpanded ? '▾' : '▸'}</span> <span className="text-sm font-bold text-amber-200 font-mono truncate">{source}</span> <span className="text-[10px] bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full">{actionsInSource.length}</span> </div> {isExpanded && (<div className="p-2 border-t border-gray-800 bg-black/20"> {actionsInSource.map((action) => { if (!isVisibleInMasterGroup(action, actionsInSource)) return null; const depth = action.code.split('.').length - 1; const hasChildren = actionsInSource.some(a => a.code.startsWith(action.code + ".")); return (<div key={action.id} style={{ marginLeft: `${depth * 24}px` }} className="flex items-center gap-2 bg-gray-900/20 p-1.5 rounded border border-gray-800/50 group hover:border-amber-500/50 hover:bg-gray-900/40 transition-all mb-1"> {hasChildren ? (<button onClick={() => toggleGlobalCollapse(action.note_path || "", action.code)} className="text-gray-500 w-4 text-[10px] hover:text-white font-mono border border-gray-700 rounded bg-gray-900 h-4 flex items-center justify-center"> {action.collapsed ? '+' : '-'} </button>) : <div className="w-4"></div>} <input type="checkbox" checked={action.status} onChange={() => toggleActionFromMaster(action)} className="w-4 h-4 cursor-pointer accent-amber-500 shrink-0" /> <div className="w-10 bg-gray-900/50 text-xs text-center text-amber-500 rounded font-mono py-1 border border-gray-800">{action.code}</div> <div className={`flex-1 text-sm ${action.status ? 'text-gray-500 line-through' : 'text-gray-300'} truncate px-2`} title={action.task}>{action.task}</div> <div className="w-20 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-500 rounded py-1">{action.owner || '-'}</div> <div className="w-24 bg-gray-900/50 border border-gray-800 text-xs text-center text-yellow-700/70 rounded py-1">{action.deadline || '-'}</div> <div className="w-64 bg-gray-900/50 border border-gray-800 text-xs text-left text-gray-400 rounded py-1 px-2 italic whitespace-normal break-words leading-tight" title={action.comment}>{action.comment}</div> <button onClick={() => openNote(action.note_path || "")} className="w-24 bg-gray-900/50 hover:bg-amber-900/30 border border-gray-800 hover:border-amber-700 text-[10px] text-gray-500 hover:text-amber-300 rounded py-1 truncate transition-colors text-center"> Ouvrir </button> </div>); })} </div>)} </div>);
+                  })} </div>
               </div>
             </div>
           ) : (
-            // MAILBOX RENDER (Mode Portail)
-            renderMailbox()
+            // V11.3 : TRACKER VIEW (GRID)
+            renderTrackerGrid()
           )}
         </div>
 
         {/* METADATA SIDEBAR - RESIZABLE RIGHT */}
         {currentTab === 'COCKPIT' && (
           <div style={{ width: rightSidebarWidth }} className="bg-gray-950 border-l border-gray-900 flex flex-col p-6 gap-6 overflow-y-auto transition-all shrink-0 relative">
-            {/* V10.36: VISIBLE RESIZE HANDLE RIGHT */}
             <div onMouseDown={startResizingRight} className="absolute left-0 top-0 w-1.5 h-full cursor-col-resize bg-gray-800 hover:bg-amber-500 transition-colors z-50"></div>
 
             <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-900 pb-2">Context Pilot</h3>
@@ -484,7 +554,6 @@ function App() {
                     {backlinks.length > 0 && (<div className="mb-4"> <h4 className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-2 flex items-center gap-2">Cited By <span className="bg-purple-900/30 text-purple-400 px-1.5 rounded-full text-[9px]">{backlinks.length}</span></h4> <ul className="space-y-1 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar"> {backlinks.map(backlink => (<li key={backlink.id} onClick={() => openNote(backlink.path)} className="group cursor-pointer bg-purple-900/10 border border-purple-900/30 hover:bg-purple-900/30 p-2 rounded transition-all"> <div className="flex items-center gap-2"> <span className="text-xs text-purple-300 group-hover:text-white truncate font-medium">⬅ {backlink.path.replace('.md', '')}</span> </div> </li>))} </ul> </div>)}
                     {detectedLinks.length > 0 && (<div className="mb-4"> <h4 className="text-[10px] font-bold text-green-500 uppercase tracking-wider mb-2 flex items-center gap-2">Going To <span className="bg-green-900/30 text-green-400 px-1.5 rounded-full text-[9px]">{detectedLinks.length}</span></h4> <ul className="space-y-1 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar"> {detectedLinks.map(link => (<li key={link} onClick={() => openNote(link.endsWith('.md') ? link : `${link}.md`)} className="group cursor-pointer bg-green-900/10 border border-green-900/30 hover:bg-green-900/30 p-2 rounded transition-all"> <div className="flex items-center gap-2"> <span className="text-xs text-green-300 group-hover:text-white truncate font-medium">➡ {link}</span> </div> </li>))} </ul> </div>)}
                     <div className="space-y-4 pt-2 border-t border-gray-900">
-                      {/* V10.34 : INPUTS ET SELECTS GOLD/GRAY (Plus de bleu) */}
                       <div> <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">UUID (System)</label> <input type="text" value={metadata.id} disabled className="w-full bg-gray-900/50 border border-gray-900 text-gray-600 text-[9px] rounded p-2 font-mono select-all" /> </div>
                       <div> <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">Project Status</label> <select value={metadata.status} onChange={(e) => { setMetadata({ ...metadata, status: e.target.value }); setIsDirty(true); }} className="w-full bg-gray-900 border border-gray-800 text-gray-300 text-xs rounded p-2 focus:border-amber-500 focus:outline-none"> <option value="ACTIVE">🟢 ACTIVE</option> <option value="HOLD">🟠 ON HOLD</option> <option value="DONE">🔵 COMPLETED</option> <option value="ARCHIVED">⚫ ARCHIVED</option> </select> </div>
                       <div> <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">Entry Type</label> <div className="flex gap-2"> {['NOTE', 'PROJECT', 'TASK'].map(type => (<button key={type} onClick={() => { setMetadata({ ...metadata, type }); setIsDirty(true); }} className={`flex-1 py-2 text-[10px] font-bold rounded border ${metadata.type === type ? "bg-amber-900/30 border-amber-800 text-amber-400" : "bg-gray-900 border-gray-800 text-gray-500 hover:bg-gray-800"}`}>{type}</button>))} </div> </div>
@@ -499,6 +568,33 @@ function App() {
 
             {/* MINI CALENDAR (ALWAYS VISIBLE) */}
             <MiniCalendar />
+
+            {/* V11.3 : RITUELS DU JOUR (TRI CHRONOLOGIQUE) */}
+            <div className="bg-black/40 border border-gray-800 rounded-lg p-3 flex flex-col gap-2 mt-4 shadow-lg">
+              <div className="flex justify-between items-center border-b border-gray-800 pb-2">
+                <h3 className="text-xs font-bold text-amber-500 uppercase tracking-widest flex items-center gap-2"><span>⚔️</span> TODAY'S RITUALS</h3>
+              </div>
+              <div className="flex flex-col gap-1 max-h-[200px] overflow-y-auto custom-scrollbar">
+                {rituals.filter(isRitualDueToday).map(ritual => {
+                  const today = getTodayDate();
+                  const isDone = ritualLogs.some(l => l.ritual_id === ritual.id && l.date === today && l.status);
+
+                  // TIME HIGHLIGHT LOGIC
+                  const currentHour = new Date().getHours();
+                  const targetH = ritual.target_time ? parseInt(ritual.target_time.split(':')[0]) : -1;
+                  const isTime = targetH === currentHour; // Highlight si c'est l'heure
+
+                  return (
+                    <div key={ritual.id} className={`flex items-center gap-2 p-1.5 rounded group transition-all ${isTime && !isDone ? 'bg-amber-900/40 border border-amber-600/50 shadow-amber-900/20 shadow-lg' : 'hover:bg-gray-900/50'}`}>
+                      <input type="checkbox" checked={isDone} onChange={() => toggleRitualDate(ritual.id, today)} className="w-3.5 h-3.5 cursor-pointer accent-amber-500 shrink-0 rounded-sm border-gray-700 bg-gray-900" />
+                      <span className={`text-[10px] truncate flex-1 ${isDone ? 'text-gray-500 line-through' : 'text-gray-300 font-medium'}`}>{ritual.name}</span>
+                      {ritual.target_time && <span className={`text-[9px] font-mono px-1 rounded ${isTime ? 'text-white bg-amber-600 font-bold' : 'text-amber-600 bg-amber-900/20'}`}>{ritual.target_time}</span>}
+                    </div>
+                  );
+                })}
+                {rituals.filter(isRitualDueToday).length === 0 && <div className="text-[9px] text-gray-600 italic text-center py-2">Aucun rituel prévu aujourd'hui.</div>}
+              </div>
+            </div>
           </div>
         )}
       </div>
