@@ -1,15 +1,7 @@
 import React from 'react';
-import {
-    DndContext,
-    DragEndEvent,
-    useDraggable,
-    useDroppable,
-    useSensor,
-    useSensors,
-    MouseSensor,
-    TouchSensor
-} from '@dnd-kit/core';
+import { DndContext, DragEndEvent, useDraggable, useDroppable } from '@dnd-kit/core';
 
+// --- TYPES ---
 export interface FileNode {
     name: String;
     path: String;
@@ -35,107 +27,215 @@ interface SidebarProps {
     onCloseVault: () => void;
     onInsertLink: (node: FileNode) => void;
     onClearSelection: () => void;
-
-    // V10.13 SEARCH PROPS
     searchQuery: string;
     onSearch: (query: string) => void;
     searchResults: FileNode[];
 }
 
-// --- COMPOSANTS (FileItem, FolderItem) ---
-const FileItem = ({ node, activeFile, onNodeClick, onRename, depth, onInsertLink }: any) => {
-    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: node.path });
-    const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 999 } : undefined;
+// --- COMPOSANTS INTERNES ---
 
-    return (
-        <div ref={setNodeRef} style={style} {...listeners} {...attributes} className={`group flex items-center gap-2 py-1 px-2 cursor-pointer select-none text-xs hover:bg-gray-800 ${activeFile === node.path ? "bg-blue-900/40 text-blue-200 border-r-2 border-blue-500" : "text-gray-400"} ${isDragging ? "opacity-50" : ""}`} onClick={(e) => { e.stopPropagation(); onNodeClick(node); }} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onNodeClick(node); onRename(); }}>
-            <span style={{ marginLeft: `${depth * 12}px` }} className="opacity-50 shrink-0">{node.extension === 'md' ? '📄' : '📦'}</span>
-            <span className="truncate flex-1">{node.name}</span>
-            {node.extension === 'md' && (<button onClick={(e) => { e.stopPropagation(); onInsertLink(node); }} className="opacity-0 group-hover:opacity-100 text-[9px] text-gray-500 hover:text-white bg-gray-700 px-1 rounded ml-auto">LINK</button>)}
-        </div>
-    );
-};
+const FileItem = ({ node, level, activeFile, selectedFolder, expandedFolders, onToggleExpand, onNodeClick, onInsertLink }: any) => {
+    const isSelected = activeFile === node.path || selectedFolder === node.path;
 
-const FolderItem = ({ node, activeFile, selectedFolder, expandedFolders, onToggleExpand, onNodeClick, onRename, children, depth }: any) => {
-    const { setNodeRef: setDropRef, isOver } = useDroppable({ id: node.path });
-    const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({ id: node.path });
-    const isSelected = selectedFolder === node.path;
-    const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 999 } : undefined;
-
-    return (
-        <div ref={setDropRef} className={`${isOver ? "bg-gray-800 ring-1 ring-blue-500" : ""}`}>
-            <div ref={setDragRef} style={style} {...listeners} {...attributes} className={`group flex items-center gap-2 py-1 px-2 cursor-pointer select-none text-xs hover:bg-gray-800 ${isSelected ? "bg-gray-800 text-white font-bold" : "text-gray-400"} ${isDragging ? "opacity-50" : ""}`} onClick={(e) => { e.stopPropagation(); onNodeClick(node); }} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onNodeClick(node); onRename(); }}>
-                <button onClick={(e) => { e.stopPropagation(); onToggleExpand(node.path); }} onPointerDown={(e) => e.stopPropagation()} className="p-0.5 hover:text-white w-4 text-center shrink-0" style={{ marginLeft: `${depth * 12}px` }}>{expandedFolders.has(node.path) ? '▼' : '▶'}</button>
-                <span className="truncate flex-1 font-medium">{node.name}</span>
-            </div>
-            {expandedFolders.has(node.path) && <div>{children}</div>}
-        </div>
-    );
-};
-
-const renderTree = (nodes: FileNode[], props: any, depth = 0) => {
-    return nodes.map((node) => {
-        if (node.is_dir) {
-            return <FolderItem key={node.path} node={node} depth={depth} {...props}>{renderTree(node.children, props, depth + 1)}</FolderItem>;
-        } else {
-            return <FileItem key={node.path} node={node} depth={depth} {...props} />;
-        }
+    // Drag & Drop Hooks
+    const { attributes, listeners, setNodeRef: setDragRef, transform } = useDraggable({
+        id: node.path,
     });
-};
+    const { setNodeRef: setDropRef, isOver } = useDroppable({
+        id: node.path,
+        data: { isFolder: node.is_dir }
+    });
 
-const Sidebar = (props: SidebarProps) => {
-    const { setNodeRef: setRootRef, isOver: isOverRoot } = useDroppable({ id: "ROOT_ZONE" });
-    const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 5 } }), useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }));
+    const style = transform ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        zIndex: 999,
+        opacity: 0.8
+    } : undefined;
+
+    const setRefs = (element: HTMLElement | null) => {
+        setDragRef(element);
+        if (node.is_dir) setDropRef(element);
+    };
 
     return (
-        <div className="flex flex-col h-full w-full">
-            <div className="p-2 bg-gray-950 border-b border-gray-900 shrink-0 flex flex-col gap-2">
+        <div style={style}>
+            <div
+                ref={setRefs}
+                {...attributes}
+                {...listeners}
+                className={`
+                    flex items-center gap-2 py-1 px-2 cursor-pointer select-none text-xs transition-colors
+                    ${isSelected ? 'bg-amber-900/30 text-amber-100 border-l-2 border-amber-500' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-900'}
+                    ${isOver && node.is_dir ? 'bg-amber-800/50 ring-1 ring-amber-500' : ''}
+                `}
+                style={{ paddingLeft: `${level * 12 + 8}px` }}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onNodeClick(node);
+                }}
+            >
+                {node.is_dir ? (
+                    <span
+                        onClick={(e) => { e.stopPropagation(); onToggleExpand(node.path); }}
+                        className="w-4 h-4 flex items-center justify-center hover:text-white"
+                    >
+                        {expandedFolders.has(node.path) ? '▼' : '▶'}
+                    </span>
+                ) : (
+                    <span className="w-4"></span>
+                )}
 
-                {/* V10.13: SEARCH INPUT */}
-                <input
-                    type="text"
-                    placeholder="🔍 Search all notes..."
-                    value={props.searchQuery}
-                    onChange={(e) => props.onSearch(e.target.value)}
-                    className="w-full bg-black border border-gray-800 text-gray-300 text-xs rounded px-2 py-1.5 focus:border-blue-600 focus:outline-none"
-                />
+                <span className="text-[10px]">{node.is_dir ? '📁' : node.extension === 'md' ? '📝' : '📄'}</span>
 
-                <div className="flex gap-2">
-                    <button onClick={props.onFlashNote} className="flex-1 bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-1.5 px-2 rounded text-[10px] flex items-center justify-center gap-1">⚡ FLASH</button>
-                    <button onClick={props.onCreateFolder} className="bg-gray-900 hover:bg-gray-800 text-gray-400 py-1.5 px-2 rounded text-[10px] border border-gray-800">📁+</button>
-                    <button onClick={props.onCreateNote} className="bg-gray-900 hover:bg-gray-800 text-gray-400 py-1.5 px-2 rounded text-[10px] border border-gray-800">📄+</button>
+                <span className="truncate flex-1">{node.name}</span>
+
+                {!node.is_dir && node.extension === 'md' && (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onInsertLink(node); }}
+                        className="opacity-0 group-hover:opacity-100 text-[9px] text-gray-500 hover:text-amber-400 px-1"
+                        title="Insérer lien"
+                    >
+                        🔗
+                    </button>
+                )}
+            </div>
+
+            {node.is_dir && expandedFolders.has(node.path) && (
+                <div>
+                    {node.children.map((child: any) => (
+                        <FileItem
+                            key={child.path}
+                            node={child}
+                            level={level + 1}
+                            activeFile={activeFile}
+                            selectedFolder={selectedFolder}
+                            expandedFolders={expandedFolders}
+                            onToggleExpand={onToggleExpand}
+                            onNodeClick={onNodeClick}
+                            onInsertLink={onInsertLink}
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const Sidebar: React.FC<SidebarProps> = ({
+    fileTree, activeFile, selectedFolder, expandedFolders,
+    onToggleExpand, onNodeClick, onDragEnd,
+    onCreateFolder, onCreateNote, onFlashNote,
+    onRename, onDelete, onCloseVault, onInsertLink, onClearSelection,
+    searchQuery, onSearch, searchResults
+}) => {
+
+    const { setNodeRef: setRootDropRef, isOver: isOverRoot } = useDroppable({ id: "ROOT_ZONE" });
+
+    return (
+        <div className="flex flex-col h-full select-none" onClick={onClearSelection}>
+            {/* --- HEADER ACTIONS --- */}
+            <div className="p-3 border-b border-gray-900 flex flex-col gap-3 bg-gray-950">
+                {/* Search Bar Gold & Clear Button */}
+                <div className="relative">
+                    <span className="absolute left-2 top-1.5 text-gray-600 text-xs">🔍</span>
+                    <input
+                        type="text"
+                        placeholder="Search all notes..."
+                        className="w-full bg-black border border-gray-800 text-gray-300 text-xs rounded py-1 pl-7 pr-7 focus:border-amber-600 focus:outline-none focus:ring-1 focus:ring-amber-900 transition-all placeholder-gray-700"
+                        value={searchQuery}
+                        onChange={(e) => onSearch(e.target.value)}
+                    />
+                    {/* BOUTON CROIX (Nouveau) */}
+                    {searchQuery && (
+                        <button
+                            onClick={() => onSearch("")}
+                            className="absolute right-2 top-1 text-gray-600 hover:text-amber-500 text-[10px] font-bold h-full flex items-center transition-colors"
+                            title="Effacer la recherche"
+                        >
+                            ✕
+                        </button>
+                    )}
+                </div>
+
+                {/* Action Buttons Gold */}
+                <div className="flex gap-1">
+                    <button onClick={(e) => { e.stopPropagation(); onFlashNote(); }} className="flex-1 bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-bold py-1.5 rounded flex items-center justify-center gap-1 shadow-sm transition-colors">
+                        <span>⚡</span> FLASH
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); onCreateFolder(); }} className="bg-gray-900 hover:bg-gray-800 text-gray-400 hover:text-amber-200 border border-gray-800 px-2 rounded" title="New Folder">
+                        📁+
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); onCreateNote(); }} className="bg-gray-900 hover:bg-gray-800 text-gray-400 hover:text-amber-200 border border-gray-800 px-2 rounded" title="New Note">
+                        📝+
+                    </button>
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-2" onClick={props.onClearSelection}>
-                {props.searchQuery.length > 1 ? (
-                    // MODE RECHERCHE : Liste plate des résultats
-                    <div className="flex flex-col gap-1">
-                        <div className="text-[10px] text-gray-500 font-bold uppercase mb-2">Search Results ({props.searchResults.length})</div>
-                        {props.searchResults.map(node => (
-                            <div key={node.path} onClick={() => props.onNodeClick(node)} className={`flex items-center gap-2 py-1 px-2 cursor-pointer rounded hover:bg-gray-800 text-xs ${props.activeFile === node.path ? "bg-blue-900/30 text-blue-300" : "text-gray-400"}`}>
-                                <span>📄</span>
-                                <div className="flex flex-col overflow-hidden">
-                                    <span className="truncate font-medium">{node.name}</span>
-                                    <span className="truncate text-[9px] opacity-50">{node.path}</span>
+            {/* --- TREE / SEARCH RESULTS --- */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+                {searchQuery.length >= 2 ? (
+                    // RESULTATS RECHERCHE
+                    <div className="p-2">
+                        <div className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mb-2 px-2">
+                            Résultats ({searchResults.length})
+                        </div>
+                        {searchResults.map(node => (
+                            <div
+                                key={node.path as string}
+                                onClick={(e) => { e.stopPropagation(); onNodeClick(node); }}
+                                className="flex items-center gap-2 py-1.5 px-2 cursor-pointer hover:bg-gray-900 rounded group"
+                            >
+                                <span className="text-xs">📝</span>
+                                <div className="flex flex-col min-w-0">
+                                    <span className="text-xs text-gray-300 group-hover:text-white truncate font-medium">
+                                        {node.name}
+                                    </span>
+                                    <span className="text-[9px] text-gray-600 truncate">
+                                        {node.path}
+                                    </span>
                                 </div>
                             </div>
                         ))}
-                        {props.searchResults.length === 0 && <div className="text-center text-xs text-gray-600 mt-4">No match found.</div>}
+                        {searchResults.length === 0 && (
+                            <div className="text-center text-gray-700 text-xs mt-4 italic">Aucun résultat</div>
+                        )}
                     </div>
                 ) : (
-                    // MODE ARBRE : File Explorer classique
-                    <DndContext onDragEnd={props.onDragEnd} sensors={sensors}>
-                        <div ref={setRootRef} className={`min-h-full pb-10 ${isOverRoot ? "bg-gray-900/30" : ""}`}>
-                            {props.selectedFolder === "" && <div className="px-2 py-1 text-[10px] text-blue-500 font-bold uppercase tracking-wider mb-2 border-b border-blue-900/30">🏠 VAULT ROOT</div>}
-                            {renderTree(props.fileTree, props)}
+                    // ARBRE FICHIERS
+                    <DndContext onDragEnd={onDragEnd}>
+                        <div
+                            ref={setRootDropRef}
+                            className={`min-h-full pb-10 ${isOverRoot ? 'bg-amber-900/10' : ''}`}
+                        >
+                            <div className="px-3 py-2 text-[10px] font-bold text-gray-600 uppercase tracking-widest flex items-center gap-2">
+                                <span>🏠</span> VAULT ROOT
+                            </div>
+                            {fileTree.map((node) => (
+                                <FileItem
+                                    key={node.path}
+                                    node={node}
+                                    level={0}
+                                    activeFile={activeFile}
+                                    selectedFolder={selectedFolder}
+                                    expandedFolders={expandedFolders}
+                                    onToggleExpand={onToggleExpand}
+                                    onNodeClick={onNodeClick}
+                                    onInsertLink={onInsertLink}
+                                />
+                            ))}
                         </div>
                     </DndContext>
                 )}
             </div>
 
-            <div className="p-2 border-t border-gray-900 shrink-0">
-                <button onClick={props.onCloseVault} className="w-full text-[10px] text-gray-600 hover:text-red-500 py-2 uppercase tracking-widest transition-colors">CLOSE VAULT</button>
+            {/* --- FOOTER --- */}
+            <div className="p-2 border-t border-gray-900 bg-black flex justify-center">
+                <button
+                    onClick={onCloseVault}
+                    className="text-[9px] text-gray-700 hover:text-red-500 uppercase tracking-widest font-bold transition-colors"
+                >
+                    Close Vault
+                </button>
             </div>
         </div>
     );

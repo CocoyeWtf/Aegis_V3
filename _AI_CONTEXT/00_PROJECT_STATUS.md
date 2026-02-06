@@ -1,30 +1,28 @@
-# 00_PROJECT_STATUS - AEGIS V10.27 GOLD EDITION
+# 00_PROJECT_STATUS - AEGIS V10.28
 
 Dernière mise à jour : 02/02/2026
-Branche active : `feature/email-ingestion` -> `main`
+Branche active : `main`
 
-## 🎯 État Actuel : Version Stable & "Gold"
-L'application a subi une refonte visuelle et fonctionnelle majeure pour atteindre un niveau de finition professionnel ("Classe").
+## 🎯 État Actuel : Stable & Polished
+L'interface est désormais cohérente ("Stealth Gold") et les interactions sont fluides.
 
-## ✅ Fonctionnalités & Design (V10.27)
-1.  **Interface "Stealth Gold"** :
-    * Abandon total du bleu par défaut.
-    * Palette : Noir Profond / Gris Anthracite / Accents Dorés (`amber-500`) et Orange.
-2.  **Sécurité des Actions** :
-    * Utilisation de **Boîtes de Dialogue Natives Windows** (via `@tauri-apps/plugin-dialog`) pour les confirmations critiques (Suppression).
-    * L'exécution est réellement bloquée (`await ask(...)`) tant que l'utilisateur ne valide pas.
-3.  **Calendrier Intégré** :
-    * Nouveau module `MiniCalendar` en bas de la colonne de droite.
-    * Calcul automatique des jours fériés français (y compris dates mobiles comme Pâques/Ascension).
-    * Indicateurs visuels (Rouge = Férié, Orange = Aujourd'hui).
-4.  **Messagerie "Portail"** :
-    * Accès Outlook Web via navigateur système.
-    * Ingestion par presse-papier.
+## ✅ Derniers Ajouts (V10.28)
+1.  **Sidebar UX** :
+    * Correction du bug de clic sur les résultats de recherche.
+    * Ajout d'un bouton "✕" pour effacer la recherche rapidement.
+    * Design complet en Ambre/Gris (plus de bleu).
+2.  **Sécurité** :
+    * Suppression via boîte de dialogue native (bloquante).
+    * Protection contre la désynchronisation lors du Drag & Drop.
+3.  **Fonctionnalités Socle** :
+    * Calendrier perpétuel (Fériés FR).
+    * Mode Portail pour Outlook.
 
 ## 🛠 Technique
-* **Plugins** : Ajout de `@tauri-apps/plugin-dialog`.
-* **Fix** : Correction du bug de "Suppression fantôme" (l'action se lançait avant le clic).
-* **Fix** : Correction de la désynchronisation lors du Drag & Drop d'un fichier ouvert.
+* **Frontend** : React 19 + Tailwind.
+* **Backend** : Rust (Tauri v2).
+* **Stockage** : Markdown First (Source de vérité) + SQLite (Index).
 
 ## ⚠️ Point de Reprise
-* **Prochaine étape** : Consolidation ou nouvelles features (Export Word, Recherche avancée...).
+* Le système est prêt pour une utilisation quotidienne "en production".
+* Prochaines évolutions possibles : Export Word, Amélioration du parsing mail.
