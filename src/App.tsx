@@ -59,9 +59,14 @@ function App() {
   const [calDate, setCalDate] = useState(new Date());
   const [emails, setEmails] = useState<EmailItem[]>([]);
   const [selectedEmail, setSelectedEmail] = useState<EmailItem | null>(null);
+
+  // -- RESIZING STATES --
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [rightSidebarWidth, setRightSidebarWidth] = useState(320);
-  const [resizingTarget, setResizingTarget] = useState<'LEFT' | 'RIGHT' | null>(null);
+  // V10.47: Hauteur ajustable du plan d'action (défaut 300px)
+  const [actionPlanHeight, setActionPlanHeight] = useState(300);
+  const [resizingTarget, setResizingTarget] = useState<'LEFT' | 'RIGHT' | 'ACTION_PLAN' | null>(null);
+
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<{ key: keyof ActionItem; direction: 'asc' | 'desc' } | null>(null);
   const [filterText, setFilterText] = useState<string>("");
@@ -77,10 +82,26 @@ function App() {
   useEffect(() => { const load = async () => { try { const s = new LazyStore(STORE_PATH); const p = await s.get<string>("vault_path"); if (p) setVaultPath(p); } catch (e) { console.error(e); } finally { setIsStoreLoaded(true); } }; load(); }, []);
   useEffect(() => { if (!vaultPath) return; const init = async () => { try { const m = await invoke<string>("check_system_status"); const d = await Database.load("sqlite:aegis_v7.db"); setDb(d); setStatus(m); handleScan(d); } catch (e) { setStatus("FAIL"); } }; init(); }, [vaultPath]);
 
+  // -- RESIZING LOGIC --
   const startResizingLeft = useCallback(() => setResizingTarget('LEFT'), []);
   const startResizingRight = useCallback(() => setResizingTarget('RIGHT'), []);
+  // V10.47: Handler pour le plan d'action
+  const startResizingActionPlan = useCallback(() => setResizingTarget('ACTION_PLAN'), []);
   const stopResizing = useCallback(() => setResizingTarget(null), []);
-  const resize = useCallback((e: MouseEvent) => { if (resizingTarget === 'LEFT') { setSidebarWidth(Math.max(200, Math.min(800, e.clientX))); } else if (resizingTarget === 'RIGHT') { const newWidth = document.body.clientWidth - e.clientX; setRightSidebarWidth(Math.max(250, Math.min(800, newWidth))); } }, [resizingTarget]);
+
+  const resize = useCallback((e: MouseEvent) => {
+    if (resizingTarget === 'LEFT') {
+      setSidebarWidth(Math.max(200, Math.min(800, e.clientX)));
+    } else if (resizingTarget === 'RIGHT') {
+      const newWidth = document.body.clientWidth - e.clientX;
+      setRightSidebarWidth(Math.max(250, Math.min(800, newWidth)));
+    } else if (resizingTarget === 'ACTION_PLAN') {
+      // V10.47: Calcul de la hauteur verticale (Offset du haut ~90px)
+      const newHeight = e.clientY - 90;
+      setActionPlanHeight(Math.max(100, Math.min(800, newHeight)));
+    }
+  }, [resizingTarget]);
+
   useEffect(() => { window.addEventListener("mousemove", resize); window.addEventListener("mouseup", stopResizing); return () => { window.removeEventListener("mousemove", resize); window.removeEventListener("mouseup", stopResizing); }; }, [resize, stopResizing]);
 
   const handleVaultSelection = async (p: string) => { const s = new LazyStore(STORE_PATH); await s.set("vault_path", p); await s.save(); setVaultPath(p); };
@@ -103,7 +124,6 @@ function App() {
   const handleCreateFolder = async () => { const parent = selectedFolder ? `DANS ${selectedFolder}` : "à la RACINE"; const name = prompt(`Nom du nouveau dossier (${parent}) :`); if (!name) return; const path = selectedFolder ? `${selectedFolder}/${name}` : name; await invoke("create_folder", { path: `${vaultPath}\\${path.replace(/\//g, '\\')}` }); await handleScan(); };
   const handleDelete = async () => { const target = activeFile || selectedFolder; if (!target) return; const confirmation = await ask(`Confirmer la suppression de :\n"${target}" ?`, { title: 'Confirmation Requise', kind: 'warning', okLabel: 'Supprimer', cancelLabel: 'Annuler' }); if (!confirmation) return; try { if (target.endsWith('.md')) { await invoke("delete_note", { path: `${vaultPath}\\${target.replace(/\//g, '\\')}` }); } else { await invoke("delete_folder", { path: `${vaultPath}\\${target.replace(/\//g, '\\')}` }); } setActiveFile(""); setSelectedFolder(""); await handleScan(); } catch (e) { alert("Erreur: " + e); } };
 
-  // V10.42 : FIX DROP RACINE
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event; if (!over || active.id === over.id) return;
     try {
@@ -187,6 +207,7 @@ function App() {
     return (
       <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-800 shadow-lg mt-auto text-xs select-none">
         <div className="flex justify-between items-center mb-2 px-1">
+          {/* V10.42: ICONES SVG POUR LES FLÈCHES DU CALENDRIER (SQUARE FIXED) */}
           <button onClick={prevMonth} className="text-amber-500 hover:text-white p-1.5 rounded hover:bg-gray-800 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -241,10 +262,9 @@ function App() {
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }`}</style>
       <div className="h-10 bg-gray-950 border-b border-gray-900 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-6">
-          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V10.46 GOLD MASTER</span>
+          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V10.47 ERGONOMIC</span>
           <div className="flex gap-1 bg-gray-900 p-1 rounded">
             <button onClick={() => setCurrentTab('COCKPIT')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'COCKPIT' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>COCKPIT</button>
-            {/* V10.45 FIX : BOUTON MASTER PLAN GOLD */}
             <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>
             <button onClick={() => setCurrentTab('MAILBOX')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MAILBOX' ? 'bg-amber-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MESSAGERIE</button>
           </div>
@@ -310,8 +330,9 @@ function App() {
                   }
                   if (activeExtension === 'md') {
                     return (
-                      <div className="flex-1 overflow-auto p-6 max-w-6xl mx-auto w-full flex flex-col gap-6">
-                        <div className="bg-gray-900/30 border border-gray-800 rounded-lg overflow-hidden flex flex-col max-h-[40vh]">
+                      <div className="flex-1 overflow-auto p-6 max-w-6xl mx-auto w-full flex flex-col gap-0">
+                        {/* V10.47 : ZONE PLAN D'ACTION REDIMENSIONNABLE */}
+                        <div style={{ height: actionPlanHeight }} className="bg-gray-900/30 border border-gray-800 rounded-t-lg overflow-hidden flex flex-col shrink-0">
                           <div className="bg-gray-900 px-4 py-2 border-b border-gray-800 flex justify-between items-center shrink-0">
                             <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider">⚡ Action Plan</h3>
                             <div className="flex gap-2">
@@ -319,53 +340,19 @@ function App() {
                               <button onClick={() => addAction()} className="text-[10px] bg-amber-900/30 hover:bg-amber-900/50 text-amber-300 px-2 py-1 rounded border border-amber-900/50">+ TASK</button>
                             </div>
                           </div>
-                          <div className="p-2 overflow-y-auto flex-1">
+                          <div className="p-2 overflow-y-auto flex-1 custom-scrollbar">
                             {localActions.map((action) => {
                               if (!isVisibleInCockpit(action, localActions)) return null;
                               const hasChildren = localActions.some(a => a.code.startsWith(action.code + "."));
                               return (
                                 <div key={action.id} style={{ marginLeft: `${(action.code.split('.').length - 1) * 24}px` }} className="flex items-center gap-2 bg-black/40 p-1.5 rounded border border-gray-800/50 group hover:border-amber-900/50 transition-colors mb-1">
                                   {hasChildren ? (<button onClick={() => toggleLocalCollapse(action.code)} className="text-gray-500 w-4 text-[10px] hover:text-white font-mono border border-gray-700 rounded bg-gray-900 h-4 flex items-center justify-center">{action.collapsed ? '+' : '-'}</button>) : <div className="w-4"></div>}
-                                  {/* CORRECTION SYNTAXE INPUT */}
-                                  <input
-                                    type="checkbox"
-                                    checked={action.status}
-                                    onChange={(e) => updateAction(action.id, 'status', e.target.checked)}
-                                    className="w-4 h-4 cursor-pointer accent-amber-500 shrink-0"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={action.code}
-                                    onChange={(e) => updateAction(action.id, 'code', e.target.value)}
-                                    className="w-10 bg-gray-800 border-none text-xs text-center text-amber-300 rounded focus:bg-gray-700 font-mono"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={action.task}
-                                    onChange={(e) => updateAction(action.id, 'task', e.target.value)}
-                                    className={`flex-1 bg-transparent border-none text-sm focus:outline-none ${action.status ? 'text-gray-500 line-through' : 'text-gray-200'}`}
-                                    placeholder="Action..."
-                                  />
-                                  <input
-                                    type="text"
-                                    value={action.owner}
-                                    onChange={(e) => updateAction(action.id, 'owner', e.target.value)}
-                                    className="w-20 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-amber-300 focus:border-amber-800"
-                                    placeholder="Pilot"
-                                  />
-                                  <input
-                                    type="date"
-                                    value={action.deadline}
-                                    onChange={(e) => updateAction(action.id, 'deadline', e.target.value)}
-                                    className="w-24 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-yellow-500 focus:border-yellow-800"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={action.comment || ""}
-                                    onChange={(e) => updateAction(action.id, 'comment', e.target.value)}
-                                    className="w-56 bg-gray-900/50 border border-gray-800 text-xs text-gray-400 rounded focus:text-white focus:border-gray-600 px-2"
-                                    placeholder="Comment..."
-                                  />
+                                  <input type="checkbox" checked={action.status} onChange={(e) => updateAction(action.id, 'status', e.target.checked)} className="w-4 h-4 cursor-pointer accent-amber-500 shrink-0" />
+                                  <input type="text" value={action.code} onChange={(e) => updateAction(action.id, 'code', e.target.value)} className="w-10 bg-gray-800 border-none text-xs text-center text-amber-300 rounded focus:bg-gray-700 font-mono" />
+                                  <input type="text" value={action.task} onChange={(e) => updateAction(action.id, 'task', e.target.value)} className={`flex-1 bg-transparent border-none text-sm focus:outline-none ${action.status ? 'text-gray-500 line-through' : 'text-gray-200'}`} placeholder="Action..." />
+                                  <input type="text" value={action.owner} onChange={(e) => updateAction(action.id, 'owner', e.target.value)} className="w-20 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-amber-300 focus:border-amber-800" placeholder="Pilot" />
+                                  <input type="date" value={action.deadline} onChange={(e) => updateAction(action.id, 'deadline', e.target.value)} className="w-24 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-yellow-500 focus:border-yellow-800" />
+                                  <input type="text" value={action.comment || ""} onChange={(e) => updateAction(action.id, 'comment', e.target.value)} className="w-56 bg-gray-900/50 border border-gray-800 text-xs text-gray-400 rounded focus:text-white focus:border-gray-600 px-2" placeholder="Comment..." />
                                   <button onClick={() => addAction(action.code)} className="text-[9px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded hover:bg-gray-700 hover:text-white" title="Sub-task">↪</button>
                                   <button onClick={() => removeAction(action.id)} className="text-gray-700 hover:text-red-500 px-1 opacity-0 group-hover:opacity-100 transition-opacity">×</button>
                                 </div>
@@ -373,8 +360,17 @@ function App() {
                             })}
                           </div>
                         </div>
-                        <div className="flex-1 min-h-[400px] border-t border-gray-900 pt-4">
-                          <textarea ref={textAreaRef} className="w-full h-full bg-black text-gray-300 font-mono text-base resize-none focus:outline-none leading-relaxed" value={bodyContent} onChange={(e) => handleContentChange(e.target.value)} spellCheck={false} placeholder="Write your note here..." />
+                        {/* V10.47: POIGNÉE DE REDIMENSIONNEMENT HORIZONTALE (GOLD) */}
+                        <div
+                          onMouseDown={startResizingActionPlan}
+                          className="h-1.5 bg-gray-900 border-t border-b border-gray-800 hover:bg-amber-600 cursor-row-resize flex items-center justify-center shrink-0 transition-colors z-10 mb-4"
+                          title="Ajuster la hauteur"
+                        >
+                          <div className="w-10 h-0.5 bg-gray-600 rounded-full"></div>
+                        </div>
+
+                        <div className="flex-1 min-h-[100px] border-t border-gray-900 pt-0">
+                          <textarea ref={textAreaRef} className="w-full h-full bg-black text-gray-300 font-mono text-base resize-none focus:outline-none leading-relaxed p-2" value={bodyContent} onChange={(e) => handleContentChange(e.target.value)} spellCheck={false} placeholder="Write your note here..." />
                         </div>
                       </div>
                     );
