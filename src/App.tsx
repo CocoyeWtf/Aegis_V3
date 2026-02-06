@@ -4,7 +4,7 @@ import { downloadDir, join } from '@tauri-apps/api/path';
 import Database from "@tauri-apps/plugin-sql";
 import { LazyStore } from "@tauri-apps/plugin-store";
 import { DragEndEvent } from "@dnd-kit/core";
-import { ask } from '@tauri-apps/plugin-dialog'; // Plugin Dialogue Natif
+import { ask } from '@tauri-apps/plugin-dialog';
 import * as XLSX from 'xlsx';
 import WelcomeView from "./WelcomeView";
 import Sidebar, { FileNode } from "./Sidebar";
@@ -18,7 +18,6 @@ interface NoteMetadata { id: string; type: string; status: string; tags: string;
 interface ActionItem { id: string; code: string; status: boolean; created: string; deadline: string; owner: string; task: string; comment: string; note_path?: string; collapsed?: boolean; }
 interface Note { id: string; path: string; tags?: string; }
 
-// TYPES EMAIL
 interface EmailItem {
   id: string;
   subject: string;
@@ -30,68 +29,23 @@ interface EmailItem {
   is_read: boolean;
 }
 
-// --- UTILITAIRES CALENDRIER (France) ---
+// --- UTILITAIRES CALENDRIER ---
 const getEasterDate = (year: number) => {
-  const f = Math.floor,
-    G = year % 19,
-    C = f(year / 100),
-    H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30,
-    I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11)),
-    J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7,
-    L = I - J,
-    month = 3 + f((L + 40) / 44),
-    day = L + 28 - 31 * f(month / 4);
+  const f = Math.floor, G = year % 19, C = f(year / 100), H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30, I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11)), J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7, L = I - J, month = 3 + f((L + 40) / 44), day = L + 28 - 31 * f(month / 4);
   return new Date(year, month - 1, day);
 };
-
 const getFrenchHolidays = (year: number) => {
-  const easter = getEasterDate(year);
-  const ascension = new Date(easter); ascension.setDate(easter.getDate() + 39);
-  const pentecost = new Date(easter); pentecost.setDate(easter.getDate() + 50);
-  const fmt = (d: Date) => d.toISOString().split('T')[0];
-  return {
-    [`${year}-01-01`]: "Jour de l'An",
-    [`${year}-05-01`]: "Fête du Travail",
-    [`${year}-05-08`]: "Victoire 1945",
-    [`${year}-07-14`]: "Fête Nationale",
-    [`${year}-08-15`]: "Assomption",
-    [`${year}-11-01`]: "Toussaint",
-    [`${year}-11-11`]: "Armistice 1918",
-    [`${year}-12-25`]: "Noël",
-    [fmt(new Date(easter.setDate(easter.getDate() + 1)))]: "Lundi de Pâques",
-    [fmt(ascension)]: "Ascension",
-    [fmt(pentecost)]: "Lundi de Pentecôte"
-  };
+  const easter = getEasterDate(year); const ascension = new Date(easter); ascension.setDate(easter.getDate() + 39); const pentecost = new Date(easter); pentecost.setDate(easter.getDate() + 50); const fmt = (d: Date) => d.toISOString().split('T')[0];
+  return { [`${year}-01-01`]: "Jour de l'An", [`${year}-05-01`]: "Fête du Travail", [`${year}-05-08`]: "Victoire 1945", [`${year}-07-14`]: "Fête Nationale", [`${year}-08-15`]: "Assomption", [`${year}-11-01`]: "Toussaint", [`${year}-11-11`]: "Armistice 1918", [`${year}-12-25`]: "Noël", [fmt(new Date(easter.setDate(easter.getDate() + 1)))]: "Lundi de Pâques", [fmt(ascension)]: "Ascension", [fmt(pentecost)]: "Lundi de Pentecôte" };
 };
-
-const getWeekNumber = (d: Date) => {
-  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-};
+const getWeekNumber = (d: Date) => { d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7)); var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1)); return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7); };
 
 // --- LOGIQUE METIER ---
 function generateUUID() { return crypto.randomUUID(); }
 function getTodayDate() { return new Date().toISOString().split('T')[0]; }
 async function computeContentHash(text: string): Promise<string> { const msgBuffer = new TextEncoder().encode(text); const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer); const hashArray = Array.from(new Uint8Array(hashBuffer)); return hashArray.map(b => b.toString(16).padStart(2, '0')).join(''); }
-
-const flattenNodes = (nodes: FileNode[]): FileNode[] => {
-  let flat: FileNode[] = [];
-  if (!nodes) return flat;
-  for (const node of nodes) {
-    flat.push(node);
-    if (node.children && Array.isArray(node.children) && node.children.length > 0) {
-      flat = flat.concat(flattenNodes(node.children));
-    }
-  }
-  return flat;
-};
-
-function stripHtml(html: string) {
-  let doc = new DOMParser().parseFromString(html, 'text/html');
-  return doc.body.textContent || "";
-}
+const flattenNodes = (nodes: FileNode[]): FileNode[] => { let flat: FileNode[] = []; if (!nodes) return flat; for (const node of nodes) { flat.push(node); if (node.children && Array.isArray(node.children) && node.children.length > 0) { flat = flat.concat(flattenNodes(node.children)); } } return flat; };
+function stripHtml(html: string) { let doc = new DOMParser().parseFromString(html, 'text/html'); return doc.body.textContent || ""; }
 
 function App() {
   const [vaultPath, setVaultPath] = useState<string | null>(null);
@@ -99,7 +53,6 @@ function App() {
   const [status, setStatus] = useState<string>("BOOTING...");
   const [db, setDb] = useState<Database | null>(null);
   const [syncStatus, setSyncStatus] = useState<string>("");
-
   const [currentTab, setCurrentTab] = useState<'COCKPIT' | 'MASTER_PLAN' | 'MAILBOX'>('COCKPIT');
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [activeFile, setActiveFile] = useState<string>("");
@@ -107,34 +60,24 @@ function App() {
   const [selectedFolder, setSelectedFolder] = useState<string>("");
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [isDirty, setIsDirty] = useState(false);
-
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchResults, setSearchResults] = useState<FileNode[]>([]);
-
-  // CALENDAR STATE
   const [calDate, setCalDate] = useState(new Date());
-
-  // MAILBOX STATES
   const [emails, setEmails] = useState<EmailItem[]>([]);
   const [selectedEmail, setSelectedEmail] = useState<EmailItem | null>(null);
-
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [rightSidebarWidth, setRightSidebarWidth] = useState(320);
   const [resizingTarget, setResizingTarget] = useState<'LEFT' | 'RIGHT' | null>(null);
-
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<{ key: keyof ActionItem; direction: 'asc' | 'desc' } | null>(null);
   const [filterText, setFilterText] = useState<string>("");
-
   const [bodyContent, setBodyContent] = useState<string>("");
   const [localActions, setLocalActions] = useState<ActionItem[]>([]);
   const [globalActions, setGlobalActions] = useState<ActionItem[]>([]);
   const [metadata, setMetadata] = useState<NoteMetadata>({ id: "", type: "NOTE", status: "ACTIVE", tags: "" });
-
   const [relatedNotes, setRelatedNotes] = useState<Note[]>([]);
   const [detectedLinks, setDetectedLinks] = useState<string[]>([]);
   const [backlinks, setBacklinks] = useState<Note[]>([]);
-
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => { const load = async () => { try { const s = new LazyStore(STORE_PATH); const p = await s.get<string>("vault_path"); if (p) setVaultPath(p); } catch (e) { console.error(e); } finally { setIsStoreLoaded(true); } }; load(); }, []);
@@ -143,138 +86,43 @@ function App() {
   const startResizingLeft = useCallback(() => setResizingTarget('LEFT'), []);
   const startResizingRight = useCallback(() => setResizingTarget('RIGHT'), []);
   const stopResizing = useCallback(() => setResizingTarget(null), []);
-  const resize = useCallback((e: MouseEvent) => {
-    if (resizingTarget === 'LEFT') { setSidebarWidth(Math.max(200, Math.min(800, e.clientX))); }
-    else if (resizingTarget === 'RIGHT') { const newWidth = document.body.clientWidth - e.clientX; setRightSidebarWidth(Math.max(250, Math.min(800, newWidth))); }
-  }, [resizingTarget]);
+  const resize = useCallback((e: MouseEvent) => { if (resizingTarget === 'LEFT') { setSidebarWidth(Math.max(200, Math.min(800, e.clientX))); } else if (resizingTarget === 'RIGHT') { const newWidth = document.body.clientWidth - e.clientX; setRightSidebarWidth(Math.max(250, Math.min(800, newWidth))); } }, [resizingTarget]);
   useEffect(() => { window.addEventListener("mousemove", resize); window.addEventListener("mouseup", stopResizing); return () => { window.removeEventListener("mousemove", resize); window.removeEventListener("mouseup", stopResizing); }; }, [resize, stopResizing]);
 
   const handleVaultSelection = async (p: string) => { const s = new LazyStore(STORE_PATH); await s.set("vault_path", p); await s.save(); setVaultPath(p); };
   const handleCloseVault = async () => { if (!confirm("Fermer le Cockpit ?")) return; const s = new LazyStore(STORE_PATH); await s.set("vault_path", null); await s.save(); setVaultPath(null); };
-
-  const handleGlobalSearch = async (query: string) => {
-    setSearchQuery(query);
-    if (!query || query.length < 2) { setSearchResults([]); return; }
-    if (!db) return;
-    try {
-      const results = await db.select<any[]>(`SELECT path FROM notes WHERE content LIKE $1 OR path LIKE $1 OR tags LIKE $1 LIMIT 50`, [`%${query}%`]);
-      const nodes: FileNode[] = results.map(r => ({ name: r.path.split('/').pop() || r.path, path: r.path, is_dir: false, children: [], extension: 'md', content: '' }));
-      setSearchResults(nodes);
-    } catch (e) { console.error("Search error:", e); }
-  };
-
+  const handleGlobalSearch = async (query: string) => { setSearchQuery(query); if (!query || query.length < 2) { setSearchResults([]); return; } if (!db) return; try { const results = await db.select<any[]>(`SELECT path FROM notes WHERE content LIKE $1 OR path LIKE $1 OR tags LIKE $1 LIMIT 50`, [`%${query}%`]); const nodes: FileNode[] = results.map(r => ({ name: r.path.split('/').pop() || r.path, path: r.path, is_dir: false, children: [], extension: 'md', content: '' })); setSearchResults(nodes); } catch (e) { console.error("Search error:", e); } };
   const handleOpenOutlookPortal = async () => { try { await invoke("open_outlook_window"); } catch (e) { alert("Erreur: " + e); } };
-
-  const handlePasteFromClipboard = async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (!text || text.trim().length === 0) { alert("Presse-papier vide !"); return; }
-      const lines = text.split('\n');
-      let title = lines[0].substring(0, 50).replace(/[^a-zA-Z0-9 ]/g, "").trim() || "Mail Importé";
-      if (title.length === 0) title = "Mail Importé";
-      const body = text;
-      const inboxPath = "01_Inbox";
-      await invoke("create_folder", { path: `${vaultPath}\\${inboxPath}` });
-      const fileName = `${getTodayDate()}_MAIL_${title}.md`;
-      const fullPath = `${vaultPath}\\${inboxPath}\\${fileName}`;
-      const content = `# ${title}\n\n*Importé depuis Outlook le ${new Date().toLocaleString()}*\n\n${body}\n\n\n${METADATA_SEPARATOR}\nID: ${generateUUID()}\nTYPE: MAIL\nSTATUS: INBOX\nTAGS: email`;
-      await invoke("create_note", { path: fullPath, content });
-      await handleScan();
-      alert(`Note créée dans Inbox :\n${fileName}`);
-      setCurrentTab('COCKPIT');
-      setActiveFile(`${inboxPath}/${fileName}`);
-      setSelectedFolder(inboxPath);
-      parseFullFile(content, `${inboxPath}/${fileName}`);
-    } catch (e) { alert("Erreur lors du collage : " + e); }
-  };
-
-  const handleExportExcel = async (actionsToExport: ActionItem[], filename: string) => {
-    if (!actionsToExport || actionsToExport.length === 0) { alert("Rien à exporter."); return; }
-    try {
-      const data = actionsToExport.map(a => ({ WBS: a.code, Action: a.task, Statut: a.status ? "FAIT" : "A FAIRE", Pilote: a.owner, Deadline: a.deadline, Commentaire: a.comment, Source: a.note_path }));
-      const ws = XLSX.utils.json_to_sheet(data);
-      const rows: any[] = []; actionsToExport.forEach(a => { const level = a.code ? (a.code.split('.').length - 1) : 0; rows.push({ level: level, hidden: false }); });
-      if (!ws['!rows']) ws['!rows'] = rows;
-      ws['!cols'] = [{ wch: 10 }, { wch: 50 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 30 }, { wch: 20 }];
-      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Actions");
-      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-      const cleanName = (filename || "Export").replace(/[^a-z0-9]/gi, '_'); const finalName = `AEGIS_${cleanName}_${getTodayDate()}.xlsx`;
-      const downloadDirPath = await downloadDir(); const fullPath = await join(downloadDirPath, finalName);
-      await invoke("save_binary_file", { path: fullPath, content: Array.from(new Uint8Array(wbout)) });
-      alert(`Fichier exporté dans vos Téléchargements :\n${finalName}`);
-    } catch (e) { alert("Erreur Export : " + e); console.error(e); }
-  };
-
+  const handlePasteFromClipboard = async () => { try { const text = await navigator.clipboard.readText(); if (!text || text.trim().length === 0) { alert("Presse-papier vide !"); return; } const lines = text.split('\n'); let title = lines[0].substring(0, 50).replace(/[^a-zA-Z0-9 ]/g, "").trim() || "Mail Importé"; if (title.length === 0) title = "Mail Importé"; const body = text; const inboxPath = "01_Inbox"; await invoke("create_folder", { path: `${vaultPath}\\${inboxPath}` }); const fileName = `${getTodayDate()}_MAIL_${title}.md`; const fullPath = `${vaultPath}\\${inboxPath}\\${fileName}`; const content = `# ${title}\n\n*Importé depuis Outlook le ${new Date().toLocaleString()}*\n\n${body}\n\n\n${METADATA_SEPARATOR}\nID: ${generateUUID()}\nTYPE: MAIL\nSTATUS: INBOX\nTAGS: email`; await invoke("create_note", { path: fullPath, content }); await handleScan(); alert(`Note créée dans Inbox :\n${fileName}`); setCurrentTab('COCKPIT'); setActiveFile(`${inboxPath}/${fileName}`); setSelectedFolder(inboxPath); parseFullFile(content, `${inboxPath}/${fileName}`); } catch (e) { alert("Erreur lors du collage : " + e); } };
+  const handleExportExcel = async (actionsToExport: ActionItem[], filename: string) => { if (!actionsToExport || actionsToExport.length === 0) { alert("Rien à exporter."); return; } try { const data = actionsToExport.map(a => ({ WBS: a.code, Action: a.task, Statut: a.status ? "FAIT" : "A FAIRE", Pilote: a.owner, Deadline: a.deadline, Commentaire: a.comment, Source: a.note_path })); const ws = XLSX.utils.json_to_sheet(data); const rows: any[] = []; actionsToExport.forEach(a => { const level = a.code ? (a.code.split('.').length - 1) : 0; rows.push({ level: level, hidden: false }); }); if (!ws['!rows']) ws['!rows'] = rows; ws['!cols'] = [{ wch: 10 }, { wch: 50 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 30 }, { wch: 20 }]; const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Actions"); const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }); const cleanName = (filename || "Export").replace(/[^a-z0-9]/gi, '_'); const finalName = `AEGIS_${cleanName}_${getTodayDate()}.xlsx`; const downloadDirPath = await downloadDir(); const fullPath = await join(downloadDirPath, finalName); await invoke("save_binary_file", { path: fullPath, content: Array.from(new Uint8Array(wbout)) }); alert(`Fichier exporté dans vos Téléchargements :\n${finalName}`); } catch (e) { alert("Erreur Export : " + e); console.error(e); } };
   const sortActionsSemantic = (actions: ActionItem[]) => { return [...actions].sort((a, b) => { if (a.note_path && b.note_path && a.note_path !== b.note_path) return a.note_path!.localeCompare(b.note_path!); const partsA = a.code.split('.').map(n => parseInt(n, 10)); const partsB = b.code.split('.').map(n => parseInt(n, 10)); const len = Math.max(partsA.length, partsB.length); for (let i = 0; i < len; i++) { const valA = partsA[i] !== undefined ? partsA[i] : -1; const valB = partsB[i] !== undefined ? partsB[i] : -1; if (valA === -1) return -1; if (valB === -1) return 1; if (valA !== valB) return valA - valB; } return 0; }); };
   const parseFullFile = (raw: string, path: string) => { let txt = raw.replace(/\r\n/g, "\n"); let m = { id: "", type: "NOTE", status: "ACTIVE", tags: "" }; let acts: ActionItem[] = []; const codes = new Set<string>(); if (txt.includes(METADATA_SEPARATOR)) { const p = txt.split(METADATA_SEPARATOR); txt = p[0]; p[1].split("\n").forEach(l => { if (l.startsWith("ID:")) m.id = l.replace("ID:", "").trim(); if (l.startsWith("TYPE:")) m.type = l.replace("TYPE:", "").trim(); if (l.startsWith("STATUS:")) m.status = l.replace("STATUS:", "").trim(); if (l.startsWith("TAGS:")) m.tags = l.replace("TAGS:", "").trim(); }); } if (txt.includes(ACTION_HEADER_MARKER)) { const p = txt.split(ACTION_HEADER_MARKER); txt = p[0]; if (p[1]) p[1].split("\n").forEach(l => { if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) { const c = l.split("|").map(x => x.trim()); if (c.length >= 7) { const code = c[1]; if (code && !codes.has(code)) { codes.add(code); acts.push({ id: generateUUID(), code: c[1], status: c[2].includes("x"), created: c[3], deadline: c[4], owner: c[5], task: c[6], comment: c[7] || "", note_path: path, collapsed: false }); } } } }); } const links: string[] = []; let match; const rgx = /\[\[(.*?)\]\]/g; while ((match = rgx.exec(txt)) !== null) links.push(match[1]); setBodyContent(txt.trim()); setMetadata(m); setLocalActions(sortActionsSemantic(acts)); setDetectedLinks(links); if (db) { findRelated(path, m.tags, db); findBacklinks(path, db); } };
   const handleContentChange = (nc: string) => { setBodyContent(nc); setIsDirty(true); const rx = /\[\[(.*?)\]\]/g; const l: string[] = []; let m; while ((m = rx.exec(nc)) !== null) l.push(m[1]); setDetectedLinks(l); };
   const constructFullFile = (c: string, a: ActionItem[], m: NoteMetadata) => { let f = c + "\n\n"; if (a.length > 0) { const s = sortActionsSemantic(a); f += `${ACTION_HEADER_MARKER}\n| ID | Etat | Créé le | Deadline | Pilote | Action | Commentaire |\n| :--- | :---: | :--- | :--- | :--- | :--- | :--- |\n`; s.forEach(i => { f += `| ${i.code} | [${i.status ? 'x' : ' '}] | ${i.created} | ${i.deadline} | ${i.owner} | ${i.task} | ${i.comment} |\n`; }); } f += `\n\n${METADATA_SEPARATOR}\nID: ${m.id || generateUUID()}\nTYPE: ${m.type}\nSTATUS: ${m.status}\nTAGS: ${m.tags}`; return f; };
-
   const handleScan = async (dbInst?: Database) => { const database = dbInst || db; if (!database) return; setSyncStatus("INDEXING..."); try { const treeNodes = await invoke<FileNode[]>("scan_vault_recursive", { root: vaultPath }); setFileTree(treeNodes.sort((a, b) => a.path.localeCompare(b.path))); const allFiles = flattenNodes(treeNodes); await database.execute("DROP TABLE IF EXISTS actions"); await database.execute("CREATE TABLE actions (id TEXT, note_path TEXT, code TEXT, status TEXT, task TEXT, owner TEXT, created TEXT, deadline TEXT, comment TEXT)"); for (const node of allFiles) { try { if (node.is_dir || !node.extension || node.extension.toLowerCase() !== "md") continue; let content = node.content.replace(/\r\n/g, "\n"); let fileId = ""; let type = "NOTE", status = "ACTIVE", tags = ""; if (content.includes(METADATA_SEPARATOR)) { const p = content.split(METADATA_SEPARATOR); const m = p[1]; if (m) { if (m.includes("ID:")) fileId = m.split("ID:")[1].split("\n")[0].trim(); if (m.includes("TYPE:")) type = m.split("TYPE:")[1].split("\n")[0].trim(); if (m.includes("STATUS:")) status = m.split("STATUS:")[1].split("\n")[0].trim(); if (m.includes("TAGS:")) tags = m.split("TAGS:")[1].split("\n")[0].trim(); } } if (fileId) { const c = await database.select<any[]>("SELECT path FROM notes WHERE id = $1 AND path != $2", [fileId, node.path]); if (c.length > 0) fileId = ""; } if (!fileId) { fileId = generateUUID(); if (content.includes(METADATA_SEPARATOR)) content = content.split(METADATA_SEPARATOR)[0].trim(); content += `\n\n${METADATA_SEPARATOR}\nID: ${fileId}\nTYPE: ${type}\nSTATUS: ${status}\nTAGS: ${tags}`; await invoke("save_note", { path: `${vaultPath}\\${node.path.replace(/\//g, '\\')}`, content }); } const hash = await computeContentHash(content); const ex = await database.select<any[]>("SELECT id FROM notes WHERE path = $1", [node.path]); if (ex.length === 0) await database.execute("INSERT INTO notes (id, path, last_synced, content, type, status, tags, content_hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", [fileId, node.path, Date.now(), content, type, status, tags, hash]); else await database.execute("UPDATE notes SET id=$1, last_synced=$2, content=$3, type=$4, status=$5, tags=$6, content_hash=$7 WHERE path=$8", [fileId, Date.now(), content, type, status, tags, hash, node.path]); const headerRegex = new RegExp(ACTION_HEADER_MARKER, 'i'); if (headerRegex.test(content)) { const p = content.split(headerRegex); if (p[1]) { const lines = p[1].split("\n"); for (const l of lines) { if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) { const c = l.split("|").map(x => x.trim()); if (c.length >= 7) { const code = c[1]; if (code) { await database.execute("INSERT INTO actions VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", [generateUUID(), node.path, code, c[2].includes("x") ? 'DONE' : 'TODO', c[6], c[5], c[3], c[4], c[7] || ""]); } } } } } } } catch (fileErr) { console.error("Skipped bad file:", node.path, fileErr); } } setSyncStatus("READY"); const acts = await database.select<any[]>("SELECT * FROM actions"); setGlobalActions(acts.map(a => ({ ...a, status: a.status === 'DONE', collapsed: false }))); const allSources = new Set(acts.map(a => a.note_path || "Unknown")); setExpandedSources(allSources); } catch (e) { setSyncStatus("ERROR"); console.error(e); } };
   const findRelated = async (path: string, tags: string, d: Database) => { if (!tags) { setRelatedNotes([]); return; } const t = tags.split(/[;,]/).map(x => x.trim()).filter(x => x); if (t.length === 0) { setRelatedNotes([]); return; } let sql = "SELECT id, path, tags FROM notes WHERE path != $1 AND ("; const p: any[] = [path]; t.forEach((tag, i) => { if (i > 0) sql += " OR "; sql += `tags LIKE $${i + 2}`; p.push(`%${tag}%`); }); sql += ") LIMIT 5"; const r = await d.select<Note[]>(sql, p); setRelatedNotes(r); };
   const findBacklinks = async (path: string, d: Database) => { const n = path.split('/').pop()?.replace('.md', '') || ""; const p = path.replace('.md', ''); const r = await d.select<Note[]>("SELECT id, path FROM notes WHERE path != $1 AND (content LIKE $2 OR content LIKE $3)", [path, `%[[${p}]]%`, `%[[${n}]]%`]); setBacklinks(r); };
   const handleRename = async () => { const target = activeFile || selectedFolder; if (!target) return; const oldName = target.split('/').pop() || ""; let newName = prompt(`Renommer "${oldName}" en :`, oldName); if (!newName || newName === oldName) return; if (target.endsWith('.md') && !newName.endsWith('.md')) { newName += '.md'; } try { await invoke("rename_item", { vaultPath, oldPath: target, newName }); if (target.endsWith('.md')) { const folder = target.includes('/') ? target.substring(0, target.lastIndexOf('/')) : ""; const newPathRel = folder ? `${folder}/${newName}` : newName; const oldLink = target.replace('.md', ''); const newLink = newPathRel.replace('.md', ''); await invoke("update_links_on_move", { vaultPath, oldPathRel: oldLink, newPathRel: newLink }); setActiveFile(newPathRel); } else { setSelectedFolder(""); } await handleScan(); } catch (e) { alert("Erreur Renommage: " + e); } };
   const handleNodeClick = async (node: FileNode) => { if (node.is_dir) { if (selectedFolder === node.path) setSelectedFolder(""); else setSelectedFolder(node.path); setActiveFile(""); } else { setActiveFile(node.path); const ext = node.path.split('.').pop()?.toLowerCase() || ""; setActiveExtension(ext); if (ext === 'md') { const parent = node.path.includes('/') ? node.path.substring(0, node.path.lastIndexOf('/')) : ""; setSelectedFolder(parent); const c = await invoke<string>("read_note", { path: `${vaultPath}\\${node.path}` }); parseFullFile(c, node.path); setIsDirty(false); } else { setBodyContent(""); setLocalActions([]); } setCurrentTab('COCKPIT'); } };
   const handleFlashNote = async () => { try { const now = new Date(); const yyyy = now.getFullYear(); const mm = String(now.getMonth() + 1).padStart(2, '0'); const dd = String(now.getDate()).padStart(2, '0'); const dateStr = `${yyyy}${mm}${dd}`; const inboxPath = "01_Inbox"; await invoke("create_folder", { path: `${vaultPath}\\${inboxPath}` }); let inc = 1; let finalName = `${dateStr}_${inc}_Note à classer.md`; while (fileTree.some(n => n.path === `${inboxPath}/${finalName}`)) { inc++; finalName = `${dateStr}_${inc}_Note à classer.md`; } const fullPath = `${vaultPath}\\${inboxPath}\\${finalName}`; const newId = generateUUID(); const content = `# ${finalName.replace('.md', '')}\n\nFlash Note créée le ${now.toLocaleString()}\n\n\n\n${METADATA_SEPARATOR}\nID: ${newId}\nTYPE: NOTE\nSTATUS: INBOX\nTAGS: `; await invoke("create_note", { path: fullPath, content }); await handleScan(); setActiveFile(`${inboxPath}/${finalName}`); setSelectedFolder(inboxPath); parseFullFile(content, `${inboxPath}/${finalName}`); setCurrentTab('COCKPIT'); } catch (e) { alert("Erreur Flash: " + e); } };
-
-  const handleCreateNote = async () => {
-    try {
-      const nameInput = prompt("Nom de la nouvelle note :", "Nouvelle Note");
-      if (!nameInput || nameInput.trim() === "") return;
-      let targetFolder = selectedFolder;
-      if (!targetFolder && activeFile) { const lastSlash = activeFile.lastIndexOf('/'); if (lastSlash !== -1) { targetFolder = activeFile.substring(0, lastSlash); } }
-      let finalName = nameInput.trim(); if (!finalName.endsWith('.md')) finalName += '.md';
-      const getRelPath = (name: string) => targetFolder ? `${targetFolder}/${name}` : name;
-      let counter = 1; let baseName = finalName.replace('.md', '');
-      while (fileTree.some(n => n.path === getRelPath(finalName))) { finalName = `${baseName} ${counter}.md`; counter++; }
-      const fullPath = targetFolder ? `${vaultPath}\\${targetFolder}\\${finalName}`.replace(/\//g, '\\') : `${vaultPath}\\${finalName}`;
-      const newId = generateUUID();
-      const content = `# ${finalName.replace('.md', '')}\n\nCreated: ${new Date().toLocaleString()}\n\n\n\n${METADATA_SEPARATOR}\nID: ${newId}\nTYPE: NOTE\nSTATUS: ACTIVE\nTAGS: `;
-      await invoke("create_note", { path: fullPath, content }); await handleScan();
-      const relativePath = getRelPath(finalName); setActiveFile(relativePath); setSelectedFolder(targetFolder); parseFullFile(content, relativePath); setCurrentTab('COCKPIT');
-    } catch (e) { alert("Erreur Création Note: " + e); }
-  };
-
+  const handleCreateNote = async () => { try { const nameInput = prompt("Nom de la nouvelle note :", "Nouvelle Note"); if (!nameInput || nameInput.trim() === "") return; let targetFolder = selectedFolder; if (!targetFolder && activeFile) { const lastSlash = activeFile.lastIndexOf('/'); if (lastSlash !== -1) { targetFolder = activeFile.substring(0, lastSlash); } } let finalName = nameInput.trim(); if (!finalName.endsWith('.md')) finalName += '.md'; const getRelPath = (name: string) => targetFolder ? `${targetFolder}/${name}` : name; let counter = 1; let baseName = finalName.replace('.md', ''); while (fileTree.some(n => n.path === getRelPath(finalName))) { finalName = `${baseName} ${counter}.md`; counter++; } const fullPath = targetFolder ? `${vaultPath}\\${targetFolder}\\${finalName}`.replace(/\//g, '\\') : `${vaultPath}\\${finalName}`; const newId = generateUUID(); const content = `# ${finalName.replace('.md', '')}\n\nCreated: ${new Date().toLocaleString()}\n\n\n\n${METADATA_SEPARATOR}\nID: ${newId}\nTYPE: NOTE\nSTATUS: ACTIVE\nTAGS: `; await invoke("create_note", { path: fullPath, content }); await handleScan(); const relativePath = getRelPath(finalName); setActiveFile(relativePath); setSelectedFolder(targetFolder); parseFullFile(content, relativePath); setCurrentTab('COCKPIT'); } catch (e) { alert("Erreur Création Note: " + e); } };
   const handleCreateFolder = async () => { const parent = selectedFolder ? `DANS ${selectedFolder}` : "à la RACINE"; const name = prompt(`Nom du nouveau dossier (${parent}) :`); if (!name) return; const path = selectedFolder ? `${selectedFolder}/${name}` : name; await invoke("create_folder", { path: `${vaultPath}\\${path.replace(/\//g, '\\')}` }); await handleScan(); };
+  const handleDelete = async () => { const target = activeFile || selectedFolder; if (!target) return; const confirmation = await ask(`Confirmer la suppression de :\n"${target}" ?`, { title: 'Confirmation Requise', kind: 'warning', okLabel: 'Supprimer', cancelLabel: 'Annuler' }); if (!confirmation) return; try { if (target.endsWith('.md')) { await invoke("delete_note", { path: `${vaultPath}\\${target.replace(/\//g, '\\')}` }); } else { await invoke("delete_folder", { path: `${vaultPath}\\${target.replace(/\//g, '\\')}` }); } setActiveFile(""); setSelectedFolder(""); await handleScan(); } catch (e) { alert("Erreur: " + e); } };
 
-  // V10.27 FIX : SUPPRESSION SÉCURISÉE (BLOQUANTE)
-  const handleDelete = async () => {
-    const target = activeFile || selectedFolder;
-    if (!target) return;
-
-    // Cette commande bloque l'exécution tant que l'utilisateur ne répond pas
-    const confirmation = await ask(`Confirmer la suppression de :\n"${target}" ?`, {
-      title: 'Confirmation Requise',
-      kind: 'warning',
-      okLabel: 'Supprimer',
-      cancelLabel: 'Annuler'
-    });
-
-    if (!confirmation) return; // Arrêt immédiat si Annuler
-
-    // Exécution seulement si confirmé
-    try {
-      if (target.endsWith('.md')) {
-        await invoke("delete_note", { path: `${vaultPath}\\${target.replace(/\//g, '\\')}` });
-      } else {
-        await invoke("delete_folder", { path: `${vaultPath}\\${target.replace(/\//g, '\\')}` });
-      }
-      setActiveFile("");
-      setSelectedFolder("");
-      await handleScan();
-    } catch (e) {
-      alert("Erreur: " + e);
-    }
-  };
-
+  // V10.42 : FIX DROP RACINE
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event; if (!over || active.id === over.id) return;
     try {
-      const activePath = active.id as string; const targetFolder = over.id === "ROOT_ZONE" ? "" : (over.id as string);
+      const activePath = active.id as string;
+      let targetFolder = "";
+      if (over.id !== "ROOT_TOP" && over.id !== "ROOT_BOTTOM") {
+        targetFolder = over.id as string;
+      }
       if (activePath === targetFolder || targetFolder.startsWith(activePath + "/")) return;
       const currentFolder = activePath.substring(0, activePath.lastIndexOf('/'));
       if (currentFolder === targetFolder) return;
-      const fullSource = `${vaultPath}\\${activePath.replace(/\//g, '\\')}`; const fullDest = targetFolder ? `${vaultPath}\\${targetFolder.replace(/\//g, '\\')}` : `${vaultPath}`;
+      const fullSource = `${vaultPath}\\${activePath.replace(/\//g, '\\')}`;
+      const fullDest = targetFolder ? `${vaultPath}\\${targetFolder.replace(/\//g, '\\')}` : `${vaultPath}`;
       await invoke("move_file_system_entry", { sourcePath: fullSource, destinationFolder: fullDest });
       const fileName = activePath.split('/').pop() || ""; const newPathRel = targetFolder ? `${targetFolder}/${fileName}` : fileName;
       const oldLink = activePath.replace('.md', ''); const newLink = newPathRel.replace('.md', '');
@@ -345,11 +193,20 @@ function App() {
     return (
       <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-800 shadow-lg mt-auto text-xs select-none">
         <div className="flex justify-between items-center mb-2 px-1">
-          <button onClick={prevMonth} className="text-gray-500 hover:text-white">◀</button>
+          {/* V10.42: ICONES SVG POUR LES FLÈCHES DU CALENDRIER (SQUARE FIXED) */}
+          <button onClick={prevMonth} className="text-amber-500 hover:text-white p-1.5 rounded hover:bg-gray-800 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+          </button>
           <span className="font-bold text-gray-300 uppercase tracking-widest">
             {calDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}
           </span>
-          <button onClick={nextMonth} className="text-gray-500 hover:text-white">▶</button>
+          <button onClick={nextMonth} className="text-amber-500 hover:text-white p-1.5 rounded hover:bg-gray-800 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            </svg>
+          </button>
         </div>
         <div className="grid grid-cols-8 gap-1 text-center">
           <div className="text-gray-600 font-bold text-[9px] py-1 border-r border-gray-800">W</div>
@@ -391,11 +248,11 @@ function App() {
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }`}</style>
       <div className="h-10 bg-gray-950 border-b border-gray-900 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-6">
-          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V10.27 GOLD</span>
+          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V10.43 STABLE</span>
           <div className="flex gap-1 bg-gray-900 p-1 rounded">
             <button onClick={() => setCurrentTab('COCKPIT')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'COCKPIT' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>COCKPIT</button>
-            <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-purple-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>
-            <button onClick={() => setCurrentTab('MAILBOX')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MAILBOX' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MESSAGERIE</button>
+            <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-purple-900 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>
+            <button onClick={() => setCurrentTab('MAILBOX')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MAILBOX' ? 'bg-amber-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MESSAGERIE</button>
           </div>
         </div>
         <div className="text-[10px] text-gray-600">{syncStatus}</div>
@@ -403,7 +260,7 @@ function App() {
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* SIDEBAR AVEC RECHERCHE */}
-        <div style={{ width: sidebarWidth }} className="shrink-0 flex flex-col h-full bg-gray-950 border-r border-gray-900 overflow-hidden relative">
+        <div style={{ width: sidebarWidth }} className="shrink-0 flex flex-col h-full bg-gray-950 border-r border-gray-800 overflow-hidden relative">
           <Sidebar
             fileTree={fileTree} activeFile={activeFile} selectedFolder={selectedFolder} expandedFolders={expandedFolders}
             onToggleExpand={toggleFolderExpand} onNodeClick={handleNodeClick} onDragEnd={handleDragEnd}
@@ -415,10 +272,11 @@ function App() {
             onSearch={handleGlobalSearch}
             searchResults={searchResults}
           />
-          <div onMouseDown={startResizingLeft} className="absolute right-0 top-0 w-1 h-full cursor-col-resize hover:bg-amber-600/50 transition-colors z-50"></div>
+          {/* V10.40: POIGNÉE VISIBLE & LARGE (4px) */}
+          <div onMouseDown={startResizingLeft} className="absolute right-0 top-0 w-1.5 h-full cursor-col-resize bg-gray-800 hover:bg-amber-500 transition-colors z-50"></div>
         </div>
 
-        <div className="flex-1 bg-black flex flex-col relative overflow-hidden min-w-0">
+        <div className="flex-1 bg-black flex flex-col relative overflow-hidden min-w-0 border-l border-r border-gray-800">
           {currentTab === 'COCKPIT' ? (
             activeFile ? (
               <>
@@ -474,12 +332,46 @@ function App() {
                               return (
                                 <div key={action.id} style={{ marginLeft: `${(action.code.split('.').length - 1) * 24}px` }} className="flex items-center gap-2 bg-black/40 p-1.5 rounded border border-gray-800/50 group hover:border-amber-900/50 transition-colors mb-1">
                                   {hasChildren ? (<button onClick={() => toggleLocalCollapse(action.code)} className="text-gray-500 w-4 text-[10px] hover:text-white font-mono border border-gray-700 rounded bg-gray-900 h-4 flex items-center justify-center">{action.collapsed ? '+' : '-'}</button>) : <div className="w-4"></div>}
-                                  <input type="checkbox" checked={action.status} onChange={(e) => updateAction(action.id, 'status', e.target.checked)} className="w-4 h-4 cursor-pointer accent-amber-500 shrink-0" />
-                                  <input type="text" value={action.code} onChange={(e) => updateAction(action.id, 'code', e.target.value)} className="w-10 bg-gray-800 border-none text-xs text-center text-amber-300 rounded focus:bg-gray-700 font-mono" />
-                                  <input type="text" value={action.task} onChange={(e) => updateAction(action.id, 'task', e.target.value)} className={`flex-1 bg-transparent border-none text-sm focus:outline-none ${action.status ? 'text-gray-500 line-through' : 'text-gray-200'}`} placeholder="Action..." />
-                                  <input type="text" value={action.owner} onChange={(e) => updateAction(action.id, 'owner', e.target.value)} className="w-20 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-amber-300 focus:border-amber-800" placeholder="Pilot" />
-                                  <input type="date" value={action.deadline} onChange={(e) => updateAction(action.id, 'deadline', e.target.value)} className="w-24 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-yellow-500 focus:border-yellow-800" />
-                                  <input type="text" value={action.comment || ""} onChange={(e) => updateAction(action.id, 'comment', e.target.value)} className="w-56 bg-gray-900/50 border border-gray-800 text-xs text-gray-400 rounded focus:text-white focus:border-gray-600 px-2" placeholder="Comment..." />
+                                  {/* CORRECTION SYNTAXE INPUT */}
+                                  <input
+                                    type="checkbox"
+                                    checked={action.status}
+                                    onChange={(e) => updateAction(action.id, 'status', e.target.checked)}
+                                    className="w-4 h-4 cursor-pointer accent-amber-500 shrink-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={action.code}
+                                    onChange={(e) => updateAction(action.id, 'code', e.target.value)}
+                                    className="w-10 bg-gray-800 border-none text-xs text-center text-amber-300 rounded focus:bg-gray-700 font-mono"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={action.task}
+                                    onChange={(e) => updateAction(action.id, 'task', e.target.value)}
+                                    className={`flex-1 bg-transparent border-none text-sm focus:outline-none ${action.status ? 'text-gray-500 line-through' : 'text-gray-200'}`}
+                                    placeholder="Action..."
+                                  />
+                                  <input
+                                    type="text"
+                                    value={action.owner}
+                                    onChange={(e) => updateAction(action.id, 'owner', e.target.value)}
+                                    className="w-20 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-amber-300 focus:border-amber-800"
+                                    placeholder="Pilot"
+                                  />
+                                  <input
+                                    type="date"
+                                    value={action.deadline}
+                                    onChange={(e) => updateAction(action.id, 'deadline', e.target.value)}
+                                    className="w-24 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-yellow-500 focus:border-yellow-800"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={action.comment || ""}
+                                    onChange={(e) => updateAction(action.id, 'comment', e.target.value)}
+                                    className="w-56 bg-gray-900/50 border border-gray-800 text-xs text-gray-400 rounded focus:text-white focus:border-gray-600 px-2"
+                                    placeholder="Comment..."
+                                  />
                                   <button onClick={() => addAction(action.code)} className="text-[9px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded hover:bg-gray-700 hover:text-white" title="Sub-task">↪</button>
                                   <button onClick={() => removeAction(action.id)} className="text-gray-700 hover:text-red-500 px-1 opacity-0 group-hover:opacity-100 transition-opacity">×</button>
                                 </div>
@@ -548,7 +440,9 @@ function App() {
         {/* METADATA SIDEBAR - RESIZABLE RIGHT */}
         {currentTab === 'COCKPIT' && (
           <div style={{ width: rightSidebarWidth }} className="bg-gray-950 border-l border-gray-900 flex flex-col p-6 gap-6 overflow-y-auto transition-all shrink-0 relative">
-            <div onMouseDown={startResizingRight} className="absolute left-0 top-0 w-2 h-full cursor-col-resize hover:bg-amber-600/50 transition-colors z-50"></div>
+            {/* V10.36: VISIBLE RESIZE HANDLE RIGHT */}
+            <div onMouseDown={startResizingRight} className="absolute left-0 top-0 w-1.5 h-full cursor-col-resize bg-gray-800 hover:bg-amber-500 transition-colors z-50"></div>
+
             <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-900 pb-2">Context Pilot</h3>
             {activeFile ? (
               <>
@@ -557,10 +451,11 @@ function App() {
                     {backlinks.length > 0 && (<div className="mb-4"> <h4 className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-2 flex items-center gap-2">Cited By <span className="bg-purple-900/30 text-purple-400 px-1.5 rounded-full text-[9px]">{backlinks.length}</span></h4> <ul className="space-y-1 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar"> {backlinks.map(backlink => (<li key={backlink.id} onClick={() => openNote(backlink.path)} className="group cursor-pointer bg-purple-900/10 border border-purple-900/30 hover:bg-purple-900/30 p-2 rounded transition-all"> <div className="flex items-center gap-2"> <span className="text-xs text-purple-300 group-hover:text-white truncate font-medium">⬅ {backlink.path.replace('.md', '')}</span> </div> </li>))} </ul> </div>)}
                     {detectedLinks.length > 0 && (<div className="mb-4"> <h4 className="text-[10px] font-bold text-green-500 uppercase tracking-wider mb-2 flex items-center gap-2">Going To <span className="bg-green-900/30 text-green-400 px-1.5 rounded-full text-[9px]">{detectedLinks.length}</span></h4> <ul className="space-y-1 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar"> {detectedLinks.map(link => (<li key={link} onClick={() => openNote(link.endsWith('.md') ? link : `${link}.md`)} className="group cursor-pointer bg-green-900/10 border border-green-900/30 hover:bg-green-900/30 p-2 rounded transition-all"> <div className="flex items-center gap-2"> <span className="text-xs text-green-300 group-hover:text-white truncate font-medium">➡ {link}</span> </div> </li>))} </ul> </div>)}
                     <div className="space-y-4 pt-2 border-t border-gray-900">
+                      {/* V10.34 : INPUTS ET SELECTS GOLD/GRAY (Plus de bleu) */}
                       <div> <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">UUID (System)</label> <input type="text" value={metadata.id} disabled className="w-full bg-gray-900/50 border border-gray-900 text-gray-600 text-[9px] rounded p-2 font-mono select-all" /> </div>
-                      <div> <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">Project Status</label> <select value={metadata.status} onChange={(e) => { setMetadata({ ...metadata, status: e.target.value }); setIsDirty(true); }} className="w-full bg-gray-900 border border-gray-800 text-gray-300 text-xs rounded p-2 focus:border-blue-500 focus:outline-none"> <option value="ACTIVE">🟢 ACTIVE</option> <option value="HOLD">🟠 ON HOLD</option> <option value="DONE">🔵 COMPLETED</option> <option value="ARCHIVED">⚫ ARCHIVED</option> </select> </div>
-                      <div> <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">Entry Type</label> <div className="flex gap-2"> {['NOTE', 'PROJECT', 'TASK'].map(type => (<button key={type} onClick={() => { setMetadata({ ...metadata, type }); setIsDirty(true); }} className={`flex-1 py-2 text-[10px] font-bold rounded border ${metadata.type === type ? "bg-blue-900/30 border-blue-800 text-blue-400" : "bg-gray-900 border-gray-800 text-gray-500 hover:bg-gray-800"}`}>{type}</button>))} </div> </div>
-                      <div> <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">Tags (; separated)</label> <input type="text" value={metadata.tags} onChange={(e) => { setMetadata({ ...metadata, tags: e.target.value }); setIsDirty(true); }} className="w-full bg-gray-900 border border-gray-800 text-gray-300 text-xs rounded p-2 focus:border-blue-500 focus:outline-none font-mono" placeholder="tag1; tag2" /> </div>
+                      <div> <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">Project Status</label> <select value={metadata.status} onChange={(e) => { setMetadata({ ...metadata, status: e.target.value }); setIsDirty(true); }} className="w-full bg-gray-900 border border-gray-800 text-gray-300 text-xs rounded p-2 focus:border-amber-500 focus:outline-none"> <option value="ACTIVE">🟢 ACTIVE</option> <option value="HOLD">🟠 ON HOLD</option> <option value="DONE">🔵 COMPLETED</option> <option value="ARCHIVED">⚫ ARCHIVED</option> </select> </div>
+                      <div> <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">Entry Type</label> <div className="flex gap-2"> {['NOTE', 'PROJECT', 'TASK'].map(type => (<button key={type} onClick={() => { setMetadata({ ...metadata, type }); setIsDirty(true); }} className={`flex-1 py-2 text-[10px] font-bold rounded border ${metadata.type === type ? "bg-amber-900/30 border-amber-800 text-amber-400" : "bg-gray-900 border-gray-800 text-gray-500 hover:bg-gray-800"}`}>{type}</button>))} </div> </div>
+                      <div> <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">Tags (; separated)</label> <input type="text" value={metadata.tags} onChange={(e) => { setMetadata({ ...metadata, tags: e.target.value }); setIsDirty(true); }} className="w-full bg-gray-900 border border-gray-800 text-gray-300 text-xs rounded p-2 focus:border-amber-500 focus:outline-none font-mono" placeholder="tag1; tag2" /> </div>
                     </div>
                   </>
                 ) : (

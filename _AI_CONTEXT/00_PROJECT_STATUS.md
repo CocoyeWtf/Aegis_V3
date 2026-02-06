@@ -1,26 +1,29 @@
-# 00_PROJECT_STATUS - AEGIS V10.30
+# 00_PROJECT_STATUS - AEGIS V10.43
 
 Dernière mise à jour : 02/02/2026
 Branche active : `main`
 
-## 🎯 État Actuel : Version "Gold Edition" Finalisée
-L'interface est stable, cohérente (thème Stealth Gold) et tous les problèmes d'interaction connus (Drag/Click, Dialogues) sont résolus.
+## 🎯 État Actuel : GOLD STABLE
+Le système est pleinement opérationnel. Les bugs critiques de rendu (écran noir) et d'interaction (Drag & Drop racine) sont résolus.
 
 ## ✅ Session du 02/02/2026 - Clôture
-1.  **Sidebar (V10.30)** :
-    * **Fix** : Remplacement des flèches `▶/▼` (qui s'affichaient en bleu Emoji sous Windows) par les caractères géométriques `▸/▾` pour garantir la couleur Or.
-    * **Fix** : Protection stricte (`stopPropagation`) sur les flèches pour éviter les conflits avec le Drag & Drop.
-2.  **Fonctionnalités Validées** :
-    * Barre de recherche avec bouton "Clear" et résultats cliquables.
-    * Création de note avec nommage immédiat.
-    * Suppression sécurisée par dialogue natif.
-    * Calendrier perpétuel intégré.
-    * Messagerie en mode Portail (Outlook Web).
+1.  **Stabilité Critique** :
+    * Correction de l'erreur de syntaxe JSX (`<input>` non fermé) dans `App.tsx`.
+    * Correction des types TypeScript (`String` -> `string`) pour éviter les crashs `dnd-kit`.
+2.  **UX / Drag & Drop** :
+    * **Root Drop** : Création de deux zones de dépôt ("Header" et "Footer") pour faciliter le retour à la racine.
+    * **Précision** : Utilisation de l'algorithme `pointerWithin` pour une détection au pixel près sous la souris.
+    * **Visuel** : Feedback visuel clair ("DÉPOSER À LA RACINE") lors du survol.
+3.  **Design "High Fidelity"** :
+    * Flèches Calendrier remplacées par des SVG vectoriels (plus d'étirement).
+    * Poignées de redimensionnement (Resize Handles) élargies et colorées au survol.
+    * Contraste des bordures ajusté (`border-gray-700`).
 
 ## 🛠 Technique
-* **Stack** : Tauri v2, React 19, SQLite, TailwindCSS.
-* **Design System** : "Stealth Gold" (Neutral-900 / Amber-500).
+* **Frontend** : React 19 + Tailwind.
+* **Drag & Drop** : `@dnd-kit` avec capteurs optimisés (activation 10px).
+* **Stockage** : Markdown First + SQLite.
 
 ## ⚠️ Point de Reprise
-* Le socle V10 est terminé.
-* Prochains chantiers possibles : Export Word, Amélioration du parsing mail, ou Dashboard analytique.
+* **PRÊT POUR LA PROD**.
+* Prochaine étape : Profiter de l'outil ou démarrer le module "Export Word" si besoin.
