@@ -19,9 +19,24 @@ struct FileNode {
 
 // --- COMMANDS ---
 
+// V10.23 FIX : Noms des arguments corrigés pour correspondre au Frontend (vaultPath -> vault_path)
+#[tauri::command]
+fn update_links_on_move(
+    vault_path: String,
+    old_path_rel: String,
+    new_path_rel: String,
+) -> Result<String, String> {
+    // Pour l'instant, on renvoie OK pour ne pas bloquer le renommage.
+    // La logique de recherche/remplacement des liens [[wikilinks]] viendra plus tard.
+    println!(
+        "TODO: Update links in {} from {} to {}",
+        vault_path, old_path_rel, new_path_rel
+    );
+    Ok("LINKS_UPDATE_PENDING".to_string())
+}
+
 #[tauri::command]
 fn open_outlook_window(_app: tauri::AppHandle) -> Result<(), String> {
-    // On utilise le navigateur système pour garantir l'accès (SSO/MFA)
     open::that("https://outlook.office.com/mail/").map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -160,10 +175,6 @@ fn scan_vault_recursive(root: String) -> Vec<FileNode> {
     visit_dirs(root_path, &root)
 }
 #[tauri::command]
-fn update_links_on_move(_vp: String, _old: String, _new: String) -> Result<String, String> {
-    Ok("TODO".to_string())
-}
-#[tauri::command]
 fn save_note(path: String, content: String) -> Result<String, String> {
     fs::write(&path, content).map_err(|e| e.to_string())?;
     Ok("OK".to_string())
@@ -186,11 +197,11 @@ fn main() {
             rename_item,
             move_file_system_entry,
             scan_vault_recursive,
-            update_links_on_move,
+            update_links_on_move, // <--- C'est ici que ça bloquait
             open_file,
             save_binary_file,
             check_microsoft_connection,
-            open_outlook_window // <--- Retour à la simplicité
+            open_outlook_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

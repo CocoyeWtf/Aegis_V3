@@ -4,6 +4,7 @@ import { downloadDir, join } from '@tauri-apps/api/path';
 import Database from "@tauri-apps/plugin-sql";
 import { LazyStore } from "@tauri-apps/plugin-store";
 import { DragEndEvent } from "@dnd-kit/core";
+import { ask } from '@tauri-apps/plugin-dialog'; // Plugin Dialogue Natif
 import * as XLSX from 'xlsx';
 import WelcomeView from "./WelcomeView";
 import Sidebar, { FileNode } from "./Sidebar";
@@ -17,16 +18,60 @@ interface NoteMetadata { id: string; type: string; status: string; tags: string;
 interface ActionItem { id: string; code: string; status: boolean; created: string; deadline: string; owner: string; task: string; comment: string; note_path?: string; collapsed?: boolean; }
 interface Note { id: string; path: string; tags?: string; }
 
-// TYPES EMAIL (Simplifié pour le mode manuel)
+// TYPES EMAIL
 interface EmailItem {
   id: string;
   subject: string;
   sender: string;
+  sender_addr: string;
   received: string;
   body_preview: string;
+  body_content: string;
   is_read: boolean;
 }
 
+// --- UTILITAIRES CALENDRIER (France) ---
+const getEasterDate = (year: number) => {
+  const f = Math.floor,
+    G = year % 19,
+    C = f(year / 100),
+    H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30,
+    I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11)),
+    J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7,
+    L = I - J,
+    month = 3 + f((L + 40) / 44),
+    day = L + 28 - 31 * f(month / 4);
+  return new Date(year, month - 1, day);
+};
+
+const getFrenchHolidays = (year: number) => {
+  const easter = getEasterDate(year);
+  const ascension = new Date(easter); ascension.setDate(easter.getDate() + 39);
+  const pentecost = new Date(easter); pentecost.setDate(easter.getDate() + 50);
+  const fmt = (d: Date) => d.toISOString().split('T')[0];
+  return {
+    [`${year}-01-01`]: "Jour de l'An",
+    [`${year}-05-01`]: "Fête du Travail",
+    [`${year}-05-08`]: "Victoire 1945",
+    [`${year}-07-14`]: "Fête Nationale",
+    [`${year}-08-15`]: "Assomption",
+    [`${year}-11-01`]: "Toussaint",
+    [`${year}-11-11`]: "Armistice 1918",
+    [`${year}-12-25`]: "Noël",
+    [fmt(new Date(easter.setDate(easter.getDate() + 1)))]: "Lundi de Pâques",
+    [fmt(ascension)]: "Ascension",
+    [fmt(pentecost)]: "Lundi de Pentecôte"
+  };
+};
+
+const getWeekNumber = (d: Date) => {
+  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+};
+
+// --- LOGIQUE METIER ---
 function generateUUID() { return crypto.randomUUID(); }
 function getTodayDate() { return new Date().toISOString().split('T')[0]; }
 async function computeContentHash(text: string): Promise<string> { const msgBuffer = new TextEncoder().encode(text); const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer); const hashArray = Array.from(new Uint8Array(hashBuffer)); return hashArray.map(b => b.toString(16).padStart(2, '0')).join(''); }
@@ -42,6 +87,11 @@ const flattenNodes = (nodes: FileNode[]): FileNode[] => {
   }
   return flat;
 };
+
+function stripHtml(html: string) {
+  let doc = new DOMParser().parseFromString(html, 'text/html');
+  return doc.body.textContent || "";
+}
 
 function App() {
   const [vaultPath, setVaultPath] = useState<string | null>(null);
@@ -60,6 +110,13 @@ function App() {
 
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchResults, setSearchResults] = useState<FileNode[]>([]);
+
+  // CALENDAR STATE
+  const [calDate, setCalDate] = useState(new Date());
+
+  // MAILBOX STATES
+  const [emails, setEmails] = useState<EmailItem[]>([]);
+  const [selectedEmail, setSelectedEmail] = useState<EmailItem | null>(null);
 
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [rightSidebarWidth, setRightSidebarWidth] = useState(320);
@@ -106,47 +163,29 @@ function App() {
     } catch (e) { console.error("Search error:", e); }
   };
 
-  // MAILBOX V10.21 : PORTAIL OUTLOOK & PRESSE-PAPIER
-  const handleOpenOutlookPortal = async () => {
-    try {
-      await invoke("open_outlook_window");
-    } catch (e) {
-      alert("Erreur: " + e);
-    }
-  };
+  const handleOpenOutlookPortal = async () => { try { await invoke("open_outlook_window"); } catch (e) { alert("Erreur: " + e); } };
 
   const handlePasteFromClipboard = async () => {
     try {
       const text = await navigator.clipboard.readText();
       if (!text || text.trim().length === 0) { alert("Presse-papier vide !"); return; }
-
-      // Analyse simple : 1ère ligne = Titre
       const lines = text.split('\n');
       let title = lines[0].substring(0, 50).replace(/[^a-zA-Z0-9 ]/g, "").trim() || "Mail Importé";
       if (title.length === 0) title = "Mail Importé";
       const body = text;
-
-      // Création de la note
       const inboxPath = "01_Inbox";
       await invoke("create_folder", { path: `${vaultPath}\\${inboxPath}` });
       const fileName = `${getTodayDate()}_MAIL_${title}.md`;
       const fullPath = `${vaultPath}\\${inboxPath}\\${fileName}`;
-
       const content = `# ${title}\n\n*Importé depuis Outlook le ${new Date().toLocaleString()}*\n\n${body}\n\n\n${METADATA_SEPARATOR}\nID: ${generateUUID()}\nTYPE: MAIL\nSTATUS: INBOX\nTAGS: email`;
-
       await invoke("create_note", { path: fullPath, content });
       await handleScan();
       alert(`Note créée dans Inbox :\n${fileName}`);
-
-      // Switch vers Cockpit pour voir le résultat
       setCurrentTab('COCKPIT');
       setActiveFile(`${inboxPath}/${fileName}`);
       setSelectedFolder(inboxPath);
       parseFullFile(content, `${inboxPath}/${fileName}`);
-
-    } catch (e) {
-      alert("Erreur lors du collage : " + e);
-    }
+    } catch (e) { alert("Erreur lors du collage : " + e); }
   };
 
   const handleExportExcel = async (actionsToExport: ActionItem[], filename: string) => {
@@ -167,7 +206,7 @@ function App() {
   };
 
   const sortActionsSemantic = (actions: ActionItem[]) => { return [...actions].sort((a, b) => { if (a.note_path && b.note_path && a.note_path !== b.note_path) return a.note_path!.localeCompare(b.note_path!); const partsA = a.code.split('.').map(n => parseInt(n, 10)); const partsB = b.code.split('.').map(n => parseInt(n, 10)); const len = Math.max(partsA.length, partsB.length); for (let i = 0; i < len; i++) { const valA = partsA[i] !== undefined ? partsA[i] : -1; const valB = partsB[i] !== undefined ? partsB[i] : -1; if (valA === -1) return -1; if (valB === -1) return 1; if (valA !== valB) return valA - valB; } return 0; }); };
-  const parseFullFile = (raw: string, path: string) => { let txt = raw.replace(/\r\n/g, "\n"); let m = { id: "", type: "NOTE", status: "ACTIVE", tags: "" }; let acts: ActionItem[] = []; const codes = new Set<string>(); if (txt.includes(METADATA_SEPARATOR)) { const p = txt.split(METADATA_SEPARATOR); txt = p[0]; p[1].split("\n").forEach(l => { if (l.startsWith("ID:")) m.id = l.replace("ID:", "").trim(); if (l.startsWith("TYPE:")) m.type = l.replace("TYPE:", "").trim(); if (l.startsWith("STATUS:")) m.status = l.replace("STATUS:", "").trim(); if (l.startsWith("TAGS:")) m.tags = l.replace("TAGS:", "").trim(); }); } if (txt.includes(ACTION_HEADER_MARKER)) { const p = txt.split(ACTION_HEADER_MARKER); txt = p[0]; if (p[1]) p[1].split("\n").forEach(l => { if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) { const c = l.split("|").map(x => x.trim()); if (c.length >= 7) { const code = c[1]; if (code && !codes.has(code)) { codes.add(code); acts.push({ id: generateUUID(), code: code, status: c[2].includes("x"), created: c[3], deadline: c[4], owner: c[5], task: c[6], comment: c[7] || "", note_path: path, collapsed: false }); } } } }); } const links: string[] = []; let match; const rgx = /\[\[(.*?)\]\]/g; while ((match = rgx.exec(txt)) !== null) links.push(match[1]); setBodyContent(txt.trim()); setMetadata(m); setLocalActions(sortActionsSemantic(acts)); setDetectedLinks(links); if (db) { findRelated(path, m.tags, db); findBacklinks(path, db); } };
+  const parseFullFile = (raw: string, path: string) => { let txt = raw.replace(/\r\n/g, "\n"); let m = { id: "", type: "NOTE", status: "ACTIVE", tags: "" }; let acts: ActionItem[] = []; const codes = new Set<string>(); if (txt.includes(METADATA_SEPARATOR)) { const p = txt.split(METADATA_SEPARATOR); txt = p[0]; p[1].split("\n").forEach(l => { if (l.startsWith("ID:")) m.id = l.replace("ID:", "").trim(); if (l.startsWith("TYPE:")) m.type = l.replace("TYPE:", "").trim(); if (l.startsWith("STATUS:")) m.status = l.replace("STATUS:", "").trim(); if (l.startsWith("TAGS:")) m.tags = l.replace("TAGS:", "").trim(); }); } if (txt.includes(ACTION_HEADER_MARKER)) { const p = txt.split(ACTION_HEADER_MARKER); txt = p[0]; if (p[1]) p[1].split("\n").forEach(l => { if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) { const c = l.split("|").map(x => x.trim()); if (c.length >= 7) { const code = c[1]; if (code && !codes.has(code)) { codes.add(code); acts.push({ id: generateUUID(), code: c[1], status: c[2].includes("x"), created: c[3], deadline: c[4], owner: c[5], task: c[6], comment: c[7] || "", note_path: path, collapsed: false }); } } } }); } const links: string[] = []; let match; const rgx = /\[\[(.*?)\]\]/g; while ((match = rgx.exec(txt)) !== null) links.push(match[1]); setBodyContent(txt.trim()); setMetadata(m); setLocalActions(sortActionsSemantic(acts)); setDetectedLinks(links); if (db) { findRelated(path, m.tags, db); findBacklinks(path, db); } };
   const handleContentChange = (nc: string) => { setBodyContent(nc); setIsDirty(true); const rx = /\[\[(.*?)\]\]/g; const l: string[] = []; let m; while ((m = rx.exec(nc)) !== null) l.push(m[1]); setDetectedLinks(l); };
   const constructFullFile = (c: string, a: ActionItem[], m: NoteMetadata) => { let f = c + "\n\n"; if (a.length > 0) { const s = sortActionsSemantic(a); f += `${ACTION_HEADER_MARKER}\n| ID | Etat | Créé le | Deadline | Pilote | Action | Commentaire |\n| :--- | :---: | :--- | :--- | :--- | :--- | :--- |\n`; s.forEach(i => { f += `| ${i.code} | [${i.status ? 'x' : ' '}] | ${i.created} | ${i.deadline} | ${i.owner} | ${i.task} | ${i.comment} |\n`; }); } f += `\n\n${METADATA_SEPARATOR}\nID: ${m.id || generateUUID()}\nTYPE: ${m.type}\nSTATUS: ${m.status}\nTAGS: ${m.tags}`; return f; };
 
@@ -177,10 +216,74 @@ function App() {
   const handleRename = async () => { const target = activeFile || selectedFolder; if (!target) return; const oldName = target.split('/').pop() || ""; let newName = prompt(`Renommer "${oldName}" en :`, oldName); if (!newName || newName === oldName) return; if (target.endsWith('.md') && !newName.endsWith('.md')) { newName += '.md'; } try { await invoke("rename_item", { vaultPath, oldPath: target, newName }); if (target.endsWith('.md')) { const folder = target.includes('/') ? target.substring(0, target.lastIndexOf('/')) : ""; const newPathRel = folder ? `${folder}/${newName}` : newName; const oldLink = target.replace('.md', ''); const newLink = newPathRel.replace('.md', ''); await invoke("update_links_on_move", { vaultPath, oldPathRel: oldLink, newPathRel: newLink }); setActiveFile(newPathRel); } else { setSelectedFolder(""); } await handleScan(); } catch (e) { alert("Erreur Renommage: " + e); } };
   const handleNodeClick = async (node: FileNode) => { if (node.is_dir) { if (selectedFolder === node.path) setSelectedFolder(""); else setSelectedFolder(node.path); setActiveFile(""); } else { setActiveFile(node.path); const ext = node.path.split('.').pop()?.toLowerCase() || ""; setActiveExtension(ext); if (ext === 'md') { const parent = node.path.includes('/') ? node.path.substring(0, node.path.lastIndexOf('/')) : ""; setSelectedFolder(parent); const c = await invoke<string>("read_note", { path: `${vaultPath}\\${node.path}` }); parseFullFile(c, node.path); setIsDirty(false); } else { setBodyContent(""); setLocalActions([]); } setCurrentTab('COCKPIT'); } };
   const handleFlashNote = async () => { try { const now = new Date(); const yyyy = now.getFullYear(); const mm = String(now.getMonth() + 1).padStart(2, '0'); const dd = String(now.getDate()).padStart(2, '0'); const dateStr = `${yyyy}${mm}${dd}`; const inboxPath = "01_Inbox"; await invoke("create_folder", { path: `${vaultPath}\\${inboxPath}` }); let inc = 1; let finalName = `${dateStr}_${inc}_Note à classer.md`; while (fileTree.some(n => n.path === `${inboxPath}/${finalName}`)) { inc++; finalName = `${dateStr}_${inc}_Note à classer.md`; } const fullPath = `${vaultPath}\\${inboxPath}\\${finalName}`; const newId = generateUUID(); const content = `# ${finalName.replace('.md', '')}\n\nFlash Note créée le ${now.toLocaleString()}\n\n\n\n${METADATA_SEPARATOR}\nID: ${newId}\nTYPE: NOTE\nSTATUS: INBOX\nTAGS: `; await invoke("create_note", { path: fullPath, content }); await handleScan(); setActiveFile(`${inboxPath}/${finalName}`); setSelectedFolder(inboxPath); parseFullFile(content, `${inboxPath}/${finalName}`); setCurrentTab('COCKPIT'); } catch (e) { alert("Erreur Flash: " + e); } };
-  const handleCreateNote = async () => { try { let targetFolder = selectedFolder; if (!targetFolder && activeFile) { const lastSlash = activeFile.lastIndexOf('/'); if (lastSlash !== -1) { targetFolder = activeFile.substring(0, lastSlash); } } const baseName = "Untitled"; let finalName = `${baseName}.md`; let counter = 1; const getRelPath = (name: string) => targetFolder ? `${targetFolder}/${name}` : name; while (fileTree.some(n => n.path === getRelPath(finalName))) { finalName = `${baseName} ${counter}.md`; counter++; } const fullPath = targetFolder ? `${vaultPath}\\${targetFolder}\\${finalName}`.replace(/\//g, '\\') : `${vaultPath}\\${finalName}`; const newId = generateUUID(); const content = `# ${finalName.replace('.md', '')}\n\nCreated: ${new Date().toLocaleString()}\n\n\n\n${METADATA_SEPARATOR}\nID: ${newId}\nTYPE: NOTE\nSTATUS: ACTIVE\nTAGS: `; await invoke("create_note", { path: fullPath, content }); await handleScan(); const relativePath = getRelPath(finalName); setActiveFile(relativePath); setSelectedFolder(targetFolder); parseFullFile(content, relativePath); setCurrentTab('COCKPIT'); } catch (e) { alert("Erreur Création Note: " + e); } };
+
+  const handleCreateNote = async () => {
+    try {
+      const nameInput = prompt("Nom de la nouvelle note :", "Nouvelle Note");
+      if (!nameInput || nameInput.trim() === "") return;
+      let targetFolder = selectedFolder;
+      if (!targetFolder && activeFile) { const lastSlash = activeFile.lastIndexOf('/'); if (lastSlash !== -1) { targetFolder = activeFile.substring(0, lastSlash); } }
+      let finalName = nameInput.trim(); if (!finalName.endsWith('.md')) finalName += '.md';
+      const getRelPath = (name: string) => targetFolder ? `${targetFolder}/${name}` : name;
+      let counter = 1; let baseName = finalName.replace('.md', '');
+      while (fileTree.some(n => n.path === getRelPath(finalName))) { finalName = `${baseName} ${counter}.md`; counter++; }
+      const fullPath = targetFolder ? `${vaultPath}\\${targetFolder}\\${finalName}`.replace(/\//g, '\\') : `${vaultPath}\\${finalName}`;
+      const newId = generateUUID();
+      const content = `# ${finalName.replace('.md', '')}\n\nCreated: ${new Date().toLocaleString()}\n\n\n\n${METADATA_SEPARATOR}\nID: ${newId}\nTYPE: NOTE\nSTATUS: ACTIVE\nTAGS: `;
+      await invoke("create_note", { path: fullPath, content }); await handleScan();
+      const relativePath = getRelPath(finalName); setActiveFile(relativePath); setSelectedFolder(targetFolder); parseFullFile(content, relativePath); setCurrentTab('COCKPIT');
+    } catch (e) { alert("Erreur Création Note: " + e); }
+  };
+
   const handleCreateFolder = async () => { const parent = selectedFolder ? `DANS ${selectedFolder}` : "à la RACINE"; const name = prompt(`Nom du nouveau dossier (${parent}) :`); if (!name) return; const path = selectedFolder ? `${selectedFolder}/${name}` : name; await invoke("create_folder", { path: `${vaultPath}\\${path.replace(/\//g, '\\')}` }); await handleScan(); };
-  const handleDelete = async () => { const target = activeFile || selectedFolder; if (!target) return; if (confirm(`Supprimer définitivement ${target} ?`)) { if (target.endsWith('.md')) await invoke("delete_note", { path: `${vaultPath}\\${target.replace(/\//g, '\\')}` }); else await invoke("delete_folder", { path: `${vaultPath}\\${target.replace(/\//g, '\\')}` }); setActiveFile(""); setSelectedFolder(""); await handleScan(); } };
-  const handleDragEnd = async (event: DragEndEvent) => { const { active, over } = event; if (!over || active.id === over.id) return; try { const activePath = active.id as string; const targetFolder = over.id === "ROOT_ZONE" ? "" : (over.id as string); const currentFolder = activePath.substring(0, activePath.lastIndexOf('/')); if (currentFolder === targetFolder) { console.log("Drag annulé"); return; } const fullSource = `${vaultPath}\\${activePath.replace(/\//g, '\\')}`; const fullDest = targetFolder ? `${vaultPath}\\${targetFolder.replace(/\//g, '\\')}` : `${vaultPath}`; await invoke("move_file_system_entry", { sourcePath: fullSource, destinationFolder: fullDest }); const fileName = activePath.split('/').pop() || ""; const oldLink = activePath.replace('.md', ''); const newPathRel = targetFolder ? `${targetFolder}/${fileName}` : fileName; const newLink = newPathRel.replace('.md', ''); if (oldLink !== newLink) { await invoke("update_links_on_move", { vaultPath, oldPathRel: oldLink, newPathRel: newLink }); } await handleScan(); } catch (e) { alert("Move Error: " + e); } };
+
+  // V10.27 FIX : SUPPRESSION SÉCURISÉE (BLOQUANTE)
+  const handleDelete = async () => {
+    const target = activeFile || selectedFolder;
+    if (!target) return;
+
+    // Cette commande bloque l'exécution tant que l'utilisateur ne répond pas
+    const confirmation = await ask(`Confirmer la suppression de :\n"${target}" ?`, {
+      title: 'Confirmation Requise',
+      kind: 'warning',
+      okLabel: 'Supprimer',
+      cancelLabel: 'Annuler'
+    });
+
+    if (!confirmation) return; // Arrêt immédiat si Annuler
+
+    // Exécution seulement si confirmé
+    try {
+      if (target.endsWith('.md')) {
+        await invoke("delete_note", { path: `${vaultPath}\\${target.replace(/\//g, '\\')}` });
+      } else {
+        await invoke("delete_folder", { path: `${vaultPath}\\${target.replace(/\//g, '\\')}` });
+      }
+      setActiveFile("");
+      setSelectedFolder("");
+      await handleScan();
+    } catch (e) {
+      alert("Erreur: " + e);
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event; if (!over || active.id === over.id) return;
+    try {
+      const activePath = active.id as string; const targetFolder = over.id === "ROOT_ZONE" ? "" : (over.id as string);
+      if (activePath === targetFolder || targetFolder.startsWith(activePath + "/")) return;
+      const currentFolder = activePath.substring(0, activePath.lastIndexOf('/'));
+      if (currentFolder === targetFolder) return;
+      const fullSource = `${vaultPath}\\${activePath.replace(/\//g, '\\')}`; const fullDest = targetFolder ? `${vaultPath}\\${targetFolder.replace(/\//g, '\\')}` : `${vaultPath}`;
+      await invoke("move_file_system_entry", { sourcePath: fullSource, destinationFolder: fullDest });
+      const fileName = activePath.split('/').pop() || ""; const newPathRel = targetFolder ? `${targetFolder}/${fileName}` : fileName;
+      const oldLink = activePath.replace('.md', ''); const newLink = newPathRel.replace('.md', '');
+      if (oldLink !== newLink) await invoke("update_links_on_move", { vaultPath, oldPathRel: oldLink, newPathRel: newLink });
+      if (activeFile === activePath) { setActiveFile(newPathRel); setSelectedFolder(targetFolder); }
+      await handleScan();
+    } catch (e) { alert("Move Error: " + e); }
+  };
+
   const handleInsertLink = (node: FileNode) => { if (!activeFile) return; const ta = textAreaRef.current; if (!ta) return; const txt = `[[${node.path.replace('.md', '')}]]`; const s = ta.selectionStart; const e = ta.selectionEnd; const prev = bodyContent.charAt(s - 1); const pad = (s > 0 && prev !== ' ' && prev !== '\n') ? ' ' : ''; const n = bodyContent.substring(0, s) + pad + txt + bodyContent.substring(e); handleContentChange(n); setTimeout(() => { ta.focus(); const pos = s + pad.length + txt.length; ta.selectionStart = pos; ta.selectionEnd = pos; }, 0); };
   const toggleFolderExpand = (path: string) => { const next = new Set(expandedFolders); if (next.has(path)) next.delete(path); else next.add(path); setExpandedFolders(next); };
   const toggleSourceExpand = (source: string) => { const next = new Set(expandedSources); if (next.has(source)) next.delete(source); else next.add(source); setExpandedSources(next); };
@@ -199,13 +302,13 @@ function App() {
   const uniqueSources = Array.from(new Set(filteredActions.map(a => a.note_path || "Inconnu"))).sort();
   const handleOpenExternal = async () => { if (!activeFile || !vaultPath) return; const fullPath = `${vaultPath}\\${activeFile.replace(/\//g, '\\')}`; try { await invoke("open_file", { path: fullPath }); } catch (e) { alert("Erreur ouverture: " + e); } };
 
-  // V10.21 : RENDER MAILBOX (Mode Portail)
+  // --- RENDER HELPERS ---
   const renderMailbox = () => {
     return (
       <div className="flex flex-col h-full bg-gray-900/50 text-white items-center justify-center p-20 gap-8">
         <div className="text-center space-y-4">
-          <div className="text-6xl mb-4">📧</div>
-          <h2 className="text-2xl font-bold tracking-widest text-blue-400">OUTLOOK PORTAL</h2>
+          <div className="text-6xl mb-4 text-amber-500">📧</div>
+          <h2 className="text-2xl font-bold tracking-widest text-amber-400">OUTLOOK PORTAL</h2>
           <p className="text-gray-400 max-w-md mx-auto text-sm leading-relaxed">
             En raison des restrictions de sécurité de votre entreprise (Admin Access),
             Aegis utilise le mode <strong>"Portail Sécurisé"</strong>.
@@ -216,15 +319,68 @@ function App() {
             3. Cliquez sur "Coller & Créer Note" ici.
           </p>
         </div>
-
         <div className="flex gap-6">
-          <button onClick={handleOpenOutlookPortal} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-lg shadow-lg shadow-blue-900/20 transition-all flex items-center gap-3 border border-blue-500">
+          <button onClick={handleOpenOutlookPortal} className="bg-amber-700 hover:bg-amber-600 text-white font-bold py-4 px-8 rounded-lg shadow-lg shadow-amber-900/20 transition-all flex items-center gap-3 border border-amber-600">
             <span>🚀</span> OPEN OUTLOOK
           </button>
-
           <button onClick={handlePasteFromClipboard} className="bg-gray-800 hover:bg-gray-700 text-green-400 font-bold py-4 px-8 rounded-lg shadow-lg border border-gray-700 transition-all flex items-center gap-3">
             <span>📋</span> COLLER & CRÉER NOTE
           </button>
+        </div>
+      </div>
+    );
+  };
+
+  const MiniCalendar = () => {
+    const year = calDate.getFullYear();
+    const month = calDate.getMonth();
+    const firstDayOfMonth = new Date(year, month, 1);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const startDay = (firstDayOfMonth.getDay() + 6) % 7;
+    const holidays = getFrenchHolidays(year);
+    const todayStr = getTodayDate();
+    const prevMonth = () => setCalDate(new Date(year, month - 1, 1));
+    const nextMonth = () => setCalDate(new Date(year, month + 1, 1));
+
+    return (
+      <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-800 shadow-lg mt-auto text-xs select-none">
+        <div className="flex justify-between items-center mb-2 px-1">
+          <button onClick={prevMonth} className="text-gray-500 hover:text-white">◀</button>
+          <span className="font-bold text-gray-300 uppercase tracking-widest">
+            {calDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}
+          </span>
+          <button onClick={nextMonth} className="text-gray-500 hover:text-white">▶</button>
+        </div>
+        <div className="grid grid-cols-8 gap-1 text-center">
+          <div className="text-gray-600 font-bold text-[9px] py-1 border-r border-gray-800">W</div>
+          {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map(d => <div key={d} className="text-gray-500 font-bold text-[9px] py-1">{d}</div>)}
+          {Array.from({ length: 42 }).map((_, i) => {
+            const dayNum = i - startDay + 1;
+            if (dayNum <= 0 || dayNum > daysInMonth) {
+              if (i % 7 === 0) {
+                const d = new Date(year, month, dayNum > 0 ? dayNum : 1);
+                return <div key={i} className="text-gray-700 text-[9px] py-1 border-r border-gray-800 bg-black/20">{getWeekNumber(d)}</div>;
+              }
+              return <div key={i}></div>;
+            }
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+            const isHoliday = holidays[dateStr];
+            const isToday = dateStr === todayStr;
+            if (i % 7 === 0) {
+              const d = new Date(year, month, dayNum);
+              return (
+                <div key={`wk-${i}`} className="text-gray-600 text-[9px] py-1 border-r border-gray-800 font-mono bg-black/20">
+                  {getWeekNumber(d)}
+                </div>
+              );
+            }
+            return (
+              <div key={i} className={`py-1 rounded cursor-default relative group ${isToday ? 'bg-orange-600 text-white font-bold' : ''} ${isHoliday ? 'text-red-400 font-bold border border-red-900/50 bg-red-900/10' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`} title={isHoliday || ""}>
+                {dayNum}
+                {isHoliday && <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block whitespace-nowrap bg-black border border-red-900 text-red-200 text-[9px] px-2 py-1 rounded z-50 shadow-xl">{isHoliday}</div>}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -235,9 +391,9 @@ function App() {
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }`}</style>
       <div className="h-10 bg-gray-950 border-b border-gray-900 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-6">
-          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V10.21 PORTAL</span>
+          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V10.27 GOLD</span>
           <div className="flex gap-1 bg-gray-900 p-1 rounded">
-            <button onClick={() => setCurrentTab('COCKPIT')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'COCKPIT' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>COCKPIT</button>
+            <button onClick={() => setCurrentTab('COCKPIT')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'COCKPIT' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>COCKPIT</button>
             <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-purple-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>
             <button onClick={() => setCurrentTab('MAILBOX')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MAILBOX' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MESSAGERIE</button>
           </div>
@@ -259,7 +415,7 @@ function App() {
             onSearch={handleGlobalSearch}
             searchResults={searchResults}
           />
-          <div onMouseDown={startResizingLeft} className="absolute right-0 top-0 w-1 h-full cursor-col-resize hover:bg-blue-600/50 transition-colors z-50"></div>
+          <div onMouseDown={startResizingLeft} className="absolute right-0 top-0 w-1 h-full cursor-col-resize hover:bg-amber-600/50 transition-colors z-50"></div>
         </div>
 
         <div className="flex-1 bg-black flex flex-col relative overflow-hidden min-w-0">
@@ -273,14 +429,14 @@ function App() {
                     {activeExtension === 'md' && (
                       <>
                         {isDirty && <span className="text-yellow-600 text-[10px] font-bold uppercase mr-3 self-center">Unsaved</span>}
-                        <button onClick={handleSave} className="text-xs bg-blue-600 text-white px-4 py-1.5 rounded font-bold">SAVE</button>
+                        <button onClick={handleSave} className="text-xs bg-amber-600 text-white px-4 py-1.5 rounded font-bold">SAVE</button>
                       </>
                     )}
                     <button onClick={handleDelete} className="text-xs bg-red-900/20 text-red-400 px-3 py-1.5 rounded">TRASH</button>
                   </div>
                   {activeExtension !== 'md' && (<button onClick={handleOpenExternal} className="text-xs bg-blue-900/50 text-blue-300 border border-blue-800 px-3 py-1.5 rounded hover:bg-blue-800 transition-colors ml-2">↗ OUVRIR</button>)}
                 </div>
-                {/* RENDER CONTENT (Legacy Function) */}
+                {/* RENDER CONTENT */}
                 {(() => {
                   if (!activeFile) {
                     if (selectedFolder) {
@@ -305,10 +461,10 @@ function App() {
                       <div className="flex-1 overflow-auto p-6 max-w-6xl mx-auto w-full flex flex-col gap-6">
                         <div className="bg-gray-900/30 border border-gray-800 rounded-lg overflow-hidden flex flex-col max-h-[40vh]">
                           <div className="bg-gray-900 px-4 py-2 border-b border-gray-800 flex justify-between items-center shrink-0">
-                            <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider">⚡ Action Plan</h3>
+                            <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider">⚡ Action Plan</h3>
                             <div className="flex gap-2">
                               <button onClick={() => handleExportExcel(localActions, activeFile.replace('.md', ''))} className="text-[10px] bg-green-900/30 hover:bg-green-900/50 text-green-300 px-2 py-1 rounded border border-green-900/50">📊 EXPORT XLS</button>
-                              <button onClick={() => addAction()} className="text-[10px] bg-blue-900/30 hover:bg-blue-900/50 text-blue-300 px-2 py-1 rounded border border-blue-900/50">+ TASK</button>
+                              <button onClick={() => addAction()} className="text-[10px] bg-amber-900/30 hover:bg-amber-900/50 text-amber-300 px-2 py-1 rounded border border-amber-900/50">+ TASK</button>
                             </div>
                           </div>
                           <div className="p-2 overflow-y-auto flex-1">
@@ -316,12 +472,12 @@ function App() {
                               if (!isVisibleInCockpit(action, localActions)) return null;
                               const hasChildren = localActions.some(a => a.code.startsWith(action.code + "."));
                               return (
-                                <div key={action.id} style={{ marginLeft: `${(action.code.split('.').length - 1) * 24}px` }} className="flex items-center gap-2 bg-black/40 p-1.5 rounded border border-gray-800/50 group hover:border-blue-900/50 transition-colors mb-1">
+                                <div key={action.id} style={{ marginLeft: `${(action.code.split('.').length - 1) * 24}px` }} className="flex items-center gap-2 bg-black/40 p-1.5 rounded border border-gray-800/50 group hover:border-amber-900/50 transition-colors mb-1">
                                   {hasChildren ? (<button onClick={() => toggleLocalCollapse(action.code)} className="text-gray-500 w-4 text-[10px] hover:text-white font-mono border border-gray-700 rounded bg-gray-900 h-4 flex items-center justify-center">{action.collapsed ? '+' : '-'}</button>) : <div className="w-4"></div>}
-                                  <input type="checkbox" checked={action.status} onChange={(e) => updateAction(action.id, 'status', e.target.checked)} className="w-4 h-4 cursor-pointer accent-blue-500 shrink-0" />
-                                  <input type="text" value={action.code} onChange={(e) => updateAction(action.id, 'code', e.target.value)} className="w-10 bg-gray-800 border-none text-xs text-center text-blue-300 rounded focus:bg-gray-700 font-mono" />
+                                  <input type="checkbox" checked={action.status} onChange={(e) => updateAction(action.id, 'status', e.target.checked)} className="w-4 h-4 cursor-pointer accent-amber-500 shrink-0" />
+                                  <input type="text" value={action.code} onChange={(e) => updateAction(action.id, 'code', e.target.value)} className="w-10 bg-gray-800 border-none text-xs text-center text-amber-300 rounded focus:bg-gray-700 font-mono" />
                                   <input type="text" value={action.task} onChange={(e) => updateAction(action.id, 'task', e.target.value)} className={`flex-1 bg-transparent border-none text-sm focus:outline-none ${action.status ? 'text-gray-500 line-through' : 'text-gray-200'}`} placeholder="Action..." />
-                                  <input type="text" value={action.owner} onChange={(e) => updateAction(action.id, 'owner', e.target.value)} className="w-20 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-blue-300 focus:border-blue-800" placeholder="Pilot" />
+                                  <input type="text" value={action.owner} onChange={(e) => updateAction(action.id, 'owner', e.target.value)} className="w-20 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-amber-300 focus:border-amber-800" placeholder="Pilot" />
                                   <input type="date" value={action.deadline} onChange={(e) => updateAction(action.id, 'deadline', e.target.value)} className="w-24 bg-gray-900/50 border border-gray-800 text-xs text-center text-gray-400 rounded focus:text-yellow-500 focus:border-yellow-800" />
                                   <input type="text" value={action.comment || ""} onChange={(e) => updateAction(action.id, 'comment', e.target.value)} className="w-56 bg-gray-900/50 border border-gray-800 text-xs text-gray-400 rounded focus:text-white focus:border-gray-600 px-2" placeholder="Comment..." />
                                   <button onClick={() => addAction(action.code)} className="text-[9px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded hover:bg-gray-700 hover:text-white" title="Sub-task">↪</button>
@@ -344,7 +500,7 @@ function App() {
                           <div className="text-xl font-bold text-gray-300 mb-2">Fichier Externe</div>
                           <div className="text-sm font-mono bg-gray-900 px-3 py-1 rounded text-blue-300 mb-4">{activeFile}</div>
                           <p className="max-w-md text-center text-xs text-gray-600 mb-6">Pour garantir un affichage parfait, Aegis délègue la lecture de ce fichier<br /> à votre application système par défaut.</p>
-                          <button onClick={handleOpenExternal} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded shadow-lg shadow-blue-900/20 transition-all flex items-center gap-3"><span>🚀</span> OUVRIR LE FICHIER</button>
+                          <button onClick={handleOpenExternal} className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-8 rounded shadow-lg shadow-amber-900/20 transition-all flex items-center gap-3"><span>🚀</span> OUVRIR LE FICHIER</button>
                         </div>
                       </div>
                     );
@@ -352,8 +508,6 @@ function App() {
                 })()}
               </>
             ) : (
-              /* V10.15 : GESTION FOLDER VIEW SI AUCUN FICHIER */
-              // On duplique la logique renderContent pour le cas "no active file" car je suis dans un bloc ternaire
               selectedFolder ? (
                 <div className="h-full flex flex-col items-center justify-center text-gray-500 gap-6">
                   <div className="text-6xl opacity-50">📂</div>
@@ -394,7 +548,7 @@ function App() {
         {/* METADATA SIDEBAR - RESIZABLE RIGHT */}
         {currentTab === 'COCKPIT' && (
           <div style={{ width: rightSidebarWidth }} className="bg-gray-950 border-l border-gray-900 flex flex-col p-6 gap-6 overflow-y-auto transition-all shrink-0 relative">
-            <div onMouseDown={startResizingRight} className="absolute left-0 top-0 w-2 h-full cursor-col-resize hover:bg-blue-600/50 transition-colors z-50"></div>
+            <div onMouseDown={startResizingRight} className="absolute left-0 top-0 w-2 h-full cursor-col-resize hover:bg-amber-600/50 transition-colors z-50"></div>
             <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-900 pb-2">Context Pilot</h3>
             {activeFile ? (
               <>
@@ -414,6 +568,9 @@ function App() {
                 )}
               </>
             ) : <div className="text-center text-gray-700 text-xs mt-10">No context available.</div>}
+
+            {/* MINI CALENDAR (ALWAYS VISIBLE) */}
+            <MiniCalendar />
           </div>
         )}
       </div>
