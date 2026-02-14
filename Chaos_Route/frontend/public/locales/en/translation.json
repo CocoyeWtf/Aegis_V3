@@ -1,0 +1,77 @@
+{
+  "app": {
+    "title": "Chaos RouteManager"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import",
+    "loading": "Loading...",
+    "noData": "No data",
+    "confirm": "Confirm",
+    "back": "Back",
+    "actions": "Actions",
+    "comingSoon": "This feature will be available soon."
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "countries": "Countries & Regions",
+    "bases": "Logistics bases",
+    "pdvs": "Points of sale",
+    "vehicles": "Vehicles",
+    "suppliers": "Suppliers",
+    "volumes": "Volumes",
+    "contracts": "Contracts",
+    "distances": "Distance matrix",
+    "parameters": "Parameters",
+    "tourPlanning": "Tour planning",
+    "tourHistory": "Tour history"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "tours": "Tours today",
+    "pdvs": "Active POS",
+    "vehicles": "Available vehicles",
+    "totalKm": "Total km",
+    "welcome": "Welcome to Chaos RouteManager. Select a section from the menu to get started."
+  },
+  "countryRegion": {
+    "title": "Countries & Regions"
+  },
+  "bases": {
+    "title": "Logistics bases"
+  },
+  "pdvs": {
+    "title": "Points of sale"
+  },
+  "vehicles": {
+    "title": "Vehicles"
+  },
+  "suppliers": {
+    "title": "Suppliers"
+  },
+  "volumes": {
+    "title": "Volumes"
+  },
+  "contracts": {
+    "title": "Transport contracts"
+  },
+  "distances": {
+    "title": "Distance matrix"
+  },
+  "parameters": {
+    "title": "System parameters"
+  },
+  "tourPlanning": {
+    "title": "Tour planning"
+  },
+  "tourHistory": {
+    "title": "Tour history"
+  }
+}

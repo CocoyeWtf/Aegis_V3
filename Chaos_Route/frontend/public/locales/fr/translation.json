@@ -1,0 +1,77 @@
+{
+  "app": {
+    "title": "Chaos RouteManager"
+  },
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "create": "Créer",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "export": "Exporter",
+    "import": "Importer",
+    "loading": "Chargement...",
+    "noData": "Aucune donnée",
+    "confirm": "Confirmer",
+    "back": "Retour",
+    "actions": "Actions",
+    "comingSoon": "Cette fonctionnalité sera disponible prochainement."
+  },
+  "nav": {
+    "dashboard": "Tableau de bord",
+    "countries": "Pays & Régions",
+    "bases": "Bases logistiques",
+    "pdvs": "Points de vente",
+    "vehicles": "Véhicules",
+    "suppliers": "Fournisseurs",
+    "volumes": "Volumes",
+    "contracts": "Contrats",
+    "distances": "Distancier",
+    "parameters": "Paramètres",
+    "tourPlanning": "Planification",
+    "tourHistory": "Historique tours"
+  },
+  "dashboard": {
+    "title": "Tableau de bord",
+    "tours": "Tours aujourd'hui",
+    "pdvs": "PDV actifs",
+    "vehicles": "Véhicules disponibles",
+    "totalKm": "Km total",
+    "welcome": "Bienvenue sur Chaos RouteManager. Sélectionnez une section dans le menu pour commencer."
+  },
+  "countryRegion": {
+    "title": "Pays & Régions"
+  },
+  "bases": {
+    "title": "Bases logistiques"
+  },
+  "pdvs": {
+    "title": "Points de vente"
+  },
+  "vehicles": {
+    "title": "Véhicules"
+  },
+  "suppliers": {
+    "title": "Fournisseurs"
+  },
+  "volumes": {
+    "title": "Volumes"
+  },
+  "contracts": {
+    "title": "Contrats transporteurs"
+  },
+  "distances": {
+    "title": "Distancier"
+  },
+  "parameters": {
+    "title": "Paramètres système"
+  },
+  "tourPlanning": {
+    "title": "Planification de tournées"
+  },
+  "tourHistory": {
+    "title": "Historique des tours"
+  }
+}

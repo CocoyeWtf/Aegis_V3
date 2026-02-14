@@ -1,0 +1,55 @@
+{
+  "app": {
+    "title": "Chaos RouteManager"
+  },
+  "common": {
+    "save": "Opslaan",
+    "cancel": "Annuleren",
+    "delete": "Verwijderen",
+    "edit": "Bewerken",
+    "create": "Aanmaken",
+    "search": "Zoeken",
+    "filter": "Filteren",
+    "export": "Exporteren",
+    "import": "Importeren",
+    "loading": "Laden...",
+    "noData": "Geen gegevens",
+    "confirm": "Bevestigen",
+    "back": "Terug",
+    "actions": "Acties",
+    "comingSoon": "Deze functie is binnenkort beschikbaar."
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "countries": "Landen & Regio's",
+    "bases": "Logistieke bases",
+    "pdvs": "Verkooppunten",
+    "vehicles": "Voertuigen",
+    "suppliers": "Leveranciers",
+    "volumes": "Volumes",
+    "contracts": "Contracten",
+    "distances": "Afstandsmatrix",
+    "parameters": "Parameters",
+    "tourPlanning": "Routeplanning",
+    "tourHistory": "Routegeschiedenis"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "tours": "Routes vandaag",
+    "pdvs": "Actieve verkooppunten",
+    "vehicles": "Beschikbare voertuigen",
+    "totalKm": "Totaal km",
+    "welcome": "Welkom bij Chaos RouteManager. Selecteer een sectie in het menu om te beginnen."
+  },
+  "countryRegion": { "title": "Landen & Regio's" },
+  "bases": { "title": "Logistieke bases" },
+  "pdvs": { "title": "Verkooppunten" },
+  "vehicles": { "title": "Voertuigen" },
+  "suppliers": { "title": "Leveranciers" },
+  "volumes": { "title": "Volumes" },
+  "contracts": { "title": "Transportcontracten" },
+  "distances": { "title": "Afstandsmatrix" },
+  "parameters": { "title": "Systeemparameters" },
+  "tourPlanning": { "title": "Routeplanning" },
+  "tourHistory": { "title": "Routegeschiedenis" }
+}
