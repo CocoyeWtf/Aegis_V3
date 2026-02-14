@@ -17,7 +17,30 @@
     "confirm": "Confirm",
     "back": "Back",
     "actions": "Actions",
-    "comingSoon": "This feature will be available soon."
+    "comingSoon": "This feature will be available soon.",
+    "deleteConfirm": "Are you sure you want to delete this item?",
+    "deleteTitle": "Confirm deletion",
+    "yes": "Yes",
+    "no": "No",
+    "id": "ID",
+    "name": "Name",
+    "code": "Code",
+    "address": "Address",
+    "postalCode": "Postal code",
+    "city": "City",
+    "phone": "Phone",
+    "email": "Email",
+    "longitude": "Longitude",
+    "latitude": "Latitude",
+    "type": "Type",
+    "region": "Region",
+    "country": "Country",
+    "status": "Status",
+    "date": "Date",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "createNew": "New",
+    "editItem": "Edit"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -41,32 +64,130 @@
     "totalKm": "Total km",
     "welcome": "Welcome to Chaos RouteManager. Select a section from the menu to get started."
   },
+  "import": {
+    "dropOrClick": "Click or drop a file here"
+  },
   "countryRegion": {
-    "title": "Countries & Regions"
+    "title": "Countries & Regions",
+    "countries": "Countries",
+    "regions": "Regions",
+    "newCountry": "New country",
+    "editCountry": "Edit country",
+    "newRegion": "New region",
+    "editRegion": "Edit region",
+    "countryName": "Country name",
+    "countryCode": "ISO code",
+    "regionName": "Region name",
+    "parentCountry": "Parent country"
   },
   "bases": {
-    "title": "Logistics bases"
+    "title": "Logistics bases",
+    "new": "New base",
+    "edit": "Edit base",
+    "secRapide": "DRY Fast",
+    "fraisRapide": "FRESH Fast",
+    "gelRapide": "FROZEN Fast",
+    "mixteRapide": "MIXED Fast",
+    "secLente": "DRY Slow",
+    "gelLente": "FROZEN Slow"
   },
   "pdvs": {
-    "title": "Points of sale"
+    "title": "Points of sale",
+    "new": "New POS",
+    "edit": "Edit POS",
+    "hasSas": "SAS",
+    "sasCapacity": "SAS Capacity (EQP)",
+    "hasDock": "Dock",
+    "dockTime": "Dock time (min)",
+    "unloadTime": "Unload time/EQP (min)",
+    "deliveryStart": "Delivery start",
+    "deliveryEnd": "Delivery end",
+    "accessConstraints": "Access constraints",
+    "express": "Express",
+    "contact": "Contact",
+    "superAlimentaire": "Supermarket Food",
+    "superGeneraliste": "General Supermarket",
+    "hyper": "Hypermarket",
+    "netto": "Netto",
+    "drive": "Drive",
+    "urbainProxi": "Urban Convenience"
   },
   "vehicles": {
-    "title": "Vehicles"
+    "title": "Vehicles",
+    "new": "New vehicle",
+    "edit": "Edit vehicle",
+    "temperatureType": "Temperature",
+    "vehicleType": "Vehicle type",
+    "capacityEqp": "EQP Capacity",
+    "capacityWeight": "Weight capacity (kg)",
+    "fixedCost": "Fixed rate (€)",
+    "costPerKm": "Cost/km (€)",
+    "hasTailgate": "Tailgate",
+    "tailgateType": "Tailgate type",
+    "contractStart": "Contract start",
+    "contractEnd": "Contract end",
+    "gel": "FROZEN",
+    "frais": "FRESH",
+    "sec": "DRY",
+    "biTemp": "BI-TEMP",
+    "triTemp": "TRI-TEMP",
+    "semi": "Semi-trailer",
+    "porteur": "Tractor",
+    "porteurRemorque": "Tractor + Trailer",
+    "city": "City",
+    "vl": "LV",
+    "retractable": "Retractable",
+    "rabattable": "Foldable"
   },
   "suppliers": {
-    "title": "Suppliers"
+    "title": "Suppliers",
+    "new": "New supplier",
+    "edit": "Edit supplier"
   },
   "volumes": {
-    "title": "Volumes"
+    "title": "Volumes",
+    "new": "New volume",
+    "edit": "Edit volume",
+    "pdv": "Point of sale",
+    "eqpCount": "EQP count",
+    "weightKg": "Weight (kg)",
+    "temperatureClass": "Temperature class",
+    "baseOrigin": "Origin base",
+    "prepStart": "Preparation start",
+    "prepEnd": "Preparation end"
   },
   "contracts": {
-    "title": "Transport contracts"
+    "title": "Transport contracts",
+    "new": "New contract",
+    "edit": "Edit contract",
+    "transporterName": "Transporter",
+    "fixedDailyCost": "Fixed daily rate (€)",
+    "costPerKm": "Cost/km (€)",
+    "costPerHour": "Cost/hour (€)",
+    "minHoursPerDay": "Min hours/day",
+    "minKmPerDay": "Min km/day"
   },
   "distances": {
-    "title": "Distance matrix"
+    "title": "Distance matrix",
+    "new": "New entry",
+    "edit": "Edit entry",
+    "originType": "Origin type",
+    "originId": "Origin ID",
+    "destinationType": "Destination type",
+    "destinationId": "Destination ID",
+    "distanceKm": "Distance (km)",
+    "durationMin": "Duration (min)"
   },
   "parameters": {
-    "title": "System parameters"
+    "title": "System parameters",
+    "new": "New parameter",
+    "edit": "Edit parameter",
+    "key": "Key",
+    "value": "Value",
+    "valueType": "Type",
+    "effectiveDate": "Effective date",
+    "endDate": "End date",
+    "global": "Global"
   },
   "tourPlanning": {
     "title": "Tour planning"

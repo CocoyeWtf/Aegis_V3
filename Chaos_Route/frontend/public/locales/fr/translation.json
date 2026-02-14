@@ -17,7 +17,30 @@
     "confirm": "Confirmer",
     "back": "Retour",
     "actions": "Actions",
-    "comingSoon": "Cette fonctionnalité sera disponible prochainement."
+    "comingSoon": "Cette fonctionnalité sera disponible prochainement.",
+    "deleteConfirm": "Êtes-vous sûr de vouloir supprimer cet élément ?",
+    "deleteTitle": "Confirmer la suppression",
+    "yes": "Oui",
+    "no": "Non",
+    "id": "ID",
+    "name": "Nom",
+    "code": "Code",
+    "address": "Adresse",
+    "postalCode": "Code postal",
+    "city": "Ville",
+    "phone": "Téléphone",
+    "email": "Email",
+    "longitude": "Longitude",
+    "latitude": "Latitude",
+    "type": "Type",
+    "region": "Région",
+    "country": "Pays",
+    "status": "Statut",
+    "date": "Date",
+    "startDate": "Date début",
+    "endDate": "Date fin",
+    "createNew": "Nouveau",
+    "editItem": "Modifier"
   },
   "nav": {
     "dashboard": "Tableau de bord",
@@ -41,32 +64,130 @@
     "totalKm": "Km total",
     "welcome": "Bienvenue sur Chaos RouteManager. Sélectionnez une section dans le menu pour commencer."
   },
+  "import": {
+    "dropOrClick": "Cliquez ou déposez un fichier ici"
+  },
   "countryRegion": {
-    "title": "Pays & Régions"
+    "title": "Pays & Régions",
+    "countries": "Pays",
+    "regions": "Régions",
+    "newCountry": "Nouveau pays",
+    "editCountry": "Modifier le pays",
+    "newRegion": "Nouvelle région",
+    "editRegion": "Modifier la région",
+    "countryName": "Nom du pays",
+    "countryCode": "Code ISO",
+    "regionName": "Nom de la région",
+    "parentCountry": "Pays parent"
   },
   "bases": {
-    "title": "Bases logistiques"
+    "title": "Bases logistiques",
+    "new": "Nouvelle base",
+    "edit": "Modifier la base",
+    "secRapide": "SEC Rapide",
+    "fraisRapide": "FRAIS Rapide",
+    "gelRapide": "GEL Rapide",
+    "mixteRapide": "MIXTE Rapide",
+    "secLente": "SEC Lente",
+    "gelLente": "GEL Lente"
   },
   "pdvs": {
-    "title": "Points de vente"
+    "title": "Points de vente",
+    "new": "Nouveau PDV",
+    "edit": "Modifier le PDV",
+    "hasSas": "SAS",
+    "sasCapacity": "Capacité SAS (EQP)",
+    "hasDock": "Quai",
+    "dockTime": "Temps mise à quai (min)",
+    "unloadTime": "Temps déchargement/EQP (min)",
+    "deliveryStart": "Début livraison",
+    "deliveryEnd": "Fin livraison",
+    "accessConstraints": "Contraintes d'accès",
+    "express": "Express",
+    "contact": "Contact",
+    "superAlimentaire": "Super Alimentaire",
+    "superGeneraliste": "Super Généraliste",
+    "hyper": "Hyper",
+    "netto": "Netto",
+    "drive": "Drive",
+    "urbainProxi": "Urbain Proxi"
   },
   "vehicles": {
-    "title": "Véhicules"
+    "title": "Véhicules",
+    "new": "Nouveau véhicule",
+    "edit": "Modifier le véhicule",
+    "temperatureType": "Température",
+    "vehicleType": "Type véhicule",
+    "capacityEqp": "Capacité EQP",
+    "capacityWeight": "Capacité poids (kg)",
+    "fixedCost": "Terme fixe (€)",
+    "costPerKm": "Coût/km (€)",
+    "hasTailgate": "Hayon",
+    "tailgateType": "Type hayon",
+    "contractStart": "Début contrat",
+    "contractEnd": "Fin contrat",
+    "gel": "GEL",
+    "frais": "FRAIS",
+    "sec": "SEC",
+    "biTemp": "BI-TEMP",
+    "triTemp": "TRI-TEMP",
+    "semi": "Semi-remorque",
+    "porteur": "Porteur",
+    "porteurRemorque": "Porteur + Remorque",
+    "city": "City",
+    "vl": "VL",
+    "retractable": "Rétractable",
+    "rabattable": "Rabattable"
   },
   "suppliers": {
-    "title": "Fournisseurs"
+    "title": "Fournisseurs",
+    "new": "Nouveau fournisseur",
+    "edit": "Modifier le fournisseur"
   },
   "volumes": {
-    "title": "Volumes"
+    "title": "Volumes",
+    "new": "Nouveau volume",
+    "edit": "Modifier le volume",
+    "pdv": "Point de vente",
+    "eqpCount": "Nombre EQP",
+    "weightKg": "Poids (kg)",
+    "temperatureClass": "Classe température",
+    "baseOrigin": "Base d'origine",
+    "prepStart": "Début préparation",
+    "prepEnd": "Fin préparation"
   },
   "contracts": {
-    "title": "Contrats transporteurs"
+    "title": "Contrats transporteurs",
+    "new": "Nouveau contrat",
+    "edit": "Modifier le contrat",
+    "transporterName": "Transporteur",
+    "fixedDailyCost": "Terme fixe journalier (€)",
+    "costPerKm": "Coût/km (€)",
+    "costPerHour": "Coût/heure (€)",
+    "minHoursPerDay": "Heures min/jour",
+    "minKmPerDay": "Km min/jour"
   },
   "distances": {
-    "title": "Distancier"
+    "title": "Distancier",
+    "new": "Nouvelle entrée",
+    "edit": "Modifier l'entrée",
+    "originType": "Type origine",
+    "originId": "ID origine",
+    "destinationType": "Type destination",
+    "destinationId": "ID destination",
+    "distanceKm": "Distance (km)",
+    "durationMin": "Durée (min)"
   },
   "parameters": {
-    "title": "Paramètres système"
+    "title": "Paramètres système",
+    "new": "Nouveau paramètre",
+    "edit": "Modifier le paramètre",
+    "key": "Clé",
+    "value": "Valeur",
+    "valueType": "Type",
+    "effectiveDate": "Date d'effet",
+    "endDate": "Date de fin",
+    "global": "Global"
   },
   "tourPlanning": {
     "title": "Planification de tournées"
