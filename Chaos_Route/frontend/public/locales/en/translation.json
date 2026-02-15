@@ -190,9 +190,55 @@
     "global": "Global"
   },
   "tourPlanning": {
-    "title": "Tour planning"
+    "title": "Tour planning",
+    "availableVolumes": "Available volumes",
+    "assigned": "Assigned",
+    "currentTour": "Current tour",
+    "addVolumesHint": "Click a volume or a POS on the map to add it to the tour.",
+    "stops": "Stops",
+    "fillRate": "Fill rate",
+    "dispatchBase": "Dispatch base",
+    "allBases": "All bases",
+    "vehicle": "Vehicle",
+    "selectVehicle": "Select a vehicle",
+    "noVehicles": "No vehicles available in this region.",
+    "validateTour": "Validate tour",
+    "resetTour": "Reset",
+    "validation": {
+      "title": "Validation",
+      "noVehicle": "No vehicle selected.",
+      "noStops": "No stops in the tour.",
+      "overCapacity": "Over capacity by {{over}} EQP.",
+      "lowFillRate": "Low fill rate ({{pct}}%). Consider adding more volumes.",
+      "ready": "The tour is ready to be validated."
+    }
   },
   "tourHistory": {
-    "title": "Tour history"
+    "title": "Tour history",
+    "base": "Base",
+    "vehicle": "Vehicle",
+    "transporter": "Transporter",
+    "cost": "Cost",
+    "departure": "Departure",
+    "return": "Return",
+    "status": {
+      "DRAFT": "Draft",
+      "VALIDATED": "Validated",
+      "IN_PROGRESS": "In progress",
+      "COMPLETED": "Completed"
+    }
+  },
+  "kpi": {
+    "totalTours": "Total tours",
+    "totalEqp": "Total EQP",
+    "totalKm": "Total km",
+    "totalCost": "Total cost",
+    "co2": "Estimated CO₂",
+    "avgKmPerTour": "Avg km/tour",
+    "avgEqpPerTour": "Avg EQP/tour",
+    "avgCostPerTour": "Avg cost/tour",
+    "avgKmPerEqp": "Avg km/EQP",
+    "eqpPerDay": "EQP & Tours per day",
+    "statusDistribution": "Status distribution"
   }
 }

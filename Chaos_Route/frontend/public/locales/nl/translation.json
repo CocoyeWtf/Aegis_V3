@@ -190,9 +190,55 @@
     "global": "Globaal"
   },
   "tourPlanning": {
-    "title": "Routeplanning"
+    "title": "Routeplanning",
+    "availableVolumes": "Beschikbare volumes",
+    "assigned": "Toegewezen",
+    "currentTour": "Huidige route",
+    "addVolumesHint": "Klik op een volume of verkooppunt op de kaart om het aan de route toe te voegen.",
+    "stops": "Haltes",
+    "fillRate": "Vulgraad",
+    "dispatchBase": "Verzendbasis",
+    "allBases": "Alle bases",
+    "vehicle": "Voertuig",
+    "selectVehicle": "Selecteer een voertuig",
+    "noVehicles": "Geen voertuigen beschikbaar in deze regio.",
+    "validateTour": "Route valideren",
+    "resetTour": "Resetten",
+    "validation": {
+      "title": "Validatie",
+      "noVehicle": "Geen voertuig geselecteerd.",
+      "noStops": "Geen haltes in de route.",
+      "overCapacity": "Capaciteit overschreden met {{over}} EQP.",
+      "lowFillRate": "Lage vulgraad ({{pct}}%). Overweeg meer volumes toe te voegen.",
+      "ready": "De route is klaar om gevalideerd te worden."
+    }
   },
   "tourHistory": {
-    "title": "Routegeschiedenis"
+    "title": "Routegeschiedenis",
+    "base": "Basis",
+    "vehicle": "Voertuig",
+    "transporter": "Vervoerder",
+    "cost": "Kosten",
+    "departure": "Vertrek",
+    "return": "Terugkomst",
+    "status": {
+      "DRAFT": "Concept",
+      "VALIDATED": "Gevalideerd",
+      "IN_PROGRESS": "In uitvoering",
+      "COMPLETED": "Voltooid"
+    }
+  },
+  "kpi": {
+    "totalTours": "Totaal routes",
+    "totalEqp": "Totaal EQP",
+    "totalKm": "Totaal km",
+    "totalCost": "Totale kosten",
+    "co2": "Geschatte CO₂",
+    "avgKmPerTour": "Gem. km/route",
+    "avgEqpPerTour": "Gem. EQP/route",
+    "avgCostPerTour": "Gem. kosten/route",
+    "avgKmPerEqp": "Gem. km/EQP",
+    "eqpPerDay": "EQP & Routes per dag",
+    "statusDistribution": "Verdeling per status"
   }
 }

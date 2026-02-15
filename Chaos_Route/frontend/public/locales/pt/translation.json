@@ -190,9 +190,55 @@
     "global": "Global"
   },
   "tourPlanning": {
-    "title": "Planeamento de rotas"
+    "title": "Planeamento de rotas",
+    "availableVolumes": "Volumes disponíveis",
+    "assigned": "Atribuído",
+    "currentTour": "Rota atual",
+    "addVolumesHint": "Clique num volume ou num PDV no mapa para o adicionar à rota.",
+    "stops": "Paragens",
+    "fillRate": "Taxa de enchimento",
+    "dispatchBase": "Base de expedição",
+    "allBases": "Todas as bases",
+    "vehicle": "Veículo",
+    "selectVehicle": "Selecionar veículo",
+    "noVehicles": "Nenhum veículo disponível nesta região.",
+    "validateTour": "Validar rota",
+    "resetTour": "Reiniciar",
+    "validation": {
+      "title": "Validação",
+      "noVehicle": "Nenhum veículo selecionado.",
+      "noStops": "Nenhuma paragem na rota.",
+      "overCapacity": "Excesso de capacidade de {{over}} EQP.",
+      "lowFillRate": "Taxa de enchimento baixa ({{pct}}%). Considere adicionar mais volumes.",
+      "ready": "A rota está pronta para ser validada."
+    }
   },
   "tourHistory": {
-    "title": "Histórico de rotas"
+    "title": "Histórico de rotas",
+    "base": "Base",
+    "vehicle": "Veículo",
+    "transporter": "Transportador",
+    "cost": "Custo",
+    "departure": "Partida",
+    "return": "Retorno",
+    "status": {
+      "DRAFT": "Rascunho",
+      "VALIDATED": "Validado",
+      "IN_PROGRESS": "Em curso",
+      "COMPLETED": "Concluído"
+    }
+  },
+  "kpi": {
+    "totalTours": "Rotas total",
+    "totalEqp": "EQP total",
+    "totalKm": "Km total",
+    "totalCost": "Custo total",
+    "co2": "CO₂ estimado",
+    "avgKmPerTour": "Km médio/rota",
+    "avgEqpPerTour": "EQP médio/rota",
+    "avgCostPerTour": "Custo médio/rota",
+    "avgKmPerEqp": "Km médio/EQP",
+    "eqpPerDay": "EQP & Rotas por dia",
+    "statusDistribution": "Distribuição por status"
   }
 }

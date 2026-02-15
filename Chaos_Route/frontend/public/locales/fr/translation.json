@@ -190,9 +190,55 @@
     "global": "Global"
   },
   "tourPlanning": {
-    "title": "Planification de tournées"
+    "title": "Planification de tournées",
+    "availableVolumes": "Volumes disponibles",
+    "assigned": "Assigné",
+    "currentTour": "Tour en cours",
+    "addVolumesHint": "Cliquez sur un volume ou un PDV sur la carte pour l'ajouter au tour.",
+    "stops": "Arrêts",
+    "fillRate": "Taux remplissage",
+    "dispatchBase": "Base d'expédition",
+    "allBases": "Toutes les bases",
+    "vehicle": "Véhicule",
+    "selectVehicle": "Sélectionner un véhicule",
+    "noVehicles": "Aucun véhicule disponible dans cette région.",
+    "validateTour": "Valider le tour",
+    "resetTour": "Réinitialiser",
+    "validation": {
+      "title": "Validation",
+      "noVehicle": "Aucun véhicule sélectionné.",
+      "noStops": "Aucun arrêt dans le tour.",
+      "overCapacity": "Dépassement de capacité de {{over}} EQP.",
+      "lowFillRate": "Taux de remplissage faible ({{pct}}%). Envisagez d'ajouter des volumes.",
+      "ready": "Le tour est prêt à être validé."
+    }
   },
   "tourHistory": {
-    "title": "Historique des tours"
+    "title": "Historique des tours",
+    "base": "Base",
+    "vehicle": "Véhicule",
+    "transporter": "Transporteur",
+    "cost": "Coût",
+    "departure": "Départ",
+    "return": "Retour",
+    "status": {
+      "DRAFT": "Brouillon",
+      "VALIDATED": "Validé",
+      "IN_PROGRESS": "En cours",
+      "COMPLETED": "Terminé"
+    }
+  },
+  "kpi": {
+    "totalTours": "Tours total",
+    "totalEqp": "EQP total",
+    "totalKm": "Km total",
+    "totalCost": "Coût total",
+    "co2": "CO₂ estimé",
+    "avgKmPerTour": "Km moyen/tour",
+    "avgEqpPerTour": "EQP moyen/tour",
+    "avgCostPerTour": "Coût moyen/tour",
+    "avgKmPerEqp": "Km moyen/EQP",
+    "eqpPerDay": "EQP & Tours par jour",
+    "statusDistribution": "Répartition par statut"
   }
 }
