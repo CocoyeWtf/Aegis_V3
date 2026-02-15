@@ -1,6 +1,6 @@
 /* Page Pays & Régions / Countries & Regions management page */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DataTable, type Column } from '../components/data/DataTable'
 import { FormDialog, type FieldDef } from '../components/data/FormDialog'
@@ -18,6 +18,13 @@ export default function CountryRegion() {
   const [editItem, setEditItem] = useState<Record<string, unknown> | undefined>()
   const [deleteItem, setDeleteItem] = useState<{ type: 'country' | 'region'; id: number } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null)
+
+  /* Régions filtrées par pays sélectionné / Regions filtered by selected country */
+  const filteredRegions = useMemo(() => {
+    if (!selectedCountryId) return regions
+    return regions.filter((r) => r.country_id === selectedCountryId)
+  }, [regions, selectedCountryId])
 
   /* Colonnes pays / Country columns */
   const countryColumns: Column<Country>[] = [
@@ -84,6 +91,7 @@ export default function CountryRegion() {
       if (deleteItem.type === 'country') {
         await remove('/countries', deleteItem.id)
         refetchC()
+        if (selectedCountryId === deleteItem.id) setSelectedCountryId(null)
       } else {
         await remove('/regions', deleteItem.id)
         refetchR()
@@ -92,7 +100,7 @@ export default function CountryRegion() {
     } finally {
       setSaving(false)
     }
-  }, [deleteItem, refetchC, refetchR])
+  }, [deleteItem, refetchC, refetchR, selectedCountryId])
 
   return (
     <div>
@@ -112,20 +120,38 @@ export default function CountryRegion() {
           onCreate={() => { setDialogType('country'); setEditItem(undefined) }}
           onEdit={(row) => { setDialogType('country'); setEditItem(row as unknown as Record<string, unknown>) }}
           onDelete={(row) => setDeleteItem({ type: 'country', id: row.id })}
+          onRowClick={(row) => setSelectedCountryId(selectedCountryId === row.id ? null : row.id)}
+          activeRowId={selectedCountryId}
         />
 
-        {/* Régions / Regions */}
-        <DataTable<Region>
-          title={t('countryRegion.regions')}
-          columns={regionColumns}
-          data={regions}
-          loading={loadingR}
-          searchable
-          searchKeys={['name']}
-          onCreate={() => { setDialogType('region'); setEditItem(undefined) }}
-          onEdit={(row) => { setDialogType('region'); setEditItem(row as unknown as Record<string, unknown>) }}
-          onDelete={(row) => setDeleteItem({ type: 'region', id: row.id })}
-        />
+        {/* Régions / Regions (filtrées par pays) */}
+        <div>
+          {selectedCountryId && (
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: 'rgba(249,115,22,0.15)', color: 'var(--color-primary)' }}>
+                {t('countryRegion.filteredBy')}: {countries.find((c) => c.id === selectedCountryId)?.name}
+              </span>
+              <button
+                onClick={() => setSelectedCountryId(null)}
+                className="text-xs px-2 py-1 rounded-full transition-colors hover:opacity-80"
+                style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}
+              >
+                {t('countryRegion.showAll')}
+              </button>
+            </div>
+          )}
+          <DataTable<Region>
+            title={t('countryRegion.regions')}
+            columns={regionColumns}
+            data={filteredRegions}
+            loading={loadingR}
+            searchable
+            searchKeys={['name']}
+            onCreate={() => { setDialogType('region'); setEditItem(undefined) }}
+            onEdit={(row) => { setDialogType('region'); setEditItem(row as unknown as Record<string, unknown>) }}
+            onDelete={(row) => setDeleteItem({ type: 'region', id: row.id })}
+          />
+        </div>
       </div>
 
       {/* Formulaire pays / Country form */}

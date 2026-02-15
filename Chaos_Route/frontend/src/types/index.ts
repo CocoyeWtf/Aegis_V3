@@ -12,7 +12,11 @@ export interface Region {
   country_id: number
 }
 
-export type BaseType = 'SEC_RAPIDE' | 'FRAIS_RAPIDE' | 'GEL_RAPIDE' | 'MIXTE_RAPIDE' | 'SEC_LENTE' | 'GEL_LENTE'
+export interface BaseActivity {
+  id: number
+  code: string
+  name: string
+}
 
 export interface BaseLogistics {
   id: number
@@ -25,8 +29,8 @@ export interface BaseLogistics {
   email?: string
   longitude?: number
   latitude?: number
-  type: BaseType
   region_id: number
+  activities: BaseActivity[]
 }
 
 export type PDVType =

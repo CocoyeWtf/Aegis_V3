@@ -17,6 +17,7 @@
     "confirm": "Bevestigen",
     "back": "Terug",
     "actions": "Acties",
+    "columns": "Kolommen",
     "comingSoon": "Deze functie is binnenkort beschikbaar.",
     "deleteConfirm": "Weet u zeker dat u dit item wilt verwijderen?",
     "deleteTitle": "Verwijdering bevestigen",
@@ -78,7 +79,9 @@
     "countryName": "Landnaam",
     "countryCode": "ISO-code",
     "regionName": "Regionaam",
-    "parentCountry": "Bovenliggend land"
+    "parentCountry": "Bovenliggend land",
+    "filteredBy": "Gefilterd op",
+    "showAll": "Alles tonen"
   },
   "bases": {
     "title": "Logistieke bases",
@@ -88,8 +91,13 @@
     "fraisRapide": "VERS Snel",
     "gelRapide": "BEVROZEN Snel",
     "mixteRapide": "GEMENGD Snel",
+    "fraisGelRapide": "VERS+BEVROZEN Snel",
     "secLente": "DROOG Traag",
-    "gelLente": "BEVROZEN Traag"
+    "fraisLente": "VERS Traag",
+    "gelLente": "BEVROZEN Traag",
+    "fraisGelLente": "VERS+BEVROZEN Traag",
+    "mixteLente": "GEMENGD Traag",
+    "activities": "Activiteiten"
   },
   "pdvs": {
     "title": "Verkooppunten",

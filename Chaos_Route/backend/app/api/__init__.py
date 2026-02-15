@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from app.api import (
     countries,
     regions,
+    base_activities,
     bases,
     pdvs,
     vehicles,
@@ -22,6 +23,7 @@ api_router = APIRouter(prefix="/api")
 
 api_router.include_router(countries.router, prefix="/countries", tags=["countries"])
 api_router.include_router(regions.router, prefix="/regions", tags=["regions"])
+api_router.include_router(base_activities.router, prefix="/base-activities", tags=["base-activities"])
 api_router.include_router(bases.router, prefix="/bases", tags=["bases"])
 api_router.include_router(pdvs.router, prefix="/pdvs", tags=["pdvs"])
 api_router.include_router(vehicles.router, prefix="/vehicles", tags=["vehicles"])

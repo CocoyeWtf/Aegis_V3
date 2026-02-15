@@ -2,7 +2,12 @@
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.base_logistics import BaseType
+
+class BaseActivityRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    code: str
+    name: str
 
 
 class BaseLogisticsBase(BaseModel):
@@ -15,12 +20,11 @@ class BaseLogisticsBase(BaseModel):
     email: str | None = None
     longitude: float | None = None
     latitude: float | None = None
-    type: BaseType
     region_id: int
 
 
 class BaseLogisticsCreate(BaseLogisticsBase):
-    pass
+    activity_ids: list[int] = []
 
 
 class BaseLogisticsUpdate(BaseModel):
@@ -33,10 +37,11 @@ class BaseLogisticsUpdate(BaseModel):
     email: str | None = None
     longitude: float | None = None
     latitude: float | None = None
-    type: BaseType | None = None
     region_id: int | None = None
+    activity_ids: list[int] | None = None
 
 
 class BaseLogisticsRead(BaseLogisticsBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    activities: list[BaseActivityRead] = []

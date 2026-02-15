@@ -17,6 +17,7 @@
     "confirm": "Confirmer",
     "back": "Retour",
     "actions": "Actions",
+    "columns": "Colonnes",
     "comingSoon": "Cette fonctionnalité sera disponible prochainement.",
     "deleteConfirm": "Êtes-vous sûr de vouloir supprimer cet élément ?",
     "deleteTitle": "Confirmer la suppression",
@@ -78,7 +79,9 @@
     "countryName": "Nom du pays",
     "countryCode": "Code ISO",
     "regionName": "Nom de la région",
-    "parentCountry": "Pays parent"
+    "parentCountry": "Pays parent",
+    "filteredBy": "Filtré par",
+    "showAll": "Tout afficher"
   },
   "bases": {
     "title": "Bases logistiques",
@@ -88,8 +91,13 @@
     "fraisRapide": "FRAIS Rapide",
     "gelRapide": "GEL Rapide",
     "mixteRapide": "MIXTE Rapide",
+    "fraisGelRapide": "FRAIS+GEL Rapide",
     "secLente": "SEC Lente",
-    "gelLente": "GEL Lente"
+    "fraisLente": "FRAIS Lente",
+    "gelLente": "GEL Lente",
+    "fraisGelLente": "FRAIS+GEL Lente",
+    "mixteLente": "MIXTE Lente",
+    "activities": "Activités"
   },
   "pdvs": {
     "title": "Points de vente",

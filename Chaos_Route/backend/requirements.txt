@@ -1,29 +1,21 @@
 # Web framework
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-python-multipart==0.0.20
+fastapi>=0.115
+uvicorn[standard]>=0.34
+python-multipart>=0.0.20
 
 # Database
-sqlalchemy==2.0.36
-alembic==1.14.1
-aiosqlite==0.20.0
+sqlalchemy>=2.0
+alembic>=1.14
+aiosqlite>=0.20
 
 # Validation
-pydantic==2.10.4
-pydantic-settings==2.7.1
+pydantic>=2.10
+pydantic-settings>=2.7
 
 # Import/Export
-openpyxl==3.1.5
-python-csv==0.0.13
-
-# CORS
-starlette==0.45.3
+openpyxl>=3.1
 
 # Testing
-pytest==8.3.4
-pytest-asyncio==0.24.0
-httpx==0.28.1
-
-# Code quality
-black==24.10.0
-isort==5.13.2
+pytest>=8.3
+pytest-asyncio>=0.24
+httpx>=0.28

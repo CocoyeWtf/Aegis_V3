@@ -6,13 +6,17 @@ import { useTranslation } from 'react-i18next'
 export interface FieldDef {
   key: string
   label: string
-  type: 'text' | 'number' | 'select' | 'checkbox' | 'textarea' | 'time'
+  type: 'text' | 'number' | 'select' | 'checkbox' | 'textarea' | 'time' | 'multicheck'
   required?: boolean
   options?: { value: string; label: string }[]
   placeholder?: string
   min?: number
   max?: number
   step?: number
+  /** Fonction dynamique pour filtrer les options selon les valeurs actuelles du formulaire */
+  /** Dynamic function to filter options based on current form values */
+  getOptions?: (formData: Record<string, unknown>) => { value: string; label: string }[]
+  hidden?: (formData: Record<string, unknown>) => boolean
 }
 
 interface FormDialogProps {
@@ -33,7 +37,11 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
     if (open) {
       const defaults: Record<string, unknown> = {}
       fields.forEach((f) => {
-        defaults[f.key] = initialData?.[f.key] ?? (f.type === 'checkbox' ? false : f.type === 'number' ? '' : '')
+        if (f.type === 'multicheck') {
+          defaults[f.key] = initialData?.[f.key] ?? []
+        } else {
+          defaults[f.key] = initialData?.[f.key] ?? (f.type === 'checkbox' ? false : f.type === 'number' ? '' : '')
+        }
       })
       setForm(defaults)
     }
@@ -45,9 +53,18 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  const handleMulticheckToggle = (key: string, val: string) => {
+    setForm((prev) => {
+      const current = (prev[key] as string[]) || []
+      const next = current.includes(val)
+        ? current.filter((v) => v !== val)
+        : [...current, val]
+      return { ...prev, [key]: next }
+    })
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // Convertir les champs numériques / Convert number fields
     const processed: Record<string, unknown> = {}
     fields.forEach((f) => {
       let val = form[f.key]
@@ -58,6 +75,12 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
       processed[f.key] = val
     })
     onSubmit(processed)
+  }
+
+  const inputStyle = {
+    backgroundColor: 'var(--bg-tertiary)',
+    borderColor: 'var(--border-color)',
+    color: 'var(--text-primary)',
   }
 
   return (
@@ -81,71 +104,94 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {fields.map((field) => (
-            <div key={field.key}>
-              <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>
-                {field.label}
-                {field.required && <span style={{ color: 'var(--color-danger)' }}> *</span>}
-              </label>
+          {fields.map((field) => {
+            if (field.hidden?.(form)) return null
 
-              {field.type === 'select' ? (
-                <select
-                  value={String(form[field.key] ?? '')}
-                  onChange={(e) => handleChange(field.key, e.target.value)}
-                  required={field.required}
-                  className="w-full px-3 py-2 rounded-lg text-sm border outline-none focus:ring-1"
-                  style={{
-                    backgroundColor: 'var(--bg-tertiary)',
-                    borderColor: 'var(--border-color)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <option value="">—</option>
-                  {field.options?.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              ) : field.type === 'checkbox' ? (
-                <input
-                  type="checkbox"
-                  checked={!!form[field.key]}
-                  onChange={(e) => handleChange(field.key, e.target.checked)}
-                  className="w-4 h-4 rounded accent-orange-500"
-                />
-              ) : field.type === 'textarea' ? (
-                <textarea
-                  value={String(form[field.key] ?? '')}
-                  onChange={(e) => handleChange(field.key, e.target.value)}
-                  required={field.required}
-                  placeholder={field.placeholder}
-                  rows={3}
-                  className="w-full px-3 py-2 rounded-lg text-sm border outline-none focus:ring-1 resize-y"
-                  style={{
-                    backgroundColor: 'var(--bg-tertiary)',
-                    borderColor: 'var(--border-color)',
-                    color: 'var(--text-primary)',
-                  }}
-                />
-              ) : (
-                <input
-                  type={field.type === 'time' ? 'time' : field.type}
-                  value={String(form[field.key] ?? '')}
-                  onChange={(e) => handleChange(field.key, e.target.value)}
-                  required={field.required}
-                  placeholder={field.placeholder}
-                  min={field.min}
-                  max={field.max}
-                  step={field.step}
-                  className="w-full px-3 py-2 rounded-lg text-sm border outline-none focus:ring-1"
-                  style={{
-                    backgroundColor: 'var(--bg-tertiary)',
-                    borderColor: 'var(--border-color)',
-                    color: 'var(--text-primary)',
-                  }}
-                />
-              )}
-            </div>
-          ))}
+            const options = field.getOptions ? field.getOptions(form) : field.options
+
+            return (
+              <div key={field.key}>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>
+                  {field.label}
+                  {field.required && <span style={{ color: 'var(--color-danger)' }}> *</span>}
+                </label>
+
+                {field.type === 'select' ? (
+                  <select
+                    value={String(form[field.key] ?? '')}
+                    onChange={(e) => handleChange(field.key, e.target.value)}
+                    required={field.required}
+                    className="w-full px-3 py-2 rounded-lg text-sm border outline-none focus:ring-1"
+                    style={inputStyle}
+                  >
+                    <option value="">—</option>
+                    {options?.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                ) : field.type === 'multicheck' ? (
+                  <div className="flex flex-wrap gap-2 p-2 rounded-lg border" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-tertiary)' }}>
+                    {options && options.length > 0 ? options.map((opt) => {
+                      const checked = ((form[field.key] as string[]) || []).includes(opt.value)
+                      return (
+                        <label
+                          key={opt.value}
+                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer transition-all border ${checked ? 'font-semibold' : ''}`}
+                          style={{
+                            backgroundColor: checked ? 'rgba(249,115,22,0.12)' : 'var(--bg-primary)',
+                            borderColor: checked ? 'var(--color-primary)' : 'var(--border-color)',
+                            color: checked ? 'var(--color-primary)' : 'var(--text-secondary)',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => handleMulticheckToggle(field.key, opt.value)}
+                            className="w-3 h-3 accent-orange-500"
+                          />
+                          {opt.label}
+                        </label>
+                      )
+                    }) : (
+                      <span className="text-xs py-1" style={{ color: 'var(--text-muted)' }}>
+                        {t('common.noData')}
+                      </span>
+                    )}
+                  </div>
+                ) : field.type === 'checkbox' ? (
+                  <input
+                    type="checkbox"
+                    checked={!!form[field.key]}
+                    onChange={(e) => handleChange(field.key, e.target.checked)}
+                    className="w-4 h-4 rounded accent-orange-500"
+                  />
+                ) : field.type === 'textarea' ? (
+                  <textarea
+                    value={String(form[field.key] ?? '')}
+                    onChange={(e) => handleChange(field.key, e.target.value)}
+                    required={field.required}
+                    placeholder={field.placeholder}
+                    rows={3}
+                    className="w-full px-3 py-2 rounded-lg text-sm border outline-none focus:ring-1 resize-y"
+                    style={inputStyle}
+                  />
+                ) : (
+                  <input
+                    type={field.type === 'time' ? 'time' : field.type}
+                    value={String(form[field.key] ?? '')}
+                    onChange={(e) => handleChange(field.key, e.target.value)}
+                    required={field.required}
+                    placeholder={field.placeholder}
+                    min={field.min}
+                    max={field.max}
+                    step={field.step}
+                    className="w-full px-3 py-2 rounded-lg text-sm border outline-none focus:ring-1"
+                    style={inputStyle}
+                  />
+                )}
+              </div>
+            )
+          })}
 
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-4">

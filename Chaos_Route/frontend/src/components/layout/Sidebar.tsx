@@ -1,4 +1,4 @@
-/* Barre latérale de navigation / Navigation sidebar */
+/* Barre latérale de navigation / Navigation sidebar (collapsible) */
 
 import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -21,43 +21,56 @@ const navItems = [
 
 export function Sidebar() {
   const { t } = useTranslation()
-  const { sidebarCollapsed } = useAppStore()
+  const { sidebarCollapsed, toggleSidebar } = useAppStore()
 
   return (
     <aside
-      className="h-screen flex flex-col border-r transition-all duration-300"
+      className="h-screen flex flex-col border-r transition-all duration-300 shrink-0"
       style={{
-        width: sidebarCollapsed ? '64px' : '240px',
+        width: sidebarCollapsed ? '56px' : '240px',
         backgroundColor: 'var(--sidebar-bg)',
         borderColor: 'var(--border-color)',
       }}
     >
-      <div className="p-4 flex items-center gap-2 border-b" style={{ borderColor: 'var(--border-color)' }}>
-        <span className="text-2xl">🔥</span>
-        {!sidebarCollapsed && (
-          <span className="font-bold text-lg" style={{ color: 'var(--color-primary)' }}>
-            Chaos Route
-          </span>
-        )}
+      {/* Logo + toggle */}
+      <div className="p-3 flex items-center justify-between border-b" style={{ borderColor: 'var(--border-color)' }}>
+        <div className="flex items-center gap-2 overflow-hidden">
+          <span className="text-xl shrink-0">🔥</span>
+          {!sidebarCollapsed && (
+            <span className="font-bold text-base whitespace-nowrap" style={{ color: 'var(--color-primary)' }}>
+              Chaos Route
+            </span>
+          )}
+        </div>
+        <button
+          onClick={toggleSidebar}
+          className="shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors hover:opacity-80"
+          style={{ color: 'var(--text-muted)' }}
+          title={sidebarCollapsed ? 'Expand' : 'Collapse'}
+        >
+          {sidebarCollapsed ? '»' : '«'}
+        </button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-2">
+      <nav className="flex-1 overflow-y-auto p-1.5">
         {navItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2 rounded-lg mb-1 text-sm transition-colors ${
+              `flex items-center gap-3 px-3 py-2 rounded-lg mb-0.5 text-sm transition-colors ${
                 isActive ? 'font-semibold' : ''
               }`
             }
             style={({ isActive }) => ({
               backgroundColor: isActive ? 'var(--bg-tertiary)' : 'transparent',
               color: isActive ? 'var(--color-primary)' : 'var(--text-secondary)',
+              justifyContent: sidebarCollapsed ? 'center' : undefined,
             })}
+            title={sidebarCollapsed ? t(item.label) : undefined}
           >
-            <span className="text-lg">{item.icon}</span>
-            {!sidebarCollapsed && <span>{t(item.label)}</span>}
+            <span className="text-base shrink-0">{item.icon}</span>
+            {!sidebarCollapsed && <span className="truncate">{t(item.label)}</span>}
           </NavLink>
         ))}
       </nav>

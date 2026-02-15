@@ -6,6 +6,7 @@ Import all models here so Alembic can detect them.
 
 from app.models.country import Country
 from app.models.region import Region
+from app.models.base_activity import BaseActivity, base_activity_link
 from app.models.base_logistics import BaseLogistics
 from app.models.pdv import PDV
 from app.models.vehicle import Vehicle
@@ -22,6 +23,8 @@ from app.models.audit import AuditLog
 __all__ = [
     "Country",
     "Region",
+    "BaseActivity",
+    "base_activity_link",
     "BaseLogistics",
     "PDV",
     "Vehicle",

@@ -1,6 +1,6 @@
 /* Composant table de données réutilisable / Reusable data table component */
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface Column<T> {
@@ -9,6 +9,8 @@ export interface Column<T> {
   sortable?: boolean
   render?: (row: T) => React.ReactNode
   width?: string
+  minWidth?: string
+  defaultHidden?: boolean
 }
 
 interface DataTableProps<T extends { id: number }> {
@@ -19,6 +21,8 @@ interface DataTableProps<T extends { id: number }> {
   onDelete?: (row: T) => void
   onCreate?: () => void
   onImport?: () => void
+  onRowClick?: (row: T) => void
+  activeRowId?: number | null
   title?: string
   searchable?: boolean
   searchKeys?: (keyof T)[]
@@ -32,6 +36,8 @@ export function DataTable<T extends { id: number }>({
   onDelete,
   onCreate,
   onImport,
+  onRowClick,
+  activeRowId,
   title,
   searchable = true,
   searchKeys = [],
@@ -41,7 +47,80 @@ export function DataTable<T extends { id: number }>({
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [page, setPage] = useState(0)
+  const [colWidths, setColWidths] = useState<Record<string, number>>({})
+  const [hiddenCols, setHiddenCols] = useState<Set<string>>(() => {
+    const hidden = new Set<string>()
+    columns.forEach((col) => { if (col.defaultHidden) hidden.add(String(col.key)) })
+    return hidden
+  })
+  const [showColMenu, setShowColMenu] = useState(false)
+  const colMenuRef = useRef<HTMLDivElement>(null)
   const pageSize = 20
+
+  /* Colonnes visibles / Visible columns */
+  const visibleColumns = useMemo(
+    () => columns.filter((col) => !hiddenCols.has(String(col.key))),
+    [columns, hiddenCols]
+  )
+
+  /* Fermer le menu colonnes si clic en dehors / Close column menu on outside click */
+  useEffect(() => {
+    if (!showColMenu) return
+    const handleClick = (e: MouseEvent) => {
+      if (colMenuRef.current && !colMenuRef.current.contains(e.target as Node)) {
+        setShowColMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showColMenu])
+
+  const toggleColumn = (key: string) => {
+    setHiddenCols((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        /* Empêcher de masquer toutes les colonnes / Prevent hiding all columns */
+        if (columns.length - next.size <= 1) return prev
+        next.add(key)
+      }
+      return next
+    })
+  }
+
+  /* Refs pour le redimensionnement des colonnes / Column resize refs */
+  const resizingCol = useRef<string | null>(null)
+  const resizeStartX = useRef(0)
+  const resizeStartW = useRef(0)
+
+  /* Début redimensionnement / Start resize */
+  const handleResizeStart = useCallback((e: React.MouseEvent, colKey: string, thEl: HTMLTableCellElement) => {
+    e.preventDefault()
+    e.stopPropagation()
+    resizingCol.current = colKey
+    resizeStartX.current = e.clientX
+    resizeStartW.current = thEl.offsetWidth
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      const delta = ev.clientX - resizeStartX.current
+      const newWidth = Math.max(50, resizeStartW.current + delta)
+      setColWidths((prev) => ({ ...prev, [colKey]: newWidth }))
+    }
+
+    const handleMouseUp = () => {
+      resizingCol.current = null
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }, [])
 
   /* Filtrage / Filtering */
   const filtered = useMemo(() => {
@@ -89,6 +168,12 @@ export function DataTable<T extends { id: number }>({
     return String(val)
   }
 
+  const getColWidth = (col: Column<T>): string | undefined => {
+    const key = String(col.key)
+    if (colWidths[key]) return `${colWidths[key]}px`
+    return col.width
+  }
+
   return (
     <div>
       {/* Barre d'outils / Toolbar */}
@@ -118,6 +203,46 @@ export function DataTable<T extends { id: number }>({
               }}
             />
           )}
+          {/* Menu colonnes / Column visibility toggle */}
+          <div className="relative" ref={colMenuRef}>
+            <button
+              onClick={() => setShowColMenu((v) => !v)}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+              style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
+              title={t('common.columns')}
+            >
+              ≡ {t('common.columns')}
+            </button>
+            {showColMenu && (
+              <div
+                className="absolute right-0 top-full mt-1 z-50 rounded-lg border shadow-lg py-1 min-w-[180px] max-h-[320px] overflow-y-auto"
+                style={{
+                  backgroundColor: 'var(--bg-secondary)',
+                  borderColor: 'var(--border-color)',
+                }}
+              >
+                {columns.map((col) => {
+                  const key = String(col.key)
+                  const isVisible = !hiddenCols.has(key)
+                  return (
+                    <label
+                      key={key}
+                      className="flex items-center gap-2 px-3 py-1.5 cursor-pointer text-sm hover:opacity-80"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isVisible}
+                        onChange={() => toggleColumn(key)}
+                        className="accent-orange-500"
+                      />
+                      {col.label}
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+          </div>
           {onImport && (
             <button
               onClick={onImport}
@@ -145,14 +270,14 @@ export function DataTable<T extends { id: number }>({
         style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
       >
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                {columns.map((col) => (
+                {visibleColumns.map((col) => (
                   <th
                     key={String(col.key)}
-                    className={`px-4 py-3 text-left font-medium ${col.sortable !== false ? 'cursor-pointer select-none hover:opacity-80' : ''}`}
-                    style={{ color: 'var(--text-muted)', width: col.width }}
+                    className={`px-4 py-3 text-left font-medium relative ${col.sortable !== false ? 'cursor-pointer select-none hover:opacity-80' : ''}`}
+                    style={{ color: 'var(--text-muted)', width: getColWidth(col), minWidth: col.minWidth || '50px', overflow: 'hidden' }}
                     onClick={() => col.sortable !== false && handleSort(String(col.key))}
                   >
                     <span className="flex items-center gap-1">
@@ -161,6 +286,15 @@ export function DataTable<T extends { id: number }>({
                         <span className="text-xs">{sortDir === 'asc' ? '▲' : '▼'}</span>
                       )}
                     </span>
+                    {/* Poignée de redimensionnement / Resize handle */}
+                    <div
+                      className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-orange-500/30 transition-colors"
+                      onMouseDown={(e) => {
+                        const th = e.currentTarget.parentElement as HTMLTableCellElement
+                        handleResizeStart(e, String(col.key), th)
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
                   </th>
                 ))}
                 {(onEdit || onDelete) && (
@@ -173,56 +307,63 @@ export function DataTable<T extends { id: number }>({
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={columns.length + 1} className="px-4 py-8 text-center" style={{ color: 'var(--text-muted)' }}>
+                  <td colSpan={visibleColumns.length + 1} className="px-4 py-8 text-center" style={{ color: 'var(--text-muted)' }}>
                     {t('common.loading')}
                   </td>
                 </tr>
               ) : paged.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length + 1} className="px-4 py-8 text-center" style={{ color: 'var(--text-muted)' }}>
+                  <td colSpan={visibleColumns.length + 1} className="px-4 py-8 text-center" style={{ color: 'var(--text-muted)' }}>
                     {t('common.noData')}
                   </td>
                 </tr>
               ) : (
-                paged.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="border-t transition-colors"
-                    style={{ borderColor: 'var(--border-color)' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                  >
-                    {columns.map((col) => (
-                      <td key={String(col.key)} className="px-4 py-2.5" style={{ color: 'var(--text-primary)' }}>
-                        {col.render ? col.render(row) : getCellValue(row, String(col.key))}
-                      </td>
-                    ))}
-                    {(onEdit || onDelete) && (
-                      <td className="px-4 py-2.5 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {onEdit && (
-                            <button
-                              onClick={() => onEdit(row)}
-                              className="px-2 py-1 rounded text-xs transition-colors"
-                              style={{ color: 'var(--color-primary)' }}
-                            >
-                              {t('common.edit')}
-                            </button>
-                          )}
-                          {onDelete && (
-                            <button
-                              onClick={() => onDelete(row)}
-                              className="px-2 py-1 rounded text-xs transition-colors"
-                              style={{ color: 'var(--color-danger)' }}
-                            >
-                              {t('common.delete')}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))
+                paged.map((row) => {
+                  const isActive = activeRowId != null && row.id === activeRowId
+                  return (
+                    <tr
+                      key={row.id}
+                      className={`border-t transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
+                      style={{
+                        borderColor: 'var(--border-color)',
+                        backgroundColor: isActive ? 'rgba(249,115,22,0.08)' : undefined,
+                      }}
+                      onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = 'var(--bg-hover)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = isActive ? 'rgba(249,115,22,0.08)' : 'transparent' }}
+                      onClick={() => onRowClick?.(row)}
+                    >
+                      {visibleColumns.map((col) => (
+                        <td key={String(col.key)} className="px-4 py-2.5 truncate" style={{ color: 'var(--text-primary)' }}>
+                          {col.render ? col.render(row) : getCellValue(row, String(col.key))}
+                        </td>
+                      ))}
+                      {(onEdit || onDelete) && (
+                        <td className="px-4 py-2.5 text-right">
+                          <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                            {onEdit && (
+                              <button
+                                onClick={() => onEdit(row)}
+                                className="px-2 py-1 rounded text-xs transition-colors"
+                                style={{ color: 'var(--color-primary)' }}
+                              >
+                                {t('common.edit')}
+                              </button>
+                            )}
+                            {onDelete && (
+                              <button
+                                onClick={() => onDelete(row)}
+                                className="px-2 py-1 rounded text-xs transition-colors"
+                                style={{ color: 'var(--color-danger)' }}
+                              >
+                                {t('common.delete')}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>

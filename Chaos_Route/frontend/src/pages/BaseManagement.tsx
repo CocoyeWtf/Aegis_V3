@@ -1,29 +1,35 @@
 /* Page Bases logistiques / Logistics bases management page */
 
+import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CrudPage } from '../components/data/CrudPage'
-import type { Column } from '../components/data/DataTable'
-import type { FieldDef } from '../components/data/FormDialog'
+import { DataTable, type Column } from '../components/data/DataTable'
+import { FormDialog, type FieldDef } from '../components/data/FormDialog'
+import { ConfirmDialog } from '../components/data/ConfirmDialog'
 import { useApi } from '../hooks/useApi'
-import type { BaseLogistics, Region } from '../types'
+import { create, update, remove } from '../services/api'
+import type { BaseLogistics, BaseActivity, Region, Country } from '../types'
 
 export default function BaseManagement() {
   const { t } = useTranslation()
+  const { data: countries } = useApi<Country>('/countries')
   const { data: regions } = useApi<Region>('/regions')
+  const { data: activities } = useApi<BaseActivity>('/base-activities')
+  const { data: bases, loading, refetch } = useApi<BaseLogistics>('/bases')
 
-  const baseTypeOptions = [
-    { value: 'SEC_RAPIDE', label: t('bases.secRapide') },
-    { value: 'FRAIS_RAPIDE', label: t('bases.fraisRapide') },
-    { value: 'GEL_RAPIDE', label: t('bases.gelRapide') },
-    { value: 'MIXTE_RAPIDE', label: t('bases.mixteRapide') },
-    { value: 'SEC_LENTE', label: t('bases.secLente') },
-    { value: 'GEL_LENTE', label: t('bases.gelLente') },
-  ]
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editItem, setEditItem] = useState<Record<string, unknown> | undefined>()
+  const [deleteItem, setDeleteItem] = useState<BaseLogistics | null>(null)
+  const [saving, setSaving] = useState(false)
 
   const columns: Column<BaseLogistics>[] = [
     { key: 'code', label: t('common.code'), width: '100px' },
     { key: 'name', label: t('common.name') },
-    { key: 'type', label: t('common.type'), width: '140px' },
+    {
+      key: 'activities', label: t('bases.activities'), width: '200px',
+      render: (row) => row.activities?.length
+        ? row.activities.map((a) => a.name).join(', ')
+        : '—',
+    },
     { key: 'city', label: t('common.city'), width: '120px' },
     {
       key: 'region_id', label: t('common.region'), width: '120px',
@@ -34,7 +40,22 @@ export default function BaseManagement() {
   const fields: FieldDef[] = [
     { key: 'code', label: t('common.code'), type: 'text', required: true },
     { key: 'name', label: t('common.name'), type: 'text', required: true },
-    { key: 'type', label: t('common.type'), type: 'select', required: true, options: baseTypeOptions },
+    {
+      key: 'country_id', label: t('common.country'), type: 'select',
+      options: countries.map((c) => ({ value: String(c.id), label: `${c.code} — ${c.name}` })),
+    },
+    {
+      key: 'region_id', label: t('common.region'), type: 'select', required: true,
+      getOptions: (form) => {
+        const countryId = form.country_id ? Number(form.country_id) : null
+        const filtered = countryId ? regions.filter((r) => r.country_id === countryId) : regions
+        return filtered.map((r) => ({ value: String(r.id), label: r.name }))
+      },
+    },
+    {
+      key: 'activity_ids', label: t('bases.activities'), type: 'multicheck',
+      options: activities.map((a) => ({ value: String(a.id), label: a.name })),
+    },
     { key: 'address', label: t('common.address'), type: 'text' },
     { key: 'postal_code', label: t('common.postalCode'), type: 'text' },
     { key: 'city', label: t('common.city'), type: 'text' },
@@ -42,23 +63,92 @@ export default function BaseManagement() {
     { key: 'email', label: t('common.email'), type: 'text' },
     { key: 'latitude', label: t('common.latitude'), type: 'number', step: 0.000001 },
     { key: 'longitude', label: t('common.longitude'), type: 'number', step: 0.000001 },
-    {
-      key: 'region_id', label: t('common.region'), type: 'select', required: true,
-      options: regions.map((r) => ({ value: String(r.id), label: r.name })),
-    },
   ]
 
+  const handleCreate = () => {
+    setEditItem(undefined)
+    setDialogOpen(true)
+  }
+
+  const handleEdit = (row: BaseLogistics) => {
+    const regionCountryId = regions.find((r) => r.id === row.region_id)?.country_id
+    setEditItem({
+      ...row,
+      country_id: regionCountryId ? String(regionCountryId) : '',
+      activity_ids: row.activities?.map((a) => String(a.id)) ?? [],
+    } as unknown as Record<string, unknown>)
+    setDialogOpen(true)
+  }
+
+  const handleSave = useCallback(async (data: Record<string, unknown>) => {
+    setSaving(true)
+    try {
+      const { country_id: _unused, ...rest } = data
+      const payload = {
+        ...rest,
+        region_id: Number(data.region_id),
+        activity_ids: ((data.activity_ids as string[]) || []).map(Number),
+      }
+      if (editItem?.id) {
+        await update<BaseLogistics>('/bases', editItem.id as number, payload as Partial<BaseLogistics>)
+      } else {
+        await create<BaseLogistics>('/bases', payload as Partial<BaseLogistics>)
+      }
+      setDialogOpen(false)
+      setEditItem(undefined)
+      refetch()
+    } finally {
+      setSaving(false)
+    }
+  }, [editItem, refetch])
+
+  const handleDelete = useCallback(async () => {
+    if (!deleteItem) return
+    setSaving(true)
+    try {
+      await remove('/bases', deleteItem.id)
+      setDeleteItem(null)
+      refetch()
+    } finally {
+      setSaving(false)
+    }
+  }, [deleteItem, refetch])
+
   return (
-    <CrudPage<BaseLogistics>
-      title={t('bases.title')}
-      endpoint="/bases"
-      columns={columns}
-      fields={fields}
-      searchKeys={['code', 'name', 'city']}
-      createTitle={t('bases.new')}
-      editTitle={t('bases.edit')}
-      importEntity="bases"
-      transformPayload={(d) => ({ ...d, region_id: Number(d.region_id) })}
-    />
+    <div>
+      <h2 className="text-2xl font-bold mb-6" style={{ color: 'var(--text-primary)' }}>
+        {t('bases.title')}
+      </h2>
+
+      <DataTable<BaseLogistics>
+        columns={columns}
+        data={bases}
+        loading={loading}
+        searchable
+        searchKeys={['code', 'name', 'city']}
+        onCreate={handleCreate}
+        onEdit={handleEdit}
+        onDelete={(row) => setDeleteItem(row)}
+      />
+
+      <FormDialog
+        open={dialogOpen}
+        onClose={() => { setDialogOpen(false); setEditItem(undefined) }}
+        onSubmit={handleSave}
+        title={editItem?.id ? t('bases.edit') : t('bases.new')}
+        fields={fields}
+        initialData={editItem}
+        loading={saving}
+      />
+
+      <ConfirmDialog
+        open={!!deleteItem}
+        onClose={() => setDeleteItem(null)}
+        onConfirm={handleDelete}
+        title={t('common.deleteTitle')}
+        message={t('common.deleteConfirm')}
+        loading={saving}
+      />
+    </div>
   )
 }

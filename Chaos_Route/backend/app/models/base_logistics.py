@@ -1,21 +1,10 @@
 """Modèle Base Logistique / Logistics Base (warehouse) model."""
 
-import enum
-
-from sqlalchemy import Enum, Float, ForeignKey, String
+from sqlalchemy import Float, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-
-
-class BaseType(str, enum.Enum):
-    """Type de base logistique / Logistics base type."""
-    SEC_RAPIDE = "SEC_RAPIDE"
-    FRAIS_RAPIDE = "FRAIS_RAPIDE"
-    GEL_RAPIDE = "GEL_RAPIDE"
-    MIXTE_RAPIDE = "MIXTE_RAPIDE"
-    SEC_LENTE = "SEC_LENTE"
-    GEL_LENTE = "GEL_LENTE"
+from app.models.base_activity import base_activity_link
 
 
 class BaseLogistics(Base):
@@ -31,12 +20,14 @@ class BaseLogistics(Base):
     email: Mapped[str | None] = mapped_column(String(150))
     longitude: Mapped[float | None] = mapped_column(Float)
     latitude: Mapped[float | None] = mapped_column(Float)
-    type: Mapped[BaseType] = mapped_column(Enum(BaseType), nullable=False)
     region_id: Mapped[int] = mapped_column(ForeignKey("regions.id"), nullable=False)
 
     # Relations
     region: Mapped["Region"] = relationship(back_populates="bases")
     tours: Mapped[list["Tour"]] = relationship(back_populates="base")
+    activities: Mapped[list["BaseActivity"]] = relationship(
+        secondary=base_activity_link, back_populates="bases", lazy="selectin"
+    )
 
     def __repr__(self) -> str:
         return f"<BaseLogistics {self.code} - {self.name}>"

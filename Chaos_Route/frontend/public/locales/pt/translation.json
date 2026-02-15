@@ -17,6 +17,7 @@
     "confirm": "Confirmar",
     "back": "Voltar",
     "actions": "Ações",
+    "columns": "Colunas",
     "comingSoon": "Esta funcionalidade estará disponível em breve.",
     "deleteConfirm": "Tem certeza que deseja eliminar este item?",
     "deleteTitle": "Confirmar eliminação",
@@ -78,7 +79,9 @@
     "countryName": "Nome do país",
     "countryCode": "Código ISO",
     "regionName": "Nome da região",
-    "parentCountry": "País pai"
+    "parentCountry": "País pai",
+    "filteredBy": "Filtrado por",
+    "showAll": "Mostrar todos"
   },
   "bases": {
     "title": "Bases logísticas",
@@ -88,8 +91,13 @@
     "fraisRapide": "FRESCO Rápido",
     "gelRapide": "GELADO Rápido",
     "mixteRapide": "MISTO Rápido",
+    "fraisGelRapide": "FRESCO+GELADO Rápido",
     "secLente": "SECO Lento",
-    "gelLente": "GELADO Lento"
+    "fraisLente": "FRESCO Lento",
+    "gelLente": "GELADO Lento",
+    "fraisGelLente": "FRESCO+GELADO Lento",
+    "mixteLente": "MISTO Lento",
+    "activities": "Atividades"
   },
   "pdvs": {
     "title": "Pontos de venda",

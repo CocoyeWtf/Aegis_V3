@@ -17,6 +17,7 @@
     "confirm": "Confirm",
     "back": "Back",
     "actions": "Actions",
+    "columns": "Columns",
     "comingSoon": "This feature will be available soon.",
     "deleteConfirm": "Are you sure you want to delete this item?",
     "deleteTitle": "Confirm deletion",
@@ -78,7 +79,9 @@
     "countryName": "Country name",
     "countryCode": "ISO code",
     "regionName": "Region name",
-    "parentCountry": "Parent country"
+    "parentCountry": "Parent country",
+    "filteredBy": "Filtered by",
+    "showAll": "Show all"
   },
   "bases": {
     "title": "Logistics bases",
@@ -88,8 +91,13 @@
     "fraisRapide": "FRESH Fast",
     "gelRapide": "FROZEN Fast",
     "mixteRapide": "MIXED Fast",
+    "fraisGelRapide": "FRESH+FROZEN Fast",
     "secLente": "DRY Slow",
-    "gelLente": "FROZEN Slow"
+    "fraisLente": "FRESH Slow",
+    "gelLente": "FROZEN Slow",
+    "fraisGelLente": "FRESH+FROZEN Slow",
+    "mixteLente": "MIXED Slow",
+    "activities": "Activities"
   },
   "pdvs": {
     "title": "Points of sale",
