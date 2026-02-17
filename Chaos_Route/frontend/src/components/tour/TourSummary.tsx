@@ -1,6 +1,6 @@
 /* Résumé du tour en cours avec drag & drop / Current tour summary panel with DnD reordering */
 
-import { useState, useCallback } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   DndContext,

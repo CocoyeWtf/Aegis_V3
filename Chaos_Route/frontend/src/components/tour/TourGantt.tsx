@@ -52,7 +52,7 @@ export function TourGantt({ tours, highlightedTourId, onTourClick }: TourGanttPr
   const vehicleRows = useMemo(() => {
     const map = new Map<number, { code: string; name: string; tours: GanttTour[] }>()
     for (const tour of tours) {
-      if (!tour.departure_time || !tour.return_time) continue
+      if (!tour.departure_time || !tour.return_time || tour.contract_id == null) continue
       let entry = map.get(tour.contract_id)
       if (!entry) {
         entry = {

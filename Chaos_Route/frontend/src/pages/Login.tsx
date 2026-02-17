@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import api from '../services/api'
-import { useAuthStore, type UserInfo } from '../stores/useAuthStore'
+import { useAuthStore } from '../stores/useAuthStore'
 import { getDefaultRoute } from '../utils/getDefaultRoute'
 
 export default function Login() {

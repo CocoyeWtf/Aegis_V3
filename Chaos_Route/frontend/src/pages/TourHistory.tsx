@@ -56,8 +56,8 @@ export default function TourHistory() {
       label: t('tourHistory.vehicle'),
       width: '160px',
       render: (row) => {
-        const c = contractMap.get(row.contract_id)
-        if (!c) return `#${row.contract_id}`
+        const c = row.contract_id != null ? contractMap.get(row.contract_id) : undefined
+        if (!c) return row.contract_id != null ? `#${row.contract_id}` : '—'
         return c.vehicle_code ? `${c.vehicle_code} — ${c.vehicle_name ?? ''}` : c.code
       },
     },
@@ -65,7 +65,7 @@ export default function TourHistory() {
       key: 'contract_id' as keyof Tour,
       label: t('tourHistory.transporter'),
       width: '140px',
-      render: (row) => contractMap.get(row.contract_id)?.transporter_name ?? '—',
+      render: (row) => (row.contract_id != null ? contractMap.get(row.contract_id)?.transporter_name : undefined) ?? '—',
     },
     {
       key: 'id' as keyof Tour,
