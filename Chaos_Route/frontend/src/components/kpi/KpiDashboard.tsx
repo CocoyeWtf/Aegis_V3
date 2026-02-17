@@ -141,7 +141,8 @@ export function KpiDashboard({ tours }: KpiDashboardProps) {
                 innerRadius={50}
                 outerRadius={90}
                 dataKey="value"
-                label={({ name, percent }: { name: string; percent?: number }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                label={({ name, percent }: any) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
               >
                 {statusData.map((_, index) => (
                   <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />
