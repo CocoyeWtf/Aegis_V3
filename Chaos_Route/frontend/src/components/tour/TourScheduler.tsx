@@ -65,7 +65,7 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
     }
     try {
       const [toursRes, timelineRes] = await Promise.all([
-        api.get<Tour[]>('/tours', { params: { date: selectedDate, base_id: selectedBaseId } }),
+        api.get<Tour[]>('/tours/', { params: { date: selectedDate, base_id: selectedBaseId } }),
         api.get<GanttTour[]>('/tours/timeline', { params: { date: selectedDate, base_id: selectedBaseId } }),
       ])
       setTours(toursRes.data)
@@ -203,6 +203,51 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
     return tour.vehicle_type ?? '—'
   }
 
+  /* Liste des stops d'un tour avec badges reprises / Stop list with pickup badges */
+  const renderStopList = (tour: Tour) => {
+    const sortedStops = [...(tour.stops ?? [])].sort((a, b) => a.sequence_order - b.sequence_order)
+    if (sortedStops.length === 0) return null
+    return (
+      <div className="mt-1 mb-2 space-y-0.5">
+        {sortedStops.map((stop, idx) => {
+          const pdv = pdvMap.get(stop.pdv_id)
+          const hasPickup = stop.pickup_cardboard || stop.pickup_containers || stop.pickup_returns
+          return (
+            <div key={stop.id} className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] pl-2" style={{ color: 'var(--text-muted)' }}>
+              <span className="w-4 text-right font-mono shrink-0" style={{ color: 'var(--text-primary)' }}>{idx + 1}</span>
+              <span className="font-semibold shrink-0" style={{ color: 'var(--text-primary)' }}>
+                {pdv?.code ?? `#${stop.pdv_id}`}
+              </span>
+              <span className="truncate max-w-[120px]">— {pdv?.name ?? ''}</span>
+              <span className="font-bold shrink-0" style={{ color: 'var(--text-primary)' }}>
+                {stop.eqp_count} EQP
+              </span>
+              {hasPickup && (
+                <span className="flex items-center gap-1 ml-auto shrink-0">
+                  {stop.pickup_cardboard && (
+                    <span className="px-1 rounded text-[10px] font-semibold" style={{ backgroundColor: 'rgba(249,115,22,0.15)', color: 'var(--color-primary)' }}>
+                      {t('tourPlanning.pickupCardboard')}
+                    </span>
+                  )}
+                  {stop.pickup_containers && (
+                    <span className="px-1 rounded text-[10px] font-semibold" style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>
+                      {t('tourPlanning.pickupContainers')}
+                    </span>
+                  )}
+                  {stop.pickup_returns && (
+                    <span className="px-1 rounded text-[10px] font-semibold" style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: 'var(--color-danger)' }}>
+                      {t('tourPlanning.pickupReturns')}
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       {/* Barre supérieure: date + base / Top bar */}
@@ -306,6 +351,9 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
                         {getVehicleLabel(tour)} ({tour.capacity_eqp ?? 0} EQP)
                       </span>
                     </div>
+
+                    {/* Liste des stops / Stop list */}
+                    {renderStopList(tour)}
 
                     {/* Sélection contrat / Contract selection */}
                     <div className="flex flex-col gap-1 mb-2">
@@ -449,6 +497,9 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
                       {tourContract.vehicle_code && <span>— {tourContract.vehicle_code}</span>}
                     </div>
                   )}
+
+                  {/* Liste des stops / Stop list */}
+                  {renderStopList(tour)}
 
                   <div className="mt-2 flex justify-end">
                     <button

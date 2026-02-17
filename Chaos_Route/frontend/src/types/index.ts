@@ -105,6 +105,9 @@ export interface TourStop {
   departure_time?: string
   distance_from_previous_km?: number
   duration_from_previous_minutes?: number
+  pickup_cardboard?: boolean
+  pickup_containers?: boolean
+  pickup_returns?: boolean
 }
 
 export interface Tour {

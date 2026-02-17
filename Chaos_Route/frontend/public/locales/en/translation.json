@@ -325,6 +325,10 @@
     "scheduledTours": "Scheduled tours",
     "unscheduledTours": "Tours to schedule",
     "overlapWarning": "Overlap with {{code}} ({{from}} → {{to}})",
+    "pickupCardboard": "Cardboard bales",
+    "pickupContainers": "Containers",
+    "pickupReturns": "Goods return",
+    "pickups": "Pickups",
     "estimatedReturn": "Estimated return",
     "printPlan": {
       "title": "Tour plan",

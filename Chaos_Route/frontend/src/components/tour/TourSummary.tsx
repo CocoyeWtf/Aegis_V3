@@ -34,6 +34,7 @@ interface TourSummaryProps {
   totalCost: number
   onRemoveStop: (pdvId: number) => void
   onReorderStops: (stops: TourStop[]) => void
+  onUpdateStop?: (pdvId: number, data: Partial<TourStop>) => void
   stopTimelines?: StopTimeline[]
   returnTime?: string
   departureTime?: string
@@ -47,6 +48,7 @@ function SortableStopRow({
   pdv,
   timeline,
   onRemove,
+  onUpdate,
   t,
 }: {
   stop: TourStop
@@ -54,6 +56,7 @@ function SortableStopRow({
   pdv: PDV | undefined
   timeline: StopTimeline | undefined
   onRemove: (pdvId: number) => void
+  onUpdate?: (pdvId: number, data: Partial<TourStop>) => void
   t: (key: string) => string
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -116,6 +119,39 @@ function SortableStopRow({
         </button>
       </div>
 
+      {/* Cases à cocher reprises / Pickup checkboxes */}
+      {onUpdate && (
+        <div className="mt-2 ml-10 flex flex-wrap gap-3 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          <label className="flex items-center gap-1 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!!stop.pickup_cardboard}
+              onChange={() => onUpdate(stop.pdv_id, { pickup_cardboard: !stop.pickup_cardboard })}
+              className="accent-[var(--color-primary)] w-3.5 h-3.5"
+            />
+            {t('tourPlanning.pickupCardboard')}
+          </label>
+          <label className="flex items-center gap-1 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!!stop.pickup_containers}
+              onChange={() => onUpdate(stop.pdv_id, { pickup_containers: !stop.pickup_containers })}
+              className="accent-[var(--color-primary)] w-3.5 h-3.5"
+            />
+            {t('tourPlanning.pickupContainers')}
+          </label>
+          <label className="flex items-center gap-1 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!!stop.pickup_returns}
+              onChange={() => onUpdate(stop.pdv_id, { pickup_returns: !stop.pickup_returns })}
+              className="accent-[var(--color-primary)] w-3.5 h-3.5"
+            />
+            {t('tourPlanning.pickupReturns')}
+          </label>
+        </div>
+      )}
+
       {/* Timeline du stop / Stop timeline details */}
       {timeline && (
         <div className="mt-2 ml-10 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
@@ -141,7 +177,7 @@ function SortableStopRow({
 
 export function TourSummary({
   stops, pdvs, vehicleType, capacityEqp, totalEqp, totalKm, totalCost, onRemoveStop, onReorderStops,
-  stopTimelines = [], returnTime, departureTime, totalDurationMinutes = 0,
+  onUpdateStop, stopTimelines = [], returnTime, departureTime, totalDurationMinutes = 0,
 }: TourSummaryProps) {
   const { t } = useTranslation()
   const pdvMap = new Map(pdvs.map((p) => [p.id, p]))
@@ -236,6 +272,7 @@ export function TourSummary({
                   pdv={pdvMap.get(stop.pdv_id)}
                   timeline={timelineMap.get(stop.pdv_id)}
                   onRemove={onRemoveStop}
+                  onUpdate={onUpdateStop}
                   t={t}
                 />
               ))}

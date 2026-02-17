@@ -14,6 +14,9 @@ class TourStopBase(BaseModel):
     departure_time: str | None = None
     distance_from_previous_km: float | None = None
     duration_from_previous_minutes: int | None = None
+    pickup_cardboard: bool = False
+    pickup_containers: bool = False
+    pickup_returns: bool = False
 
 
 class TourStopCreate(TourStopBase):

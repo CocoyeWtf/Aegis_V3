@@ -226,7 +226,7 @@ async def available_contracts_for_tours(
     available = [c for c in all_contracts if c.id not in unavailable_ids]
 
     if vehicle_type:
-        available = [c for c in available if c.vehicle_type and c.vehicle_type.value == vehicle_type]
+        available = [c for c in available if not c.vehicle_type or c.vehicle_type.value == vehicle_type]
 
     return [
         {
@@ -339,6 +339,9 @@ async def create_tour(
             "pdv_id": s.pdv_id,
             "sequence_order": s.sequence_order,
             "eqp_count": s.eqp_count,
+            "pickup_cardboard": s.pickup_cardboard,
+            "pickup_containers": s.pickup_containers,
+            "pickup_returns": s.pickup_returns,
         }
         for s in data.stops
     ]
@@ -387,7 +390,11 @@ async def create_tour(
     await db.flush()
 
     pdv_ids = []
+    # Index des données pickup originales par (pdv_id, seq) / Original pickup data index
+    pickup_index = {(s["pdv_id"], s["sequence_order"]): s for s in stops_input}
+
     for stop_data in enriched_stops:
+        original = pickup_index.get((stop_data["pdv_id"], stop_data["sequence_order"]), {})
         stop = TourStop(
             tour_id=tour.id,
             pdv_id=stop_data["pdv_id"],
@@ -397,6 +404,9 @@ async def create_tour(
             departure_time=stop_data.get("departure_time"),
             distance_from_previous_km=stop_data.get("distance_from_previous_km"),
             duration_from_previous_minutes=stop_data.get("duration_from_previous_minutes"),
+            pickup_cardboard=original.get("pickup_cardboard", False),
+            pickup_containers=original.get("pickup_containers", False),
+            pickup_returns=original.get("pickup_returns", False),
         )
         db.add(stop)
         pdv_ids.append(stop_data["pdv_id"])

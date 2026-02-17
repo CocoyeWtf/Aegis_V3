@@ -11,6 +11,7 @@ interface TourState {
   addStop: (stop: TourStop) => void
   removeStop: (pdvId: number) => void
   reorderStops: (stops: TourStop[]) => void
+  updateStop: (pdvId: number, data: Partial<TourStop>) => void
   setAvailableVolumes: (volumes: Volume[]) => void
   resetTour: () => void
 }
@@ -35,6 +36,13 @@ export const useTourStore = create<TourState>((set) => ({
     })),
 
   reorderStops: (stops) => set({ currentStops: stops }),
+
+  updateStop: (pdvId, data) =>
+    set((state) => ({
+      currentStops: state.currentStops.map((s) =>
+        s.pdv_id === pdvId ? { ...s, ...data } : s
+      ),
+    })),
 
   setAvailableVolumes: (volumes) => set({ availableVolumes: volumes }),
 

@@ -325,6 +325,10 @@
     "scheduledTours": "Rotas agendadas",
     "unscheduledTours": "Rotas a agendar",
     "overlapWarning": "Sobreposição com {{code}} ({{from}} → {{to}})",
+    "pickupCardboard": "Fardos cartão",
+    "pickupContainers": "Contentores",
+    "pickupReturns": "Devol. mercadoria",
+    "pickups": "Recolhas",
     "estimatedReturn": "Retorno estimado",
     "printPlan": {
       "title": "Plano de tours",

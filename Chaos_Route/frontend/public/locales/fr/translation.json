@@ -325,6 +325,10 @@
     "scheduledTours": "Tours planifiés",
     "unscheduledTours": "Tours à planifier",
     "overlapWarning": "Chevauchement avec {{code}} ({{from}} → {{to}})",
+    "pickupCardboard": "Balles carton",
+    "pickupContainers": "Contenants",
+    "pickupReturns": "Retour march.",
+    "pickups": "Reprises",
     "estimatedReturn": "Retour estimé",
     "printPlan": {
       "title": "Plan de tournées",

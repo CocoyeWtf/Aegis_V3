@@ -30,6 +30,9 @@ interface StopDetail {
   unloadMinutes: number
   eqpCount: number
   activity: string
+  pickupCardboard: boolean
+  pickupContainers: boolean
+  pickupReturns: boolean
 }
 
 interface TourDetail {
@@ -104,6 +107,9 @@ function computeTourDetails(
           unloadMinutes: unloadMin,
           eqpCount: stop.eqp_count,
           activity,
+          pickupCardboard: !!stop.pickup_cardboard,
+          pickupContainers: !!stop.pickup_containers,
+          pickupReturns: !!stop.pickup_returns,
         })
 
         prevType = 'PDV'
@@ -158,6 +164,9 @@ function exportToExcel(tourDetails: TourDetail[], date: string, t: (key: string)
         [t('tourPlanning.printPlan.cityCol')]: stop.city,
         [t('tourPlanning.printPlan.activity')]: stop.activity,
         'EQP': stop.eqpCount,
+        [t('tourPlanning.pickupCardboard')]: stop.pickupCardboard ? '✓' : '',
+        [t('tourPlanning.pickupContainers')]: stop.pickupContainers ? '✓' : '',
+        [t('tourPlanning.pickupReturns')]: stop.pickupReturns ? '✓' : '',
         [`${t('tourPlanning.printPlan.travel')} (min)`]: stop.travelMinutes,
         [`${t('tourPlanning.printPlan.travel')} (km)`]: stop.distanceKm,
         [t('tourPlanning.arrivalAt')]: stop.arrivalTime,
@@ -173,7 +182,8 @@ function exportToExcel(tourDetails: TourDetail[], date: string, t: (key: string)
   ws['!cols'] = [
     { wch: 14 }, { wch: 12 }, { wch: 20 }, { wch: 18 }, { wch: 10 },
     { wch: 4 }, { wch: 10 }, { wch: 24 }, { wch: 14 }, { wch: 8 },
-    { wch: 5 }, { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 12 },
+    { wch: 5 }, { wch: 14 }, { wch: 12 }, { wch: 14 },
+    { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 12 },
     { wch: 8 }, { wch: 8 }, { wch: 8 },
   ]
   /* Figer la première ligne / Freeze header row */
@@ -296,7 +306,7 @@ export function TourPrintPlan({ tours, pdvs, contracts, bases, distances, volume
                 <thead>
                   <tr className="print-tour-header" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                     <th
-                      colSpan={9}
+                      colSpan={10}
                       style={{
                         textAlign: 'left',
                         padding: '8px 12px',
@@ -318,7 +328,7 @@ export function TourPrintPlan({ tours, pdvs, contracts, bases, distances, volume
                   {/* Ligne infos contrat / Contract info row */}
                   <tr style={{ backgroundColor: 'var(--bg-secondary)' }}>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       style={{
                         padding: '4px 12px',
                         fontSize: '11px',
@@ -346,6 +356,7 @@ export function TourPrintPlan({ tours, pdvs, contracts, bases, distances, volume
                     <th style={{ ...thStyle, textAlign: 'left' }}>{t('tourPlanning.printPlan.cityCol')}</th>
                     <th style={thStyle}>{t('tourPlanning.printPlan.activity')}</th>
                     <th style={thStyle}>EQP</th>
+                    <th style={thStyle}>{t('tourPlanning.pickups')}</th>
                     <th style={thStyle}>{t('tourPlanning.printPlan.travel')}</th>
                     <th style={thStyle}>{t('tourPlanning.arrivalAt')}</th>
                     <th style={thStyle}>{t('tourPlanning.unloadTime')}</th>
@@ -356,7 +367,7 @@ export function TourPrintPlan({ tours, pdvs, contracts, bases, distances, volume
                   {/* Départ base / Base departure */}
                   <tr>
                     <td style={{ ...tdStyle, fontWeight: 'bold', textAlign: 'center' }}>B</td>
-                    <td colSpan={5} style={{ ...tdStyle, fontStyle: 'italic' }}>
+                    <td colSpan={6} style={{ ...tdStyle, fontStyle: 'italic' }}>
                       {t('tourPlanning.printPlan.departureBase')} — {detail.baseName}
                     </td>
                     <td style={tdStyle} />
@@ -380,6 +391,13 @@ export function TourPrintPlan({ tours, pdvs, contracts, bases, distances, volume
                       <td style={{ ...tdStyle, textAlign: 'left', color: 'var(--text-muted)' }}>{stop.city}</td>
                       <td style={{ ...tdStyle, textAlign: 'center' }}>{stop.activity}</td>
                       <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>{stop.eqpCount}</td>
+                      <td style={{ ...tdStyle, textAlign: 'center', fontSize: '10px', color: 'var(--text-muted)' }}>
+                        {[
+                          stop.pickupCardboard && t('tourPlanning.pickupCardboard'),
+                          stop.pickupContainers && t('tourPlanning.pickupContainers'),
+                          stop.pickupReturns && t('tourPlanning.pickupReturns'),
+                        ].filter(Boolean).join(', ')}
+                      </td>
                       <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-muted)' }}>
                         {stop.travelMinutes}′ / {stop.distanceKm}km
                       </td>
@@ -394,7 +412,7 @@ export function TourPrintPlan({ tours, pdvs, contracts, bases, distances, volume
                   {/* Retour base / Return to base */}
                   <tr>
                     <td style={{ ...tdStyle, fontWeight: 'bold', textAlign: 'center' }}>B</td>
-                    <td colSpan={5} style={{ ...tdStyle, fontStyle: 'italic' }}>
+                    <td colSpan={6} style={{ ...tdStyle, fontStyle: 'italic' }}>
                       {t('tourPlanning.printPlan.returnBase')} — {detail.baseName}
                     </td>
                     <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>
@@ -406,7 +424,7 @@ export function TourPrintPlan({ tours, pdvs, contracts, bases, distances, volume
 
                   {/* Ligne totaux / Totals row */}
                   <tr className="print-tour-header" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                    <td colSpan={4} style={{ ...tdStyle, fontWeight: 'bold', textAlign: 'right' }}>
+                    <td colSpan={5} style={{ ...tdStyle, fontWeight: 'bold', textAlign: 'right' }}>
                       {t('tourPlanning.totalDuration')}: {formatDuration(detail.totalDuration)}
                     </td>
                     <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>{detail.totalEqp}</td>

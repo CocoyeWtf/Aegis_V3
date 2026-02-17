@@ -34,6 +34,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     addStop,
     removeStop,
     reorderStops,
+    updateStop,
     resetTour,
     totalEqp,
   } = useTour()
@@ -251,6 +252,9 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
           pdv_id: s.pdv_id,
           sequence_order: i + 1,
           eqp_count: s.eqp_count,
+          pickup_cardboard: s.pickup_cardboard ?? false,
+          pickup_containers: s.pickup_containers ?? false,
+          pickup_returns: s.pickup_returns ?? false,
         })) as TourStop[],
       })
       resetTour()
@@ -432,6 +436,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                               totalCost={estimatedCost}
                               onRemoveStop={removeStop}
                               onReorderStops={reorderStops}
+                              onUpdateStop={updateStop}
                             />
                           </div>
                           <TourValidation
@@ -488,6 +493,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
               totalCost={estimatedCost}
               onRemoveStop={removeStop}
               onReorderStops={reorderStops}
+              onUpdateStop={updateStop}
             />
             <TourValidation
               stops={currentStops}

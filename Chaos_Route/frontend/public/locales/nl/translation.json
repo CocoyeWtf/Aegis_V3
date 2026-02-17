@@ -325,6 +325,10 @@
     "scheduledTours": "Geplande routes",
     "unscheduledTours": "Te plannen routes",
     "overlapWarning": "Overlap met {{code}} ({{from}} → {{to}})",
+    "pickupCardboard": "Kartonbalen",
+    "pickupContainers": "Containers",
+    "pickupReturns": "Retourgoederen",
+    "pickups": "Retournames",
     "estimatedReturn": "Geschatte terugkeer",
     "printPlan": {
       "title": "Tourplan",

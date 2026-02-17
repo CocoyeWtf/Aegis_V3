@@ -1,6 +1,6 @@
 """Modèle Arrêt de tournée / Tour stop model."""
 
-from sqlalchemy import ForeignKey, Integer, Numeric, String
+from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -18,6 +18,9 @@ class TourStop(Base):
     departure_time: Mapped[str | None] = mapped_column(String(5))  # HH:MM
     distance_from_previous_km: Mapped[float | None] = mapped_column(Numeric(10, 2))
     duration_from_previous_minutes: Mapped[int | None] = mapped_column(Integer)
+    pickup_cardboard: Mapped[bool] = mapped_column(Boolean, default=False)
+    pickup_containers: Mapped[bool] = mapped_column(Boolean, default=False)
+    pickup_returns: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Relations
     tour: Mapped["Tour"] = relationship(back_populates="stops")
