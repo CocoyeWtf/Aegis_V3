@@ -220,7 +220,7 @@ export function TourSummary({
       )}
 
       {/* Liste des arrêts avec DnD / Stops list with drag and drop */}
-      <div className="flex-1 overflow-y-auto p-2" style={{ maxHeight: '400px' }}>
+      <div className="flex-1 overflow-y-auto p-2">
         {stops.length === 0 ? (
           <p className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>
             {t('tourPlanning.addVolumesHint')}

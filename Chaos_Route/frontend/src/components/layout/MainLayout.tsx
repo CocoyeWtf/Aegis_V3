@@ -1,5 +1,6 @@
 /* Layout principal / Main layout wrapper */
 
+import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Sidebar } from './Sidebar'
@@ -9,6 +10,16 @@ import { useAppStore } from '../../stores/useAppStore'
 export function MainLayout() {
   const { t } = useTranslation()
   const { isFullscreen, exitFullscreen } = useAppStore()
+
+  /* Synchronise le state Zustand avec l'état réel du navigateur / Sync Zustand state with browser fullscreen state */
+  useEffect(() => {
+    const handler = () => {
+      const fs = !!document.fullscreenElement
+      useAppStore.setState({ isFullscreen: fs })
+    }
+    document.addEventListener('fullscreenchange', handler)
+    return () => document.removeEventListener('fullscreenchange', handler)
+  }, [])
 
   return (
     <div className="flex h-screen overflow-hidden">

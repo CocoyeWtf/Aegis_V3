@@ -59,6 +59,14 @@
     "tourPlanning": "Routeplanning",
     "tourHistory": "Routegeschiedenis"
   },
+  "map": {
+    "routes": "Routes",
+    "pdvLegend": "PDV-status",
+    "pdvNoVolume": "Geen volume",
+    "pdvUnassigned": "Niet toegewezen volume",
+    "pdvAssigned": "Toegewezen volume",
+    "pdvSelected": "Geselecteerd (tour)"
+  },
   "dashboard": {
     "title": "Dashboard",
     "tours": "Routes vandaag",

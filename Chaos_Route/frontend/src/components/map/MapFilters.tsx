@@ -1,25 +1,76 @@
-/* Filtres de la carte / Map filter checkboxes */
+/* Filtres & légende de la carte / Map filter checkboxes & legend */
 
 import { useTranslation } from 'react-i18next'
 import { useMapStore } from '../../stores/useMapStore'
+
+/* Entrée de couche avec checkbox / Layer entry with checkbox */
+interface LayerEntry {
+  key: 'showBases' | 'showPdvs' | 'showSuppliers' | 'showRoutes'
+  label: string
+  checked: boolean
+  color: string
+  shape: 'circle' | 'square' | 'line'
+}
+
+/* Entrée de légende (indicateur seul) / Legend-only entry */
+interface LegendEntry {
+  label: string
+  color: string
+  shape: 'circle' | 'square' | 'line'
+  size?: number
+}
+
+/* Pastille de forme / Shape swatch */
+function Swatch({ color, shape, size = 10 }: { color: string; shape: string; size?: number }) {
+  if (shape === 'line') {
+    return (
+      <span className="inline-flex items-center" style={{ width: 16, height: size }}>
+        <span style={{ width: 16, height: 0, borderTop: `2px dashed ${color}` }} />
+      </span>
+    )
+  }
+  const borderRadius = shape === 'square' ? '2px' : '50%'
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        width: size,
+        height: size,
+        backgroundColor: color,
+        borderRadius,
+        border: '1.5px solid #fff',
+        boxShadow: '0 0 2px rgba(0,0,0,.3)',
+      }}
+    />
+  )
+}
 
 export function MapFilters() {
   const { t } = useTranslation()
   const { showBases, showPdvs, showSuppliers, showRoutes, toggleLayer } = useMapStore()
 
-  const filters = [
-    { key: 'showBases' as const, label: t('nav.bases'), checked: showBases, color: '#f97316' },
-    { key: 'showPdvs' as const, label: t('nav.pdvs'), checked: showPdvs, color: '#22c55e' },
-    { key: 'showSuppliers' as const, label: t('nav.suppliers'), checked: showSuppliers, color: '#8b5cf6' },
-    { key: 'showRoutes' as const, label: 'Routes', checked: showRoutes, color: '#ef4444' },
+  const layers: LayerEntry[] = [
+    { key: 'showBases', label: t('nav.bases'), checked: showBases, color: '#f97316', shape: 'square' },
+    { key: 'showPdvs', label: t('nav.pdvs'), checked: showPdvs, color: '#22c55e', shape: 'circle' },
+    { key: 'showSuppliers', label: t('nav.suppliers'), checked: showSuppliers, color: '#8b5cf6', shape: 'square' },
+    { key: 'showRoutes', label: t('map.routes'), checked: showRoutes, color: '#f97316', shape: 'line' },
+  ]
+
+  /* Sous-légende PDV par statut volume / PDV sub-legend by volume status */
+  const pdvLegend: LegendEntry[] = [
+    { label: t('map.pdvNoVolume'), color: '#9ca3af', shape: 'circle', size: 8 },
+    { label: t('map.pdvUnassigned'), color: '#ef4444', shape: 'circle', size: 10 },
+    { label: t('map.pdvAssigned'), color: '#22c55e', shape: 'circle', size: 10 },
+    { label: t('map.pdvSelected'), color: '#f97316', shape: 'circle', size: 12 },
   ]
 
   return (
     <div
       className="absolute top-3 right-3 z-[1000] rounded-lg p-3 shadow-lg"
-      style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)', border: '1px solid var(--border-color)' }}
+      style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}
     >
-      {filters.map((f) => (
+      {/* Couches / Layers */}
+      {layers.map((f) => (
         <label key={f.key} className="flex items-center gap-2 cursor-pointer mb-1 last:mb-0">
           <input
             type="checkbox"
@@ -27,13 +78,29 @@ export function MapFilters() {
             onChange={() => toggleLayer(f.key)}
             className="w-3.5 h-3.5 rounded accent-orange-500"
           />
-          <span
-            className="w-2.5 h-2.5 rounded-full"
-            style={{ backgroundColor: f.color }}
-          />
+          <Swatch color={f.color} shape={f.shape} />
           <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{f.label}</span>
         </label>
       ))}
+
+      {/* Sous-légende PDV / PDV sub-legend */}
+      {showPdvs && (
+        <>
+          <div
+            className="my-1.5"
+            style={{ borderTop: '1px solid var(--border-color)' }}
+          />
+          <div className="text-[10px] font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>
+            {t('map.pdvLegend')}
+          </div>
+          {pdvLegend.map((entry) => (
+            <div key={entry.label} className="flex items-center gap-2 mb-0.5 last:mb-0 pl-5">
+              <Swatch color={entry.color} shape={entry.shape} size={entry.size} />
+              <span className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>{entry.label}</span>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   )
 }

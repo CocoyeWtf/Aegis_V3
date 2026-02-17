@@ -59,6 +59,14 @@
     "tourPlanning": "Planeamento",
     "tourHistory": "Histórico de rotas"
   },
+  "map": {
+    "routes": "Rotas",
+    "pdvLegend": "Estado PDV",
+    "pdvNoVolume": "Sem volume",
+    "pdvUnassigned": "Volume não atribuído",
+    "pdvAssigned": "Volume atribuído",
+    "pdvSelected": "Selecionado (tour)"
+  },
   "dashboard": {
     "title": "Painel",
     "tours": "Rotas hoje",

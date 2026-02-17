@@ -24,15 +24,29 @@ function MapSync() {
   return null
 }
 
+/* Invalide la taille de la carte quand le panneau est redimensionné / Invalidate map size on panel resize */
+function MapResizeHandler({ resizeSignal }: { resizeSignal: number }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (resizeSignal === 0) return
+    const timer = setTimeout(() => map.invalidateSize(), 50)
+    return () => clearTimeout(timer)
+  }, [map, resizeSignal])
+
+  return null
+}
+
 interface MapViewProps {
   onPdvClick?: (pdv: PDV) => void
   selectedPdvIds?: Set<number>
   pdvVolumeStatusMap?: Map<number, PdvVolumeStatus>
   routeCoords?: [number, number][]
   height?: string
+  resizeSignal?: number
 }
 
-export function MapView({ onPdvClick, selectedPdvIds, pdvVolumeStatusMap, routeCoords, height = '100%' }: MapViewProps) {
+export function MapView({ onPdvClick, selectedPdvIds, pdvVolumeStatusMap, routeCoords, height = '100%', resizeSignal = 0 }: MapViewProps) {
   const { center, zoom, showBases, showPdvs, showSuppliers } = useMapStore()
   const { selectedRegionId } = useAppStore()
 
@@ -58,6 +72,7 @@ export function MapView({ onPdvClick, selectedPdvIds, pdvVolumeStatusMap, routeC
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <MapSync />
+        <MapResizeHandler resizeSignal={resizeSignal} />
 
         {showBases && bases.map((base) =>
           base.latitude && base.longitude ? (

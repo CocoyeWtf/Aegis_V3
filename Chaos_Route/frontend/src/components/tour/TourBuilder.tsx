@@ -1,14 +1,16 @@
 /* Constructeur de tour (Phase Construction) / Tour builder (Construction phase - vehicle type first, no contract) */
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useApi } from '../../hooks/useApi'
 import { useTour } from '../../hooks/useTour'
 import { useAppStore } from '../../stores/useAppStore'
+import { Group, Panel, useDefaultLayout } from 'react-resizable-panels'
 import { VehicleSelector } from './VehicleSelector'
 import { VolumePanel } from './VolumePanel'
 import { TourSummary } from './TourSummary'
 import { TourValidation } from './TourValidation'
+import { ResizeHandle } from './ResizeHandle'
 import { MapView } from '../map/MapView'
 import { create } from '../../services/api'
 import api from '../../services/api'
@@ -41,6 +43,12 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   const [saving, setSaving] = useState(false)
   const [splitDialog, setSplitDialog] = useState<{ volume: Volume; maxEqp: number } | null>(null)
   const [splitEqp, setSplitEqp] = useState(0)
+  const [mapResizeSignal, setMapResizeSignal] = useState(0)
+  const handlePanelLayout = useCallback(() => setMapResizeSignal((n) => n + 1), [])
+
+  /* Persistence localStorage des tailles / localStorage persistence for panel sizes */
+  const outerLayout = useDefaultLayout({ id: 'tour-h' })
+  const innerLayout = useDefaultLayout({ id: 'tour-inner' })
 
   const regionParams = selectedRegionId ? { region_id: selectedRegionId } : undefined
   const { data: allVolumes, refetch: refetchVolumes } = useApi<Volume>('/volumes', regionParams)
@@ -364,52 +372,123 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         </div>
       )}
 
-      {/* Layout principal: carte (50%) + panneaux (50%) / Main layout: map (50%) + panels (50%) */}
+      {/* Layout principal redimensionnable / Main resizable layout: map | volumes | tour+validation */}
       {selectedVehicleType && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ minHeight: 'calc(100vh - 320px)' }}>
-          {/* Carte / Map */}
-          <div className="min-h-[500px]">
-            <MapView
-              onPdvClick={handlePdvClick}
-              selectedPdvIds={assignedPdvIds}
-              pdvVolumeStatusMap={pdvVolumeStatusMap}
-              routeCoords={routeCoords}
-              height="100%"
-            />
+        <>
+          {/* Desktop: panneaux redimensionnables / Desktop: resizable panels */}
+          <div className="hidden lg:block" style={{ height: 'calc(100vh - 320px)' }}>
+            <Group orientation="horizontal" defaultLayout={outerLayout.defaultLayout} onLayoutChange={(...args) => { outerLayout.onLayoutChange(...args); handlePanelLayout() }} onLayoutChanged={outerLayout.onLayoutChanged}>
+              {/* Carte / Map */}
+              <Panel defaultSize={40} minSize={25}>
+                <div className="h-full">
+                  <MapView
+                    onPdvClick={handlePdvClick}
+                    selectedPdvIds={assignedPdvIds}
+                    pdvVolumeStatusMap={pdvVolumeStatusMap}
+                    routeCoords={routeCoords}
+                    height="100%"
+                    resizeSignal={mapResizeSignal}
+                  />
+                </div>
+              </Panel>
+
+              <ResizeHandle id="handle-map" />
+
+              {/* Panneaux droits / Right panels */}
+              <Panel defaultSize={60} minSize={30}>
+                <div className="flex flex-col h-full gap-2">
+                  <div className="flex-1 min-h-0">
+                    <Group orientation="horizontal" defaultLayout={innerLayout.defaultLayout} onLayoutChanged={innerLayout.onLayoutChanged}>
+                      {/* Volumes disponibles / Available volumes */}
+                      <Panel defaultSize={50} minSize={25}>
+                        <div className="h-full overflow-y-auto">
+                          <VolumePanel
+                            volumes={filteredVolumes}
+                            pdvs={pdvs}
+                            assignedPdvIds={assignedPdvIds}
+                            onAddVolume={handleAddVolume}
+                            vehicleCapacity={capacityEqp}
+                            currentEqp={totalEqp}
+                            lastStopPdvId={lastStopPdvId}
+                            baseId={selectedBaseId}
+                            distanceIndex={distanceIndex}
+                          />
+                        </div>
+                      </Panel>
+
+                      <ResizeHandle id="handle-inner" />
+
+                      {/* Résumé + validation / Tour summary + validation */}
+                      <Panel defaultSize={50} minSize={25}>
+                        <div className="flex flex-col h-full gap-2">
+                          <div className="flex-1 min-h-0 overflow-y-auto">
+                            <TourSummary
+                              stops={currentStops}
+                              pdvs={pdvs}
+                              vehicleType={selectedVehicleType}
+                              capacityEqp={capacityEqp}
+                              totalEqp={totalEqp}
+                              totalKm={totalKm}
+                              totalCost={estimatedCost}
+                              onRemoveStop={removeStop}
+                              onReorderStops={reorderStops}
+                            />
+                          </div>
+                          <TourValidation
+                            stops={currentStops}
+                            vehicleType={selectedVehicleType}
+                            capacityEqp={capacityEqp}
+                            totalEqp={totalEqp}
+                            onValidate={handleValidate}
+                            onReset={handleReset}
+                          />
+                          {saving && (
+                            <p className="text-xs text-center" style={{ color: 'var(--color-primary)' }}>
+                              {t('common.loading')}
+                            </p>
+                          )}
+                        </div>
+                      </Panel>
+                    </Group>
+                  </div>
+                </div>
+              </Panel>
+            </Group>
           </div>
 
-          {/* Panneaux droits: volumes + résumé + validation / Right panels */}
-          <div className="grid grid-rows-[1fr_auto] gap-4 overflow-hidden">
-            <div className="grid grid-cols-2 gap-4 min-h-0 overflow-hidden">
-              <div className="overflow-y-auto">
-                <VolumePanel
-                  volumes={filteredVolumes}
-                  pdvs={pdvs}
-                  assignedPdvIds={assignedPdvIds}
-                  onAddVolume={handleAddVolume}
-                  vehicleCapacity={capacityEqp}
-                  currentEqp={totalEqp}
-                  lastStopPdvId={lastStopPdvId}
-                  baseId={selectedBaseId}
-                  distanceIndex={distanceIndex}
-                />
-              </div>
-              <div className="overflow-y-auto">
-                <TourSummary
-                  stops={currentStops}
-                  pdvs={pdvs}
-                  vehicleType={selectedVehicleType}
-                  capacityEqp={capacityEqp}
-                  totalEqp={totalEqp}
-                  totalKm={totalKm}
-                  totalCost={estimatedCost}
-                  onRemoveStop={removeStop}
-                  onReorderStops={reorderStops}
-                />
-              </div>
+          {/* Mobile: layout empilé classique / Mobile: stacked fallback */}
+          <div className="lg:hidden space-y-4">
+            <div className="min-h-[400px]">
+              <MapView
+                onPdvClick={handlePdvClick}
+                selectedPdvIds={assignedPdvIds}
+                pdvVolumeStatusMap={pdvVolumeStatusMap}
+                routeCoords={routeCoords}
+                height="400px"
+              />
             </div>
-
-            {/* Validation */}
+            <VolumePanel
+              volumes={filteredVolumes}
+              pdvs={pdvs}
+              assignedPdvIds={assignedPdvIds}
+              onAddVolume={handleAddVolume}
+              vehicleCapacity={capacityEqp}
+              currentEqp={totalEqp}
+              lastStopPdvId={lastStopPdvId}
+              baseId={selectedBaseId}
+              distanceIndex={distanceIndex}
+            />
+            <TourSummary
+              stops={currentStops}
+              pdvs={pdvs}
+              vehicleType={selectedVehicleType}
+              capacityEqp={capacityEqp}
+              totalEqp={totalEqp}
+              totalKm={totalKm}
+              totalCost={estimatedCost}
+              onRemoveStop={removeStop}
+              onReorderStops={reorderStops}
+            />
             <TourValidation
               stops={currentStops}
               vehicleType={selectedVehicleType}
@@ -424,7 +503,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
               </p>
             )}
           </div>
-        </div>
+        </>
       )}
 
       {/* Dialog de fractionnement / Split volume dialog */}

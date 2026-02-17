@@ -59,6 +59,14 @@
     "tourPlanning": "Planification",
     "tourHistory": "Historique tours"
   },
+  "map": {
+    "routes": "Routes",
+    "pdvLegend": "Statut PDV",
+    "pdvNoVolume": "Sans volume",
+    "pdvUnassigned": "Volume non affecté",
+    "pdvAssigned": "Volume affecté",
+    "pdvSelected": "Sélectionné (tour)"
+  },
   "dashboard": {
     "title": "Tableau de bord",
     "tours": "Tours aujourd'hui",

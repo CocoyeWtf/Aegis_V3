@@ -37,6 +37,16 @@ export const useAppStore = create<AppState>((set) => ({
   setSelectedCountry: (id) => set({ selectedCountryId: id, selectedRegionId: null }),
   setSelectedRegion: (id) => set({ selectedRegionId: id }),
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
-  toggleFullscreen: () => set((state) => ({ isFullscreen: !state.isFullscreen })),
-  exitFullscreen: () => set({ isFullscreen: false }),
+  toggleFullscreen: () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {})
+    } else {
+      document.exitFullscreen().catch(() => {})
+    }
+  },
+  exitFullscreen: () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {})
+    }
+  },
 }))

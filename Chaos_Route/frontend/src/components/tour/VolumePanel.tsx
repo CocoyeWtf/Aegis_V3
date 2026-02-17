@@ -99,7 +99,7 @@ export function VolumePanel({
         />
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2" style={{ maxHeight: '500px' }}>
+      <div className="flex-1 overflow-y-auto p-2">
         {sortedVolumes.map((vol) => {
           const pdv = pdvMap.get(vol.pdv_id)
           const assigned = assignedPdvIds.has(vol.pdv_id)

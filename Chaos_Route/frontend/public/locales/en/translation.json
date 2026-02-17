@@ -59,6 +59,14 @@
     "tourPlanning": "Tour planning",
     "tourHistory": "Tour history"
   },
+  "map": {
+    "routes": "Routes",
+    "pdvLegend": "PDV status",
+    "pdvNoVolume": "No volume",
+    "pdvUnassigned": "Unassigned volume",
+    "pdvAssigned": "Assigned volume",
+    "pdvSelected": "Selected (tour)"
+  },
   "dashboard": {
     "title": "Dashboard",
     "tours": "Tours today",
