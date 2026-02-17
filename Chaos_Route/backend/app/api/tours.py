@@ -17,7 +17,7 @@ from app.models.tour_stop import TourStop
 from app.models.volume import Volume
 from app.models.base_logistics import BaseLogistics
 from app.models.user import User
-from app.schemas.tour import TourCreate, TourRead, TourSchedule, TourUpdate
+from app.schemas.tour import TourCreate, TourGateUpdate, TourOperationsUpdate, TourRead, TourSchedule, TourUpdate
 from app.api.deps import require_permission, get_user_region_ids
 
 router = APIRouter()
@@ -553,6 +553,147 @@ async def unschedule_tour(
         select(Tour).where(Tour.id == tour.id).options(selectinload(Tour.stops))
     )
     return result.scalar_one()
+
+
+# =========================================================================
+# Endpoints opérationnels / Operational endpoints
+# =========================================================================
+
+@router.put("/{tour_id}/operations", response_model=TourRead)
+async def update_tour_operations(
+    tour_id: int,
+    data: TourOperationsUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("operations", "update")),
+):
+    """Mise à jour exploitant : chauffeur, heures, remarques / Operations update: driver, times, remarks."""
+    result = await db.execute(
+        select(Tour).where(Tour.id == tour_id).options(selectinload(Tour.stops))
+    )
+    tour = result.scalar_one_or_none()
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found")
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(tour, key, value)
+    await db.flush()
+    result = await db.execute(
+        select(Tour).where(Tour.id == tour.id).options(selectinload(Tour.stops))
+    )
+    return result.scalar_one()
+
+
+@router.put("/{tour_id}/gate", response_model=TourRead)
+async def update_tour_gate(
+    tour_id: int,
+    data: TourGateUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("guard-post", "update")),
+):
+    """Mise à jour poste de garde : barrière sortie/entrée / Gate update: barrier exit/entry."""
+    result = await db.execute(
+        select(Tour).where(Tour.id == tour_id).options(selectinload(Tour.stops))
+    )
+    tour = result.scalar_one_or_none()
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found")
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(tour, key, value)
+    await db.flush()
+    result = await db.execute(
+        select(Tour).where(Tour.id == tour.id).options(selectinload(Tour.stops))
+    )
+    return result.scalar_one()
+
+
+@router.get("/{tour_id}/waybill")
+async def get_tour_waybill(
+    tour_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("operations", "read")),
+):
+    """Données lettre de voiture CMR / Waybill data (tour + base + contract + PDVs + volumes)."""
+    result = await db.execute(
+        select(Tour).where(Tour.id == tour_id).options(selectinload(Tour.stops))
+    )
+    tour = result.scalar_one_or_none()
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found")
+
+    base = await db.get(BaseLogistics, tour.base_id)
+    contract = await db.get(Contract, tour.contract_id) if tour.contract_id else None
+
+    # Charger PDVs et volumes des stops / Load PDVs and volumes for stops
+    pdv_ids = [s.pdv_id for s in tour.stops]
+    pdvs_map: dict[int, PDV] = {}
+    if pdv_ids:
+        pdv_result = await db.execute(select(PDV).where(PDV.id.in_(pdv_ids)))
+        for p in pdv_result.scalars().all():
+            pdvs_map[p.id] = p
+
+    volumes_map: dict[int, list[Volume]] = {}
+    if pdv_ids:
+        vol_result = await db.execute(
+            select(Volume).where(Volume.tour_id == tour.id)
+        )
+        for v in vol_result.scalars().all():
+            volumes_map.setdefault(v.pdv_id, []).append(v)
+
+    sorted_stops = sorted(tour.stops, key=lambda s: s.sequence_order)
+    stops_data = []
+    total_eqp = 0
+    total_weight = 0.0
+    for stop in sorted_stops:
+        pdv = pdvs_map.get(stop.pdv_id)
+        vols = volumes_map.get(stop.pdv_id, [])
+        weight = sum(float(v.weight_kg or 0) for v in vols)
+        temp_classes = list({v.temperature_class for v in vols if v.temperature_class})
+        total_eqp += stop.eqp_count
+        total_weight += weight
+        stops_data.append({
+            "sequence": stop.sequence_order,
+            "pdv_code": pdv.code if pdv else f"#{stop.pdv_id}",
+            "pdv_name": pdv.name if pdv else "",
+            "address": pdv.address if pdv else "",
+            "postal_code": pdv.postal_code if pdv else "",
+            "city": pdv.city if pdv else "",
+            "eqp_count": stop.eqp_count,
+            "weight_kg": round(weight, 2),
+            "temperature_classes": temp_classes,
+            "arrival_time": stop.arrival_time,
+            "departure_time": stop.departure_time,
+            "pickup_cardboard": getattr(stop, "pickup_cardboard", False),
+            "pickup_containers": getattr(stop, "pickup_containers", False),
+            "pickup_returns": getattr(stop, "pickup_returns", False),
+        })
+
+    return {
+        "tour_id": tour.id,
+        "tour_code": tour.code,
+        "date": tour.date,
+        "departure_time": tour.departure_time,
+        "return_time": tour.return_time,
+        "driver_name": tour.driver_name,
+        "remarks": tour.remarks,
+        "base": {
+            "code": base.code if base else "",
+            "name": base.name if base else "",
+            "address": base.address if base else "",
+            "postal_code": base.postal_code if base else "",
+            "city": base.city if base else "",
+        } if base else None,
+        "contract": {
+            "code": contract.code,
+            "transporter_name": contract.transporter_name,
+            "vehicle_code": contract.vehicle_code,
+            "vehicle_name": contract.vehicle_name,
+            "temperature_type": contract.temperature_type.value if contract.temperature_type else None,
+            "vehicle_type": contract.vehicle_type.value if contract.vehicle_type else None,
+            "capacity_weight_kg": contract.capacity_weight_kg,
+        } if contract else None,
+        "stops": stops_data,
+        "total_eqp": total_eqp,
+        "total_weight_kg": round(total_weight, 2),
+    }
 
 
 @router.delete("/{tour_id}", status_code=204)

@@ -43,6 +43,12 @@ class TourBase(BaseModel):
     total_cost: float | None = None
     status: TourStatus = TourStatus.DRAFT
     base_id: int
+    driver_name: str | None = None
+    driver_arrival_time: str | None = None
+    loading_end_time: str | None = None
+    barrier_exit_time: str | None = None
+    barrier_entry_time: str | None = None
+    remarks: str | None = None
 
 
 class TourCreate(TourBase):
@@ -63,6 +69,26 @@ class TourUpdate(BaseModel):
     total_cost: float | None = None
     status: TourStatus | None = None
     base_id: int | None = None
+    driver_name: str | None = None
+    driver_arrival_time: str | None = None
+    loading_end_time: str | None = None
+    barrier_exit_time: str | None = None
+    barrier_entry_time: str | None = None
+    remarks: str | None = None
+
+
+class TourOperationsUpdate(BaseModel):
+    """Mise à jour exploitant / Operations update (driver, loading, remarks)."""
+    driver_name: str | None = None
+    driver_arrival_time: str | None = None
+    loading_end_time: str | None = None
+    remarks: str | None = None
+
+
+class TourGateUpdate(BaseModel):
+    """Mise à jour poste de garde / Gate update (barrier times)."""
+    barrier_exit_time: str | None = None
+    barrier_entry_time: str | None = None
 
 
 class TourSchedule(BaseModel):

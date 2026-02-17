@@ -25,6 +25,8 @@ RESOURCES = [
     "parameters",
     "tour-planning",
     "tour-history",
+    "operations",
+    "guard-post",
     "imports-exports",
     "users",
     "roles",

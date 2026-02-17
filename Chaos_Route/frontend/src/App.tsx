@@ -19,6 +19,8 @@ const BaseActivityManagement = lazy(() => import('./pages/BaseActivityManagement
 const ParameterSettings = lazy(() => import('./pages/ParameterSettings'))
 const TourPlanning = lazy(() => import('./pages/TourPlanning'))
 const TourHistory = lazy(() => import('./pages/TourHistory'))
+const Operations = lazy(() => import('./pages/Operations'))
+const GuardPost = lazy(() => import('./pages/GuardPost'))
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'))
 const RoleManagement = lazy(() => import('./pages/admin/RoleManagement'))
 const Help = lazy(() => import('./pages/Help'))
@@ -50,6 +52,8 @@ export default function App() {
             <Route path="/parameters" element={<ParameterSettings />} />
             <Route path="/tour-planning" element={<TourPlanning />} />
             <Route path="/tour-history" element={<TourHistory />} />
+            <Route path="/operations" element={<Operations />} />
+            <Route path="/guard-post" element={<GuardPost />} />
             <Route path="/admin/users" element={<UserManagement />} />
             <Route path="/admin/roles" element={<RoleManagement />} />
             <Route path="/help" element={<Help />} />

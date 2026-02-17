@@ -2,7 +2,7 @@
 
 import enum
 
-from sqlalchemy import Enum, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Enum, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -34,6 +34,14 @@ class Tour(Base):
     total_cost: Mapped[float | None] = mapped_column(Numeric(12, 2))
     status: Mapped[TourStatus] = mapped_column(Enum(TourStatus), default=TourStatus.DRAFT)
     base_id: Mapped[int] = mapped_column(ForeignKey("bases_logistics.id"), nullable=False)
+
+    # Champs opérationnels / Operational fields
+    driver_name: Mapped[str | None] = mapped_column(String(100))
+    driver_arrival_time: Mapped[str | None] = mapped_column(String(5))  # HH:MM
+    loading_end_time: Mapped[str | None] = mapped_column(String(5))     # HH:MM
+    barrier_exit_time: Mapped[str | None] = mapped_column(String(5))    # HH:MM
+    barrier_entry_time: Mapped[str | None] = mapped_column(String(5))   # HH:MM
+    remarks: Mapped[str | None] = mapped_column(Text)
 
     # Relations
     contract: Mapped["Contract | None"] = relationship(back_populates="tours")

@@ -126,6 +126,58 @@ export interface Tour {
   status: TourStatus
   base_id: number
   stops: TourStop[]
+  driver_name?: string
+  driver_arrival_time?: string
+  loading_end_time?: string
+  barrier_exit_time?: string
+  barrier_entry_time?: string
+  remarks?: string
+}
+
+export interface WaybillStop {
+  sequence: number
+  pdv_code: string
+  pdv_name: string
+  address: string
+  postal_code: string
+  city: string
+  eqp_count: number
+  weight_kg: number
+  temperature_classes: string[]
+  arrival_time?: string
+  departure_time?: string
+  pickup_cardboard: boolean
+  pickup_containers: boolean
+  pickup_returns: boolean
+}
+
+export interface WaybillData {
+  tour_id: number
+  tour_code: string
+  date: string
+  departure_time?: string
+  return_time?: string
+  driver_name?: string
+  remarks?: string
+  base: {
+    code: string
+    name: string
+    address: string
+    postal_code: string
+    city: string
+  } | null
+  contract: {
+    code: string
+    transporter_name: string
+    vehicle_code?: string
+    vehicle_name?: string
+    temperature_type?: string
+    vehicle_type?: string
+    capacity_weight_kg?: number
+  } | null
+  stops: WaybillStop[]
+  total_eqp: number
+  total_weight_kg: number
 }
 
 /* Capacité par défaut selon le type de véhicule / Default capacity per vehicle type */

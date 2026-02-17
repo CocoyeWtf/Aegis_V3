@@ -25,6 +25,8 @@ const navItems: NavItem[] = [
   { path: '/parameters', label: 'nav.parameters', icon: '⚙️', resource: 'parameters' },
   { path: '/tour-planning', label: 'nav.tourPlanning', icon: '🗺️', resource: 'tour-planning' },
   { path: '/tour-history', label: 'nav.tourHistory', icon: '📜', resource: 'tour-history' },
+  { path: '/operations', label: 'nav.operations', icon: '🏭', resource: 'operations' },
+  { path: '/guard-post', label: 'nav.guardPost', icon: '🚧', resource: 'guard-post' },
 ]
 
 const adminItems: NavItem[] = [
