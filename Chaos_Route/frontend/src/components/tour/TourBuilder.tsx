@@ -14,7 +14,7 @@ import { ResizeHandle } from './ResizeHandle'
 import { MapView } from '../map/MapView'
 import { create } from '../../services/api'
 import api from '../../services/api'
-import type { VehicleType, Volume, PDV, BaseLogistics, Tour, DistanceEntry, Contract } from '../../types'
+import type { VehicleType, Volume, PDV, BaseLogistics, Tour, TourStop, DistanceEntry, Contract } from '../../types'
 import type { PdvVolumeStatus } from '../map/PdvMarker'
 import { VEHICLE_TYPE_DEFAULTS } from '../../types'
 
@@ -251,7 +251,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
           pdv_id: s.pdv_id,
           sequence_order: i + 1,
           eqp_count: s.eqp_count,
-        })),
+        })) as TourStop[],
       })
       resetTour()
       setSelectedVehicleType(null)
