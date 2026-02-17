@@ -1,0 +1,31 @@
+code;transporter_name;vehicle_code;vehicle_name;temperature_type;vehicle_type;capacity_eqp;has_tailgate;tailgate_type;fixed_daily_cost;cost_per_km;region_id
+CT-S01;CityTrans;CT-S01;CityTrans Semi 01;SEC;SEMI;33;true;RABATTABLE;;2.8;Wallonie
+CT-S02;CityTrans;CT-S02;CityTrans Semi 02;SEC;SEMI;33;true;RABATTABLE;;2.8;Wallonie
+CT-S03;CityTrans;CT-S03;CityTrans Semi 03;SEC;SEMI;33;true;RABATTABLE;;2.8;Wallonie
+CT-S04;CityTrans;CT-S04;CityTrans Semi 04;SEC;SEMI;33;true;RABATTABLE;;2.8;Wallonie
+CT-S05;CityTrans;CT-S05;CityTrans Semi 05;SEC;SEMI;33;true;RABATTABLE;;2.8;Wallonie
+CT-S06;CityTrans;CT-S06;CityTrans Semi 06;SEC;SEMI;33;true;RABATTABLE;;2.8;Wallonie
+CT-S07;CityTrans;CT-S07;CityTrans Semi 07;SEC;SEMI;33;true;RABATTABLE;;2.8;Wallonie
+CT-S08;CityTrans;CT-S08;CityTrans Semi 08;SEC;SEMI;33;true;RABATTABLE;;2.8;Wallonie
+CT-S09;CityTrans;CT-S09;CityTrans Semi 09;SEC;SEMI;33;true;RABATTABLE;;2.8;Wallonie
+CT-S10;CityTrans;CT-S10;CityTrans Semi 10;SEC;SEMI;33;true;RABATTABLE;;2.8;Wallonie
+CT-S11;CityTrans;CT-S11;CityTrans Semi 11;SEC;SEMI;33;true;RABATTABLE;;2.8;Wallonie
+CT-S12;CityTrans;CT-S12;CityTrans Semi 12;SEC;SEMI;33;true;RABATTABLE;;2.8;Wallonie
+CT-P01;CityTrans;CT-P01;CityTrans Porteur 01;SEC;PORTEUR;16;true;RABATTABLE;;2.8;Wallonie
+CT-P02;CityTrans;CT-P02;CityTrans Porteur 02;SEC;PORTEUR;16;true;RABATTABLE;;2.8;Wallonie
+TS-S01;Transport Sebastien;TS-S01;Sebastien Semi 01;SEC;SEMI;33;true;RABATTABLE;500;1.5;Wallonie
+TS-S02;Transport Sebastien;TS-S02;Sebastien Semi 02;SEC;SEMI;33;true;RABATTABLE;500;1.5;Wallonie
+TS-S03;Transport Sebastien;TS-S03;Sebastien Semi 03;SEC;SEMI;33;true;RABATTABLE;500;1.5;Wallonie
+VDV-S01;VDV;VDV-S01;VDV Semi 01;SEC;SEMI;33;true;RABATTABLE;450;1.6;Wallonie
+VDV-S02;VDV;VDV-S02;VDV Semi 02;SEC;SEMI;33;true;RABATTABLE;450;1.6;Wallonie
+VDV-S03;VDV;VDV-S03;VDV Semi 03;SEC;SEMI;33;true;RABATTABLE;450;1.6;Wallonie
+VDV-S04;VDV;VDV-S04;VDV Semi 04;SEC;SEMI;33;true;RABATTABLE;450;1.6;Wallonie
+VDV-S05;VDV;VDV-S05;VDV Semi 05;SEC;SEMI;33;true;RABATTABLE;450;1.6;Wallonie
+VDV-S06;VDV;VDV-S06;VDV Semi 06;SEC;SEMI;33;true;RABATTABLE;450;1.6;Wallonie
+VDV-S07;VDV;VDV-S07;VDV Semi 07;SEC;SEMI;33;true;RABATTABLE;450;1.6;Wallonie
+VDV-S08;VDV;VDV-S08;VDV Semi 08;SEC;SEMI;33;true;RABATTABLE;450;1.6;Wallonie
+VDV-S09;VDV;VDV-S09;VDV Semi 09;SEC;SEMI;33;true;RABATTABLE;450;1.6;Wallonie
+VDV-S10;VDV;VDV-S10;VDV Semi 10;SEC;SEMI;33;true;RABATTABLE;450;1.6;Wallonie
+VDV-S11;VDV;VDV-S11;VDV Semi 11;SEC;SEMI;33;true;RABATTABLE;450;1.6;Wallonie
+VDV-S12;VDV;VDV-S12;VDV Semi 12;SEC;SEMI;33;true;RABATTABLE;450;1.6;Wallonie
+VDV-S13;VDV;VDV-S13;VDV Semi 13;SEC;SEMI;33;true;RABATTABLE;450;1.6;Wallonie

@@ -39,7 +39,18 @@ class ImportService:
             return []
 
         # Nettoyer les en-têtes / Clean headers
-        clean_headers = [str(h).strip().lower().replace(" ", "_") if h else f"col_{i}" for i, h in enumerate(headers)]
+        # Alias de colonnes connus / Known column aliases
+        _COL_ALIASES = {
+            "distance": "distance_km",
+        }
+        clean_headers = []
+        for i, h in enumerate(headers):
+            if h:
+                key = str(h).strip().lower().replace(" ", "_")
+                key = _COL_ALIASES.get(key, key)
+            else:
+                key = f"col_{i}"
+            clean_headers.append(key)
 
         result = []
         for row in rows_iter:
@@ -70,11 +81,11 @@ class ImportService:
         "pdvs": ["code", "name", "type", "address", "postal_code", "city", "phone", "email", "latitude", "longitude",
                  "has_sas", "sas_capacity", "has_dock", "dock_time_minutes", "unload_time_per_eqp_minutes",
                  "delivery_window_start", "delivery_window_end", "access_constraints", "region_id"],
-        "vehicles": ["code", "name", "temperature_type", "vehicle_type", "capacity_eqp", "capacity_weight_kg",
-                      "fixed_cost", "cost_per_km", "has_tailgate", "tailgate_type", "contract_start_date", "contract_end_date", "region_id"],
         "suppliers": ["code", "name", "address", "postal_code", "city", "phone", "email", "latitude", "longitude", "region_id"],
         "volumes": ["pdv_id", "date", "eqp_count", "weight_kg", "temperature_class", "base_origin_id", "preparation_start", "preparation_end"],
         "contracts": ["code", "transporter_name", "fixed_daily_cost", "cost_per_km", "cost_per_hour",
-                       "min_hours_per_day", "min_km_per_day", "start_date", "end_date", "region_id"],
+                       "min_hours_per_day", "min_km_per_day", "start_date", "end_date", "region_id",
+                       "vehicle_code", "vehicle_name", "temperature_type", "vehicle_type",
+                       "capacity_eqp", "capacity_weight_kg", "has_tailgate", "tailgate_type"],
         "distances": ["origin_type", "origin_id", "destination_type", "destination_id", "distance_km", "duration_minutes"],
     }

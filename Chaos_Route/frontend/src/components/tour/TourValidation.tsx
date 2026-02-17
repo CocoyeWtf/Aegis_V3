@@ -1,11 +1,12 @@
-/* Validation du tour / Tour validation rules and warnings */
+/* Validation du tour (phase construction) / Tour validation rules (construction phase) */
 
 import { useTranslation } from 'react-i18next'
-import type { TourStop, Vehicle } from '../../types'
+import type { TourStop, VehicleType } from '../../types'
 
 interface TourValidationProps {
   stops: TourStop[]
-  vehicle: Vehicle | null
+  vehicleType: VehicleType | null
+  capacityEqp: number
   totalEqp: number
   onValidate: () => void
   onReset: () => void
@@ -16,12 +17,12 @@ interface ValidationMessage {
   message: string
 }
 
-export function TourValidation({ stops, vehicle, totalEqp, onValidate, onReset }: TourValidationProps) {
+export function TourValidation({ stops, vehicleType, capacityEqp, totalEqp, onValidate, onReset }: TourValidationProps) {
   const { t } = useTranslation()
 
   const messages: ValidationMessage[] = []
 
-  if (!vehicle) {
+  if (!vehicleType) {
     messages.push({ type: 'error', message: t('tourPlanning.validation.noVehicle') })
   }
 
@@ -29,26 +30,26 @@ export function TourValidation({ stops, vehicle, totalEqp, onValidate, onReset }
     messages.push({ type: 'error', message: t('tourPlanning.validation.noStops') })
   }
 
-  if (vehicle && totalEqp > vehicle.capacity_eqp) {
+  if (capacityEqp > 0 && totalEqp > capacityEqp) {
     messages.push({
       type: 'error',
       message: t('tourPlanning.validation.overCapacity', {
-        over: totalEqp - vehicle.capacity_eqp,
+        over: totalEqp - capacityEqp,
       }),
     })
   }
 
-  if (vehicle && totalEqp > 0 && totalEqp < vehicle.capacity_eqp * 0.5) {
+  if (capacityEqp > 0 && totalEqp > 0 && totalEqp < capacityEqp * 0.5) {
     messages.push({
       type: 'warning',
       message: t('tourPlanning.validation.lowFillRate', {
-        pct: Math.round((totalEqp / vehicle.capacity_eqp) * 100),
+        pct: Math.round((totalEqp / capacityEqp) * 100),
       }),
     })
   }
 
-  if (vehicle && stops.length > 0 && totalEqp <= vehicle.capacity_eqp) {
-    messages.push({ type: 'info', message: t('tourPlanning.validation.ready') })
+  if (vehicleType && stops.length > 0 && totalEqp <= capacityEqp) {
+    messages.push({ type: 'info', message: t('tourPlanning.validation.readyDraft') })
   }
 
   const hasErrors = messages.some((m) => m.type === 'error')
@@ -96,7 +97,7 @@ export function TourValidation({ stops, vehicle, totalEqp, onValidate, onReset }
           disabled={hasErrors}
           onClick={onValidate}
         >
-          {t('tourPlanning.validateTour')}
+          {t('tourPlanning.validation.saveDraft')}
         </button>
         <button
           className="px-4 py-2 rounded-lg text-sm border transition-all hover:opacity-80"

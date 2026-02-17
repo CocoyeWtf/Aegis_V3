@@ -19,6 +19,10 @@ interface CrudPageProps<T extends { id: number }> {
   editTitle: string
   importEntity?: string
   apiParams?: Record<string, unknown>
+  /** Activer la duplication / Enable row duplication */
+  allowDuplicate?: boolean
+  /** Clés à exclure lors de la duplication / Keys to exclude when duplicating */
+  duplicateExcludeKeys?: string[]
   /** Transformer les données du formulaire avant envoi / Transform form data before submit */
   transformPayload?: (data: Record<string, unknown>) => Record<string, unknown>
 }
@@ -33,6 +37,8 @@ export function CrudPage<T extends { id: number }>({
   editTitle,
   importEntity,
   apiParams,
+  allowDuplicate,
+  duplicateExcludeKeys = ['id', 'schedules'],
   transformPayload,
 }: CrudPageProps<T>) {
   const { t } = useTranslation()
@@ -51,6 +57,17 @@ export function CrudPage<T extends { id: number }>({
 
   const handleEdit = (row: T) => {
     setEditItem(row as unknown as Record<string, unknown>)
+    setFormOpen(true)
+  }
+
+  const handleDuplicate = (row: T) => {
+    const copy = { ...(row as unknown as Record<string, unknown>) }
+    for (const key of duplicateExcludeKeys) {
+      delete copy[key]
+    }
+    // Vider le code pour forcer un nouveau code / Clear code to force a new one
+    if ('code' in copy) copy.code = ''
+    setEditItem(copy)
     setFormOpen(true)
   }
 
@@ -95,6 +112,7 @@ export function CrudPage<T extends { id: number }>({
         onCreate={handleCreate}
         onEdit={handleEdit}
         onDelete={(row) => setDeleteId(row.id)}
+        onDuplicate={allowDuplicate ? handleDuplicate : undefined}
         onImport={importEntity ? () => setImportOpen(true) : undefined}
       />
 

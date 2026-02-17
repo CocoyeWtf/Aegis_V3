@@ -1,14 +1,36 @@
-"""Routes Distancier / Distance matrix API routes."""
+"""Routes Distancier enrichi / Enriched distance matrix API routes."""
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.base_logistics import BaseLogistics
 from app.models.distance_matrix import DistanceMatrix
+from app.models.pdv import PDV
 from app.schemas.distance_matrix import DistanceMatrixCreate, DistanceMatrixRead, DistanceMatrixUpdate
 
 router = APIRouter()
+
+
+async def _build_label_caches(db: AsyncSession) -> tuple[dict[int, str], dict[int, str]]:
+    """Construire caches de labels / Build label caches for BASE and PDV."""
+    base_result = await db.execute(select(BaseLogistics.id, BaseLogistics.code, BaseLogistics.name))
+    base_labels = {row[0]: f"{row[1]} — {row[2]}" for row in base_result.all()}
+
+    pdv_result = await db.execute(select(PDV.id, PDV.code, PDV.name))
+    pdv_labels = {row[0]: f"{row[1]} — {row[2]}" for row in pdv_result.all()}
+
+    return base_labels, pdv_labels
+
+
+def _resolve_label(entry_type: str, entry_id: int, base_labels: dict, pdv_labels: dict) -> str | None:
+    """Résoudre un label depuis le type et l'ID / Resolve a label from type and ID."""
+    if entry_type == "BASE":
+        return base_labels.get(entry_id)
+    elif entry_type == "PDV":
+        return pdv_labels.get(entry_id)
+    return None
 
 
 @router.get("/", response_model=list[DistanceMatrixRead])
@@ -23,7 +45,18 @@ async def list_distances(
     if origin_id is not None:
         query = query.where(DistanceMatrix.origin_id == origin_id)
     result = await db.execute(query)
-    return result.scalars().all()
+    entries = result.scalars().all()
+
+    # Enrichir avec labels / Enrich with labels
+    base_labels, pdv_labels = await _build_label_caches(db)
+    enriched = []
+    for e in entries:
+        data = DistanceMatrixRead.model_validate(e)
+        data.origin_label = _resolve_label(e.origin_type, e.origin_id, base_labels, pdv_labels)
+        data.destination_label = _resolve_label(e.destination_type, e.destination_id, base_labels, pdv_labels)
+        enriched.append(data)
+
+    return enriched
 
 
 @router.get("/lookup")

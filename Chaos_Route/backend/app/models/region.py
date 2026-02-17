@@ -17,7 +17,6 @@ class Region(Base):
     country: Mapped["Country"] = relationship(back_populates="regions")
     bases: Mapped[list["BaseLogistics"]] = relationship(back_populates="region", cascade="all, delete-orphan")
     pdvs: Mapped[list["PDV"]] = relationship(back_populates="region", cascade="all, delete-orphan")
-    vehicles: Mapped[list["Vehicle"]] = relationship(back_populates="region", cascade="all, delete-orphan")
     suppliers: Mapped[list["Supplier"]] = relationship(back_populates="region", cascade="all, delete-orphan")
     contracts: Mapped[list["Contract"]] = relationship(back_populates="region", cascade="all, delete-orphan")
 

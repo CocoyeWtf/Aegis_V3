@@ -9,13 +9,12 @@ from app.models.region import Region
 from app.models.base_activity import BaseActivity, base_activity_link
 from app.models.base_logistics import BaseLogistics
 from app.models.pdv import PDV
-from app.models.vehicle import Vehicle
-from app.models.vehicle_schedule import VehicleSchedule
 from app.models.supplier import Supplier
 from app.models.volume import Volume
 from app.models.tour import Tour
 from app.models.tour_stop import TourStop
 from app.models.contract import Contract
+from app.models.contract_schedule import ContractSchedule
 from app.models.distance_matrix import DistanceMatrix
 from app.models.parameter import Parameter
 from app.models.audit import AuditLog
@@ -27,13 +26,12 @@ __all__ = [
     "base_activity_link",
     "BaseLogistics",
     "PDV",
-    "Vehicle",
-    "VehicleSchedule",
     "Supplier",
     "Volume",
     "Tour",
     "TourStop",
     "Contract",
+    "ContractSchedule",
     "DistanceMatrix",
     "Parameter",
     "AuditLog",

@@ -34,3 +34,9 @@ class VolumeUpdate(BaseModel):
 class VolumeRead(VolumeBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    tour_id: int | None = None
+
+
+class VolumeSplit(BaseModel):
+    """Quantité EQP à garder dans ce volume / EQP count to keep in this volume."""
+    eqp_count: int

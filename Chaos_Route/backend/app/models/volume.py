@@ -27,10 +27,12 @@ class Volume(Base):
     base_origin_id: Mapped[int] = mapped_column(ForeignKey("bases_logistics.id"), nullable=False)
     preparation_start: Mapped[str | None] = mapped_column(String(5))  # HH:MM
     preparation_end: Mapped[str | None] = mapped_column(String(5))  # HH:MM
+    tour_id: Mapped[int | None] = mapped_column(ForeignKey("tours.id", ondelete="SET NULL"), nullable=True)
 
     # Relations
     pdv: Mapped["PDV"] = relationship(back_populates="volumes")
     base_origin: Mapped["BaseLogistics"] = relationship()
+    tour: Mapped["Tour | None"] = relationship()
 
     def __repr__(self) -> str:
         return f"<Volume pdv={self.pdv_id} date={self.date} eqp={self.eqp_count}>"

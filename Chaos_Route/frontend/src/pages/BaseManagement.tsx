@@ -30,7 +30,13 @@ export default function BaseManagement() {
         ? row.activities.map((a) => a.name).join(', ')
         : '—',
     },
+    { key: 'address', label: t('common.address'), defaultHidden: true },
+    { key: 'postal_code', label: t('common.postalCode'), width: '100px', defaultHidden: true },
     { key: 'city', label: t('common.city'), width: '120px' },
+    { key: 'phone', label: t('common.phone'), width: '130px', defaultHidden: true },
+    { key: 'email', label: t('common.email'), width: '180px', defaultHidden: true },
+    { key: 'latitude', label: t('common.latitude'), width: '110px', defaultHidden: true },
+    { key: 'longitude', label: t('common.longitude'), width: '110px', defaultHidden: true },
     {
       key: 'region_id', label: t('common.region'), width: '120px',
       render: (row) => regions.find((r) => r.id === row.region_id)?.name || '—',

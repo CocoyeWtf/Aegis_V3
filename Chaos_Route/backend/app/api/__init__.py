@@ -8,7 +8,6 @@ from app.api import (
     base_activities,
     bases,
     pdvs,
-    vehicles,
     suppliers,
     volumes,
     tours,
@@ -26,7 +25,6 @@ api_router.include_router(regions.router, prefix="/regions", tags=["regions"])
 api_router.include_router(base_activities.router, prefix="/base-activities", tags=["base-activities"])
 api_router.include_router(bases.router, prefix="/bases", tags=["bases"])
 api_router.include_router(pdvs.router, prefix="/pdvs", tags=["pdvs"])
-api_router.include_router(vehicles.router, prefix="/vehicles", tags=["vehicles"])
 api_router.include_router(suppliers.router, prefix="/suppliers", tags=["suppliers"])
 api_router.include_router(volumes.router, prefix="/volumes", tags=["volumes"])
 api_router.include_router(tours.router, prefix="/tours", tags=["tours"])

@@ -9,7 +9,6 @@ from app.models.country import Country
 from app.models.region import Region
 from app.models.base_logistics import BaseLogistics
 from app.models.pdv import PDV
-from app.models.vehicle import Vehicle
 from app.models.supplier import Supplier
 from app.models.volume import Volume
 from app.models.contract import Contract
@@ -24,7 +23,6 @@ ENTITY_MODEL_MAP = {
     "regions": Region,
     "bases": BaseLogistics,
     "pdvs": PDV,
-    "vehicles": Vehicle,
     "suppliers": Supplier,
     "volumes": Volume,
     "contracts": Contract,
@@ -37,7 +35,6 @@ REQUIRED_FIELDS = {
     "regions": {"name", "country_id"},
     "bases": {"code", "name", "region_id"},
     "pdvs": {"code", "name", "type", "region_id"},
-    "vehicles": {"code", "name", "temperature_type", "vehicle_type", "capacity_eqp", "region_id"},
     "suppliers": {"code", "name", "region_id"},
     "volumes": {"pdv_id", "date", "eqp_count", "base_origin_id"},
     "contracts": {"code", "transporter_name", "region_id"},
@@ -80,10 +77,10 @@ def _coerce_value(val, field_name: str):
         return s.lower() in ("true", "1", "yes", "oui", "vrai")
 
     # Champs numériques entiers / Integer fields
-    int_fields = {"country_id", "region_id", "pdv_id", "base_origin_id", "vehicle_id", "contract_id",
+    int_fields = {"country_id", "region_id", "pdv_id", "base_origin_id", "contract_id",
                   "capacity_eqp", "capacity_weight_kg", "eqp_count", "dock_time_minutes",
                   "unload_time_per_eqp_minutes", "sas_capacity", "origin_id", "destination_id",
-                  "duration_minutes", "day_of_week", "sequence_order"}
+                  "duration_minutes", "sequence_order"}
     if field_name in int_fields:
         try:
             return int(float(s))
@@ -132,11 +129,10 @@ UNIQUE_KEY_FIELDS = {
     "regions": None,       # Pas de clé unique simple / No simple unique key
     "bases": "code",
     "pdvs": "code",
-    "vehicles": "code",
     "suppliers": "code",
     "contracts": "code",
     "volumes": None,       # Pas de clé unique simple / No simple unique key
-    "distances": None,     # Pas de clé unique simple / No simple unique key
+    "distances": None,     # Clé composite gérée séparément / Composite key handled separately
 }
 
 
@@ -147,6 +143,24 @@ async def _find_existing(db: AsyncSession, model_class, unique_field: str, value
         return None
     result = await db.execute(select(model_class).where(col == value))
     return result.scalar_one_or_none()
+
+
+async def _build_code_lookup(db: AsyncSession) -> dict[str, tuple[str, int]]:
+    """Construire un cache code → (type, id) pour PDV et bases / Build code → (type, db_id) lookup for PDV and bases."""
+    lookup: dict[str, tuple[str, int]] = {}
+    # PDV par code / PDVs by code
+    result = await db.execute(select(PDV.id, PDV.code))
+    for db_id, code in result.all():
+        lookup[str(code).strip().lower()] = ("PDV", db_id)
+    # Bases par code / Bases by code
+    result = await db.execute(select(BaseLogistics.id, BaseLogistics.code))
+    for db_id, code in result.all():
+        lookup[str(code).strip().lower()] = ("BASE", db_id)
+    # Fournisseurs par code / Suppliers by code
+    result = await db.execute(select(Supplier.id, Supplier.code))
+    for db_id, code in result.all():
+        lookup[str(code).strip().lower()] = ("SUPPLIER", db_id)
+    return lookup
 
 
 def _resolve_pdv_type(value) -> str | None:
@@ -190,8 +204,9 @@ async def import_data(
     if not rows:
         raise HTTPException(status_code=400, detail="No data found in file")
 
-    # Construire le cache de résolution des régions / Build region name lookup cache
+    # Construire les caches de résolution / Build lookup caches
     region_lookup = await _build_region_lookup(db)
+    code_lookup = await _build_code_lookup(db) if entity_type == "distances" else {}
 
     model_class = ENTITY_MODEL_MAP[entity_type]
     allowed_fields = set(ImportService.ENTITY_FIELDS.get(entity_type, []))
@@ -238,6 +253,26 @@ async def import_data(
             if "code" in data and data["code"] is not None:
                 data["code"] = str(data["code"]).strip()
 
+            # Résoudre le distancier: codes → IDs DB + types auto / Resolve distance matrix codes
+            if entity_type == "distances" and code_lookup:
+                for prefix in ("origin", "destination"):
+                    id_key = f"{prefix}_id"
+                    type_key = f"{prefix}_type"
+                    raw_id = data.get(id_key)
+                    if raw_id is not None:
+                        code_str = str(raw_id).strip().lower()
+                        resolved = code_lookup.get(code_str)
+                        if resolved:
+                            data[type_key] = resolved[0]  # BASE, PDV, SUPPLIER
+                            data[id_key] = resolved[1]    # DB id
+                        else:
+                            errors.append(f"Row {i + 2}: unknown code '{raw_id}' for {id_key}")
+                            skipped += 1
+                            data = {}  # Marquer comme invalide / Mark as invalid
+                            break
+                if not data:
+                    continue
+
             # Vérifier les champs obligatoires / Check required fields
             missing = [f for f in required if f not in data or data[f] is None]
             if missing:
@@ -249,6 +284,17 @@ async def import_data(
             existing = None
             if unique_field and unique_field in data and data[unique_field] is not None:
                 existing = await _find_existing(db, model_class, unique_field, data[unique_field])
+            elif entity_type == "distances":
+                # Clé composite pour le distancier / Composite key for distance matrix
+                result = await db.execute(
+                    select(DistanceMatrix).where(
+                        DistanceMatrix.origin_type == data.get("origin_type"),
+                        DistanceMatrix.origin_id == data.get("origin_id"),
+                        DistanceMatrix.destination_type == data.get("destination_type"),
+                        DistanceMatrix.destination_id == data.get("destination_id"),
+                    )
+                )
+                existing = result.scalar_one_or_none()
 
             if existing:
                 # Mettre à jour les champs existants / Update existing fields

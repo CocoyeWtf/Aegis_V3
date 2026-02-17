@@ -6,6 +6,7 @@ from sqlalchemy import Enum, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.contract import VehicleType
 
 
 class TourStatus(str, enum.Enum):
@@ -22,10 +23,11 @@ class Tour(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     date: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD
     code: Mapped[str] = mapped_column(String(30), unique=True, nullable=False)
-    vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), nullable=False)
-    contract_id: Mapped[int | None] = mapped_column(ForeignKey("contracts.id"))
+    vehicle_type: Mapped[VehicleType | None] = mapped_column(Enum(VehicleType))
+    capacity_eqp: Mapped[int | None] = mapped_column(Integer)
+    contract_id: Mapped[int | None] = mapped_column(ForeignKey("contracts.id"), nullable=True)
     departure_time: Mapped[str | None] = mapped_column(String(5))  # HH:MM
-    return_time: Mapped[str | None] = mapped_column(String(5))  # HH:MM (RCAM)
+    return_time: Mapped[str | None] = mapped_column(String(5))  # HH:MM
     total_km: Mapped[float | None] = mapped_column(Numeric(10, 2))
     total_duration_minutes: Mapped[int | None] = mapped_column(Integer)
     total_eqp: Mapped[int | None] = mapped_column(Integer)
@@ -34,7 +36,6 @@ class Tour(Base):
     base_id: Mapped[int] = mapped_column(ForeignKey("bases_logistics.id"), nullable=False)
 
     # Relations
-    vehicle: Mapped["Vehicle"] = relationship(back_populates="tours")
     contract: Mapped["Contract | None"] = relationship(back_populates="tours")
     base: Mapped["BaseLogistics"] = relationship(back_populates="tours")
     stops: Mapped[list["TourStop"]] = relationship(

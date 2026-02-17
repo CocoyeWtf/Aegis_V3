@@ -24,3 +24,5 @@ class DistanceMatrixUpdate(BaseModel):
 class DistanceMatrixRead(DistanceMatrixBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    origin_label: str | None = None
+    destination_label: str | None = None

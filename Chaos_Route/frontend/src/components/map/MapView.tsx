@@ -1,11 +1,11 @@
 /* Carte Leaflet principale / Main Leaflet map component */
 
 import { useEffect } from 'react'
-import { MapContainer, TileLayer, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Polyline, useMap } from 'react-leaflet'
 import { useMapStore } from '../../stores/useMapStore'
 import { useApi } from '../../hooks/useApi'
 import { useAppStore } from '../../stores/useAppStore'
-import { PdvMarker } from './PdvMarker'
+import { PdvMarker, type PdvVolumeStatus } from './PdvMarker'
 import { BaseMarker } from './BaseMarker'
 import { SupplierMarker } from './SupplierMarker'
 import { MapFilters } from './MapFilters'
@@ -27,11 +27,12 @@ function MapSync() {
 interface MapViewProps {
   onPdvClick?: (pdv: PDV) => void
   selectedPdvIds?: Set<number>
-  routeStops?: { lat: number; lng: number }[]
+  pdvVolumeStatusMap?: Map<number, PdvVolumeStatus>
+  routeCoords?: [number, number][]
   height?: string
 }
 
-export function MapView({ onPdvClick, selectedPdvIds, height = '100%' }: MapViewProps) {
+export function MapView({ onPdvClick, selectedPdvIds, pdvVolumeStatusMap, routeCoords, height = '100%' }: MapViewProps) {
   const { center, zoom, showBases, showPdvs, showSuppliers } = useMapStore()
   const { selectedRegionId } = useAppStore()
 
@@ -71,6 +72,7 @@ export function MapView({ onPdvClick, selectedPdvIds, height = '100%' }: MapView
               pdv={pdv}
               onClick={onPdvClick}
               selected={selectedPdvIds?.has(pdv.id)}
+              volumeStatus={pdvVolumeStatusMap?.get(pdv.id)}
             />
           ) : null
         )}
@@ -79,6 +81,19 @@ export function MapView({ onPdvClick, selectedPdvIds, height = '100%' }: MapView
           s.latitude && s.longitude ? (
             <SupplierMarker key={`sup-${s.id}`} supplier={s} />
           ) : null
+        )}
+
+        {/* Tracé de la route du tour / Tour route polyline */}
+        {routeCoords && routeCoords.length >= 2 && (
+          <Polyline
+            positions={routeCoords}
+            pathOptions={{
+              color: '#f97316',
+              weight: 3,
+              opacity: 0.8,
+              dashArray: '8, 6',
+            }}
+          />
         )}
       </MapContainer>
     </div>

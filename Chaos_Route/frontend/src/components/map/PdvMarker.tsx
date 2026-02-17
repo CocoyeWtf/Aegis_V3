@@ -4,33 +4,42 @@ import { Marker, Tooltip } from 'react-leaflet'
 import L from 'leaflet'
 import type { PDV } from '../../types'
 
-const pdvIcon = L.divIcon({
-  className: '',
-  html: '<div style="background:#22c55e;width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)"></div>',
-  iconSize: [12, 12],
-  iconAnchor: [6, 6],
-})
+/* Statut volume du PDV / PDV volume status */
+export type PdvVolumeStatus = 'none' | 'unassigned' | 'assigned'
 
-const pdvSelectedIcon = L.divIcon({
-  className: '',
-  html: '<div style="background:#f97316;width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.5)"></div>',
-  iconSize: [16, 16],
-  iconAnchor: [8, 8],
-})
+function makeIcon(color: string, size: number, borderWidth: number): L.DivIcon {
+  return L.divIcon({
+    className: '',
+    html: `<div style="background:${color};width:${size}px;height:${size}px;border-radius:50%;border:${borderWidth}px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  })
+}
+
+/* Icônes par statut / Icons by status */
+const icons = {
+  none: makeIcon('#9ca3af', 14, 2),           // Gris — sans volume / Gray — no volume
+  unassigned: makeIcon('#ef4444', 18, 2),      // Rouge — volume non affecté / Red — unassigned volume
+  assigned: makeIcon('#22c55e', 18, 2),        // Vert — volume affecté / Green — assigned volume
+  selected: makeIcon('#f97316', 24, 3),        // Orange — dans le tour en cours / Orange — in current tour
+}
 
 interface PdvMarkerProps {
   pdv: PDV
   onClick?: (pdv: PDV) => void
   selected?: boolean
+  volumeStatus?: PdvVolumeStatus
 }
 
-export function PdvMarker({ pdv, onClick, selected }: PdvMarkerProps) {
+export function PdvMarker({ pdv, onClick, selected, volumeStatus = 'none' }: PdvMarkerProps) {
   if (!pdv.latitude || !pdv.longitude) return null
+
+  const icon = selected ? icons.selected : icons[volumeStatus]
 
   return (
     <Marker
       position={[pdv.latitude, pdv.longitude]}
-      icon={selected ? pdvSelectedIcon : pdvIcon}
+      icon={icon}
       eventHandlers={onClick ? { click: () => onClick(pdv) } : undefined}
     >
       <Tooltip>

@@ -8,11 +8,11 @@ const Dashboard = lazy(() => import('./pages/Dashboard'))
 const CountryRegion = lazy(() => import('./pages/CountryRegion'))
 const BaseManagement = lazy(() => import('./pages/BaseManagement'))
 const PdvManagement = lazy(() => import('./pages/PdvManagement'))
-const VehicleManagement = lazy(() => import('./pages/VehicleManagement'))
 const SupplierManagement = lazy(() => import('./pages/SupplierManagement'))
 const VolumeManagement = lazy(() => import('./pages/VolumeManagement'))
 const ContractManagement = lazy(() => import('./pages/ContractManagement'))
 const DistanceMatrix = lazy(() => import('./pages/DistanceMatrix'))
+const BaseActivityManagement = lazy(() => import('./pages/BaseActivityManagement'))
 const ParameterSettings = lazy(() => import('./pages/ParameterSettings'))
 const TourPlanning = lazy(() => import('./pages/TourPlanning'))
 const TourHistory = lazy(() => import('./pages/TourHistory'))
@@ -34,11 +34,11 @@ export default function App() {
           <Route path="/countries" element={<CountryRegion />} />
           <Route path="/bases" element={<BaseManagement />} />
           <Route path="/pdvs" element={<PdvManagement />} />
-          <Route path="/vehicles" element={<VehicleManagement />} />
           <Route path="/suppliers" element={<SupplierManagement />} />
           <Route path="/volumes" element={<VolumeManagement />} />
           <Route path="/contracts" element={<ContractManagement />} />
           <Route path="/distances" element={<DistanceMatrix />} />
+          <Route path="/base-activities" element={<BaseActivityManagement />} />
           <Route path="/parameters" element={<ParameterSettings />} />
           <Route path="/tour-planning" element={<TourPlanning />} />
           <Route path="/tour-history" element={<TourHistory />} />

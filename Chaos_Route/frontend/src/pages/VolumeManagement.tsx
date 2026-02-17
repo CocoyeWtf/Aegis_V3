@@ -31,6 +31,16 @@ export default function VolumeManagement() {
       key: 'base_origin_id', label: t('volumes.baseOrigin'), width: '140px',
       render: (row) => bases.find((b) => b.id === row.base_origin_id)?.name || '—',
     },
+    {
+      key: 'tour_id' as keyof Volume, label: 'Tour', width: '100px',
+      render: (row) => row.tour_id ? (
+        <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(249,115,22,0.15)', color: 'var(--color-primary)' }}>
+          ✓ {t('tourPlanning.assigned')}
+        </span>
+      ) : (
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>—</span>
+      ),
+    },
   ]
 
   const fields: FieldDef[] = [

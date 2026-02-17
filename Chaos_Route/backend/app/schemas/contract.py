@@ -1,6 +1,19 @@
-"""Schémas Contrat / Contract schemas."""
+"""Schémas Contrat (fusionné véhicule) / Contract schemas (merged with vehicle)."""
 
 from pydantic import BaseModel, ConfigDict
+
+from app.models.contract import TailgateType, TemperatureType, VehicleType
+
+
+class ContractScheduleBase(BaseModel):
+    date: str  # YYYY-MM-DD
+    is_available: bool = False
+
+
+class ContractScheduleRead(ContractScheduleBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    contract_id: int
 
 
 class ContractBase(BaseModel):
@@ -14,10 +27,19 @@ class ContractBase(BaseModel):
     start_date: str | None = None
     end_date: str | None = None
     region_id: int
+    # Champs véhicule / Vehicle fields
+    vehicle_code: str | None = None
+    vehicle_name: str | None = None
+    temperature_type: TemperatureType | None = None
+    vehicle_type: VehicleType | None = None
+    capacity_eqp: int | None = None
+    capacity_weight_kg: int | None = None
+    has_tailgate: bool = False
+    tailgate_type: TailgateType | None = None
 
 
 class ContractCreate(ContractBase):
-    pass
+    schedules: list[ContractScheduleBase] = []
 
 
 class ContractUpdate(BaseModel):
@@ -31,8 +53,17 @@ class ContractUpdate(BaseModel):
     start_date: str | None = None
     end_date: str | None = None
     region_id: int | None = None
+    vehicle_code: str | None = None
+    vehicle_name: str | None = None
+    temperature_type: TemperatureType | None = None
+    vehicle_type: VehicleType | None = None
+    capacity_eqp: int | None = None
+    capacity_weight_kg: int | None = None
+    has_tailgate: bool | None = None
+    tailgate_type: TailgateType | None = None
 
 
 class ContractRead(ContractBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    schedules: list[ContractScheduleRead] = []

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.volume import Volume
-from app.schemas.volume import VolumeCreate, VolumeRead, VolumeUpdate
+from app.schemas.volume import VolumeCreate, VolumeRead, VolumeSplit, VolumeUpdate
 
 router = APIRouter()
 
@@ -57,6 +57,43 @@ async def update_volume(volume_id: int, data: VolumeUpdate, db: AsyncSession = D
     await db.flush()
     await db.refresh(volume)
     return volume
+
+
+@router.post("/{volume_id}/split", response_model=list[VolumeRead])
+async def split_volume(volume_id: int, data: VolumeSplit, db: AsyncSession = Depends(get_db)):
+    """Scinder un volume en deux / Split a volume into two parts."""
+    volume = await db.get(Volume, volume_id)
+    if not volume:
+        raise HTTPException(status_code=404, detail="Volume not found")
+    if data.eqp_count <= 0 or data.eqp_count >= volume.eqp_count:
+        raise HTTPException(status_code=400, detail="eqp_count must be between 1 and volume.eqp_count - 1")
+
+    # Calculer le reste / Compute remainder
+    remainder = volume.eqp_count - data.eqp_count
+    original_weight = float(volume.weight_kg) if volume.weight_kg else 0
+    ratio = data.eqp_count / volume.eqp_count
+
+    # Réduire le volume original / Reduce the original volume
+    volume.eqp_count = data.eqp_count
+    volume.weight_kg = round(original_weight * ratio, 2) if original_weight else None
+
+    # Créer le volume restant / Create the remainder volume
+    new_vol = Volume(
+        pdv_id=volume.pdv_id,
+        date=volume.date,
+        eqp_count=remainder,
+        weight_kg=round(original_weight * (1 - ratio), 2) if original_weight else None,
+        temperature_class=volume.temperature_class,
+        base_origin_id=volume.base_origin_id,
+        preparation_start=volume.preparation_start,
+        preparation_end=volume.preparation_end,
+        tour_id=None,
+    )
+    db.add(new_vol)
+    await db.flush()
+    await db.refresh(volume)
+    await db.refresh(new_vol)
+    return [volume, new_vol]
 
 
 @router.delete("/{volume_id}", status_code=204)

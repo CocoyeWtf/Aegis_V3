@@ -8,11 +8,14 @@ interface AppState {
   selectedCountryId: number | null
   selectedRegionId: number | null
   sidebarCollapsed: boolean
+  isFullscreen: boolean
   toggleTheme: () => void
   setLanguage: (lang: string) => void
   setSelectedCountry: (id: number | null) => void
   setSelectedRegion: (id: number | null) => void
   toggleSidebar: () => void
+  toggleFullscreen: () => void
+  exitFullscreen: () => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -21,6 +24,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectedCountryId: null,
   selectedRegionId: null,
   sidebarCollapsed: false,
+  isFullscreen: false,
 
   toggleTheme: () =>
     set((state) => {
@@ -33,4 +37,6 @@ export const useAppStore = create<AppState>((set) => ({
   setSelectedCountry: (id) => set({ selectedCountryId: id, selectedRegionId: null }),
   setSelectedRegion: (id) => set({ selectedRegionId: id }),
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+  toggleFullscreen: () => set((state) => ({ isFullscreen: !state.isFullscreen })),
+  exitFullscreen: () => set({ isFullscreen: false }),
 }))

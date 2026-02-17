@@ -42,3 +42,51 @@ body {
 ::-webkit-scrollbar-track { background: var(--bg-secondary); }
 ::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* Styles d'impression / Print styles
+   Stratégie : on bascule les CSS variables vers fond blanc + texte noir,
+   mais on conserve les couleurs d'accent (orange, rouge, vert) pour
+   garder la même lisibilité qu'à l'écran. */
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+
+  /* Fond blanc, texte noir, couleurs d'accent conservées / White bg, black text, accent colors kept */
+  :root {
+    --bg-primary: #fff !important;
+    --bg-secondary: #f5f5f5 !important;
+    --bg-tertiary: #e8e8e8 !important;
+    --bg-hover: #eee !important;
+    --text-primary: #111 !important;
+    --text-secondary: #333 !important;
+    --text-muted: #666 !important;
+    --border-color: #bbb !important;
+    --sidebar-bg: #fff !important;
+    /* Couleurs d'accent inchangées / Accent colors unchanged */
+    --color-primary: #f97316 !important;
+    --color-primary-hover: #ea580c !important;
+    --color-danger: #ef4444 !important;
+    --color-success: #22c55e !important;
+    --color-warning: #eab308 !important;
+  }
+
+  /* Cacher toolbar / Hide toolbar */
+  .print-hide { display: none !important; }
+
+  /* Le container fixed doit devenir static / Unfix container */
+  .fixed { position: static !important; }
+
+  /* Le contenu scrollable visible en entier / Unclamp scrollable content */
+  .print-content {
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+  }
+
+  /* Nettoyage / Cleanup */
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+  * { box-shadow: none !important; text-shadow: none !important; }
+}

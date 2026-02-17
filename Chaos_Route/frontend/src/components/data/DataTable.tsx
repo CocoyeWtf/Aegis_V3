@@ -19,6 +19,7 @@ interface DataTableProps<T extends { id: number }> {
   loading?: boolean
   onEdit?: (row: T) => void
   onDelete?: (row: T) => void
+  onDuplicate?: (row: T) => void
   onCreate?: () => void
   onImport?: () => void
   onRowClick?: (row: T) => void
@@ -34,6 +35,7 @@ export function DataTable<T extends { id: number }>({
   loading,
   onEdit,
   onDelete,
+  onDuplicate,
   onCreate,
   onImport,
   onRowClick,
@@ -297,8 +299,8 @@ export function DataTable<T extends { id: number }>({
                     />
                   </th>
                 ))}
-                {(onEdit || onDelete) && (
-                  <th className="px-4 py-3 text-right font-medium" style={{ color: 'var(--text-muted)', width: '100px' }}>
+                {(onEdit || onDelete || onDuplicate) && (
+                  <th className="px-4 py-3 text-right font-medium" style={{ color: 'var(--text-muted)', width: onDuplicate ? '150px' : '100px' }}>
                     {t('common.actions')}
                   </th>
                 )}
@@ -337,9 +339,18 @@ export function DataTable<T extends { id: number }>({
                           {col.render ? col.render(row) : getCellValue(row, String(col.key))}
                         </td>
                       ))}
-                      {(onEdit || onDelete) && (
+                      {(onEdit || onDelete || onDuplicate) && (
                         <td className="px-4 py-2.5 text-right">
                           <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                            {onDuplicate && (
+                              <button
+                                onClick={() => onDuplicate(row)}
+                                className="px-2 py-1 rounded text-xs transition-colors"
+                                style={{ color: 'var(--text-secondary)' }}
+                              >
+                                {t('common.duplicate')}
+                              </button>
+                            )}
                             {onEdit && (
                               <button
                                 onClick={() => onEdit(row)}

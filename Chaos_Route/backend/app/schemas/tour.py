@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, ConfigDict
 
+from app.models.contract import VehicleType
 from app.models.tour import TourStatus
 
 
@@ -28,7 +29,8 @@ class TourStopRead(TourStopBase):
 class TourBase(BaseModel):
     date: str
     code: str
-    vehicle_id: int
+    vehicle_type: str | None = None
+    capacity_eqp: int | None = None
     contract_id: int | None = None
     departure_time: str | None = None
     return_time: str | None = None
@@ -47,7 +49,8 @@ class TourCreate(TourBase):
 class TourUpdate(BaseModel):
     date: str | None = None
     code: str | None = None
-    vehicle_id: int | None = None
+    vehicle_type: str | None = None
+    capacity_eqp: int | None = None
     contract_id: int | None = None
     departure_time: str | None = None
     return_time: str | None = None
@@ -57,6 +60,12 @@ class TourUpdate(BaseModel):
     total_cost: float | None = None
     status: TourStatus | None = None
     base_id: int | None = None
+
+
+class TourSchedule(BaseModel):
+    """Planification : contrat + heure de départ / Schedule: contract + departure time."""
+    contract_id: int
+    departure_time: str  # HH:MM
 
 
 class TourRead(TourBase):

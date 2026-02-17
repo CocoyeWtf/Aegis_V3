@@ -64,23 +64,6 @@ export type TemperatureType = 'GEL' | 'FRAIS' | 'SEC' | 'BI_TEMP' | 'TRI_TEMP'
 export type VehicleType = 'SEMI' | 'PORTEUR' | 'PORTEUR_REMORQUE' | 'CITY' | 'VL'
 export type TailgateType = 'RETRACTABLE' | 'RABATTABLE'
 
-export interface Vehicle {
-  id: number
-  code: string
-  name: string
-  temperature_type: TemperatureType
-  vehicle_type: VehicleType
-  capacity_eqp: number
-  capacity_weight_kg?: number
-  fixed_cost?: number
-  cost_per_km?: number
-  has_tailgate: boolean
-  tailgate_type?: TailgateType
-  contract_start_date?: string
-  contract_end_date?: string
-  region_id: number
-}
-
 export interface Supplier {
   id: number
   code: string
@@ -107,6 +90,7 @@ export interface Volume {
   base_origin_id: number
   preparation_start?: string
   preparation_end?: string
+  tour_id?: number | null
 }
 
 export type TourStatus = 'DRAFT' | 'VALIDATED' | 'IN_PROGRESS' | 'COMPLETED'
@@ -127,8 +111,9 @@ export interface Tour {
   id: number
   date: string
   code: string
-  vehicle_id: number
-  contract_id?: number
+  vehicle_type?: VehicleType
+  capacity_eqp?: number
+  contract_id?: number | null
   departure_time?: string
   return_time?: string
   total_km?: number
@@ -138,6 +123,22 @@ export interface Tour {
   status: TourStatus
   base_id: number
   stops: TourStop[]
+}
+
+/* Capacité par défaut selon le type de véhicule / Default capacity per vehicle type */
+export const VEHICLE_TYPE_DEFAULTS: Record<VehicleType, { label: string; capacity_eqp: number }> = {
+  SEMI: { label: 'Semi-remorque', capacity_eqp: 33 },
+  PORTEUR: { label: 'Porteur', capacity_eqp: 20 },
+  PORTEUR_REMORQUE: { label: 'Porteur + Remorque', capacity_eqp: 26 },
+  CITY: { label: 'City', capacity_eqp: 10 },
+  VL: { label: 'VL', capacity_eqp: 5 },
+}
+
+export interface ContractSchedule {
+  id: number
+  contract_id: number
+  date: string  // YYYY-MM-DD
+  is_available: boolean
 }
 
 export interface Contract {
@@ -152,6 +153,16 @@ export interface Contract {
   start_date?: string
   end_date?: string
   region_id: number
+  // Champs véhicule / Vehicle fields
+  vehicle_code?: string
+  vehicle_name?: string
+  temperature_type?: TemperatureType
+  vehicle_type?: VehicleType
+  capacity_eqp?: number
+  capacity_weight_kg?: number
+  has_tailgate?: boolean
+  tailgate_type?: TailgateType
+  schedules?: ContractSchedule[]
 }
 
 export interface DistanceEntry {
@@ -162,6 +173,8 @@ export interface DistanceEntry {
   destination_id: number
   distance_km: number
   duration_minutes: number
+  origin_label?: string
+  destination_label?: string
 }
 
 export interface Parameter {

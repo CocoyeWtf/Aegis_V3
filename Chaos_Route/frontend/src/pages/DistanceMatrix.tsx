@@ -1,4 +1,4 @@
-/* Page Distancier / Distance matrix management page */
+/* Page Distancier enrichi / Enriched distance matrix management page */
 
 import { useTranslation } from 'react-i18next'
 import { CrudPage } from '../components/data/CrudPage'
@@ -16,10 +16,20 @@ export default function DistanceMatrix() {
   ]
 
   const columns: Column<DistanceEntry>[] = [
-    { key: 'origin_type', label: t('distances.originType'), width: '100px' },
-    { key: 'origin_id', label: t('distances.originId'), width: '80px' },
-    { key: 'destination_type', label: t('distances.destinationType'), width: '100px' },
-    { key: 'destination_id', label: t('distances.destinationId'), width: '80px' },
+    {
+      key: 'origin_type', label: t('distances.originType'), width: '90px',
+    },
+    {
+      key: 'origin_id', label: t('distances.originId'), width: '180px',
+      render: (row) => row.origin_label ?? `#${row.origin_id}`,
+    },
+    {
+      key: 'destination_type', label: t('distances.destinationType'), width: '90px',
+    },
+    {
+      key: 'destination_id', label: t('distances.destinationId'), width: '180px',
+      render: (row) => row.destination_label ?? `#${row.destination_id}`,
+    },
     {
       key: 'distance_km', label: t('distances.distanceKm'), width: '100px',
       render: (row) => `${row.distance_km} km`,
