@@ -21,6 +21,9 @@ frontend/.vite/
 .DS_Store
 *.local
 
+# Claude Code
+.claude/
+
 # IDE
 .vscode/
 .idea/
