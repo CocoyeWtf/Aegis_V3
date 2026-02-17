@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 export interface FieldDef {
   key: string
   label: string
-  type: 'text' | 'number' | 'select' | 'checkbox' | 'textarea' | 'time' | 'multicheck'
+  type: 'text' | 'number' | 'select' | 'checkbox' | 'textarea' | 'time' | 'multicheck' | 'password'
   required?: boolean
   options?: { value: string; label: string }[]
   placeholder?: string
@@ -177,7 +177,7 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
                   />
                 ) : (
                   <input
-                    type={field.type === 'time' ? 'time' : field.type}
+                    type={field.type === 'time' ? 'time' : field.type === 'password' ? 'password' : field.type}
                     value={String(form[field.key] ?? '')}
                     onChange={(e) => handleChange(field.key, e.target.value)}
                     required={field.required}

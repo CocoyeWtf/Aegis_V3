@@ -11,6 +11,8 @@
     "search": "Search",
     "filter": "Filter",
     "export": "Export",
+    "exportCsv": "Export CSV",
+    "exportExcel": "Export Excel",
     "import": "Import",
     "loading": "Loading...",
     "noData": "No data",
@@ -57,7 +59,49 @@
     "baseActivities": "Base Activities",
     "parameters": "Parameters",
     "tourPlanning": "Tour planning",
-    "tourHistory": "Tour history"
+    "tourHistory": "Tour history",
+    "importsExports": "Imports/Exports",
+    "admin": "Administration",
+    "users": "Users",
+    "roles": "Roles"
+  },
+  "auth": {
+    "login": "Login",
+    "username": "Username",
+    "password": "Password",
+    "loginButton": "Sign in",
+    "loginError": "Invalid credentials",
+    "logout": "Logout",
+    "sessionExpired": "Session expired, please log in again"
+  },
+  "admin": {
+    "users": {
+      "title": "User Management",
+      "new": "New user",
+      "edit": "Edit user",
+      "username": "Username",
+      "email": "Email",
+      "password": "Password",
+      "passwordPlaceholder": "Leave blank to keep unchanged",
+      "active": "Active",
+      "roles": "Roles",
+      "regions": "Regions",
+      "allRegions": "All regions"
+    },
+    "roles": {
+      "title": "Role Management",
+      "new": "New role",
+      "edit": "Edit role",
+      "name": "Name",
+      "description": "Description",
+      "permissions": "Permissions",
+      "permissionCount": "Permission count",
+      "action_read": "Read",
+      "action_create": "Create",
+      "action_update": "Update",
+      "action_delete": "Delete",
+      "toggleAll": "Toggle all"
+    }
   },
   "map": {
     "routes": "Routes",
@@ -352,5 +396,158 @@
     "avgKmPerEqp": "Avg km/EQP",
     "eqpPerDay": "EQP & Tours per day",
     "statusDistribution": "Status distribution"
+  },
+  "help": {
+    "title": "Help",
+    "mainTitle": "User Guide — Chaos RouteManager",
+    "version": "Route optimizer for food retail distribution",
+    "footer": "User Guide v1.0",
+    "sections": {
+      "overview": "Overview",
+      "login": "Login",
+      "navigation": "Navigation",
+      "scope": "Geographic scope",
+      "datatable": "Data tables",
+      "countries": "Countries & Regions",
+      "bases": "Logistics bases",
+      "pdvs": "Points of sale",
+      "vehicles": "Vehicles & Contracts",
+      "volumes": "Volumes",
+      "contracts": "Transport contracts",
+      "tourPlanning": "Tour planning",
+      "tourHistory": "Tour history",
+      "admin": "Administration",
+      "shortcuts": "Shortcuts & tips"
+    },
+    "overview": {
+      "intro": "Chaos RouteManager is a planning and optimization tool for delivery routes in food retail distribution. It manages the entire logistics chain: dispatch bases, points of sale, vehicles, volumes to deliver, and construction of optimized tours.",
+      "purpose": "The dashboard provides a summary view of daily activity: number of tours, active PDVs, available vehicles, and total kilometers. Trend charts and status distribution graphs allow you to track performance.",
+      "mockChart": "Trend chart"
+    },
+    "login": {
+      "intro": "Access to the application is protected by authentication. Each user has a username and password created by an administrator.",
+      "steps": "To log in:",
+      "step1": "Enter your username in the first field",
+      "step2": "Enter your password",
+      "step3": "Click « Sign in » — you will be redirected to your home page",
+      "tip": "Your session remains active for 30 minutes. If the session expires, you will be automatically redirected to the login page."
+    },
+    "navigation": {
+      "intro": "The application consists of a navigation sidebar (on the left), a header (at the top), and a main content area.",
+      "mockTitle": "Interface structure",
+      "sidebarLabel": "Sidebar — click on a menu to navigate",
+      "collapse": "Click « » / « » to collapse/expand the sidebar",
+      "permissions": "Visible menus depend on your permissions — only menus you have access to are displayed",
+      "theme": "Use the ☀️/🌙 button in the header to toggle between dark and light theme",
+      "language": "Change language using the FR / EN / PT / NL buttons in the header"
+    },
+    "scope": {
+      "intro": "The scope selector in the header allows you to filter data by country and/or region. The map automatically recenters on the selected area.",
+      "mockTitle": "Header with active scope",
+      "selectCountry": "Click on the 📍 indicator to open the scope selector",
+      "selectRegion": "Select a country to filter regions, then a region to narrow down",
+      "mapZoom": "The map automatically zooms to PDVs and bases in the selected area",
+      "reset": "Choose « Global » to reset the filter and see all data"
+    },
+    "datatable": {
+      "intro": "Most pages use a data table with the same features: search, sort, customizable columns, import/export, and CRUD actions.",
+      "mockTitle": "Typical data table",
+      "mockTableTitle": "Points of sale",
+      "search": "Instant search: type in the search field to filter rows in real time",
+      "sort": "Sort by column: click on a column header to sort (ascending/descending)",
+      "columns": "Customizable columns: click « Columns » to hide/show columns",
+      "create": "Create: click the « New » button to open the creation form",
+      "edit": "Edit: click the ✏️ icon on a row to edit the record",
+      "delete": "Delete: click the 🗑️ icon then confirm the deletion",
+      "import": "Excel import: click « Import » and drop an .xlsx file",
+      "export": "Excel export: click « Export » to download data in Excel format",
+      "deleteWarning": "Deletion is irreversible. Make sure not to delete a record used by other data (e.g., a PDV referenced by volumes)."
+    },
+    "countries": {
+      "intro": "This page manages countries and their regions. Regions are the basic geographic division used for user scope and data filtering.",
+      "tabs": "Two tabs: « Countries » to manage countries (name + ISO code), « Regions » for regions",
+      "filterByCountry": "Click on a country to filter its regions",
+      "regionLink": "Each region is linked to a country — it serves as the basis for the geographic scope of users"
+    },
+    "bases": {
+      "intro": "Logistics bases are dispatch warehouses. Each base has GPS coordinates (displayed on the map), an address, and preparation speeds by temperature.",
+      "fields": "Main fields: name, code, address, GPS coordinates, parent region",
+      "activities": "Each base can be associated with activities (dedicated tab in Base Activities)",
+      "speeds": "Preparation speeds are defined by temperature (DRY, FRESH, FROZEN, MIXED) and cadence (fast, slow) in EQP/hour",
+      "map": "Bases are displayed on the map with a dedicated icon",
+      "mockTitle": "Example — Preparation speeds"
+    },
+    "pdvs": {
+      "intro": "Points Of Sale (PDV) represent stores to be delivered. Each PDV has specific delivery constraints.",
+      "types": "PDV types: Supermarket Food, General Supermarket, Hypermarket, Netto, Drive, Urban Convenience",
+      "delivery": "Delivery slots: start and end time of delivery, unload time per EQP",
+      "constraints": "Access constraints: SAS (buffer zone), unloading dock, vehicle size restrictions",
+      "map": "PDVs are displayed on the map with color coding by status (see legend)",
+      "mockTitle": "Map legend — PDV status"
+    },
+    "vehicles": {
+      "intro": "Fleet management. Each vehicle has a temperature type, size, and capacity.",
+      "tempTypes": "Temperature types: FROZEN, FRESH, DRY, BI-TEMP (2 zones), TRI-TEMP (3 zones)",
+      "types": "Vehicle types: Semi-trailer, Tractor, Tractor + Trailer, City, LV",
+      "capacity": "Capacity defined in EQP (pallet equivalent) and in kg",
+      "tailgate": "Tailgate: retractable or foldable (impacts PDV delivery constraints)"
+    },
+    "volumes": {
+      "intro": "Volumes represent goods to be delivered to each PDV for a given date. They are the « building blocks » that make up tours.",
+      "fields": "Fields: destination PDV, number of EQP, weight (kg), temperature class, origin base, preparation slot",
+      "link": "Each volume is linked to a PDV and a dispatch base — it represents an order or a flow",
+      "import": "Bulk import via Excel to load volumes for the day"
+    },
+    "contracts": {
+      "intro": "Transport contracts link a transporter to a vehicle with tariff conditions and an availability schedule.",
+      "costs": "Costs: fixed daily rate (€), cost/km (€), cost/hour (€), minimum hours and km per day",
+      "schedule": "Weekly schedule: availability days from Monday to Sunday",
+      "unavailable": "Exceptional unavailability dates (holidays, maintenance) to be entered in the calendar",
+      "mockTitle": "Example — Weekly schedule"
+    },
+    "tourPlanning": {
+      "intro": "Tour planning is the heart of the application. The screen is divided into 3 areas: available volumes (left), map (center), and current tour (right).",
+      "mockTitle": "Planning interface",
+      "mapArea": "Interactive map",
+      "stepsTitle": "Steps to build a tour:",
+      "step1": "Select a dispatch base and vehicle type",
+      "step2": "Set the departure time from the base",
+      "step3": "Add volumes by clicking them in the list or on the PDV on the map",
+      "step4": "Reorder stops by dragging and dropping (drag & drop)",
+      "step5": "Check fill rate and estimated times",
+      "step6": "Validate the tour or save it as a draft",
+      "tip": "If a volume exceeds the remaining capacity, a dialog offers to split it: choose the number of EQP to load, the rest will remain available.",
+      "tipScheduling": "« Scheduling » tab: drag validated tours onto the timeline to organize the day. Vehicle overlaps are flagged automatically."
+    },
+    "tourHistory": {
+      "intro": "The history displays all created tours with their details, KPIs, and costs. You can filter by date, base, vehicle.",
+      "statuses": "Statuses: Draft → Validated → In progress → Completed",
+      "kpi": "Overall KPIs: total tours, total EQP, total km, total cost, estimated CO₂",
+      "delete": "Deleting a tour returns its volumes to be available for new assignments",
+      "mockTitle": "Tour statuses"
+    },
+    "admin": {
+      "intro": "The Administration section is reserved for users with « users » and/or « roles » permissions. It allows you to manage user accounts and access roles.",
+      "usersTitle": "User management",
+      "usersCreate": "Create a user: username, email, password, role(s), region(s) scope",
+      "usersRoles": "A user can have multiple roles — permissions are cumulative",
+      "usersRegions": "Assigned regions limit visible data (PDVs, volumes, bases…). No region = global access",
+      "usersSuperadmin": "The superadmin has access to everything without restriction — do not assign this status unless necessary",
+      "rolesTitle": "Role management",
+      "rolesIntro": "A role groups a set of permissions. The matrix allows you to finely select rights by resource and action.",
+      "mockTitle": "Example — Permissions matrix",
+      "resource": "Resource",
+      "rolesMatrix": "Each cell in the matrix corresponds to a permission: resource (row) × action (column)",
+      "rolesToggle": "Use « Toggle all » to check/uncheck an entire row or column",
+      "warning": "Warning: deleting a permission from a role immediately affects all users with that role."
+    },
+    "shortcuts": {
+      "sidebar": "Collapse / expand sidebar",
+      "theme": "Toggle between dark and light theme",
+      "language": "Change language",
+      "fullscreen": "Fullscreen mode (planning page)",
+      "scope": "Open scope selector",
+      "help": "Open this help page"
+    }
   }
 }

@@ -1,0 +1,169 @@
+/* Page gestion des utilisateurs / User management page */
+
+import { useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+import { DataTable, type Column } from '../../components/data/DataTable'
+import { FormDialog, type FieldDef } from '../../components/data/FormDialog'
+import { ConfirmDialog } from '../../components/data/ConfirmDialog'
+import { useApi } from '../../hooks/useApi'
+import { create, update, remove } from '../../services/api'
+import type { UserAccount, Role, Region } from '../../types'
+
+export default function UserManagement() {
+  const { t } = useTranslation()
+  const { data: users, loading, refetch } = useApi<UserAccount>('/users')
+  const { data: roles } = useApi<Role>('/roles')
+  const { data: regions } = useApi<Region>('/regions')
+
+  const [formOpen, setFormOpen] = useState(false)
+  const [editItem, setEditItem] = useState<Record<string, unknown> | undefined>()
+  const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const columns: Column<UserAccount>[] = [
+    { key: 'username', label: t('admin.users.username'), width: '140px' },
+    { key: 'email', label: t('admin.users.email') },
+    {
+      key: 'roles',
+      label: t('admin.users.roles'),
+      render: (row) =>
+        row.roles.map((r) => r.name).join(', ') || '—',
+    },
+    {
+      key: 'regions',
+      label: t('admin.users.regions'),
+      render: (row) =>
+        row.regions.map((r) => r.name).join(', ') || t('admin.users.allRegions'),
+    },
+    {
+      key: 'is_active',
+      label: t('admin.users.active'),
+      width: '80px',
+      render: (row) => row.is_active ? '✓' : '✗',
+    },
+    {
+      key: 'is_superadmin',
+      label: 'Superadmin',
+      width: '100px',
+      render: (row) => row.is_superadmin ? '✓' : '',
+    },
+  ]
+
+  const fields: FieldDef[] = [
+    { key: 'username', label: t('admin.users.username'), type: 'text', required: true },
+    { key: 'email', label: t('admin.users.email'), type: 'text', required: true },
+    {
+      key: 'password',
+      label: t('admin.users.password'),
+      type: 'password',
+      required: !editItem?.id,
+      placeholder: editItem?.id ? t('admin.users.passwordPlaceholder') : undefined,
+    },
+    { key: 'is_active', label: t('admin.users.active'), type: 'checkbox' },
+    { key: 'is_superadmin', label: 'Superadmin', type: 'checkbox' },
+    {
+      key: 'role_ids',
+      label: t('admin.users.roles'),
+      type: 'multicheck',
+      getOptions: () => roles.map((r) => ({ value: String(r.id), label: r.name })),
+    },
+    {
+      key: 'region_ids',
+      label: t('admin.users.regions'),
+      type: 'multicheck',
+      getOptions: () => regions.map((r) => ({ value: String(r.id), label: r.name })),
+    },
+  ]
+
+  const handleCreate = () => {
+    setEditItem(undefined)
+    setFormOpen(true)
+  }
+
+  const handleEdit = (row: UserAccount) => {
+    setEditItem({
+      ...row,
+      role_ids: row.roles.map((r) => String(r.id)),
+      region_ids: row.regions.map((r) => String(r.id)),
+      password: '',
+    })
+    setFormOpen(true)
+  }
+
+  const handleSave = useCallback(async (formData: Record<string, unknown>) => {
+    setSaving(true)
+    try {
+      const payload: Record<string, unknown> = {
+        username: formData.username,
+        email: formData.email,
+        is_active: formData.is_active ?? true,
+        is_superadmin: formData.is_superadmin ?? false,
+        role_ids: ((formData.role_ids as string[]) || []).map(Number),
+        region_ids: ((formData.region_ids as string[]) || []).map(Number),
+      }
+      // N'envoyer le password que s'il est rempli / Only send password if filled
+      const pwd = (formData.password as string | null) ?? ''
+      if (pwd.trim().length > 0) {
+        payload.password = pwd
+      }
+
+      if (editItem?.id) {
+        await update<UserAccount>('/users', editItem.id as number, payload as Partial<UserAccount>)
+      } else {
+        await create<UserAccount>('/users', payload as Partial<UserAccount>)
+      }
+      setFormOpen(false)
+      setEditItem(undefined)
+      refetch()
+    } finally {
+      setSaving(false)
+    }
+  }, [editItem, refetch])
+
+  const handleDelete = useCallback(async () => {
+    if (deleteId == null) return
+    setSaving(true)
+    try {
+      await remove('/users', deleteId)
+      setDeleteId(null)
+      refetch()
+    } finally {
+      setSaving(false)
+    }
+  }, [deleteId, refetch])
+
+  return (
+    <div>
+      <DataTable<UserAccount>
+        title={t('admin.users.title')}
+        columns={columns}
+        data={users}
+        loading={loading}
+        searchable
+        searchKeys={['username', 'email']}
+        onCreate={handleCreate}
+        onEdit={handleEdit}
+        onDelete={(row) => setDeleteId(row.id)}
+      />
+
+      <FormDialog
+        open={formOpen}
+        onClose={() => { setFormOpen(false); setEditItem(undefined) }}
+        onSubmit={handleSave}
+        title={editItem?.id ? t('admin.users.edit') : t('admin.users.new')}
+        fields={fields}
+        initialData={editItem}
+        loading={saving}
+      />
+
+      <ConfirmDialog
+        open={deleteId != null}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleDelete}
+        title={t('common.deleteTitle')}
+        message={t('common.deleteConfirm')}
+        loading={saving}
+      />
+    </div>
+  )
+}

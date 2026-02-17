@@ -7,7 +7,7 @@ import { FormDialog, type FieldDef } from './FormDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ImportDialog } from './ImportDialog'
 import { useApi } from '../../hooks/useApi'
-import { create, update, remove } from '../../services/api'
+import { create, update, remove, downloadExport } from '../../services/api'
 
 interface CrudPageProps<T extends { id: number }> {
   title: string
@@ -18,6 +18,7 @@ interface CrudPageProps<T extends { id: number }> {
   createTitle: string
   editTitle: string
   importEntity?: string
+  exportEntity?: string
   apiParams?: Record<string, unknown>
   /** Activer la duplication / Enable row duplication */
   allowDuplicate?: boolean
@@ -36,6 +37,7 @@ export function CrudPage<T extends { id: number }>({
   createTitle,
   editTitle,
   importEntity,
+  exportEntity,
   apiParams,
   allowDuplicate,
   duplicateExcludeKeys = ['id', 'schedules'],
@@ -114,6 +116,7 @@ export function CrudPage<T extends { id: number }>({
         onDelete={(row) => setDeleteId(row.id)}
         onDuplicate={allowDuplicate ? handleDuplicate : undefined}
         onImport={importEntity ? () => setImportOpen(true) : undefined}
+        onExport={exportEntity ? (format) => downloadExport(exportEntity, format) : undefined}
       />
 
       <FormDialog

@@ -11,6 +11,8 @@
     "search": "Pesquisar",
     "filter": "Filtrar",
     "export": "Exportar",
+    "exportCsv": "Export CSV",
+    "exportExcel": "Export Excel",
     "import": "Importar",
     "loading": "A carregar...",
     "noData": "Sem dados",
@@ -57,7 +59,49 @@
     "baseActivities": "Atividades base",
     "parameters": "Parâmetros",
     "tourPlanning": "Planeamento",
-    "tourHistory": "Histórico de rotas"
+    "tourHistory": "Histórico de rotas",
+    "importsExports": "Importações/Exportações",
+    "admin": "Administração",
+    "users": "Utilizadores",
+    "roles": "Perfis"
+  },
+  "auth": {
+    "login": "Iniciar sessão",
+    "username": "Nome de utilizador",
+    "password": "Palavra-passe",
+    "loginButton": "Entrar",
+    "loginError": "Credenciais inválidas",
+    "logout": "Sair",
+    "sessionExpired": "Sessão expirada, por favor inicie sessão novamente"
+  },
+  "admin": {
+    "users": {
+      "title": "Gestão de utilizadores",
+      "new": "Novo utilizador",
+      "edit": "Editar utilizador",
+      "username": "Nome de utilizador",
+      "email": "Email",
+      "password": "Palavra-passe",
+      "passwordPlaceholder": "Deixe vazio para não alterar",
+      "active": "Ativo",
+      "roles": "Perfis",
+      "regions": "Regiões",
+      "allRegions": "Todas as regiões"
+    },
+    "roles": {
+      "title": "Gestão de perfis",
+      "new": "Novo perfil",
+      "edit": "Editar perfil",
+      "name": "Nome",
+      "description": "Descrição",
+      "permissions": "Permissões",
+      "permissionCount": "Nº permissões",
+      "action_read": "Ler",
+      "action_create": "Criar",
+      "action_update": "Atualizar",
+      "action_delete": "Eliminar",
+      "toggleAll": "Selecionar/desmarcar tudo"
+    }
   },
   "map": {
     "routes": "Rotas",
@@ -352,5 +396,158 @@
     "avgKmPerEqp": "Km médio/EQP",
     "eqpPerDay": "EQP & Rotas por dia",
     "statusDistribution": "Distribuição por status"
+  },
+  "help": {
+    "title": "Ajuda",
+    "mainTitle": "Guia do utilizador — Chaos RouteManager",
+    "version": "Otimizador de rotas para distribuição alimentar",
+    "footer": "Guia do utilizador v1.0",
+    "sections": {
+      "overview": "Visão geral",
+      "login": "Início de sessão",
+      "navigation": "Navegação",
+      "scope": "Âmbito geográfico",
+      "datatable": "Tabelas de dados",
+      "countries": "Países & Regiões",
+      "bases": "Bases logísticas",
+      "pdvs": "Pontos de venda",
+      "vehicles": "Veículos & Contratos",
+      "volumes": "Volumes",
+      "contracts": "Contratos transporte",
+      "tourPlanning": "Planeamento de rotas",
+      "tourHistory": "Histórico de rotas",
+      "admin": "Administração",
+      "shortcuts": "Atalhos & dicas"
+    },
+    "overview": {
+      "intro": "O Chaos RouteManager é uma ferramenta de planeamento e otimização de rotas de entrega para a grande distribuição alimentar. Permite gerir toda a cadeia logística: bases de expedição, pontos de venda, veículos, volumes a entregar e construção de rotas otimizadas.",
+      "purpose": "O painel oferece uma visão sintética da atividade diária: número de rotas, PDVs ativos, veículos disponíveis e quilometragem total. Gráficos de tendência e distribuição por status permitem acompanhar o desempenho.",
+      "mockChart": "Gráfico de tendência"
+    },
+    "login": {
+      "intro": "O acesso à aplicação é protegido por autenticação. Cada utilizador tem credenciais criadas por um administrador.",
+      "steps": "Para iniciar sessão:",
+      "step1": "Introduza o seu nome de utilizador no primeiro campo",
+      "step2": "Introduza a sua palavra-passe",
+      "step3": "Clique em « Entrar » — será redirecionado para a sua página inicial",
+      "tip": "A sua sessão permanece ativa durante 30 minutos. Se expirar, será automaticamente redirecionado para a página de início de sessão."
+    },
+    "navigation": {
+      "intro": "A aplicação é composta por uma barra lateral (à esquerda), um cabeçalho (em cima) e uma zona de conteúdo principal.",
+      "mockTitle": "Estrutura da interface",
+      "sidebarLabel": "Barra lateral — clique num menu para navegar",
+      "collapse": "Clique em « » / « » para recolher/expandir a barra lateral",
+      "permissions": "Os menus visíveis dependem das suas permissões — apenas os menus a que tem acesso são apresentados",
+      "theme": "Use o botão ☀️/🌙 no cabeçalho para alternar entre tema escuro e claro",
+      "language": "Mude de idioma com os botões FR / EN / PT / NL no cabeçalho"
+    },
+    "scope": {
+      "intro": "O seletor de âmbito no cabeçalho permite filtrar os dados por país e/ou região. O mapa recentra-se automaticamente na zona selecionada.",
+      "mockTitle": "Cabeçalho com âmbito ativo",
+      "selectCountry": "Clique no indicador 📍 para abrir o seletor de âmbito",
+      "selectRegion": "Selecione um país para filtrar as regiões, depois uma região para refinar",
+      "mapZoom": "O mapa faz zoom automaticamente nos PDVs e bases da zona selecionada",
+      "reset": "Escolha « Global » para reiniciar o filtro e ver todos os dados"
+    },
+    "datatable": {
+      "intro": "A maioria das páginas usa uma tabela de dados com as mesmas funcionalidades: pesquisa, ordenação, colunas personalizáveis, importação/exportação e ações CRUD.",
+      "mockTitle": "Tabela de dados tipo",
+      "mockTableTitle": "Pontos de venda",
+      "search": "Pesquisa instantânea: escreva no campo de pesquisa para filtrar as linhas em tempo real",
+      "sort": "Ordenação por coluna: clique no cabeçalho de uma coluna para ordenar (ascendente/descendente)",
+      "columns": "Colunas personalizáveis: clique em « Colunas » para ocultar/mostrar colunas",
+      "create": "Criar: clique no botão « + Novo » para abrir o formulário de criação",
+      "edit": "Editar: clique no ícone ✏️ de uma linha para editar o registo",
+      "delete": "Eliminar: clique no ícone 🗑️ e confirme a eliminação",
+      "import": "Importação Excel: clique em « Importar » e deposite um ficheiro .xlsx",
+      "export": "Exportação Excel: clique em « Exportar » para descarregar os dados em formato Excel",
+      "deleteWarning": "A eliminação é irreversível. Certifique-se de não eliminar um registo utilizado por outros dados (ex: um PDV referenciado por volumes)."
+    },
+    "countries": {
+      "intro": "Esta página gere os países e as suas regiões. As regiões são a divisão geográfica base utilizada para o âmbito dos utilizadores e filtragem dos dados.",
+      "tabs": "Dois separadores: « Países » para gerir os países (nome + código ISO), « Regiões » para as regiões",
+      "filterByCountry": "Clique num país para filtrar as suas regiões",
+      "regionLink": "Cada região está associada a um país — serve de base para o âmbito geográfico dos utilizadores"
+    },
+    "bases": {
+      "intro": "As bases logísticas são os armazéns de expedição. Cada base possui coordenadas GPS (apresentadas no mapa), um endereço e velocidades de preparação por temperatura.",
+      "fields": "Campos principais: nome, código, endereço, coordenadas GPS, região associada",
+      "activities": "Cada base pode ser associada a atividades (separador dedicado em Atividades base)",
+      "speeds": "As velocidades de preparação são definidas por temperatura (SECO, FRESCO, GELADO, MISTO) e cadência (rápida, lenta) em EQP/hora",
+      "map": "As bases são apresentadas no mapa com um ícone dedicado",
+      "mockTitle": "Exemplo — Velocidades de preparação"
+    },
+    "pdvs": {
+      "intro": "Os Pontos De Venda (PDV) representam as lojas a entregar. Cada PDV possui restrições de entrega específicas.",
+      "types": "Tipos de PDV: Super Alimentar, Super Generalista, Hiper, Netto, Drive, Urbano Proxi",
+      "delivery": "Janelas de entrega: hora de início e fim de entrega, tempo de descarga por EQP",
+      "constraints": "Restrições de acesso: SAS (zona tampão), cais de descarga, restrições de gabarito",
+      "map": "Os PDVs são apresentados no mapa com um código de cores segundo o seu estado (ver legenda)",
+      "mockTitle": "Legenda mapa — Estado dos PDVs"
+    },
+    "vehicles": {
+      "intro": "Gestão da frota de veículos. Cada veículo possui um tipo de temperatura, um gabarito e uma capacidade.",
+      "tempTypes": "Tipos de temperatura: GELADO, FRESCO, SECO, BI-TEMP (2 zonas), TRI-TEMP (3 zonas)",
+      "types": "Tipos de veículo: Semi-reboque, Portador, Portador + Reboque, City, VL",
+      "capacity": "Capacidade definida em EQP (equivalente palete) e em kg",
+      "tailgate": "Porta de elevador: retrátil ou abatível (impacta as restrições de entrega PDV)"
+    },
+    "volumes": {
+      "intro": "Os volumes representam as mercadorias a entregar a cada PDV para uma data específica. São os « blocos » que compõem as rotas.",
+      "fields": "Campos: PDV destinatário, número de EQP, peso (kg), classe temperatura, base origem, janela de preparação",
+      "link": "Cada volume está ligado a um PDV e a uma base de expedição — representa uma encomenda ou fluxo",
+      "import": "Importação massiva via Excel para carregar os volumes do dia"
+    },
+    "contracts": {
+      "intro": "Os contratos de transporte ligam um transportador a um veículo com condições tarifárias e um calendário de disponibilidade.",
+      "costs": "Custos: termo fixo diário (€), custo/km (€), custo/hora (€), horas e km mínimo por dia",
+      "schedule": "Planeamento semanal: dias de disponibilidade de segunda a domingo",
+      "unavailable": "Datas de indisponibilidade excecional (férias, manutenção) a registar no calendário",
+      "mockTitle": "Exemplo — Planeamento semanal"
+    },
+    "tourPlanning": {
+      "intro": "O planeamento de rotas é o coração da aplicação. O ecrã está dividido em 3 zonas: volumes disponíveis (esquerda), mapa (centro) e rota atual (direita).",
+      "mockTitle": "Interface de planeamento",
+      "mapArea": "Mapa interativo",
+      "stepsTitle": "Etapas de construção de uma rota:",
+      "step1": "Selecione uma base de expedição e um tipo de veículo",
+      "step2": "Defina a hora de partida da base",
+      "step3": "Adicione volumes clicando neles na lista ou no PDV no mapa",
+      "step4": "Reorganize a ordem das paragens por arrastar e largar (drag & drop)",
+      "step5": "Verifique a taxa de enchimento e os horários estimados",
+      "step6": "Valide a rota ou guarde-a como rascunho",
+      "tip": "Se um volume exceder a capacidade restante, uma caixa de diálogo propõe dividi-lo: escolha o número de EQP a carregar, o resto ficará disponível.",
+      "tipScheduling": "Separador « Agendamento »: arraste as rotas validadas para a timeline para organizar o dia. Os sobreposições de veículo são sinalizadas automaticamente."
+    },
+    "tourHistory": {
+      "intro": "O histórico apresenta todas as rotas criadas com os seus detalhes, KPIs e custos. Pode filtrar por data, base, veículo.",
+      "statuses": "Estados: Rascunho → Validado → Em curso → Concluído",
+      "kpi": "KPIs globais: rotas total, EQP total, km total, custo total, CO₂ estimado",
+      "delete": "Eliminar uma rota disponibiliza novamente os seus volumes para novas atribuições",
+      "mockTitle": "Estados das rotas"
+    },
+    "admin": {
+      "intro": "A secção Administração é reservada aos utilizadores com permissões « users » e/ou « roles ». Permite gerir as contas de utilizadores e os perfis de acesso.",
+      "usersTitle": "Gestão de utilizadores",
+      "usersCreate": "Criar um utilizador: nome, email, palavra-passe, perfil(is), região(ões) de âmbito",
+      "usersRoles": "Um utilizador pode ter vários perfis — as permissões acumulam-se",
+      "usersRegions": "As regiões atribuídas limitam os dados visíveis (PDVs, volumes, bases…). Sem região = acesso global",
+      "usersSuperadmin": "O superadmin tem acesso total sem restrições — não atribuir este estatuto sem necessidade",
+      "rolesTitle": "Gestão de perfis",
+      "rolesIntro": "Um perfil agrupa um conjunto de permissões. A matriz permite selecionar finamente os direitos por recurso e ação.",
+      "mockTitle": "Exemplo — Matriz de permissões",
+      "resource": "Recurso",
+      "rolesMatrix": "Cada célula da matriz corresponde a uma permissão: recurso (linha) × ação (coluna)",
+      "rolesToggle": "Use « Selecionar tudo » para marcar/desmarcar uma linha ou coluna inteira",
+      "warning": "Atenção: remover uma permissão de um perfil afeta imediatamente todos os utilizadores com esse perfil."
+    },
+    "shortcuts": {
+      "sidebar": "Recolher / expandir a barra lateral",
+      "theme": "Alternar entre tema escuro e claro",
+      "language": "Mudar de idioma",
+      "fullscreen": "Modo ecrã inteiro (página planeamento)",
+      "scope": "Abrir o seletor de âmbito",
+      "help": "Abrir esta página de ajuda"
+    }
   }
 }

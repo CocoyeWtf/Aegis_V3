@@ -18,6 +18,7 @@ from app.models.contract_schedule import ContractSchedule
 from app.models.distance_matrix import DistanceMatrix
 from app.models.parameter import Parameter
 from app.models.audit import AuditLog
+from app.models.user import User, Role, Permission, user_roles, user_regions
 
 __all__ = [
     "Country",
@@ -35,4 +36,9 @@ __all__ = [
     "DistanceMatrix",
     "Parameter",
     "AuditLog",
+    "User",
+    "Role",
+    "Permission",
+    "user_roles",
+    "user_regions",
 ]

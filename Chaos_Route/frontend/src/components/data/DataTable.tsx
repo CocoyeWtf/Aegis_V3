@@ -22,6 +22,7 @@ interface DataTableProps<T extends { id: number }> {
   onDuplicate?: (row: T) => void
   onCreate?: () => void
   onImport?: () => void
+  onExport?: (format: 'csv' | 'xlsx') => void
   onRowClick?: (row: T) => void
   activeRowId?: number | null
   title?: string
@@ -38,6 +39,7 @@ export function DataTable<T extends { id: number }>({
   onDuplicate,
   onCreate,
   onImport,
+  onExport,
   onRowClick,
   activeRowId,
   title,
@@ -56,7 +58,9 @@ export function DataTable<T extends { id: number }>({
     return hidden
   })
   const [showColMenu, setShowColMenu] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
   const colMenuRef = useRef<HTMLDivElement>(null)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
   const pageSize = 20
 
   /* Colonnes visibles / Visible columns */
@@ -65,17 +69,20 @@ export function DataTable<T extends { id: number }>({
     [columns, hiddenCols]
   )
 
-  /* Fermer le menu colonnes si clic en dehors / Close column menu on outside click */
+  /* Fermer les menus si clic en dehors / Close menus on outside click */
   useEffect(() => {
-    if (!showColMenu) return
+    if (!showColMenu && !showExportMenu) return
     const handleClick = (e: MouseEvent) => {
-      if (colMenuRef.current && !colMenuRef.current.contains(e.target as Node)) {
+      if (showColMenu && colMenuRef.current && !colMenuRef.current.contains(e.target as Node)) {
         setShowColMenu(false)
+      }
+      if (showExportMenu && exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false)
       }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
-  }, [showColMenu])
+  }, [showColMenu, showExportMenu])
 
   const toggleColumn = (key: string) => {
     setHiddenCols((prev) => {
@@ -254,6 +261,38 @@ export function DataTable<T extends { id: number }>({
               {t('common.import')}
             </button>
           )}
+          {onExport && (
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                onClick={() => setShowExportMenu((v) => !v)}
+                className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
+              >
+                {t('common.export')} ▼
+              </button>
+              {showExportMenu && (
+                <div
+                  className="absolute right-0 top-full mt-1 z-50 rounded-lg border shadow-lg py-1 min-w-[140px]"
+                  style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
+                >
+                  <button
+                    className="w-full text-left px-3 py-1.5 text-sm hover:opacity-80"
+                    style={{ color: 'var(--text-primary)' }}
+                    onClick={() => { onExport('csv'); setShowExportMenu(false) }}
+                  >
+                    {t('common.exportCsv')}
+                  </button>
+                  <button
+                    className="w-full text-left px-3 py-1.5 text-sm hover:opacity-80"
+                    style={{ color: 'var(--text-primary)' }}
+                    onClick={() => { onExport('xlsx'); setShowExportMenu(false) }}
+                  >
+                    {t('common.exportExcel')}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           {onCreate && (
             <button
               onClick={onCreate}
@@ -272,14 +311,14 @@ export function DataTable<T extends { id: number }>({
         style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
       >
         <div className="overflow-x-auto">
-          <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
+          <table className="w-full text-sm" style={{ tableLayout: 'auto' }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                 {visibleColumns.map((col) => (
                   <th
                     key={String(col.key)}
                     className={`px-4 py-3 text-left font-medium relative ${col.sortable !== false ? 'cursor-pointer select-none hover:opacity-80' : ''}`}
-                    style={{ color: 'var(--text-muted)', width: getColWidth(col), minWidth: col.minWidth || '50px', overflow: 'hidden' }}
+                    style={{ color: 'var(--text-muted)', width: getColWidth(col), minWidth: col.minWidth || col.width || '50px', overflow: 'hidden' }}
                     onClick={() => col.sortable !== false && handleSort(String(col.key))}
                   >
                     <span className="flex items-center gap-1">
@@ -300,7 +339,18 @@ export function DataTable<T extends { id: number }>({
                   </th>
                 ))}
                 {(onEdit || onDelete || onDuplicate) && (
-                  <th className="px-4 py-3 text-right font-medium" style={{ color: 'var(--text-muted)', width: onDuplicate ? '150px' : '100px' }}>
+                  <th
+                    className="px-4 py-3 text-right font-medium"
+                    style={{
+                      color: 'var(--text-muted)',
+                      width: onDuplicate ? '150px' : '100px',
+                      position: 'sticky',
+                      right: 0,
+                      zIndex: 2,
+                      backgroundColor: 'var(--bg-tertiary)',
+                      boxShadow: '-4px 0 8px -4px rgba(0,0,0,0.15)',
+                    }}
+                  >
                     {t('common.actions')}
                   </th>
                 )}
@@ -340,7 +390,16 @@ export function DataTable<T extends { id: number }>({
                         </td>
                       ))}
                       {(onEdit || onDelete || onDuplicate) && (
-                        <td className="px-4 py-2.5 text-right">
+                        <td
+                          className="px-4 py-2.5 text-right"
+                          style={{
+                            position: 'sticky',
+                            right: 0,
+                            zIndex: 1,
+                            backgroundColor: isActive ? 'var(--bg-secondary)' : 'var(--bg-secondary)',
+                            boxShadow: '-4px 0 8px -4px rgba(0,0,0,0.15)',
+                          }}
+                        >
                           <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                             {onDuplicate && (
                               <button

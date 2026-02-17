@@ -3,7 +3,10 @@
 import { Routes, Route } from 'react-router-dom'
 import { Suspense, lazy } from 'react'
 import { MainLayout } from './components/layout/MainLayout'
+import { ProtectedRoute } from './components/auth/ProtectedRoute'
+import { DefaultRedirect } from './components/auth/DefaultRedirect'
 
+const Login = lazy(() => import('./pages/Login'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const CountryRegion = lazy(() => import('./pages/CountryRegion'))
 const BaseManagement = lazy(() => import('./pages/BaseManagement'))
@@ -16,6 +19,9 @@ const BaseActivityManagement = lazy(() => import('./pages/BaseActivityManagement
 const ParameterSettings = lazy(() => import('./pages/ParameterSettings'))
 const TourPlanning = lazy(() => import('./pages/TourPlanning'))
 const TourHistory = lazy(() => import('./pages/TourHistory'))
+const UserManagement = lazy(() => import('./pages/admin/UserManagement'))
+const RoleManagement = lazy(() => import('./pages/admin/RoleManagement'))
+const Help = lazy(() => import('./pages/Help'))
 
 function Loading() {
   return (
@@ -29,19 +35,25 @@ export default function App() {
   return (
     <Suspense fallback={<Loading />}>
       <Routes>
-        <Route element={<MainLayout />}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/countries" element={<CountryRegion />} />
-          <Route path="/bases" element={<BaseManagement />} />
-          <Route path="/pdvs" element={<PdvManagement />} />
-          <Route path="/suppliers" element={<SupplierManagement />} />
-          <Route path="/volumes" element={<VolumeManagement />} />
-          <Route path="/contracts" element={<ContractManagement />} />
-          <Route path="/distances" element={<DistanceMatrix />} />
-          <Route path="/base-activities" element={<BaseActivityManagement />} />
-          <Route path="/parameters" element={<ParameterSettings />} />
-          <Route path="/tour-planning" element={<TourPlanning />} />
-          <Route path="/tour-history" element={<TourHistory />} />
+        <Route path="/login" element={<Login />} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<MainLayout />}>
+            <Route path="/" element={<DefaultRedirect><Dashboard /></DefaultRedirect>} />
+            <Route path="/countries" element={<CountryRegion />} />
+            <Route path="/bases" element={<BaseManagement />} />
+            <Route path="/pdvs" element={<PdvManagement />} />
+            <Route path="/suppliers" element={<SupplierManagement />} />
+            <Route path="/volumes" element={<VolumeManagement />} />
+            <Route path="/contracts" element={<ContractManagement />} />
+            <Route path="/distances" element={<DistanceMatrix />} />
+            <Route path="/base-activities" element={<BaseActivityManagement />} />
+            <Route path="/parameters" element={<ParameterSettings />} />
+            <Route path="/tour-planning" element={<TourPlanning />} />
+            <Route path="/tour-history" element={<TourHistory />} />
+            <Route path="/admin/users" element={<UserManagement />} />
+            <Route path="/admin/roles" element={<RoleManagement />} />
+            <Route path="/help" element={<Help />} />
+          </Route>
         </Route>
       </Routes>
     </Suspense>

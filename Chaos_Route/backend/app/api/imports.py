@@ -13,11 +13,13 @@ from app.models.supplier import Supplier
 from app.models.volume import Volume
 from app.models.contract import Contract
 from app.models.distance_matrix import DistanceMatrix
+from app.models.user import User
 from app.services.import_service import ImportService
+from app.api.deps import require_permission
 
 router = APIRouter()
 
-# Mapping entité → modèle SQLAlchemy / Entity to model mapping
+# Mapping entité -> modèle SQLAlchemy / Entity to model mapping
 ENTITY_MODEL_MAP = {
     "countries": Country,
     "regions": Region,
@@ -41,10 +43,8 @@ REQUIRED_FIELDS = {
     "distances": {"origin_type", "origin_id", "destination_type", "destination_id", "distance_km", "duration_minutes"},
 }
 
-# Valeurs considérées comme vides / Values treated as empty/null
 _NA_VALUES = {"#n/a", "#na", "n/a", "na", "#ref!", "#value!", "#div/0!", "-", "null", "none", "nan"}
 
-# Alias pour les types de PDV / PDV type aliases mapping
 _PDV_TYPE_ALIASES = {
     "express": "EXPRESS",
     "contact": "CONTACT",
@@ -72,11 +72,9 @@ def _coerce_value(val, field_name: str):
     if s == "" or s.lower() in _NA_VALUES:
         return None
 
-    # Champs booléens / Boolean fields
     if field_name.startswith("has_") or field_name == "is_available":
         return s.lower() in ("true", "1", "yes", "oui", "vrai")
 
-    # Champs numériques entiers / Integer fields
     int_fields = {"country_id", "region_id", "pdv_id", "base_origin_id", "contract_id",
                   "capacity_eqp", "capacity_weight_kg", "eqp_count", "dock_time_minutes",
                   "unload_time_per_eqp_minutes", "sas_capacity", "origin_id", "destination_id",
@@ -85,10 +83,8 @@ def _coerce_value(val, field_name: str):
         try:
             return int(float(s))
         except ValueError:
-            # Peut être un nom au lieu d'un ID, retourner la chaîne / May be a name instead of ID
             return s
 
-    # Champs numériques décimaux / Decimal fields
     float_fields = {"latitude", "longitude", "fixed_cost", "cost_per_km", "cost_per_hour",
                     "fixed_daily_cost", "min_hours_per_day", "min_km_per_day", "weight_kg",
                     "distance_km", "total_km", "total_cost"}
@@ -102,42 +98,39 @@ def _coerce_value(val, field_name: str):
 
 
 async def _build_region_lookup(db: AsyncSession) -> dict[str, int]:
-    """Construire un cache nom_région → id / Build region name → id lookup cache."""
+    """Construire un cache nom_région -> id / Build region name -> id lookup cache."""
     result = await db.execute(select(Region.id, Region.name))
     return {name.strip().lower(): rid for rid, name in result.all()}
 
 
 def _resolve_region_id(value, region_lookup: dict[str, int]) -> int | None:
-    """Résoudre region_id: accepte un ID numérique ou un nom de région / Resolve region_id from numeric ID or region name."""
+    """Résoudre region_id / Resolve region_id from numeric ID or region name."""
     if value is None:
         return None
     if isinstance(value, int):
         return value
     s = str(value).strip()
-    # Essayer comme entier / Try as integer
     try:
         return int(float(s))
     except (ValueError, TypeError):
         pass
-    # Chercher par nom / Lookup by name
     return region_lookup.get(s.lower())
 
 
-# Clé unique par entité pour détecter les doublons / Unique key per entity for duplicate detection
 UNIQUE_KEY_FIELDS = {
     "countries": "code",
-    "regions": None,       # Pas de clé unique simple / No simple unique key
+    "regions": None,
     "bases": "code",
     "pdvs": "code",
     "suppliers": "code",
     "contracts": "code",
-    "volumes": None,       # Pas de clé unique simple / No simple unique key
-    "distances": None,     # Clé composite gérée séparément / Composite key handled separately
+    "volumes": None,
+    "distances": None,
 }
 
 
 async def _find_existing(db: AsyncSession, model_class, unique_field: str, value) -> object | None:
-    """Chercher un enregistrement existant par clé unique / Find existing record by unique key."""
+    """Chercher un enregistrement existant / Find existing record by unique key."""
     col = getattr(model_class, unique_field, None)
     if col is None:
         return None
@@ -146,17 +139,14 @@ async def _find_existing(db: AsyncSession, model_class, unique_field: str, value
 
 
 async def _build_code_lookup(db: AsyncSession) -> dict[str, tuple[str, int]]:
-    """Construire un cache code → (type, id) pour PDV et bases / Build code → (type, db_id) lookup for PDV and bases."""
+    """Construire un cache code -> (type, id) / Build code -> (type, db_id) lookup."""
     lookup: dict[str, tuple[str, int]] = {}
-    # PDV par code / PDVs by code
     result = await db.execute(select(PDV.id, PDV.code))
     for db_id, code in result.all():
         lookup[str(code).strip().lower()] = ("PDV", db_id)
-    # Bases par code / Bases by code
     result = await db.execute(select(BaseLogistics.id, BaseLogistics.code))
     for db_id, code in result.all():
         lookup[str(code).strip().lower()] = ("BASE", db_id)
-    # Fournisseurs par code / Suppliers by code
     result = await db.execute(select(Supplier.id, Supplier.code))
     for db_id, code in result.all():
         lookup[str(code).strip().lower()] = ("SUPPLIER", db_id)
@@ -168,10 +158,8 @@ def _resolve_pdv_type(value) -> str | None:
     if value is None:
         return None
     s = str(value).strip()
-    # Déjà une valeur enum valide / Already a valid enum value
     if s.upper() in ("EXPRESS", "CONTACT", "SUPER_ALIMENTAIRE", "SUPER_GENERALISTE", "HYPER", "NETTO", "DRIVE", "URBAIN_PROXI"):
         return s.upper()
-    # Chercher dans les alias / Check aliases
     return _PDV_TYPE_ALIASES.get(s.lower())
 
 
@@ -180,6 +168,7 @@ async def import_data(
     entity_type: str,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("imports-exports", "create")),
 ):
     """
     Importer des données depuis un fichier CSV ou Excel.
@@ -204,7 +193,6 @@ async def import_data(
     if not rows:
         raise HTTPException(status_code=400, detail="No data found in file")
 
-    # Construire les caches de résolution / Build lookup caches
     region_lookup = await _build_region_lookup(db)
     code_lookup = await _build_code_lookup(db) if entity_type == "distances" else {}
 
@@ -219,7 +207,6 @@ async def import_data(
 
     for i, row in enumerate(rows):
         try:
-            # Filtrer et convertir les champs valides / Filter and coerce valid fields
             data = {}
             for key, val in row.items():
                 clean_key = key.strip().lower().replace(" ", "_")
@@ -230,7 +217,6 @@ async def import_data(
                 skipped += 1
                 continue
 
-            # Résoudre region_id par nom si nécessaire / Resolve region_id by name if needed
             if "region_id" in data and data["region_id"] is not None:
                 if isinstance(data["region_id"], str):
                     resolved = _resolve_region_id(data["region_id"], region_lookup)
@@ -240,7 +226,6 @@ async def import_data(
                         continue
                     data["region_id"] = resolved
 
-            # Résoudre le type de PDV via alias / Resolve PDV type via aliases
             if entity_type == "pdvs" and "type" in data and data["type"] is not None:
                 resolved_type = _resolve_pdv_type(data["type"])
                 if resolved_type is None:
@@ -249,11 +234,9 @@ async def import_data(
                     continue
                 data["type"] = resolved_type
 
-            # Convertir code en string / Ensure code is string
             if "code" in data and data["code"] is not None:
                 data["code"] = str(data["code"]).strip()
 
-            # Résoudre le distancier: codes → IDs DB + types auto / Resolve distance matrix codes
             if entity_type == "distances" and code_lookup:
                 for prefix in ("origin", "destination"):
                     id_key = f"{prefix}_id"
@@ -263,29 +246,26 @@ async def import_data(
                         code_str = str(raw_id).strip().lower()
                         resolved = code_lookup.get(code_str)
                         if resolved:
-                            data[type_key] = resolved[0]  # BASE, PDV, SUPPLIER
-                            data[id_key] = resolved[1]    # DB id
+                            data[type_key] = resolved[0]
+                            data[id_key] = resolved[1]
                         else:
                             errors.append(f"Row {i + 2}: unknown code '{raw_id}' for {id_key}")
                             skipped += 1
-                            data = {}  # Marquer comme invalide / Mark as invalid
+                            data = {}
                             break
                 if not data:
                     continue
 
-            # Vérifier les champs obligatoires / Check required fields
             missing = [f for f in required if f not in data or data[f] is None]
             if missing:
                 errors.append(f"Row {i + 2}: missing required fields: {', '.join(missing)}")
                 skipped += 1
                 continue
 
-            # Upsert: mettre à jour si doublon, sinon créer / Update if duplicate, else create
             existing = None
             if unique_field and unique_field in data and data[unique_field] is not None:
                 existing = await _find_existing(db, model_class, unique_field, data[unique_field])
             elif entity_type == "distances":
-                # Clé composite pour le distancier / Composite key for distance matrix
                 result = await db.execute(
                     select(DistanceMatrix).where(
                         DistanceMatrix.origin_type == data.get("origin_type"),
@@ -297,7 +277,6 @@ async def import_data(
                 existing = result.scalar_one_or_none()
 
             if existing:
-                # Mettre à jour les champs existants / Update existing fields
                 for k, v in data.items():
                     if k != unique_field:
                         setattr(existing, k, v)
@@ -314,7 +293,6 @@ async def import_data(
         try:
             await db.flush()
         except Exception as e:
-            # Rollback et signaler l'erreur / Rollback and report error
             await db.rollback()
             raise HTTPException(status_code=400, detail=f"Database error during import: {e}")
 
@@ -324,6 +302,6 @@ async def import_data(
         "updated": updated,
         "skipped": skipped,
         "total_rows": len(rows),
-        "errors": errors[:20],  # Limiter à 20 erreurs / Limit to 20 errors
+        "errors": errors[:20],
         "message": f"{created} created, {updated} updated, {skipped} skipped (out of {len(rows)} rows)",
     }

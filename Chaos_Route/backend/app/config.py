@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     # CORS - origines autorisées / allowed origins
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
+    # JWT Authentication
+    SECRET_KEY: str = "change-me-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
     # Paramètres par défaut / Default parameters
     DEFAULT_COMMERCIAL_SPEED_KMH: float = 60.0
     DEFAULT_MAX_DAILY_HOURS: float = 10.0

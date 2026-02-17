@@ -6,20 +6,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.country import Country
+from app.models.user import User
 from app.schemas.country import CountryCreate, CountryRead, CountryUpdate
+from app.api.deps import require_permission
 
 router = APIRouter()
 
 
 @router.get("/", response_model=list[CountryRead])
-async def list_countries(db: AsyncSession = Depends(get_db)):
+async def list_countries(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("countries", "read")),
+):
     """Lister tous les pays / List all countries."""
     result = await db.execute(select(Country))
     return result.scalars().all()
 
 
 @router.get("/{country_id}", response_model=CountryRead)
-async def get_country(country_id: int, db: AsyncSession = Depends(get_db)):
+async def get_country(
+    country_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("countries", "read")),
+):
     """Obtenir un pays par ID / Get country by ID."""
     country = await db.get(Country, country_id)
     if not country:
@@ -28,7 +37,11 @@ async def get_country(country_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/", response_model=CountryRead, status_code=201)
-async def create_country(data: CountryCreate, db: AsyncSession = Depends(get_db)):
+async def create_country(
+    data: CountryCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("countries", "create")),
+):
     """Créer un pays / Create a country."""
     country = Country(**data.model_dump())
     db.add(country)
@@ -38,7 +51,12 @@ async def create_country(data: CountryCreate, db: AsyncSession = Depends(get_db)
 
 
 @router.put("/{country_id}", response_model=CountryRead)
-async def update_country(country_id: int, data: CountryUpdate, db: AsyncSession = Depends(get_db)):
+async def update_country(
+    country_id: int,
+    data: CountryUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("countries", "update")),
+):
     """Modifier un pays / Update a country."""
     country = await db.get(Country, country_id)
     if not country:
@@ -51,7 +69,11 @@ async def update_country(country_id: int, data: CountryUpdate, db: AsyncSession 
 
 
 @router.delete("/{country_id}", status_code=204)
-async def delete_country(country_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_country(
+    country_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("countries", "delete")),
+):
     """Supprimer un pays / Delete a country."""
     country = await db.get(Country, country_id)
     if not country:

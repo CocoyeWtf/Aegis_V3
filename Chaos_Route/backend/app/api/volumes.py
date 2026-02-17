@@ -5,8 +5,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.pdv import PDV
 from app.models.volume import Volume
+from app.models.user import User
 from app.schemas.volume import VolumeCreate, VolumeRead, VolumeSplit, VolumeUpdate
+from app.api.deps import require_permission, get_user_region_ids
 
 router = APIRouter()
 
@@ -17,6 +20,7 @@ async def list_volumes(
     date: str | None = None,
     base_origin_id: int | None = None,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("volumes", "read")),
 ):
     """Lister les volumes, avec filtres optionnels / List volumes with optional filters."""
     query = select(Volume)
@@ -26,12 +30,20 @@ async def list_volumes(
         query = query.where(Volume.date == date)
     if base_origin_id is not None:
         query = query.where(Volume.base_origin_id == base_origin_id)
+    # Scope région via PDV / Region scope via PDV join
+    user_region_ids = get_user_region_ids(user)
+    if user_region_ids is not None:
+        query = query.join(PDV, Volume.pdv_id == PDV.id).where(PDV.region_id.in_(user_region_ids))
     result = await db.execute(query)
     return result.scalars().all()
 
 
 @router.get("/{volume_id}", response_model=VolumeRead)
-async def get_volume(volume_id: int, db: AsyncSession = Depends(get_db)):
+async def get_volume(
+    volume_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("volumes", "read")),
+):
     volume = await db.get(Volume, volume_id)
     if not volume:
         raise HTTPException(status_code=404, detail="Volume not found")
@@ -39,7 +51,11 @@ async def get_volume(volume_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/", response_model=VolumeRead, status_code=201)
-async def create_volume(data: VolumeCreate, db: AsyncSession = Depends(get_db)):
+async def create_volume(
+    data: VolumeCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("volumes", "create")),
+):
     volume = Volume(**data.model_dump())
     db.add(volume)
     await db.flush()
@@ -48,7 +64,12 @@ async def create_volume(data: VolumeCreate, db: AsyncSession = Depends(get_db)):
 
 
 @router.put("/{volume_id}", response_model=VolumeRead)
-async def update_volume(volume_id: int, data: VolumeUpdate, db: AsyncSession = Depends(get_db)):
+async def update_volume(
+    volume_id: int,
+    data: VolumeUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("volumes", "update")),
+):
     volume = await db.get(Volume, volume_id)
     if not volume:
         raise HTTPException(status_code=404, detail="Volume not found")
@@ -60,7 +81,12 @@ async def update_volume(volume_id: int, data: VolumeUpdate, db: AsyncSession = D
 
 
 @router.post("/{volume_id}/split", response_model=list[VolumeRead])
-async def split_volume(volume_id: int, data: VolumeSplit, db: AsyncSession = Depends(get_db)):
+async def split_volume(
+    volume_id: int,
+    data: VolumeSplit,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("volumes", "update")),
+):
     """Scinder un volume en deux / Split a volume into two parts."""
     volume = await db.get(Volume, volume_id)
     if not volume:
@@ -68,16 +94,13 @@ async def split_volume(volume_id: int, data: VolumeSplit, db: AsyncSession = Dep
     if data.eqp_count <= 0 or data.eqp_count >= volume.eqp_count:
         raise HTTPException(status_code=400, detail="eqp_count must be between 1 and volume.eqp_count - 1")
 
-    # Calculer le reste / Compute remainder
     remainder = volume.eqp_count - data.eqp_count
     original_weight = float(volume.weight_kg) if volume.weight_kg else 0
     ratio = data.eqp_count / volume.eqp_count
 
-    # Réduire le volume original / Reduce the original volume
     volume.eqp_count = data.eqp_count
     volume.weight_kg = round(original_weight * ratio, 2) if original_weight else None
 
-    # Créer le volume restant / Create the remainder volume
     new_vol = Volume(
         pdv_id=volume.pdv_id,
         date=volume.date,
@@ -97,7 +120,11 @@ async def split_volume(volume_id: int, data: VolumeSplit, db: AsyncSession = Dep
 
 
 @router.delete("/{volume_id}", status_code=204)
-async def delete_volume(volume_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_volume(
+    volume_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("volumes", "delete")),
+):
     volume = await db.get(Volume, volume_id)
     if not volume:
         raise HTTPException(status_code=404, detail="Volume not found")

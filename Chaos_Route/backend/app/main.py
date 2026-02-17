@@ -10,7 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import api_router
 from app.config import settings
-from app.database import init_db
+from app.database import async_session, init_db
+from app.utils.seed import seed_superadmin
 
 
 @asynccontextmanager
@@ -18,6 +19,9 @@ async def lifespan(app: FastAPI):
     """Initialisation et fermeture / Startup and shutdown."""
     # Créer les tables au démarrage (dev uniquement) / Create tables on startup (dev only)
     await init_db()
+    # Seed superadmin si aucun utilisateur / Seed superadmin if no users
+    async with async_session() as session:
+        await seed_superadmin(session)
     yield
 
 

@@ -70,6 +70,7 @@ export default function VolumeManagement() {
       createTitle={t('volumes.new')}
       editTitle={t('volumes.edit')}
       importEntity="volumes"
+      exportEntity="volumes"
       transformPayload={(d) => ({
         ...d,
         pdv_id: Number(d.pdv_id),

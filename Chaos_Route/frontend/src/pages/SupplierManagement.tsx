@@ -48,6 +48,7 @@ export default function SupplierManagement() {
       createTitle={t('suppliers.new')}
       editTitle={t('suppliers.edit')}
       importEntity="suppliers"
+      exportEntity="suppliers"
       transformPayload={(d) => ({ ...d, region_id: Number(d.region_id) })}
     />
   )

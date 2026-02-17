@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api import (
+    auth,
     countries,
     regions,
     base_activities,
@@ -16,10 +17,15 @@ from app.api import (
     parameters,
     imports,
     exports,
+    users,
+    roles,
 )
 
 api_router = APIRouter(prefix="/api")
 
+api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(roles.router, prefix="/roles", tags=["roles"])
 api_router.include_router(countries.router, prefix="/countries", tags=["countries"])
 api_router.include_router(regions.router, prefix="/regions", tags=["regions"])
 api_router.include_router(base_activities.router, prefix="/base-activities", tags=["base-activities"])

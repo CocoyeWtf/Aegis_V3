@@ -1,8 +1,10 @@
 /* En-tête de l'application / Application header */
 
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '../../stores/useAppStore'
+import { useAuthStore } from '../../stores/useAuthStore'
 import { useMapStore } from '../../stores/useMapStore'
 import { useApi } from '../../hooks/useApi'
 import type { Country, Region, PDV, BaseLogistics } from '../../types'
@@ -16,7 +18,9 @@ const languages = [
 
 export function Header() {
   const { t, i18n } = useTranslation()
-  const { theme, toggleTheme, selectedCountryId, selectedRegionId, setSelectedCountry, setSelectedRegion } = useAppStore()
+  const navigate = useNavigate()
+  const { theme, toggleTheme, setLanguage, selectedCountryId, selectedRegionId, setSelectedCountry, setSelectedRegion } = useAppStore()
+  const { user, logout } = useAuthStore()
   const { setCenter, setZoom } = useMapStore()
   const [showScope, setShowScope] = useState(false)
   const scopeRef = useRef<HTMLDivElement>(null)
@@ -71,6 +75,11 @@ export function Header() {
     if (regionId) {
       zoomToPoints([...pdvs.filter((p) => p.region_id === regionId), ...bases.filter((b) => b.region_id === regionId)])
     }
+  }
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
   }
 
   return (
@@ -148,7 +157,7 @@ export function Header() {
           {languages.map((lang) => (
             <button
               key={lang.code}
-              onClick={() => i18n.changeLanguage(lang.code)}
+              onClick={() => { i18n.changeLanguage(lang.code); setLanguage(lang.code) }}
               className="px-2 py-1 rounded text-xs font-medium transition-colors"
               style={{
                 backgroundColor: i18n.language === lang.code ? 'var(--color-primary)' : 'var(--bg-tertiary)',
@@ -160,6 +169,16 @@ export function Header() {
           ))}
         </div>
 
+        {/* Aide / Help */}
+        <button
+          onClick={() => navigate('/help')}
+          className="p-2 rounded-lg transition-colors text-sm font-bold"
+          style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-primary)' }}
+          title={t('help.title')}
+        >
+          ?
+        </button>
+
         {/* Toggle dark/light / Theme toggle */}
         <button
           onClick={toggleTheme}
@@ -168,6 +187,23 @@ export function Header() {
         >
           {theme === 'dark' ? '☀️' : '🌙'}
         </button>
+
+        {/* Utilisateur + déconnexion / User + logout */}
+        {user && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+              {user.username}
+            </span>
+            <button
+              onClick={handleLogout}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors"
+              style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}
+              title={t('auth.logout')}
+            >
+              {t('auth.logout')}
+            </button>
+          </div>
+        )}
       </div>
     </header>
   )

@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.parameter import Parameter
+from app.models.user import User
+from app.api.deps import require_permission
 
 router = APIRouter()
 
@@ -26,7 +28,11 @@ class ParameterRead(ParameterCreate):
 
 
 @router.get("/", response_model=list[ParameterRead])
-async def list_parameters(region_id: int | None = None, db: AsyncSession = Depends(get_db)):
+async def list_parameters(
+    region_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("parameters", "read")),
+):
     query = select(Parameter)
     if region_id is not None:
         query = query.where(Parameter.region_id == region_id)
@@ -37,7 +43,12 @@ async def list_parameters(region_id: int | None = None, db: AsyncSession = Depen
 
 
 @router.get("/{key}")
-async def get_parameter(key: str, region_id: int | None = None, db: AsyncSession = Depends(get_db)):
+async def get_parameter(
+    key: str,
+    region_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("parameters", "read")),
+):
     """Obtenir un paramètre par clé / Get parameter by key."""
     query = select(Parameter).where(Parameter.key == key)
     if region_id is not None:
@@ -52,7 +63,11 @@ async def get_parameter(key: str, region_id: int | None = None, db: AsyncSession
 
 
 @router.post("/", response_model=ParameterRead, status_code=201)
-async def create_parameter(data: ParameterCreate, db: AsyncSession = Depends(get_db)):
+async def create_parameter(
+    data: ParameterCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("parameters", "create")),
+):
     param = Parameter(**data.model_dump())
     db.add(param)
     await db.flush()
@@ -61,7 +76,12 @@ async def create_parameter(data: ParameterCreate, db: AsyncSession = Depends(get
 
 
 @router.put("/{param_id}", response_model=ParameterRead)
-async def update_parameter(param_id: int, data: ParameterCreate, db: AsyncSession = Depends(get_db)):
+async def update_parameter(
+    param_id: int,
+    data: ParameterCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("parameters", "update")),
+):
     param = await db.get(Parameter, param_id)
     if not param:
         raise HTTPException(status_code=404, detail="Parameter not found")
@@ -73,7 +93,11 @@ async def update_parameter(param_id: int, data: ParameterCreate, db: AsyncSessio
 
 
 @router.delete("/{param_id}", status_code=204)
-async def delete_parameter(param_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_parameter(
+    param_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("parameters", "delete")),
+):
     param = await db.get(Parameter, param_id)
     if not param:
         raise HTTPException(status_code=404, detail="Parameter not found")

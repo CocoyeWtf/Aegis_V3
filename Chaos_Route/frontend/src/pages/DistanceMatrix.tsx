@@ -59,6 +59,7 @@ export default function DistanceMatrix() {
       createTitle={t('distances.new')}
       editTitle={t('distances.edit')}
       importEntity="distances"
+      exportEntity="distances"
     />
   )
 }

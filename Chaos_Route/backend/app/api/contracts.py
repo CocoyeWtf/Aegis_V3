@@ -9,21 +9,30 @@ from app.database import get_db
 from app.models.base_logistics import BaseLogistics
 from app.models.contract import Contract
 from app.models.contract_schedule import ContractSchedule
+from app.models.user import User
 from app.schemas.contract import (
     ContractCreate,
     ContractRead,
     ContractScheduleBase,
     ContractUpdate,
 )
+from app.api.deps import require_permission, get_user_region_ids
 
 router = APIRouter()
 
 
 @router.get("/", response_model=list[ContractRead])
-async def list_contracts(region_id: int | None = None, db: AsyncSession = Depends(get_db)):
+async def list_contracts(
+    region_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("contracts", "read")),
+):
     query = select(Contract).options(selectinload(Contract.schedules))
     if region_id is not None:
         query = query.where(Contract.region_id == region_id)
+    user_region_ids = get_user_region_ids(user)
+    if user_region_ids is not None:
+        query = query.where(Contract.region_id.in_(user_region_ids))
     result = await db.execute(query)
     return result.scalars().all()
 
@@ -34,9 +43,9 @@ async def available_contracts(
     base_id: int = Query(...),
     temperature_type: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("contracts", "read")),
 ):
     """Contrats disponibles pour une date et base / Available contracts for a date and base."""
-    # Trouver la région de la base / Find base region
     base = await db.get(BaseLogistics, base_id)
     if not base:
         raise HTTPException(status_code=404, detail="Base not found")
@@ -47,14 +56,12 @@ async def available_contracts(
         .where(Contract.region_id == base.region_id)
     )
 
-    # Filtre validité tarifaire / Tariff validity filter
     query = query.where(
         (Contract.start_date.is_(None)) | (Contract.start_date <= date)
     ).where(
         (Contract.end_date.is_(None)) | (Contract.end_date >= date)
     )
 
-    # Filtre température compatible / Temperature compatibility filter
     if temperature_type:
         from app.models.contract import TemperatureType
         compatible = {temperature_type}
@@ -68,8 +75,6 @@ async def available_contracts(
     result = await db.execute(query)
     contracts = result.scalars().all()
 
-    # Filtrer par disponibilité à la date / Filter by date availability
-    # Convention : dispo par défaut, sauf si exception is_available=false
     available = []
     for c in contracts:
         is_unavailable = any(
@@ -82,7 +87,11 @@ async def available_contracts(
 
 
 @router.get("/{contract_id}", response_model=ContractRead)
-async def get_contract(contract_id: int, db: AsyncSession = Depends(get_db)):
+async def get_contract(
+    contract_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("contracts", "read")),
+):
     result = await db.execute(
         select(Contract).where(Contract.id == contract_id).options(selectinload(Contract.schedules))
     )
@@ -93,7 +102,11 @@ async def get_contract(contract_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/", response_model=ContractRead, status_code=201)
-async def create_contract(data: ContractCreate, db: AsyncSession = Depends(get_db)):
+async def create_contract(
+    data: ContractCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("contracts", "create")),
+):
     schedules_data = data.schedules
     contract_data = data.model_dump(exclude={"schedules"})
     contract = Contract(**contract_data)
@@ -112,7 +125,12 @@ async def create_contract(data: ContractCreate, db: AsyncSession = Depends(get_d
 
 
 @router.put("/{contract_id}", response_model=ContractRead)
-async def update_contract(contract_id: int, data: ContractUpdate, db: AsyncSession = Depends(get_db)):
+async def update_contract(
+    contract_id: int,
+    data: ContractUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("contracts", "update")),
+):
     result = await db.execute(
         select(Contract).where(Contract.id == contract_id).options(selectinload(Contract.schedules))
     )
@@ -133,14 +151,9 @@ async def update_schedule(
     contract_id: int,
     schedules: list[ContractScheduleBase],
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("contracts", "update")),
 ):
-    """Mise à jour planning date-par-date / Update date-based schedule.
-
-    Si is_available=true → supprimer l'exception (retour au défaut dispo).
-    Si is_available=false → upsert l'exception.
-    If is_available=true → delete the exception (back to default available).
-    If is_available=false → upsert the exception.
-    """
+    """Mise à jour planning date-par-date / Update date-based schedule."""
     result = await db.execute(
         select(Contract).where(Contract.id == contract_id).options(selectinload(Contract.schedules))
     )
@@ -152,11 +165,9 @@ async def update_schedule(
 
     for s in schedules:
         if s.is_available:
-            # Supprimer l'exception si elle existe / Delete exception if it exists
             if s.date in existing_by_date:
                 await db.delete(existing_by_date[s.date])
         else:
-            # Upsert : créer ou mettre à jour / Upsert: create or update
             if s.date in existing_by_date:
                 existing_by_date[s.date].is_available = False
             else:
@@ -172,7 +183,11 @@ async def update_schedule(
 
 
 @router.delete("/{contract_id}", status_code=204)
-async def delete_contract(contract_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_contract(
+    contract_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("contracts", "delete")),
+):
     contract = await db.get(Contract, contract_id)
     if not contract:
         raise HTTPException(status_code=404, detail="Contract not found")

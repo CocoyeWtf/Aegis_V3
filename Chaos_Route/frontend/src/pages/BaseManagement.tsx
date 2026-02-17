@@ -5,8 +5,9 @@ import { useTranslation } from 'react-i18next'
 import { DataTable, type Column } from '../components/data/DataTable'
 import { FormDialog, type FieldDef } from '../components/data/FormDialog'
 import { ConfirmDialog } from '../components/data/ConfirmDialog'
+import { ImportDialog } from '../components/data/ImportDialog'
 import { useApi } from '../hooks/useApi'
-import { create, update, remove } from '../services/api'
+import { create, update, remove, downloadExport } from '../services/api'
 import type { BaseLogistics, BaseActivity, Region, Country } from '../types'
 
 export default function BaseManagement() {
@@ -20,6 +21,7 @@ export default function BaseManagement() {
   const [editItem, setEditItem] = useState<Record<string, unknown> | undefined>()
   const [deleteItem, setDeleteItem] = useState<BaseLogistics | null>(null)
   const [saving, setSaving] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
 
   const columns: Column<BaseLogistics>[] = [
     { key: 'code', label: t('common.code'), width: '100px' },
@@ -135,6 +137,8 @@ export default function BaseManagement() {
         onCreate={handleCreate}
         onEdit={handleEdit}
         onDelete={(row) => setDeleteItem(row)}
+        onImport={() => setImportOpen(true)}
+        onExport={(format) => downloadExport('bases', format)}
       />
 
       <FormDialog
@@ -154,6 +158,13 @@ export default function BaseManagement() {
         title={t('common.deleteTitle')}
         message={t('common.deleteConfirm')}
         loading={saving}
+      />
+
+      <ImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        entityType="bases"
+        onSuccess={refetch}
       />
     </div>
   )

@@ -8,7 +8,9 @@ from app.database import get_db
 from app.models.base_logistics import BaseLogistics
 from app.models.distance_matrix import DistanceMatrix
 from app.models.pdv import PDV
+from app.models.user import User
 from app.schemas.distance_matrix import DistanceMatrixCreate, DistanceMatrixRead, DistanceMatrixUpdate
+from app.api.deps import require_permission
 
 router = APIRouter()
 
@@ -38,6 +40,7 @@ async def list_distances(
     origin_type: str | None = None,
     origin_id: int | None = None,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("distances", "read")),
 ):
     query = select(DistanceMatrix)
     if origin_type is not None:
@@ -47,7 +50,6 @@ async def list_distances(
     result = await db.execute(query)
     entries = result.scalars().all()
 
-    # Enrichir avec labels / Enrich with labels
     base_labels, pdv_labels = await _build_label_caches(db)
     enriched = []
     for e in entries:
@@ -66,6 +68,7 @@ async def lookup_distance(
     destination_type: str,
     destination_id: int,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("distances", "read")),
 ):
     """Chercher la distance entre deux points / Look up distance between two points."""
     result = await db.execute(
@@ -83,7 +86,11 @@ async def lookup_distance(
 
 
 @router.post("/", response_model=DistanceMatrixRead, status_code=201)
-async def create_distance(data: DistanceMatrixCreate, db: AsyncSession = Depends(get_db)):
+async def create_distance(
+    data: DistanceMatrixCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("distances", "create")),
+):
     entry = DistanceMatrix(**data.model_dump())
     db.add(entry)
     await db.flush()
@@ -92,7 +99,11 @@ async def create_distance(data: DistanceMatrixCreate, db: AsyncSession = Depends
 
 
 @router.post("/bulk", response_model=list[DistanceMatrixRead], status_code=201)
-async def create_distances_bulk(data: list[DistanceMatrixCreate], db: AsyncSession = Depends(get_db)):
+async def create_distances_bulk(
+    data: list[DistanceMatrixCreate],
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("distances", "create")),
+):
     """Import en masse du distancier / Bulk import distance matrix entries."""
     entries = []
     for item in data:
@@ -106,7 +117,11 @@ async def create_distances_bulk(data: list[DistanceMatrixCreate], db: AsyncSessi
 
 
 @router.delete("/{entry_id}", status_code=204)
-async def delete_distance(entry_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_distance(
+    entry_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("distances", "delete")),
+):
     entry = await db.get(DistanceMatrix, entry_id)
     if not entry:
         raise HTTPException(status_code=404, detail="Distance entry not found")

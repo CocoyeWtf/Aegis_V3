@@ -81,6 +81,7 @@ export default function PdvManagement() {
       createTitle={t('pdvs.new')}
       editTitle={t('pdvs.edit')}
       importEntity="pdvs"
+      exportEntity="pdvs"
       transformPayload={(d) => ({ ...d, region_id: Number(d.region_id) })}
     />
   )

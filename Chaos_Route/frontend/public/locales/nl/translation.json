@@ -11,6 +11,8 @@
     "search": "Zoeken",
     "filter": "Filteren",
     "export": "Exporteren",
+    "exportCsv": "Export CSV",
+    "exportExcel": "Export Excel",
     "import": "Importeren",
     "loading": "Laden...",
     "noData": "Geen gegevens",
@@ -57,7 +59,49 @@
     "baseActivities": "Basisactiviteiten",
     "parameters": "Parameters",
     "tourPlanning": "Routeplanning",
-    "tourHistory": "Routegeschiedenis"
+    "tourHistory": "Routegeschiedenis",
+    "importsExports": "Import/Export",
+    "admin": "Beheer",
+    "users": "Gebruikers",
+    "roles": "Rollen"
+  },
+  "auth": {
+    "login": "Inloggen",
+    "username": "Gebruikersnaam",
+    "password": "Wachtwoord",
+    "loginButton": "Aanmelden",
+    "loginError": "Ongeldige inloggegevens",
+    "logout": "Uitloggen",
+    "sessionExpired": "Sessie verlopen, log opnieuw in"
+  },
+  "admin": {
+    "users": {
+      "title": "Gebruikersbeheer",
+      "new": "Nieuwe gebruiker",
+      "edit": "Gebruiker bewerken",
+      "username": "Gebruikersnaam",
+      "email": "Email",
+      "password": "Wachtwoord",
+      "passwordPlaceholder": "Laat leeg om niet te wijzigen",
+      "active": "Actief",
+      "roles": "Rollen",
+      "regions": "Regio's",
+      "allRegions": "Alle regio's"
+    },
+    "roles": {
+      "title": "Rollenbeheer",
+      "new": "Nieuwe rol",
+      "edit": "Rol bewerken",
+      "name": "Naam",
+      "description": "Beschrijving",
+      "permissions": "Rechten",
+      "permissionCount": "Aantal rechten",
+      "action_read": "Lezen",
+      "action_create": "Aanmaken",
+      "action_update": "Bewerken",
+      "action_delete": "Verwijderen",
+      "toggleAll": "Alles aan/uit"
+    }
   },
   "map": {
     "routes": "Routes",
@@ -352,5 +396,158 @@
     "avgKmPerEqp": "Gem. km/EQP",
     "eqpPerDay": "EQP & Routes per dag",
     "statusDistribution": "Verdeling per status"
+  },
+  "help": {
+    "title": "Hulp",
+    "mainTitle": "Gebruikershandleiding — Chaos RouteManager",
+    "version": "Route-optimizer voor voedingsdistributie",
+    "footer": "Gebruikershandleiding v1.0",
+    "sections": {
+      "overview": "Overzicht",
+      "login": "Aanmelden",
+      "navigation": "Navigatie",
+      "scope": "Geografisch bereik",
+      "datatable": "Gegevenstabellen",
+      "countries": "Landen & Regio's",
+      "bases": "Logistieke bases",
+      "pdvs": "Verkooppunten",
+      "vehicles": "Voertuigen & Contracten",
+      "volumes": "Volumes",
+      "contracts": "Transportcontracten",
+      "tourPlanning": "Routeplanning",
+      "tourHistory": "Routegeschiedenis",
+      "admin": "Beheer",
+      "shortcuts": "Sneltoetsen & tips"
+    },
+    "overview": {
+      "intro": "Chaos RouteManager is een plannings- en optimalisatietool voor leveringsroutes in de voedingsdistributie. Het beheert de volledige logistieke keten: verzendbases, verkooppunten, voertuigen, te leveren volumes en de opbouw van geoptimaliseerde routes.",
+      "purpose": "Het dashboard biedt een synthetisch overzicht van de dagelijkse activiteit: aantal routes, actieve PDVs, beschikbare voertuigen en totale kilometers. Trendgrafieken en statusverdelingen helpen de prestaties te volgen.",
+      "mockChart": "Trendgrafiek"
+    },
+    "login": {
+      "intro": "Toegang tot de applicatie is beveiligd met authenticatie. Elke gebruiker heeft inloggegevens aangemaakt door een beheerder.",
+      "steps": "Om in te loggen:",
+      "step1": "Voer uw gebruikersnaam in het eerste veld in",
+      "step2": "Voer uw wachtwoord in",
+      "step3": "Klik op « Aanmelden » — u wordt doorgestuurd naar uw startpagina",
+      "tip": "Uw sessie blijft 30 minuten actief. Als de sessie verloopt, wordt u automatisch doorgestuurd naar de inlogpagina."
+    },
+    "navigation": {
+      "intro": "De applicatie bestaat uit een navigatiebalk (links), een koptekst (boven) en een hoofdinhoudsgebied.",
+      "mockTitle": "Interfacestructuur",
+      "sidebarLabel": "Zijbalk — klik op een menu om te navigeren",
+      "collapse": "Klik op « » / « » om de zijbalk in/uit te klappen",
+      "permissions": "De zichtbare menu's zijn afhankelijk van uw machtigingen — alleen menu's waartoe u toegang heeft worden getoond",
+      "theme": "Gebruik de knop ☀️/🌙 in de koptekst om te schakelen tussen donker en licht thema",
+      "language": "Wissel van taal met de knoppen FR / EN / PT / NL in de koptekst"
+    },
+    "scope": {
+      "intro": "De bereikkiezer in de koptekst filtert gegevens per land en/of regio. De kaart centreert automatisch op het geselecteerde gebied.",
+      "mockTitle": "Koptekst met actief bereik",
+      "selectCountry": "Klik op het 📍 icoon om de bereikkiezer te openen",
+      "selectRegion": "Selecteer een land om regio's te filteren, vervolgens een regio om te verfijnen",
+      "mapZoom": "De kaart zoomt automatisch in op de PDVs en bases van het geselecteerde gebied",
+      "reset": "Kies « Globaal » om het filter te resetten en alle gegevens te zien"
+    },
+    "datatable": {
+      "intro": "De meeste pagina's gebruiken een gegevenstabel met dezelfde functies: zoeken, sorteren, aanpasbare kolommen, import/export en CRUD-acties.",
+      "mockTitle": "Type gegevenstabel",
+      "mockTableTitle": "Verkooppunten",
+      "search": "Directe zoekopdracht: typ in het zoekveld om rijen in realtime te filteren",
+      "sort": "Sorteren op kolom: klik op een kolomkop om te sorteren (oplopend/aflopend)",
+      "columns": "Aanpasbare kolommen: klik op « Kolommen » om kolommen te verbergen/tonen",
+      "create": "Aanmaken: klik op « + Nieuw » om het aanmaakformulier te openen",
+      "edit": "Bewerken: klik op het ✏️ icoon van een rij om het record te bewerken",
+      "delete": "Verwijderen: klik op het 🗑️ icoon en bevestig de verwijdering",
+      "import": "Excel-import: klik op « Importeren » en sleep een .xlsx-bestand",
+      "export": "Excel-export: klik op « Exporteren » om de gegevens als Excel te downloaden",
+      "deleteWarning": "Verwijdering is onomkeerbaar. Zorg ervoor dat u geen record verwijdert dat door andere gegevens wordt gebruikt (bijv. een PDV waarnaar volumes verwijzen)."
+    },
+    "countries": {
+      "intro": "Deze pagina beheert landen en hun regio's. Regio's zijn de geografische basiseenheid voor gebruikersbereik en gegevensfiltering.",
+      "tabs": "Twee tabbladen: « Landen » voor het beheren van landen (naam + ISO-code), « Regio's » voor regio's",
+      "filterByCountry": "Klik op een land om de regio's ervan te filteren",
+      "regionLink": "Elke regio is gekoppeld aan een land — het dient als basis voor het geografische bereik van gebruikers"
+    },
+    "bases": {
+      "intro": "Logistieke bases zijn de verzendmagazijnen. Elke basis heeft GPS-coördinaten (weergegeven op de kaart), een adres en voorbereidingssnelheden per temperatuur.",
+      "fields": "Hoofdvelden: naam, code, adres, GPS-coördinaten, gekoppelde regio",
+      "activities": "Elke basis kan worden gekoppeld aan activiteiten (speciaal tabblad in Basisactiviteiten)",
+      "speeds": "Voorbereidingssnelheden zijn gedefinieerd per temperatuur (DROOG, VERS, BEVROZEN, GEMENGD) en tempo (snel, traag) in EQP/uur",
+      "map": "Bases worden op de kaart weergegeven met een speciaal icoon",
+      "mockTitle": "Voorbeeld — Voorbereidingssnelheden"
+    },
+    "pdvs": {
+      "intro": "Verkooppunten (PDV) vertegenwoordigen de te bevoorraden winkels. Elk PDV heeft specifieke leveringsbeperkingen.",
+      "types": "PDV-types: Supermarkt Voeding, Algemene Supermarkt, Hypermarkt, Netto, Drive, Urbaan Proxi",
+      "delivery": "Leveringsvensters: start- en eindtijd van levering, lostijd per EQP",
+      "constraints": "Toegangsbeperkingen: SAS (bufferzone), laadkade, gabaritbeperkingen",
+      "map": "PDVs worden op de kaart weergegeven met een kleurcode volgens hun status (zie legenda)",
+      "mockTitle": "Kaartlegenda — PDV-status"
+    },
+    "vehicles": {
+      "intro": "Beheer van het voertuigenpark. Elk voertuig heeft een temperatuurtype, een gabarit en een capaciteit.",
+      "tempTypes": "Temperatuurtypes: BEVROZEN, VERS, DROOG, BI-TEMP (2 zones), TRI-TEMP (3 zones)",
+      "types": "Voertuigtypes: Aanhanger, Trekker, Trekker + Aanhanger, City, PV",
+      "capacity": "Capaciteit gedefinieerd in EQP (pallet-equivalent) en in kg",
+      "tailgate": "Achterklep: intrekbaar of inklapbaar (beïnvloedt leveringsbeperkingen PDV)"
+    },
+    "volumes": {
+      "intro": "Volumes vertegenwoordigen de te leveren goederen aan elk PDV voor een bepaalde datum. Dit zijn de « bouwstenen » van de routes.",
+      "fields": "Velden: bestemmings-PDV, aantal EQP, gewicht (kg), temperatuurklasse, herkomstbasis, voorbereidingsvenster",
+      "link": "Elk volume is gekoppeld aan een PDV en een verzendbasis — het vertegenwoordigt een bestelling of stroom",
+      "import": "Massa-import via Excel om de dagvolumes te laden"
+    },
+    "contracts": {
+      "intro": "Transportcontracten koppelen een vervoerder aan een voertuig met tariefcondities en een beschikbaarheidskalender.",
+      "costs": "Kosten: vast dagelijks bedrag (€), kosten/km (€), kosten/uur (€), minimum uren en km per dag",
+      "schedule": "Weekplanning: beschikbaarheidsdagen van maandag tot zondag",
+      "unavailable": "Uitzonderlijke onbeschikbaarheidsdatums (vakantie, onderhoud) in te vullen in de kalender",
+      "mockTitle": "Voorbeeld — Weekplanning"
+    },
+    "tourPlanning": {
+      "intro": "De routeplanning is het hart van de applicatie. Het scherm is verdeeld in 3 zones: beschikbare volumes (links), kaart (midden) en huidige route (rechts).",
+      "mockTitle": "Planningsinterface",
+      "mapArea": "Interactieve kaart",
+      "stepsTitle": "Stappen voor het opbouwen van een route:",
+      "step1": "Selecteer een verzendbasis en een voertuigtype",
+      "step2": "Stel de vertrektijd vanaf de basis in",
+      "step3": "Voeg volumes toe door erop te klikken in de lijst of op het PDV op de kaart",
+      "step4": "Herorden de haltes door slepen en neerzetten (drag & drop)",
+      "step5": "Controleer de vulgraad en geschatte tijden",
+      "step6": "Valideer de route of sla het op als concept",
+      "tip": "Als een volume de resterende capaciteit overschrijdt, stelt een dialoogvenster voor om het te splitsen: kies het aantal te laden EQP, de rest blijft beschikbaar.",
+      "tipScheduling": "Tabblad « Planning »: sleep gevalideerde routes naar de tijdlijn om de dag te organiseren. Voertuigoverlappingen worden automatisch gesignaleerd."
+    },
+    "tourHistory": {
+      "intro": "De geschiedenis toont alle aangemaakte routes met details, KPI's en kosten. U kunt filteren op datum, basis, voertuig.",
+      "statuses": "Statussen: Concept → Gevalideerd → In uitvoering → Voltooid",
+      "kpi": "Globale KPI's: totaal routes, totaal EQP, totaal km, totale kosten, geschatte CO₂",
+      "delete": "Het verwijderen van een route maakt de volumes weer beschikbaar voor nieuwe toewijzingen",
+      "mockTitle": "Routestatussen"
+    },
+    "admin": {
+      "intro": "De sectie Beheer is voorbehouden aan gebruikers met « users » en/of « roles » machtigingen. Het maakt het beheren van gebruikersaccounts en toegangsrollen mogelijk.",
+      "usersTitle": "Gebruikersbeheer",
+      "usersCreate": "Gebruiker aanmaken: naam, email, wachtwoord, rol(len), regio('s) voor bereik",
+      "usersRoles": "Een gebruiker kan meerdere rollen hebben — machtigingen worden gecumuleerd",
+      "usersRegions": "Toegewezen regio's beperken de zichtbare gegevens (PDVs, volumes, bases…). Zonder regio = globale toegang",
+      "usersSuperadmin": "De superadmin heeft onbeperkte toegang — ken deze status alleen toe indien nodig",
+      "rolesTitle": "Rollenbeheer",
+      "rolesIntro": "Een rol groepeert een set machtigingen. De matrix maakt het mogelijk rechten per bron en actie fijn af te stemmen.",
+      "mockTitle": "Voorbeeld — Machtigingenmatrix",
+      "resource": "Bron",
+      "rolesMatrix": "Elke cel in de matrix komt overeen met een machtiging: bron (rij) × actie (kolom)",
+      "rolesToggle": "Gebruik « Alles selecteren » om een hele rij of kolom aan/uit te vinken",
+      "warning": "Let op: het verwijderen van een machtiging uit een rol heeft onmiddellijk effect op alle gebruikers met die rol."
+    },
+    "shortcuts": {
+      "sidebar": "Zijbalk in-/uitklappen",
+      "theme": "Schakelen tussen donker en licht thema",
+      "language": "Van taal wisselen",
+      "fullscreen": "Volledig scherm (planningspagina)",
+      "scope": "Bereikkiezer openen",
+      "help": "Deze hulppagina openen"
+    }
   }
 }

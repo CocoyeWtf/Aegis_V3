@@ -11,6 +11,8 @@
     "search": "Rechercher",
     "filter": "Filtrer",
     "export": "Exporter",
+    "exportCsv": "Export CSV",
+    "exportExcel": "Export Excel",
     "import": "Importer",
     "loading": "Chargement...",
     "noData": "Aucune donnée",
@@ -57,7 +59,49 @@
     "baseActivities": "Activités base",
     "parameters": "Paramètres",
     "tourPlanning": "Planification",
-    "tourHistory": "Historique tours"
+    "tourHistory": "Historique tours",
+    "importsExports": "Imports/Exports",
+    "admin": "Administration",
+    "users": "Utilisateurs",
+    "roles": "Rôles"
+  },
+  "auth": {
+    "login": "Connexion",
+    "username": "Nom d'utilisateur",
+    "password": "Mot de passe",
+    "loginButton": "Se connecter",
+    "loginError": "Identifiants invalides",
+    "logout": "Déconnexion",
+    "sessionExpired": "Session expirée, veuillez vous reconnecter"
+  },
+  "admin": {
+    "users": {
+      "title": "Gestion des utilisateurs",
+      "new": "Nouvel utilisateur",
+      "edit": "Modifier l'utilisateur",
+      "username": "Nom d'utilisateur",
+      "email": "Email",
+      "password": "Mot de passe",
+      "passwordPlaceholder": "Laisser vide pour ne pas changer",
+      "active": "Actif",
+      "roles": "Rôles",
+      "regions": "Régions",
+      "allRegions": "Toutes les régions"
+    },
+    "roles": {
+      "title": "Gestion des rôles",
+      "new": "Nouveau rôle",
+      "edit": "Modifier le rôle",
+      "name": "Nom",
+      "description": "Description",
+      "permissions": "Permissions",
+      "permissionCount": "Nb permissions",
+      "action_read": "Lire",
+      "action_create": "Créer",
+      "action_update": "Modifier",
+      "action_delete": "Supprimer",
+      "toggleAll": "Tout cocher/décocher"
+    }
   },
   "map": {
     "routes": "Routes",
@@ -352,5 +396,158 @@
     "avgKmPerEqp": "Km moyen/EQP",
     "eqpPerDay": "EQP & Tours par jour",
     "statusDistribution": "Répartition par statut"
+  },
+  "help": {
+    "title": "Aide",
+    "mainTitle": "Guide d'utilisation — Chaos RouteManager",
+    "version": "Optimiseur de tournées pour la grande distribution alimentaire",
+    "footer": "Guide d'utilisation v1.0",
+    "sections": {
+      "overview": "Vue d'ensemble",
+      "login": "Connexion",
+      "navigation": "Navigation",
+      "scope": "Périmètre géographique",
+      "datatable": "Tableaux de données",
+      "countries": "Pays & Régions",
+      "bases": "Bases logistiques",
+      "pdvs": "Points de vente",
+      "vehicles": "Véhicules & Contrats",
+      "volumes": "Volumes",
+      "contracts": "Contrats transport",
+      "tourPlanning": "Planification de tours",
+      "tourHistory": "Historique des tours",
+      "admin": "Administration",
+      "shortcuts": "Raccourcis & astuces"
+    },
+    "overview": {
+      "intro": "Chaos RouteManager est un outil de planification et d'optimisation de tournées de livraison pour la grande distribution alimentaire. Il permet de gérer l'ensemble de la chaîne logistique : bases d'expédition, points de vente, véhicules, volumes à livrer et construction de tours optimisés.",
+      "purpose": "Le tableau de bord offre une vue synthétique de l'activité quotidienne : nombre de tours, PDVs actifs, véhicules disponibles et kilométrage total. Des graphiques de tendance et de répartition par statut permettent de suivre les performances.",
+      "mockChart": "Graphique de tendance"
+    },
+    "login": {
+      "intro": "L'accès à l'application est protégé par authentification. Chaque utilisateur dispose d'un identifiant et mot de passe créés par un administrateur.",
+      "steps": "Pour se connecter :",
+      "step1": "Saisissez votre nom d'utilisateur dans le premier champ",
+      "step2": "Saisissez votre mot de passe",
+      "step3": "Cliquez sur « Connexion » — vous serez redirigé vers votre page d'accueil",
+      "tip": "Votre session reste active pendant 30 minutes. Si la session expire, vous serez automatiquement redirigé vers la page de connexion."
+    },
+    "navigation": {
+      "intro": "L'application se compose d'une barre latérale de navigation (à gauche), d'un en-tête (en haut) et d'une zone de contenu principale.",
+      "mockTitle": "Structure de l'interface",
+      "sidebarLabel": "Barre latérale — cliquez sur un menu pour naviguer",
+      "collapse": "Cliquez sur « » / « » pour réduire/agrandir la barre latérale",
+      "permissions": "Les menus visibles dépendent de vos permissions — seuls les menus auxquels vous avez accès sont affichés",
+      "theme": "Utilisez le bouton ☀️/🌙 dans l'en-tête pour basculer entre le thème sombre et clair",
+      "language": "Changez de langue avec les boutons FR / EN / PT / NL dans l'en-tête"
+    },
+    "scope": {
+      "intro": "Le sélecteur de périmètre dans l'en-tête permet de filtrer les données par pays et/ou région. La carte se recentre automatiquement sur la zone sélectionnée.",
+      "mockTitle": "En-tête avec périmètre actif",
+      "selectCountry": "Cliquez sur l'indicateur 📍 pour ouvrir le sélecteur de périmètre",
+      "selectRegion": "Sélectionnez un pays pour filtrer les régions, puis une région pour affiner",
+      "mapZoom": "La carte zoome automatiquement sur les PDVs et bases de la zone sélectionnée",
+      "reset": "Choisissez « Global » pour réinitialiser le filtre et voir toutes les données"
+    },
+    "datatable": {
+      "intro": "La plupart des pages utilisent un tableau de données avec les mêmes fonctionnalités : recherche, tri, colonnes personnalisables, import/export et actions CRUD.",
+      "mockTitle": "Tableau de données type",
+      "mockTableTitle": "Points de vente",
+      "search": "Recherche instantanée : tapez dans le champ de recherche pour filtrer les lignes en temps réel",
+      "sort": "Tri par colonne : cliquez sur l'en-tête d'une colonne pour trier (ascendant/descendant)",
+      "columns": "Colonnes personnalisables : cliquez sur « Colonnes » pour masquer/afficher des colonnes",
+      "create": "Créer : cliquez sur le bouton « + Nouveau » pour ouvrir le formulaire de création",
+      "edit": "Modifier : cliquez sur l'icône ✏️ d'une ligne pour éditer l'enregistrement",
+      "delete": "Supprimer : cliquez sur l'icône 🗑️ puis confirmez la suppression",
+      "import": "Import Excel : cliquez sur « Importer » et déposez un fichier .xlsx",
+      "export": "Export Excel : cliquez sur « Exporter » pour télécharger les données au format Excel",
+      "deleteWarning": "La suppression est irréversible. Assurez-vous de ne pas supprimer un enregistrement utilisé par d'autres données (ex: un PDV référencé par des volumes)."
+    },
+    "countries": {
+      "intro": "Cette page gère les pays et leurs régions. Les régions sont le découpage géographique de base utilisé pour le périmètre des utilisateurs et le filtrage des données.",
+      "tabs": "Deux onglets : « Pays » pour gérer les pays (nom + code ISO), « Régions » pour les régions",
+      "filterByCountry": "Cliquez sur un pays pour filtrer ses régions",
+      "regionLink": "Chaque région est rattachée à un pays — elle sert de base pour le périmètre géographique des utilisateurs"
+    },
+    "bases": {
+      "intro": "Les bases logistiques sont les entrepôts d'expédition. Chaque base possède des coordonnées GPS (affichées sur la carte), une adresse et des vitesses de préparation par température.",
+      "fields": "Champs principaux : nom, code, adresse, coordonnées GPS, région de rattachement",
+      "activities": "Chaque base peut être associée à des activités (onglet dédié dans Activités base)",
+      "speeds": "Les vitesses de préparation sont définies par température (SEC, FRAIS, GEL, MIXTE) et cadence (rapide, lente) en EQP/heure",
+      "map": "Les bases sont affichées sur la carte avec une icône dédiée",
+      "mockTitle": "Exemple — Vitesses de préparation"
+    },
+    "pdvs": {
+      "intro": "Les Points De Vente (PDV) représentent les magasins à livrer. Chaque PDV possède des contraintes de livraison spécifiques.",
+      "types": "Types de PDV : Super Alimentaire, Super Généraliste, Hyper, Netto, Drive, Urbain Proxi",
+      "delivery": "Créneaux de livraison : heure de début et fin de livraison, temps de déchargement par EQP",
+      "constraints": "Contraintes d'accès : SAS (zone tampon), quai de déchargement, restrictions de gabarit",
+      "map": "Les PDVs sont affichés sur la carte avec un code couleur selon leur statut (voir légende)",
+      "mockTitle": "Légende carte — Statut des PDVs"
+    },
+    "vehicles": {
+      "intro": "Gestion de la flotte de véhicules. Chaque véhicule possède un type de température, un gabarit et une capacité.",
+      "tempTypes": "Types de température : GEL (gelé), FRAIS, SEC, BI-TEMP (2 zones), TRI-TEMP (3 zones)",
+      "types": "Types de véhicule : Semi-remorque, Porteur, Porteur + Remorque, City, VL",
+      "capacity": "Capacité définie en EQP (équivalent palette) et en kg",
+      "tailgate": "Hayon : rétractable ou rabattable (impacte les contraintes de livraison PDV)"
+    },
+    "volumes": {
+      "intro": "Les volumes représentent les marchandises à livrer à chaque PDV pour une date donnée. Ce sont les « briques » qui composent les tours.",
+      "fields": "Champs : PDV destinataire, nombre d'EQP, poids (kg), classe température, base d'origine, créneau de préparation",
+      "link": "Chaque volume est lié à un PDV et à une base d'expédition — il représente une commande ou un flux",
+      "import": "Import massif via Excel pour charger les volumes du jour"
+    },
+    "contracts": {
+      "intro": "Les contrats de transport lient un transporteur à un véhicule avec des conditions tarifaires et un calendrier de disponibilité.",
+      "costs": "Coûts : terme fixe journalier (€), coût/km (€), coût/heure (€), heures et km minimum par jour",
+      "schedule": "Planning hebdomadaire : jours de disponibilité du lundi au dimanche",
+      "unavailable": "Dates d'indisponibilité exceptionnelle (congés, maintenance) à renseigner dans le calendrier",
+      "mockTitle": "Exemple — Planning hebdomadaire"
+    },
+    "tourPlanning": {
+      "intro": "La planification de tours est le cœur de l'application. L'écran est divisé en 3 zones : les volumes disponibles (gauche), la carte (centre) et le tour en cours (droite).",
+      "mockTitle": "Interface de planification",
+      "mapArea": "Carte interactive",
+      "stepsTitle": "Étapes de construction d'un tour :",
+      "step1": "Sélectionnez une base d'expédition et un type de véhicule",
+      "step2": "Définissez l'heure de départ depuis la base",
+      "step3": "Ajoutez des volumes en cliquant dessus dans la liste ou sur le PDV sur la carte",
+      "step4": "Réorganisez l'ordre des arrêts par glisser-déposer (drag & drop)",
+      "step5": "Vérifiez le taux de remplissage et les horaires estimés",
+      "step6": "Validez le tour ou sauvegardez-le en brouillon",
+      "tip": "Si un volume dépasse la capacité restante, une boîte de dialogue propose de le fractionner : choisissez le nombre d'EQP à charger, le reste restera disponible.",
+      "tipScheduling": "Onglet « Planification » : glissez les tours validés sur la timeline pour organiser la journée. Les chevauchements de véhicule sont signalés automatiquement."
+    },
+    "tourHistory": {
+      "intro": "L'historique affiche tous les tours créés avec leurs détails, KPIs et coûts. Vous pouvez filtrer par date, base, véhicule.",
+      "statuses": "Statuts : Brouillon → Validé → En cours → Terminé",
+      "kpi": "KPIs globaux : tours total, EQP total, km total, coût total, CO₂ estimé",
+      "delete": "Supprimer un tour remet ses volumes à disposition pour de nouvelles affectations",
+      "mockTitle": "Statuts des tours"
+    },
+    "admin": {
+      "intro": "La section Administration est réservée aux utilisateurs ayant les permissions « users » et/ou « roles ». Elle permet de gérer les comptes utilisateurs et les rôles d'accès.",
+      "usersTitle": "Gestion des utilisateurs",
+      "usersCreate": "Créer un utilisateur : nom, email, mot de passe, rôle(s), région(s) de périmètre",
+      "usersRoles": "Un utilisateur peut avoir plusieurs rôles — les permissions se cumulent",
+      "usersRegions": "Les régions assignées limitent les données visibles (PDVs, volumes, bases…). Sans région = accès global",
+      "usersSuperadmin": "Le superadmin a accès à tout sans restriction — ne pas attribuer ce statut sauf nécessité",
+      "rolesTitle": "Gestion des rôles",
+      "rolesIntro": "Un rôle regroupe un ensemble de permissions. La matrice permet de cocher finement les droits par ressource et action.",
+      "mockTitle": "Exemple — Matrice de permissions",
+      "resource": "Ressource",
+      "rolesMatrix": "Chaque case de la matrice correspond à une permission : ressource (ligne) × action (colonne)",
+      "rolesToggle": "Utilisez « Tout sélectionner » pour cocher/décocher une ligne ou une colonne entière",
+      "warning": "Attention : supprimer une permission d'un rôle affecte immédiatement tous les utilisateurs ayant ce rôle."
+    },
+    "shortcuts": {
+      "sidebar": "Réduire / agrandir la barre latérale",
+      "theme": "Basculer entre thème sombre et clair",
+      "language": "Changer de langue",
+      "fullscreen": "Mode plein écran (page planification)",
+      "scope": "Ouvrir le sélecteur de périmètre",
+      "help": "Ouvrir cette page d'aide"
+    }
   }
 }

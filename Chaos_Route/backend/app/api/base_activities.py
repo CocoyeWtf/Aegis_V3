@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.base_activity import BaseActivity
+from app.models.user import User
+from app.api.deps import require_permission
 
 router = APIRouter()
 
@@ -29,14 +31,21 @@ class BaseActivityRead(BaseModel):
 
 
 @router.get("/", response_model=list[BaseActivityRead])
-async def list_activities(db: AsyncSession = Depends(get_db)):
+async def list_activities(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("base-activities", "read")),
+):
     """Lister les activités / List all base activities."""
     result = await db.execute(select(BaseActivity).order_by(BaseActivity.code))
     return result.scalars().all()
 
 
 @router.post("/", response_model=BaseActivityRead, status_code=201)
-async def create_activity(data: BaseActivityCreate, db: AsyncSession = Depends(get_db)):
+async def create_activity(
+    data: BaseActivityCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("base-activities", "create")),
+):
     activity = BaseActivity(**data.model_dump())
     db.add(activity)
     await db.flush()
@@ -45,7 +54,12 @@ async def create_activity(data: BaseActivityCreate, db: AsyncSession = Depends(g
 
 
 @router.put("/{activity_id}", response_model=BaseActivityRead)
-async def update_activity(activity_id: int, data: BaseActivityUpdate, db: AsyncSession = Depends(get_db)):
+async def update_activity(
+    activity_id: int,
+    data: BaseActivityUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("base-activities", "update")),
+):
     activity = await db.get(BaseActivity, activity_id)
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
@@ -57,7 +71,11 @@ async def update_activity(activity_id: int, data: BaseActivityUpdate, db: AsyncS
 
 
 @router.delete("/{activity_id}", status_code=204)
-async def delete_activity(activity_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_activity(
+    activity_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("base-activities", "delete")),
+):
     activity = await db.get(BaseActivity, activity_id)
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")

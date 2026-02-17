@@ -143,6 +143,7 @@ export default function ContractManagement() {
         createTitle={t('contracts.new')}
         editTitle={t('contracts.edit')}
         importEntity="contracts"
+        exportEntity="contracts"
         allowDuplicate
         transformPayload={(d) => ({ ...d, region_id: Number(d.region_id) })}
       />

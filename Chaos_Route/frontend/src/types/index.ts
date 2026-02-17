@@ -186,3 +186,30 @@ export interface Parameter {
   effective_date?: string
   end_date?: string
 }
+
+/* Auth & RBAC types */
+export interface Permission {
+  id: number
+  resource: string
+  action: string
+}
+
+export interface Role {
+  id: number
+  name: string
+  description?: string
+  permissions: Permission[]
+  created_at: string
+}
+
+export interface UserAccount {
+  id: number
+  username: string
+  email: string
+  is_active: boolean
+  is_superadmin: boolean
+  roles: { id: number; name: string }[]
+  regions: { id: number; name: string }[]
+  created_at: string
+  updated_at: string
+}

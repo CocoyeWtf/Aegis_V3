@@ -5,8 +5,9 @@ import { useTranslation } from 'react-i18next'
 import { DataTable, type Column } from '../components/data/DataTable'
 import { FormDialog, type FieldDef } from '../components/data/FormDialog'
 import { ConfirmDialog } from '../components/data/ConfirmDialog'
+import { ImportDialog } from '../components/data/ImportDialog'
 import { useApi } from '../hooks/useApi'
-import { create, update, remove } from '../services/api'
+import { create, update, remove, downloadExport } from '../services/api'
 import type { Country, Region } from '../types'
 
 export default function CountryRegion() {
@@ -18,6 +19,7 @@ export default function CountryRegion() {
   const [editItem, setEditItem] = useState<Record<string, unknown> | undefined>()
   const [deleteItem, setDeleteItem] = useState<{ type: 'country' | 'region'; id: number } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [importType, setImportType] = useState<'countries' | 'regions' | null>(null)
   const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null)
 
   /* Régions filtrées par pays sélectionné / Regions filtered by selected country */
@@ -120,6 +122,8 @@ export default function CountryRegion() {
           onCreate={() => { setDialogType('country'); setEditItem(undefined) }}
           onEdit={(row) => { setDialogType('country'); setEditItem(row as unknown as Record<string, unknown>) }}
           onDelete={(row) => setDeleteItem({ type: 'country', id: row.id })}
+          onImport={() => setImportType('countries')}
+          onExport={(format) => downloadExport('countries', format)}
           onRowClick={(row) => setSelectedCountryId(selectedCountryId === row.id ? null : row.id)}
           activeRowId={selectedCountryId}
         />
@@ -150,6 +154,8 @@ export default function CountryRegion() {
             onCreate={() => { setDialogType('region'); setEditItem(undefined) }}
             onEdit={(row) => { setDialogType('region'); setEditItem(row as unknown as Record<string, unknown>) }}
             onDelete={(row) => setDeleteItem({ type: 'region', id: row.id })}
+            onImport={() => setImportType('regions')}
+            onExport={(format) => downloadExport('regions', format)}
           />
         </div>
       </div>
@@ -184,6 +190,22 @@ export default function CountryRegion() {
         title={t('common.deleteTitle')}
         message={t('common.deleteConfirm')}
         loading={saving}
+      />
+
+      {/* Import pays / Import countries */}
+      <ImportDialog
+        open={importType === 'countries'}
+        onClose={() => setImportType(null)}
+        entityType="countries"
+        onSuccess={refetchC}
+      />
+
+      {/* Import régions / Import regions */}
+      <ImportDialog
+        open={importType === 'regions'}
+        onClose={() => setImportType(null)}
+        entityType="regions"
+        onSuccess={refetchR}
       />
     </div>
   )
