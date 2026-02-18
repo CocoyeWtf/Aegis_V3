@@ -19,6 +19,7 @@ class PDVBase(BaseModel):
     has_sas: bool = False
     sas_capacity: int | None = None
     has_dock: bool = False
+    dock_has_niche: bool = False
     dock_time_minutes: int | None = None
     unload_time_per_eqp_minutes: int | None = None
     delivery_window_start: str | None = None
@@ -45,6 +46,7 @@ class PDVUpdate(BaseModel):
     has_sas: bool | None = None
     sas_capacity: int | None = None
     has_dock: bool | None = None
+    dock_has_niche: bool | None = None
     dock_time_minutes: int | None = None
     unload_time_per_eqp_minutes: int | None = None
     delivery_window_start: str | None = None

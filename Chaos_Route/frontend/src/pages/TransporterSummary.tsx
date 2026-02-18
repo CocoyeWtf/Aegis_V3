@@ -32,6 +32,13 @@ interface SummaryCostBreakdown {
   total_calculated: number
 }
 
+interface SummaryTimeBreakdown {
+  travel_minutes: number
+  dock_minutes: number
+  unload_minutes: number
+  total_minutes: number
+}
+
 interface SummaryTour {
   tour_id: number
   tour_code: string
@@ -52,6 +59,7 @@ interface SummaryTour {
   barrier_entry_time?: string
   remarks?: string
   cost_breakdown: SummaryCostBreakdown
+  time_breakdown?: SummaryTimeBreakdown
   stops: SummaryStop[]
 }
 

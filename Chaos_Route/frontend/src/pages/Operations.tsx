@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import api from '../services/api'
 import type { Tour, BaseLogistics, Contract } from '../types'
 import { TourWaybill } from '../components/tour/TourWaybill'
+import { DriverRouteSheet } from '../components/tour/DriverRouteSheet'
 
 export default function Operations() {
   const { t } = useTranslation()
@@ -17,12 +18,14 @@ export default function Operations() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState<number | null>(null)
   const [waybillTourId, setWaybillTourId] = useState<number | null>(null)
+  const [routeSheetTourId, setRouteSheetTourId] = useState<number | null>(null)
 
   /* Formulaires locaux / Local form state per tour */
   const [forms, setForms] = useState<Record<number, {
     driver_name: string
     driver_arrival_time: string
     loading_end_time: string
+    total_weight_kg: string
     remarks: string
   }>>({})
 
@@ -51,6 +54,7 @@ export default function Operations() {
           driver_name: tour.driver_name ?? '',
           driver_arrival_time: tour.driver_arrival_time ?? '',
           loading_end_time: tour.loading_end_time ?? '',
+          total_weight_kg: tour.total_weight_kg != null ? String(tour.total_weight_kg) : '',
           remarks: tour.remarks ?? '',
         }
       }
@@ -74,7 +78,12 @@ export default function Operations() {
   const handleSave = async (tourId: number) => {
     setSaving(tourId)
     try {
-      await api.put(`/tours/${tourId}/operations`, forms[tourId])
+      const f = forms[tourId]
+      const payload = {
+        ...f,
+        total_weight_kg: f.total_weight_kg ? parseFloat(f.total_weight_kg) : null,
+      }
+      await api.put(`/tours/${tourId}/operations`, payload)
       await loadTours()
     } catch (e) {
       console.error('Failed to save operations', e)
@@ -89,6 +98,9 @@ export default function Operations() {
     <div className="p-6">
       {waybillTourId && (
         <TourWaybill tourId={waybillTourId} onClose={() => setWaybillTourId(null)} />
+      )}
+      {routeSheetTourId && (
+        <DriverRouteSheet tourId={routeSheetTourId} onClose={() => setRouteSheetTourId(null)} />
       )}
 
       <h1 className="text-2xl font-bold mb-6" style={{ color: 'var(--text-primary)' }}>
@@ -198,6 +210,21 @@ export default function Operations() {
                       style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                     />
                   </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>
+                      {t('operations.totalWeightKg')}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={form.total_weight_kg}
+                      onChange={(e) => updateForm(tour.id, 'total_weight_kg', e.target.value)}
+                      className="w-full px-2 py-1.5 rounded border text-sm"
+                      style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                      placeholder="kg"
+                    />
+                  </div>
                 </div>
                 <div className="mb-3">
                   <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>
@@ -214,6 +241,13 @@ export default function Operations() {
 
                 {/* Actions */}
                 <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => setRouteSheetTourId(tour.id)}
+                    className="px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all hover:opacity-80"
+                    style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
+                  >
+                    {t('operations.driverRoute')}
+                  </button>
                   <button
                     onClick={() => setWaybillTourId(tour.id)}
                     className="px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all hover:opacity-80"

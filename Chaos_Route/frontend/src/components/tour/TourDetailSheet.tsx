@@ -23,6 +23,13 @@ interface CostBreakdown {
   total_calculated: number
 }
 
+interface TimeBreakdown {
+  travel_minutes: number
+  dock_minutes: number
+  unload_minutes: number
+  total_minutes: number
+}
+
 export interface TourDetailData {
   tour_id: number
   tour_code: string
@@ -43,6 +50,7 @@ export interface TourDetailData {
   barrier_entry_time?: string
   remarks?: string
   cost_breakdown: CostBreakdown
+  time_breakdown?: TimeBreakdown
   stops: TourStop[]
   /* Contexte contrat (injecté par la page parent) / Contract context (injected by parent) */
   contract_code?: string
@@ -68,7 +76,7 @@ export function TourDetailSheet({ tour, onClose }: TourDetailSheetProps) {
   const handlePrint = () => window.print()
 
   return (
-    <div className="fixed inset-0 z-50 overflow-auto" style={{ backgroundColor: 'var(--bg-primary)' }}>
+    <div className="fixed inset-0 z-50 overflow-auto print-overlay" style={{ backgroundColor: 'var(--bg-primary)' }}>
       {/* Toolbar (masquée à l'impression / hidden on print) */}
       <div
         className="print-hide sticky top-0 z-10 flex items-center justify-between px-6 py-3 border-b"
@@ -145,6 +153,31 @@ export function TourDetailSheet({ tour, onClose }: TourDetailSheetProps) {
             </span>
           </div>
         </section>
+
+        {/* Section 2b — Temps / Time breakdown */}
+        {tour.time_breakdown && (
+          <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border-color)' }}>
+            <h3 className="text-base font-bold mb-3" style={{ color: 'var(--text-primary)' }}>
+              {t('timeBreakdown.title')}
+            </h3>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+              <InfoRow label={t('timeBreakdown.travelTime')} value={formatDuration(tour.time_breakdown.travel_minutes)} />
+              <InfoRow label={t('timeBreakdown.dockTime')} value={formatDuration(tour.time_breakdown.dock_minutes)} />
+              <InfoRow label={t('timeBreakdown.unloadTime')} value={formatDuration(tour.time_breakdown.unload_minutes)} />
+            </div>
+            <div
+              className="mt-3 rounded-lg p-3 flex items-center justify-between"
+              style={{ backgroundColor: 'rgba(59,130,246,0.08)', borderLeft: '4px solid var(--color-info, #3b82f6)' }}
+            >
+              <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                {t('timeBreakdown.totalTime')}
+              </span>
+              <span className="text-lg font-bold" style={{ color: 'var(--color-info, #3b82f6)' }}>
+                {formatDuration(tour.time_breakdown.total_minutes)}
+              </span>
+            </div>
+          </section>
+        )}
 
         {/* Section 3 — Itinéraire / Itinerary */}
         <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border-color)' }}>

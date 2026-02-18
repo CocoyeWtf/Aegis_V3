@@ -27,8 +27,8 @@ from app.api.deps import require_permission, get_user_region_ids
 router = APIRouter()
 
 # -- Constantes par défaut / Default constants --
-DEFAULT_DOCK_TIME_MINUTES = 10
-DEFAULT_UNLOAD_TIME_PER_EQP_MINUTES = 3
+DEFAULT_DOCK_TIME_MINUTES = 15
+DEFAULT_UNLOAD_TIME_PER_EQP_MINUTES = 2
 
 
 def _parse_time(t: str) -> datetime:
@@ -279,6 +279,43 @@ async def _log_audit(
     ))
 
 
+async def _check_dock_tailgate_compatibility(
+    db: AsyncSession, stops_data: list[dict], contract: Contract
+) -> list[str]:
+    """Vérifier compatibilité quai/hayon entre les PDV et le contrat /
+    Check dock/tailgate compatibility between PDVs and the contract.
+    Returns list of violation messages (empty = OK).
+    """
+    pdv_ids = [s["pdv_id"] for s in stops_data]
+    if not pdv_ids:
+        return []
+    result = await db.execute(select(PDV).where(PDV.id.in_(pdv_ids)))
+    pdvs = {p.id: p for p in result.scalars().all()}
+
+    has_tailgate = contract.has_tailgate
+    tailgate_type = contract.tailgate_type
+    # Normaliser la valeur du type de hayon / Normalize tailgate type value
+    tg_value = tailgate_type.value if (tailgate_type and hasattr(tailgate_type, 'value')) else tailgate_type
+
+    violations: list[str] = []
+    for stop in stops_data:
+        pdv = pdvs.get(stop["pdv_id"])
+        if not pdv:
+            continue
+
+        if not pdv.has_dock:
+            # PDV sans quai → hayon obligatoire / No dock → tailgate required
+            if not has_tailgate:
+                violations.append(f"DOCK_NO_TAILGATE:{pdv.code} {pdv.name}")
+        else:
+            # PDV avec quai / PDV with dock
+            if not pdv.dock_has_niche and has_tailgate and tg_value == "RABATTABLE":
+                # Quai sans niche + hayon rabattable = interdit / Dock without niche + foldable = forbidden
+                violations.append(f"DOCK_NO_NICHE_FOLDABLE:{pdv.code} {pdv.name}")
+
+    return violations
+
+
 # =========================================================================
 # CRUD Endpoints
 # =========================================================================
@@ -286,6 +323,8 @@ async def _log_audit(
 @router.get("/", response_model=list[TourRead])
 async def list_tours(
     date: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     base_id: int | None = None,
     status: str | None = None,
     db: AsyncSession = Depends(get_db),
@@ -295,6 +334,10 @@ async def list_tours(
     query = select(Tour).options(selectinload(Tour.stops))
     if date is not None:
         query = query.where(Tour.date == date)
+    if date_from is not None:
+        query = query.where(Tour.date >= date_from)
+    if date_to is not None:
+        query = query.where(Tour.date <= date_to)
     if base_id is not None:
         query = query.where(Tour.base_id == base_id)
     if status is not None:
@@ -315,6 +358,7 @@ async def available_contracts_for_tours(
     base_id: int = Query(...),
     after_time: str = Query(default="00:00"),
     vehicle_type: str | None = Query(default=None),
+    tour_id: int | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("tour-planning", "read")),
 ):
@@ -342,6 +386,24 @@ async def available_contracts_for_tours(
 
     if vehicle_type:
         available = [c for c in available if not c.vehicle_type or c.vehicle_type.value == vehicle_type]
+
+    # Filtrer les contrats incompatibles quai/hayon / Filter dock/tailgate incompatible contracts
+    if tour_id is not None:
+        tour_result = await db.execute(
+            select(Tour).where(Tour.id == tour_id).options(selectinload(Tour.stops))
+        )
+        tour = tour_result.scalar_one_or_none()
+        if tour and tour.stops:
+            stops_data = [
+                {"pdv_id": s.pdv_id, "sequence_order": s.sequence_order, "eqp_count": s.eqp_count}
+                for s in tour.stops
+            ]
+            compatible = []
+            for c in available:
+                violations = await _check_dock_tailgate_compatibility(db, stops_data, c)
+                if not violations:
+                    compatible.append(c)
+            available = compatible
 
     return [
         {
@@ -516,6 +578,9 @@ async def transporter_summary(
         fuel_map[d] = float(fuel) if fuel else 0.0
 
     # 4. Construire les données par tour / Build per-tour data
+    default_dock = int(await _get_param(db, "default_dock_time_minutes", str(DEFAULT_DOCK_TIME_MINUTES)))
+    default_unload = int(await _get_param(db, "default_unload_time_per_eqp_minutes", str(DEFAULT_UNLOAD_TIME_PER_EQP_MINUTES)))
+
     tour_rows: list[dict] = []
     for tour in tours:
         contract = contracts_map.get(tour.contract_id)
@@ -552,6 +617,21 @@ async def transporter_summary(
         total_calculated = round(fixed_share + fuel_cost + km_tax_total, 2)
 
         sorted_stops = sorted(tour.stops, key=lambda s: s.sequence_order)
+
+        # Calcul time_breakdown / Time breakdown calculation
+        tb_travel = sum(s.duration_from_previous_minutes or 0 for s in sorted_stops)
+        if sorted_stops:
+            return_dist = await _get_distance(db, "PDV", sorted_stops[-1].pdv_id, "BASE", tour.base_id)
+            tb_travel += return_dist.duration_minutes if return_dist else 0
+        tb_dock = sum(
+            (pdvs_map[s.pdv_id].dock_time_minutes if s.pdv_id in pdvs_map and pdvs_map[s.pdv_id].dock_time_minutes else default_dock)
+            for s in sorted_stops
+        )
+        tb_unload = sum(
+            s.eqp_count * (pdvs_map[s.pdv_id].unload_time_per_eqp_minutes if s.pdv_id in pdvs_map and pdvs_map[s.pdv_id].unload_time_per_eqp_minutes else default_unload)
+            for s in sorted_stops
+        )
+
         tour_rows.append({
             "tour_id": tour.id,
             "tour_code": tour.code,
@@ -576,6 +656,12 @@ async def transporter_summary(
                 "fuel_cost": fuel_cost,
                 "km_tax_total": km_tax_total,
                 "total_calculated": total_calculated,
+            },
+            "time_breakdown": {
+                "travel_minutes": tb_travel,
+                "dock_minutes": tb_dock,
+                "unload_minutes": tb_unload,
+                "total_minutes": tour.total_duration_minutes or 0,
             },
             "stops": [
                 {
@@ -687,6 +773,100 @@ async def transporter_summary(
     }
 
 
+@router.get("/{tour_id}/time-breakdown")
+async def get_tour_time_breakdown(
+    tour_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("tour-planning", "read")),
+):
+    """Détail du calcul de temps d'un tour / Tour time calculation breakdown."""
+    result = await db.execute(
+        select(Tour).where(Tour.id == tour_id).options(selectinload(Tour.stops))
+    )
+    tour = result.scalar_one_or_none()
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found")
+
+    default_dock = int(await _get_param(db, "default_dock_time_minutes", str(DEFAULT_DOCK_TIME_MINUTES)))
+    default_unload = int(await _get_param(db, "default_unload_time_per_eqp_minutes", str(DEFAULT_UNLOAD_TIME_PER_EQP_MINUTES)))
+
+    sorted_stops = sorted(tour.stops, key=lambda s: s.sequence_order)
+
+    # Charger les PDVs et la base / Load PDVs and base
+    pdv_ids = list({s.pdv_id for s in sorted_stops})
+    pdv_map: dict[int, PDV] = {}
+    if pdv_ids:
+        pdv_result = await db.execute(select(PDV).where(PDV.id.in_(pdv_ids)))
+        for p in pdv_result.scalars().all():
+            pdv_map[p.id] = p
+    base = await db.get(BaseLogistics, tour.base_id)
+
+    # Construire les segments et stops / Build segments and stops
+    stops_data = [
+        {"pdv_id": s.pdv_id, "sequence_order": s.sequence_order, "eqp_count": s.eqp_count}
+        for s in sorted_stops
+    ]
+    segments = _build_segments(tour.base_id, stops_data)
+
+    segment_details = []
+    total_travel = 0
+    for seg in segments:
+        dist = await _get_distance(db, seg[0], seg[1], seg[2], seg[3])
+        travel_min = dist.duration_minutes if dist else 0
+        total_travel += travel_min
+
+        if seg[0] == "BASE" and base:
+            origin_label = base.name
+        else:
+            pdv = pdv_map.get(seg[1])
+            origin_label = f"{pdv.code} {pdv.name}" if pdv else f"#{seg[1]}"
+        if seg[2] == "BASE" and base:
+            dest_label = base.name
+        else:
+            pdv = pdv_map.get(seg[3])
+            dest_label = f"{pdv.code} {pdv.name}" if pdv else f"#{seg[3]}"
+
+        segment_details.append({
+            "origin": f"{seg[0]}:{origin_label}",
+            "destination": f"{seg[2]}:{dest_label}",
+            "travel_minutes": travel_min,
+        })
+
+    stop_details = []
+    total_dock = 0
+    total_unload = 0
+    total_eqp = 0
+    for s in sorted_stops:
+        pdv = pdv_map.get(s.pdv_id)
+        dock = pdv.dock_time_minutes if (pdv and pdv.dock_time_minutes) else default_dock
+        unload_per = pdv.unload_time_per_eqp_minutes if (pdv and pdv.unload_time_per_eqp_minutes) else default_unload
+        unload_min = s.eqp_count * unload_per
+        total_dock += dock
+        total_unload += unload_min
+        total_eqp += s.eqp_count
+        stop_details.append({
+            "pdv_code": pdv.code if pdv else f"#{s.pdv_id}",
+            "pdv_name": pdv.name if pdv else "",
+            "eqp": s.eqp_count,
+            "dock_min": dock,
+            "unload_min": unload_min,
+            "total_stop_min": dock + unload_min,
+        })
+
+    return {
+        "tour_id": tour.id,
+        "tour_code": tour.code,
+        "departure_time": tour.departure_time,
+        "return_time": tour.return_time,
+        "total_duration_minutes": tour.total_duration_minutes or 0,
+        "travel_minutes": total_travel,
+        "dock_minutes": total_dock,
+        "unload_minutes": total_unload,
+        "segments": segment_details,
+        "stops": stop_details,
+    }
+
+
 @router.get("/{tour_id}", response_model=TourRead)
 async def get_tour(
     tour_id: int,
@@ -731,6 +911,15 @@ async def create_tour(
         total_duration = None
 
     contract = await db.get(Contract, data.contract_id) if data.contract_id else None
+
+    # Vérification compatibilité quai/hayon (blocage dur) / Dock/tailgate compatibility (hard block)
+    if contract and stops_input:
+        dock_violations = await _check_dock_tailgate_compatibility(db, stops_input, contract)
+        if dock_violations:
+            raise HTTPException(
+                status_code=422,
+                detail=f"DOCK_TAILGATE:{' | '.join(dock_violations)}",
+            )
 
     total_km = data.total_km or 0
     if data.departure_time and enriched_stops:
@@ -846,6 +1035,7 @@ async def update_tour(
 async def schedule_tour(
     tour_id: int,
     data: TourSchedule,
+    force: bool = Query(default=False),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("tour-planning", "update")),
 ):
@@ -866,7 +1056,8 @@ async def schedule_tour(
         data.departure_time, stops_data, tour.base_id, db
     )
 
-    other_tours = await db.execute(
+    # Vérification chevauchement / Overlap check
+    other_tours_result = await db.execute(
         select(Tour).where(
             Tour.date == tour.date,
             Tour.contract_id == data.contract_id,
@@ -875,7 +1066,8 @@ async def schedule_tour(
             Tour.return_time.isnot(None),
         )
     )
-    for other in other_tours.scalars().all():
+    other_tours = list(other_tours_result.scalars().all())
+    for other in other_tours:
         if other.departure_time and other.return_time:
             if data.departure_time < other.return_time and return_time > other.departure_time:
                 raise HTTPException(
@@ -883,7 +1075,50 @@ async def schedule_tour(
                     detail=f"Overlap with tour {other.code} ({other.departure_time}-{other.return_time})",
                 )
 
+    # Vérification dépassement 10h journalières du contrat / Check contract daily 10h limit
+    MAX_CONTRACT_DAILY_MINUTES = 600  # 10h
+    if not force:
+        existing_minutes = sum(t.total_duration_minutes or 0 for t in other_tours)
+        projected_total = existing_minutes + (total_duration or 0)
+        if projected_total > MAX_CONTRACT_DAILY_MINUTES:
+            hours = projected_total // 60
+            mins = projected_total % 60
+            raise HTTPException(
+                status_code=422,
+                detail=f"OVER_10H:{hours}h{mins:02d}",
+            )
+
+    # Vérification fenêtres de livraison PDV / Check PDV delivery windows
+    if not force and enriched_stops:
+        pdv_ids = [s["pdv_id"] for s in enriched_stops]
+        pdv_result = await db.execute(select(PDV).where(PDV.id.in_(pdv_ids)))
+        pdv_windows = {p.id: p for p in pdv_result.scalars().all()}
+        violations = []
+        for stop in enriched_stops:
+            pdv = pdv_windows.get(stop["pdv_id"])
+            if not pdv or not stop.get("arrival_time"):
+                continue
+            arrival = stop["arrival_time"]  # HH:MM
+            if pdv.delivery_window_start and arrival < pdv.delivery_window_start:
+                violations.append(f"{pdv.code} {pdv.name}: {arrival} < {pdv.delivery_window_start}")
+            if pdv.delivery_window_end and arrival > pdv.delivery_window_end:
+                violations.append(f"{pdv.code} {pdv.name}: {arrival} > {pdv.delivery_window_end}")
+        if violations:
+            raise HTTPException(
+                status_code=422,
+                detail=f"DELIVERY_WINDOW:{' | '.join(violations)}",
+            )
+
     contract = await db.get(Contract, data.contract_id)
+
+    # Vérification compatibilité quai/hayon (blocage dur) / Dock/tailgate compatibility (hard block)
+    if contract and stops_data:
+        dock_violations = await _check_dock_tailgate_compatibility(db, stops_data, contract)
+        if dock_violations:
+            raise HTTPException(
+                status_code=422,
+                detail=f"DOCK_TAILGATE:{' | '.join(dock_violations)}",
+            )
 
     total_km = sum(s.get("distance_from_previous_km", 0) for s in enriched_stops)
     if enriched_stops:

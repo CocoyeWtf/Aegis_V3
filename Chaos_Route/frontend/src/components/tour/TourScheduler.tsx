@@ -92,6 +92,7 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
           date: selectedDate,
           base_id: selectedBaseId,
           vehicle_type: tour.vehicle_type,
+          tour_id: tour.id,
         },
       })
       setAvailableContractsMap((prev) => ({ ...prev, [tour.id]: data }))
@@ -109,6 +110,30 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
   /* Séparer tours planifiés et non-planifiés / Split scheduled vs unscheduled */
   const unscheduledTours = useMemo(() => tours.filter((t) => !t.departure_time), [tours])
   const scheduledTours = useMemo(() => tours.filter((t) => t.departure_time), [tours])
+
+  /* Détecter les tours avec violation de fenêtre de livraison / Detect delivery window violations */
+  const deliveryWindowViolations = useMemo(() => {
+    const violations = new Map<number, string[]>()
+    for (const tour of scheduledTours) {
+      if (!tour.stops) continue
+      const tourViolations: string[] = []
+      for (const stop of tour.stops) {
+        if (!stop.arrival_time) continue
+        const pdv = pdvMap.get(stop.pdv_id)
+        if (!pdv) continue
+        if (pdv.delivery_window_start && stop.arrival_time < pdv.delivery_window_start) {
+          tourViolations.push(`${pdv.code} ${pdv.name}: ${stop.arrival_time} < ${pdv.delivery_window_start}`)
+        }
+        if (pdv.delivery_window_end && stop.arrival_time > pdv.delivery_window_end) {
+          tourViolations.push(`${pdv.code} ${pdv.name}: ${stop.arrival_time} > ${pdv.delivery_window_end}`)
+        }
+      }
+      if (tourViolations.length > 0) {
+        violations.set(tour.id, tourViolations)
+      }
+    }
+    return violations
+  }, [scheduledTours, pdvMap])
 
   /* Estimation retour client-side / Client-side return estimation */
   const estimateReturn = (tour: Tour, departureTime: string): string | null => {
@@ -157,7 +182,7 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
   }
 
   /* Planifier un tour / Schedule a tour */
-  const handleSchedule = async (tourId: number) => {
+  const handleSchedule = async (tourId: number, force = false) => {
     const input = scheduleInputs[tourId]
     if (!input?.time || !input?.contractId) return
     setScheduling(tourId)
@@ -165,13 +190,45 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
       await api.put(`/tours/${tourId}/schedule`, {
         contract_id: input.contractId,
         departure_time: input.time,
-      })
+      }, { params: force ? { force: true } : undefined })
       await loadData()
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { detail?: string } } }
+      const err = e as { response?: { data?: { detail?: string }; status?: number } }
       const detail = err?.response?.data?.detail
-      if (detail) alert(detail)
-      else console.error('Failed to schedule tour', e)
+      const status = err?.response?.status
+      // Dépassement 10h : demander confirmation / Over 10h: ask confirmation
+      if (status === 422 && detail?.startsWith('OVER_10H:')) {
+        const totalTime = detail.replace('OVER_10H:', '')
+        const confirmed = window.confirm(
+          t('tourPlanning.over10hWarning', { total: totalTime })
+        )
+        if (confirmed) {
+          setScheduling(null)
+          return handleSchedule(tourId, true)
+        }
+      // Incompatibilité quai/hayon (blocage dur) / Dock/tailgate incompatibility (hard block)
+      } else if (status === 422 && detail?.startsWith('DOCK_TAILGATE:')) {
+        const violations = detail.replace('DOCK_TAILGATE:', '')
+        alert(t('tourPlanning.dockTailgateError') + '\n\n' + violations.split(' | ').map((v: string) => {
+          if (v.startsWith('DOCK_NO_TAILGATE:')) return t('tourPlanning.noDockNeedsTailgate', { pdv: v.replace('DOCK_NO_TAILGATE:', '') })
+          if (v.startsWith('DOCK_NO_NICHE_FOLDABLE:')) return t('tourPlanning.noDockNicheNoFoldable', { pdv: v.replace('DOCK_NO_NICHE_FOLDABLE:', '') })
+          return v
+        }).join('\n'))
+      // Hors fenêtre livraison / Outside delivery window
+      } else if (status === 422 && detail?.startsWith('DELIVERY_WINDOW:')) {
+        const violations = detail.replace('DELIVERY_WINDOW:', '')
+        const confirmed = window.confirm(
+          t('tourPlanning.deliveryWindowWarning', { violations })
+        )
+        if (confirmed) {
+          setScheduling(null)
+          return handleSchedule(tourId, true)
+        }
+      } else if (detail) {
+        alert(detail)
+      } else {
+        console.error('Failed to schedule tour', e)
+      }
     } finally {
       setScheduling(null)
     }
@@ -485,13 +542,14 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
               </h4>
               {scheduledTours.map((tour) => {
                 const tourContract = tour.contract_id ? contractMap.get(tour.contract_id) : null
+                const windowViolations = deliveryWindowViolations.get(tour.id)
                 return (
                 <div
                   key={tour.id}
                   className="rounded-xl border p-4 mb-2 cursor-pointer transition-all"
                   style={{
-                    backgroundColor: highlightedTourId === tour.id ? 'rgba(34,197,94,0.05)' : 'var(--bg-secondary)',
-                    borderColor: highlightedTourId === tour.id ? 'var(--color-success)' : 'var(--border-color)',
+                    backgroundColor: windowViolations ? 'rgba(239,68,68,0.05)' : highlightedTourId === tour.id ? 'rgba(34,197,94,0.05)' : 'var(--bg-secondary)',
+                    borderColor: windowViolations ? 'var(--color-danger)' : highlightedTourId === tour.id ? 'var(--color-success)' : 'var(--border-color)',
                   }}
                   onClick={() => setHighlightedTourId(tour.id)}
                 >
@@ -538,6 +596,19 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
                     </div>
                   )}
 
+                  {/* Avertissement fenêtre de livraison / Delivery window warning */}
+                  {windowViolations && (
+                    <div
+                      className="mt-2 rounded-lg px-3 py-1.5 text-xs"
+                      style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--color-danger)' }}
+                    >
+                      <span className="font-bold">⚠</span>{' '}
+                      {windowViolations.map((v, i) => (
+                        <span key={i}>{i > 0 && ' | '}{v}</span>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Liste des stops / Stop list */}
                   {renderStopList(tour)}
 
@@ -572,6 +643,7 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
           tours={timeline}
           highlightedTourId={highlightedTourId}
           onTourClick={setHighlightedTourId}
+          warningTourIds={new Set(deliveryWindowViolations.keys())}
         />
       </div>
 

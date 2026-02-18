@@ -32,6 +32,8 @@ class Tour(Base):
     total_duration_minutes: Mapped[int | None] = mapped_column(Integer)
     total_eqp: Mapped[int | None] = mapped_column(Integer)
     total_cost: Mapped[float | None] = mapped_column(Numeric(12, 2))
+    total_weight_kg: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    # Poids total du tour (saisi par le postier) / Total tour weight (entered by dispatcher)
     status: Mapped[TourStatus] = mapped_column(Enum(TourStatus), default=TourStatus.DRAFT)
     base_id: Mapped[int] = mapped_column(ForeignKey("bases_logistics.id"), nullable=False)
 

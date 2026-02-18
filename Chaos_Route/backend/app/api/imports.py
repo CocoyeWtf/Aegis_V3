@@ -1,5 +1,7 @@
 """Routes Import CSV/Excel / Import API routes."""
 
+from datetime import time as dt_time
+
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy import select, inspect
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -165,6 +167,213 @@ def _resolve_pdv_type(value) -> str | None:
     if s.upper() in ("EXPRESS", "CONTACT", "SUPER_ALIMENTAIRE", "SUPER_GENERALISTE", "HYPER", "NETTO", "DRIVE", "URBAIN_PROXI"):
         return s.upper()
     return _PDV_TYPE_ALIASES.get(s.lower())
+
+
+def _normalize_code(raw) -> str | None:
+    """Normaliser un code matrice pour le lookup DB / Normalize matrix code for DB lookup.
+    La matrice peut avoir 80, la DB peut avoir 080 → on compare sans zéros initiaux.
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s or s.lower() == "x":
+        return None
+    try:
+        return str(int(float(s)))
+    except (ValueError, TypeError):
+        return s.lower()
+
+
+def _time_to_minutes(val) -> int | None:
+    """Convertir datetime.time ou timedelta en minutes / Convert time value to minutes."""
+    if val is None:
+        return None
+    if isinstance(val, dt_time):
+        return val.hour * 60 + val.minute + round(val.second / 60)
+    # openpyxl peut renvoyer un timedelta / openpyxl may return timedelta
+    from datetime import timedelta
+    if isinstance(val, timedelta):
+        total = int(val.total_seconds())
+        return total // 60
+    # Valeur numérique brute (fraction de jour Excel) / Raw numeric value (Excel day fraction)
+    if isinstance(val, (int, float)):
+        total_minutes = round(val * 24 * 60)
+        return total_minutes
+    s = str(val).strip()
+    if not s or s.lower() == "x":
+        return None
+    # Tenter HH:MM:SS ou HH:MM / Try HH:MM:SS or HH:MM
+    parts = s.split(":")
+    if len(parts) >= 2:
+        try:
+            h, m = int(parts[0]), int(parts[1])
+            sec = int(parts[2]) if len(parts) > 2 else 0
+            return h * 60 + m + round(sec / 60)
+        except ValueError:
+            pass
+    return None
+
+
+@router.post("/time-matrix")
+async def import_time_matrix(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("imports-exports", "create")),
+):
+    """
+    Importer une matrice carrée de temps de trajet (Excel).
+    Import a square travel-time matrix from Excel.
+
+    Format attendu / Expected format:
+    - Ligne 1 (header) : colonnes D+ = codes numériques des points
+    - Ligne 2 : labels (ignorée)
+    - Lignes 3+ : colonne A = code, colonnes D+ = temps (datetime.time)
+    """
+    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls")):
+        raise HTTPException(status_code=400, detail="Only .xlsx files are supported")
+
+    content = await file.read()
+
+    import openpyxl
+    from io import BytesIO
+
+    try:
+        wb = openpyxl.load_workbook(BytesIO(content), data_only=True)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error reading Excel file: {e}")
+
+    ws = wb.active
+    if ws is None:
+        raise HTTPException(status_code=400, detail="No active worksheet found")
+
+    # 1. Lire les codes en header (ligne 1, colonnes D+) / Read header codes (row 1, cols D+)
+    header_codes: list[str | None] = []
+    for col_idx in range(4, ws.max_column + 1):  # D = col 4
+        raw = ws.cell(row=1, column=col_idx).value
+        header_codes.append(_normalize_code(raw))
+
+    # 2. Construire le lookup code -> (type, db_id) / Build code lookup
+    code_lookup = await _build_code_lookup(db)
+
+    # Ajouter des variantes sans/avec zéros / Add variants without/with leading zeros
+    extended_lookup: dict[str, tuple[str, int]] = {}
+    for code_key, val in code_lookup.items():
+        extended_lookup[code_key] = val
+        # Sans zéros initiaux / Without leading zeros
+        stripped = code_key.lstrip("0")
+        if stripped and stripped not in extended_lookup:
+            extended_lookup[stripped] = val
+        # Avec zéros (3 chiffres) / With zeros (3 digits)
+        try:
+            padded = str(int(code_key)).zfill(3)
+            if padded not in extended_lookup:
+                extended_lookup[padded] = val
+        except ValueError:
+            pass
+
+    def resolve_code(code: str | None) -> tuple[str, int] | None:
+        """Résoudre un code matrice vers (type, id) / Resolve matrix code to (type, id)."""
+        if code is None:
+            return None
+        for variant in [code, code.lstrip("0"), code.zfill(3)]:
+            found = extended_lookup.get(variant)
+            if found:
+                return found
+        return None
+
+    # 3. Parser les données (lignes 3+) / Parse data rows (row 3+)
+    created = 0
+    updated = 0
+    skipped = 0
+    errors: list[str] = []
+
+    for row_idx in range(3, ws.max_row + 1):
+        row_code_raw = ws.cell(row=row_idx, column=1).value
+        row_code = _normalize_code(row_code_raw)
+        if row_code is None:
+            continue
+
+        row_resolved = resolve_code(row_code)
+        if row_resolved is None:
+            errors.append(f"Row {row_idx}: unknown code '{row_code_raw}' in column A")
+            skipped += 1
+            continue
+
+        row_type, row_id = row_resolved
+
+        for col_offset, col_code in enumerate(header_codes):
+            if col_code is None:
+                continue
+
+            col_resolved = resolve_code(col_code)
+            if col_resolved is None:
+                continue
+
+            col_type, col_id = col_resolved
+
+            # Ignorer la diagonale / Skip diagonal
+            if row_type == col_type and row_id == col_id:
+                continue
+
+            cell_val = ws.cell(row=row_idx, column=4 + col_offset).value
+            minutes = _time_to_minutes(cell_val)
+            if minutes is None:
+                continue
+
+            # Chercher l'entrée existante (bidirectionnelle) / Find existing entry (bidirectional)
+            result = await db.execute(
+                select(DistanceMatrix).where(
+                    DistanceMatrix.origin_type == row_type,
+                    DistanceMatrix.origin_id == row_id,
+                    DistanceMatrix.destination_type == col_type,
+                    DistanceMatrix.destination_id == col_id,
+                )
+            )
+            existing = result.scalar_one_or_none()
+
+            if not existing:
+                result = await db.execute(
+                    select(DistanceMatrix).where(
+                        DistanceMatrix.origin_type == col_type,
+                        DistanceMatrix.origin_id == col_id,
+                        DistanceMatrix.destination_type == row_type,
+                        DistanceMatrix.destination_id == row_id,
+                    )
+                )
+                existing = result.scalar_one_or_none()
+
+            if existing:
+                if existing.duration_minutes != minutes:
+                    existing.duration_minutes = minutes
+                    updated += 1
+                else:
+                    skipped += 1
+            else:
+                db.add(DistanceMatrix(
+                    origin_type=row_type,
+                    origin_id=row_id,
+                    destination_type=col_type,
+                    destination_id=col_id,
+                    distance_km=0,
+                    duration_minutes=minutes,
+                ))
+                created += 1
+
+    if created > 0 or updated > 0:
+        try:
+            await db.flush()
+        except Exception as e:
+            await db.rollback()
+            raise HTTPException(status_code=400, detail=f"Database error: {e}")
+
+    return {
+        "status": "success",
+        "created": created,
+        "updated": updated,
+        "skipped": skipped,
+        "errors": errors[:20],
+        "message": f"{created} created, {updated} updated, {skipped} skipped",
+    }
 
 
 @router.post("/{entity_type}")

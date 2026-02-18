@@ -1,7 +1,7 @@
 /* Utilitaires temps pour tours / Tour time utility helpers */
 
-export const DEFAULT_DOCK_TIME = 10
-export const DEFAULT_UNLOAD_PER_EQP = 3
+export const DEFAULT_DOCK_TIME = 15
+export const DEFAULT_UNLOAD_PER_EQP = 2
 
 export interface StopTimeline {
   pdv_id: number

@@ -41,6 +41,8 @@ class PDV(Base):
 
     # Quai de déchargement / Unloading dock
     has_dock: Mapped[bool] = mapped_column(Boolean, default=False)
+    dock_has_niche: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Niche sous quai (permet hayon rabattable) / Dock recess (allows foldable tailgate)
     dock_time_minutes: Mapped[int | None] = mapped_column(Integer)  # temps de mise à quai
     unload_time_per_eqp_minutes: Mapped[int | None] = mapped_column(Integer)  # temps déchargement par EQP
 

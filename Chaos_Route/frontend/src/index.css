@@ -69,11 +69,20 @@ body {
     --color-warning: #eab308 !important;
   }
 
-  /* Cacher toolbar / Hide toolbar */
+  /* Cacher sidebar, header, toolbar / Hide sidebar, header, toolbar */
   .print-hide { display: none !important; }
 
-  /* Le container fixed doit devenir static / Unfix container */
-  .fixed { position: static !important; }
+  /* Layout principal : débloquer flex/overflow / Main layout: unblock flex/overflow */
+  .flex.h-screen { display: block !important; height: auto !important; overflow: visible !important; }
+  .flex-1.overflow-y-auto { overflow: visible !important; height: auto !important; }
+  .flex-1.overflow-hidden { overflow: visible !important; height: auto !important; }
+
+  /* Overlay imprimable (TourDetailSheet) : prend toute la page / Printable overlay: fill page */
+  .print-overlay {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
 
   /* Le contenu scrollable visible en entier / Unclamp scrollable content */
   .print-content {

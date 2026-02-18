@@ -52,6 +52,7 @@ export interface PDV {
   has_sas: boolean
   sas_capacity?: number
   has_dock: boolean
+  dock_has_niche: boolean
   dock_time_minutes?: number
   unload_time_per_eqp_minutes?: number
   delivery_window_start?: string
@@ -123,6 +124,7 @@ export interface Tour {
   total_duration_minutes?: number
   total_eqp?: number
   total_cost?: number
+  total_weight_kg?: number
   status: TourStatus
   base_id: number
   stops: TourStop[]

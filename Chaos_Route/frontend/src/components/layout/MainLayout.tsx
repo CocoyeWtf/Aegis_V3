@@ -23,9 +23,9 @@ export function MainLayout() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {!isFullscreen && <Sidebar />}
+      {!isFullscreen && <div className="print-hide"><Sidebar /></div>}
       <div className="flex flex-col flex-1 overflow-hidden">
-        {!isFullscreen && <Header />}
+        {!isFullscreen && <div className="print-hide"><Header /></div>}
         <main className="flex-1 overflow-y-auto p-6 relative" style={{ backgroundColor: 'var(--bg-primary)' }}>
           <Outlet />
           {/* Bouton flottant quitter plein écran / Floating exit fullscreen button */}

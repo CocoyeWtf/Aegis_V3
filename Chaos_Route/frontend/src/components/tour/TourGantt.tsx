@@ -27,6 +27,7 @@ interface TourGanttProps {
   tours: GanttTour[]
   highlightedTourId: number | null
   onTourClick: (tourId: number) => void
+  warningTourIds?: Set<number>
 }
 
 const HOUR_START = 5
@@ -45,12 +46,14 @@ function timeToMinutes(t: string): number {
   return h * 60 + m
 }
 
-export function TourGantt({ tours, highlightedTourId, onTourClick }: TourGanttProps) {
+export function TourGantt({ tours, highlightedTourId, onTourClick, warningTourIds }: TourGanttProps) {
   const { t } = useTranslation()
+
+  const MAX_CONTRACT_DAILY_MINUTES = 600 // 10h
 
   /* Regrouper par contrat (seulement les tours planifiés) / Group by contract (scheduled only) */
   const vehicleRows = useMemo(() => {
-    const map = new Map<number, { code: string; name: string; tours: GanttTour[] }>()
+    const map = new Map<number, { code: string; name: string; tours: GanttTour[]; totalMinutes: number }>()
     for (const tour of tours) {
       if (!tour.departure_time || !tour.return_time || tour.contract_id == null) continue
       let entry = map.get(tour.contract_id)
@@ -59,10 +62,12 @@ export function TourGantt({ tours, highlightedTourId, onTourClick }: TourGanttPr
           code: tour.vehicle_code || tour.contract_code || `C${tour.contract_id}`,
           name: tour.vehicle_name || tour.transporter_name || '',
           tours: [],
+          totalMinutes: 0,
         }
         map.set(tour.contract_id, entry)
       }
       entry.tours.push(tour)
+      entry.totalMinutes += tour.total_duration_minutes ?? 0
     }
     return Array.from(map.entries()).sort(([, a], [, b]) => a.code.localeCompare(b.code))
   }, [tours])
@@ -77,10 +82,20 @@ export function TourGantt({ tours, highlightedTourId, onTourClick }: TourGanttPr
       className="rounded-xl border overflow-hidden h-full flex flex-col"
       style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
     >
-      <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border-color)' }}>
+      <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-color)' }}>
         <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
           {t('tourPlanning.timeline')}
         </h3>
+        <div className="flex items-center gap-3 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-3 h-3 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid var(--color-danger)' }} />
+            {t('tourPlanning.legendOver10h')}
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-3 h-3 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.8)', border: '1px dashed var(--color-danger)' }} />
+            {t('tourPlanning.legendWindowViolation')}
+          </span>
+        </div>
       </div>
 
       <div className="flex-1 px-4 py-3 overflow-y-auto">
@@ -107,19 +122,21 @@ export function TourGantt({ tours, highlightedTourId, onTourClick }: TourGanttPr
             </div>
 
             {/* Lignes véhicules / Vehicle rows */}
-            {vehicleRows.map(([vehicleId, { code, name, tours: vTours }]) => (
+            {vehicleRows.map(([vehicleId, { code, name, tours: vTours, totalMinutes }]) => {
+              const isOver10h = totalMinutes > MAX_CONTRACT_DAILY_MINUTES
+              return (
               <div key={vehicleId} className="flex items-center mb-1" style={{ minHeight: '32px' }}>
                 <div
                   className="w-[100px] shrink-0 text-xs font-medium truncate pr-2"
-                  style={{ color: 'var(--text-primary)' }}
-                  title={`${code} — ${name}`}
+                  style={{ color: isOver10h ? 'var(--color-danger)' : 'var(--text-primary)' }}
+                  title={`${code} — ${name}${isOver10h ? ` (${Math.floor(totalMinutes / 60)}h${String(totalMinutes % 60).padStart(2, '0')} > 10h)` : ''}`}
                 >
-                  {code}
+                  {code}{isOver10h ? ' !' : ''}
                 </div>
 
                 <div
                   className="flex-1 relative rounded"
-                  style={{ backgroundColor: 'var(--bg-tertiary)', height: '26px' }}
+                  style={{ backgroundColor: isOver10h ? 'rgba(239,68,68,0.08)' : 'var(--bg-tertiary)', height: '26px' }}
                 >
                   {/* Gridlines */}
                   {hours.map((h) => {
@@ -142,6 +159,7 @@ export function TourGantt({ tours, highlightedTourId, onTourClick }: TourGanttPr
                     const width = Math.min(100 - left, ((retMin - depMin) / rangeMin) * 100)
                     const color = STATUS_COLORS[tour.status] || STATUS_COLORS.DRAFT
                     const isHighlighted = tour.tour_id === highlightedTourId
+                    const hasWindowViolation = warningTourIds?.has(tour.tour_id)
 
                     return (
                       <div
@@ -150,21 +168,21 @@ export function TourGantt({ tours, highlightedTourId, onTourClick }: TourGanttPr
                         style={{
                           left: `${left}%`,
                           width: `${Math.max(width, 1)}%`,
-                          backgroundColor: color,
+                          backgroundColor: hasWindowViolation ? 'rgba(239,68,68,0.8)' : color,
                           color: '#fff',
                           overflow: 'hidden',
                           whiteSpace: 'nowrap',
-                          outline: isHighlighted ? '2px solid var(--color-primary)' : 'none',
+                          outline: isHighlighted ? '2px solid var(--color-primary)' : hasWindowViolation ? '2px dashed var(--color-danger)' : 'none',
                           outlineOffset: '1px',
                           opacity: isHighlighted ? 1 : 0.85,
                           zIndex: isHighlighted ? 10 : 1,
                         }}
-                        title={`${tour.code} | ${tour.departure_time} → ${tour.return_time} | ${tour.total_eqp ?? 0} EQP`}
+                        title={`${tour.code} | ${tour.departure_time} → ${tour.return_time} | ${tour.total_eqp ?? 0} EQP${hasWindowViolation ? ' ⚠ ' + t('tourPlanning.deliveryWindowWarning', { violations: '' }) : ''}`}
                         onClick={() => onTourClick(tour.tour_id)}
                       >
                         {width > 5 && (
                           <span className="px-1 truncate">
-                            {tour.departure_time}–{tour.return_time}
+                            {hasWindowViolation && '⚠ '}{tour.departure_time}–{tour.return_time}
                           </span>
                         )}
                       </div>
@@ -172,7 +190,8 @@ export function TourGantt({ tours, highlightedTourId, onTourClick }: TourGanttPr
                   })}
                 </div>
               </div>
-            ))}
+              )
+            })}
           </>
         )}
       </div>
