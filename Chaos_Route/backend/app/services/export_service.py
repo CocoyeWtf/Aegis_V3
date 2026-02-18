@@ -18,6 +18,7 @@ class ExportService:
     @staticmethod
     def model_to_dict(obj: Any, fields: list[str]) -> dict[str, Any]:
         """Extraire les attributs d'un modèle SQLAlchemy / Extract model attributes to dict."""
+        import enum
         result = {}
         for f in fields:
             val = getattr(obj, f, None)
@@ -25,6 +26,8 @@ class ExportService:
                 val = "true"
             elif val is False:
                 val = "false"
+            elif isinstance(val, enum.Enum):
+                val = val.value
             result[f] = val
         return result
 

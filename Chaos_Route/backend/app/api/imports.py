@@ -407,7 +407,7 @@ async def import_data(
         raise HTTPException(status_code=400, detail="No data found in file")
 
     region_lookup = await _build_region_lookup(db)
-    code_lookup = await _build_code_lookup(db) if entity_type in ("distances", "km-tax") else {}
+    code_lookup = await _build_code_lookup(db) if entity_type in ("distances", "km-tax", "volumes") else {}
 
     model_class = ENTITY_MODEL_MAP[entity_type]
     allowed_fields = set(ImportService.ENTITY_FIELDS.get(entity_type, []))
@@ -463,6 +463,24 @@ async def import_data(
                             data[id_key] = resolved[1]
                         else:
                             errors.append(f"Row {i + 2}: unknown code '{raw_id}' for {id_key}")
+                            skipped += 1
+                            data = {}
+                            break
+                if not data:
+                    continue
+
+            # Volumes : résoudre pdv_id et base_origin_id par code
+            # Volumes: resolve pdv_id and base_origin_id from entity code
+            if entity_type == "volumes" and code_lookup:
+                for fk_field in ("pdv_id", "base_origin_id"):
+                    raw_val = data.get(fk_field)
+                    if raw_val is not None:
+                        code_str = str(raw_val).strip().lower()
+                        resolved = code_lookup.get(code_str)
+                        if resolved:
+                            data[fk_field] = resolved[1]
+                        else:
+                            errors.append(f"Row {i + 2}: unknown code '{raw_val}' for {fk_field}")
                             skipped += 1
                             data = {}
                             break

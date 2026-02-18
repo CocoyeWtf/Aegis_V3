@@ -70,20 +70,37 @@ async def export_data(
 
     rows = [ExportService.model_to_dict(obj, fields) for obj in objects]
 
-    # Distances / km-tax : remplacer les DB IDs par les codes pour l'import round-trip
-    # Distances / km-tax: replace DB IDs with entity codes for round-trip import
-    if entity_type in ("distances", "km-tax"):
-        id_to_code: dict[tuple[str, int], str] = {}
-        for model, etype in [(PDV, "PDV"), (BaseLogistics, "BASE"), (Supplier, "SUPPLIER")]:
-            r = await db.execute(select(model.id, model.code))
+    # Remplacer DB IDs par codes pour import round-trip / Replace DB IDs with codes
+    if entity_type in ("distances", "km-tax", "volumes"):
+        pdv_id_to_code: dict[int, str] = {}
+        base_id_to_code: dict[int, str] = {}
+        r = await db.execute(select(PDV.id, PDV.code))
+        for eid, code in r.all():
+            pdv_id_to_code[eid] = str(code)
+        r = await db.execute(select(BaseLogistics.id, BaseLogistics.code))
+        for eid, code in r.all():
+            base_id_to_code[eid] = str(code)
+
+        if entity_type in ("distances", "km-tax"):
+            sup_id_to_code: dict[int, str] = {}
+            r = await db.execute(select(Supplier.id, Supplier.code))
             for eid, code in r.all():
-                id_to_code[(etype, eid)] = str(code)
-        for row in rows:
-            for prefix in ("origin", "destination"):
-                etype = row.get(f"{prefix}_type")
-                eid = row.get(f"{prefix}_id")
-                if etype and eid is not None:
-                    row[f"{prefix}_id"] = id_to_code.get((etype, eid), eid)
+                sup_id_to_code[eid] = str(code)
+            type_lookup = {"PDV": pdv_id_to_code, "BASE": base_id_to_code, "SUPPLIER": sup_id_to_code}
+            for row in rows:
+                for prefix in ("origin", "destination"):
+                    etype = row.get(f"{prefix}_type")
+                    eid = row.get(f"{prefix}_id")
+                    if etype and eid is not None:
+                        row[f"{prefix}_id"] = type_lookup.get(etype, {}).get(eid, eid)
+        elif entity_type == "volumes":
+            for row in rows:
+                pid = row.get("pdv_id")
+                if pid is not None:
+                    row["pdv_id"] = pdv_id_to_code.get(pid, pid)
+                bid = row.get("base_origin_id")
+                if bid is not None:
+                    row["base_origin_id"] = base_id_to_code.get(bid, bid)
 
     if format == "csv":
         content = ExportService.to_csv(rows, fields)
