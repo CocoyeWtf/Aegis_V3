@@ -70,6 +70,21 @@ async def export_data(
 
     rows = [ExportService.model_to_dict(obj, fields) for obj in objects]
 
+    # Distances / km-tax : remplacer les DB IDs par les codes pour l'import round-trip
+    # Distances / km-tax: replace DB IDs with entity codes for round-trip import
+    if entity_type in ("distances", "km-tax"):
+        id_to_code: dict[tuple[str, int], str] = {}
+        for model, etype in [(PDV, "PDV"), (BaseLogistics, "BASE"), (Supplier, "SUPPLIER")]:
+            r = await db.execute(select(model.id, model.code))
+            for eid, code in r.all():
+                id_to_code[(etype, eid)] = str(code)
+        for row in rows:
+            for prefix in ("origin", "destination"):
+                etype = row.get(f"{prefix}_type")
+                eid = row.get(f"{prefix}_id")
+                if etype and eid is not None:
+                    row[f"{prefix}_id"] = id_to_code.get((etype, eid), eid)
+
     if format == "csv":
         content = ExportService.to_csv(rows, fields)
         media_type = "text/csv; charset=utf-8"
