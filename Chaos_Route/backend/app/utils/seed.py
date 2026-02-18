@@ -19,7 +19,7 @@ async def seed_superadmin(session: AsyncSession) -> None:
     if count == 0:
         admin = User(
             username="admin",
-            email="admin@chaos-route.local",
+            email="admin@chaos-route.app",
             hashed_password=hash_password("admin"),
             is_active=True,
             is_superadmin=True,
