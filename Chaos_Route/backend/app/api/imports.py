@@ -99,6 +99,11 @@ def _coerce_value(val, field_name: str):
         except ValueError:
             return None
 
+    # Nettoyer les préfixes d'enum Python (ex: "TemperatureClass.SEC" -> "SEC")
+    # Strip Python enum class prefixes
+    if "." in s and s.split(".", 1)[0].replace("_", "").isalpha():
+        s = s.split(".", 1)[1]
+
     return s
 
 
@@ -145,17 +150,20 @@ async def _find_existing(db: AsyncSession, model_class, unique_field: str, value
 
 
 async def _build_code_lookup(db: AsyncSession) -> dict[str, tuple[str, int]]:
-    """Construire un cache code -> (type, id) / Build code -> (type, db_id) lookup."""
+    """Construire un cache code -> (type, id) / Build code -> (type, db_id) lookup.
+    Ajoute des variantes sans zéros initiaux pour gérer _coerce_value qui int() les codes.
+    Adds zero-stripped variants to handle _coerce_value int() conversion of codes.
+    """
     lookup: dict[str, tuple[str, int]] = {}
-    result = await db.execute(select(PDV.id, PDV.code))
-    for db_id, code in result.all():
-        lookup[str(code).strip().lower()] = ("PDV", db_id)
-    result = await db.execute(select(BaseLogistics.id, BaseLogistics.code))
-    for db_id, code in result.all():
-        lookup[str(code).strip().lower()] = ("BASE", db_id)
-    result = await db.execute(select(Supplier.id, Supplier.code))
-    for db_id, code in result.all():
-        lookup[str(code).strip().lower()] = ("SUPPLIER", db_id)
+    for model, etype in [(PDV, "PDV"), (BaseLogistics, "BASE"), (Supplier, "SUPPLIER")]:
+        result = await db.execute(select(model.id, model.code))
+        for db_id, code in result.all():
+            key = str(code).strip().lower()
+            lookup[key] = (etype, db_id)
+            # Variante sans zéros initiaux / Zero-stripped variant
+            stripped = key.lstrip("0")
+            if stripped and stripped not in lookup:
+                lookup[stripped] = (etype, db_id)
     return lookup
 
 
