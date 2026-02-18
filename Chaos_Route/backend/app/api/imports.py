@@ -415,27 +415,21 @@ async def import_data(
         raise HTTPException(status_code=400, detail="No data found in file")
 
     region_lookup = await _build_region_lookup(db)
-    code_lookup = await _build_code_lookup(db) if entity_type in ("distances", "km-tax", "volumes") else {}
 
-    # Volumes : lookups séparés par type pour éviter les collisions de codes
-    # Volumes: separate lookups per type to avoid code collisions (e.g. PDV "92" vs Base "092")
-    pdv_code_lookup: dict[str, int] = {}
-    base_code_lookup: dict[str, int] = {}
-    if entity_type == "volumes":
-        result = await db.execute(select(PDV.id, PDV.code))
-        for db_id, code in result.all():
-            key = str(code).strip().lower()
-            pdv_code_lookup[key] = db_id
-            stripped = key.lstrip("0")
-            if stripped and stripped not in pdv_code_lookup:
-                pdv_code_lookup[stripped] = db_id
-        result = await db.execute(select(BaseLogistics.id, BaseLogistics.code))
-        for db_id, code in result.all():
-            key = str(code).strip().lower()
-            base_code_lookup[key] = db_id
-            stripped = key.lstrip("0")
-            if stripped and stripped not in base_code_lookup:
-                base_code_lookup[stripped] = db_id
+    # Lookups typés par entité (code -> db_id) avec variantes sans zéros
+    # Typed lookups per entity (code -> db_id) with zero-stripped variants
+    typed_lookups: dict[str, dict[str, int]] = {}
+    if entity_type in ("distances", "km-tax", "volumes"):
+        for model, etype in [(PDV, "PDV"), (BaseLogistics, "BASE"), (Supplier, "SUPPLIER")]:
+            lk: dict[str, int] = {}
+            result = await db.execute(select(model.id, model.code))
+            for db_id, code in result.all():
+                key = str(code).strip().lower()
+                lk[key] = db_id
+                stripped = key.lstrip("0")
+                if stripped and stripped not in lk:
+                    lk[stripped] = db_id
+            typed_lookups[etype] = lk
 
     model_class = ENTITY_MODEL_MAP[entity_type]
     allowed_fields = set(ImportService.ENTITY_FIELDS.get(entity_type, []))
@@ -478,38 +472,58 @@ async def import_data(
             if "code" in data and data["code"] is not None:
                 data["code"] = str(data["code"]).strip()
 
-            if entity_type in ("distances", "km-tax") and code_lookup:
+            if entity_type in ("distances", "km-tax") and typed_lookups:
                 for prefix in ("origin", "destination"):
                     id_key = f"{prefix}_id"
                     type_key = f"{prefix}_type"
                     raw_id = data.get(id_key)
                     if raw_id is not None:
                         code_str = str(raw_id).strip().lower()
-                        resolved = code_lookup.get(code_str)
-                        if resolved:
-                            data[type_key] = resolved[0]
-                            data[id_key] = resolved[1]
+                        # Si le type est fourni dans le CSV, utiliser le lookup typé
+                        # If type is provided in CSV, use the typed lookup
+                        csv_type = str(data.get(type_key, "")).strip().upper()
+                        if csv_type and csv_type in typed_lookups:
+                            resolved_id = typed_lookups[csv_type].get(code_str)
+                            if resolved_id is not None:
+                                data[type_key] = csv_type
+                                data[id_key] = resolved_id
+                            else:
+                                errors.append(f"Row {i + 2}: unknown {csv_type} code '{raw_id}' for {id_key}")
+                                skipped += 1
+                                data = {}
+                                break
                         else:
-                            errors.append(f"Row {i + 2}: unknown code '{raw_id}' for {id_key}")
-                            skipped += 1
-                            data = {}
-                            break
+                            # Pas de type → chercher dans tous les lookups
+                            # No type → search all lookups
+                            found = False
+                            for etype, lk in typed_lookups.items():
+                                resolved_id = lk.get(code_str)
+                                if resolved_id is not None:
+                                    data[type_key] = etype
+                                    data[id_key] = resolved_id
+                                    found = True
+                                    break
+                            if not found:
+                                errors.append(f"Row {i + 2}: unknown code '{raw_id}' for {id_key}")
+                                skipped += 1
+                                data = {}
+                                break
                 if not data:
                     continue
 
-            # Volumes : résoudre pdv_id et base_origin_id par code (lookups séparés)
-            # Volumes: resolve pdv_id and base_origin_id from code (separate lookups)
-            if entity_type == "volumes" and pdv_code_lookup:
-                fk_lookups = {"pdv_id": pdv_code_lookup, "base_origin_id": base_code_lookup}
-                for fk_field, fk_lookup in fk_lookups.items():
+            # Volumes : résoudre pdv_id et base_origin_id par code (lookups typés)
+            # Volumes: resolve pdv_id and base_origin_id from code (typed lookups)
+            if entity_type == "volumes" and typed_lookups:
+                fk_map = {"pdv_id": "PDV", "base_origin_id": "BASE"}
+                for fk_field, fk_type in fk_map.items():
                     raw_val = data.get(fk_field)
                     if raw_val is not None:
                         code_str = str(raw_val).strip().lower()
-                        resolved_id = fk_lookup.get(code_str)
+                        resolved_id = typed_lookups[fk_type].get(code_str)
                         if resolved_id is not None:
                             data[fk_field] = resolved_id
                         else:
-                            errors.append(f"Row {i + 2}: unknown code '{raw_val}' for {fk_field}")
+                            errors.append(f"Row {i + 2}: unknown {fk_type} code '{raw_val}' for {fk_field}")
                             skipped += 1
                             data = {}
                             break
