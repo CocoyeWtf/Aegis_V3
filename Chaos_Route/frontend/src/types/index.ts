@@ -196,6 +196,24 @@ export interface ContractSchedule {
   is_available: boolean
 }
 
+export interface FuelPrice {
+  id: number
+  start_date: string
+  end_date: string
+  price_per_liter: number
+}
+
+export interface KmTaxEntry {
+  id: number
+  origin_type: string
+  origin_id: number
+  destination_type: string
+  destination_id: number
+  tax_per_km: number
+  origin_label?: string
+  destination_label?: string
+}
+
 export interface Contract {
   id: number
   transporter_name: string
@@ -205,6 +223,7 @@ export interface Contract {
   cost_per_hour?: number
   min_hours_per_day?: number
   min_km_per_day?: number
+  consumption_coefficient?: number
   start_date?: string
   end_date?: string
   region_id: number

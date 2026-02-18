@@ -15,6 +15,7 @@ from app.models.supplier import Supplier
 from app.models.volume import Volume
 from app.models.contract import Contract
 from app.models.distance_matrix import DistanceMatrix
+from app.models.km_tax import KmTax
 from app.models.user import User
 from app.services.export_service import ExportService
 from app.api.deps import require_permission, get_user_region_ids
@@ -31,6 +32,7 @@ ENTITY_MODEL_MAP = {
     "volumes": Volume,
     "contracts": Contract,
     "distances": DistanceMatrix,
+    "km-tax": KmTax,
 }
 
 # Entités avec filtrage par région / Entities with region scoping

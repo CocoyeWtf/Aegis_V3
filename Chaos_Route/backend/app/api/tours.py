@@ -1,15 +1,19 @@
 """Routes Tournées / Tour API routes."""
 
+import json
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
+from app.models.audit import AuditLog
 from app.models.contract import Contract
 from app.models.distance_matrix import DistanceMatrix
+from app.models.fuel_price import FuelPrice
+from app.models.km_tax import KmTax
 from app.models.parameter import Parameter
 from app.models.pdv import PDV
 from app.models.tour import Tour
@@ -147,21 +151,132 @@ async def calculate_tour_times(
     return enriched, return_time, total_minutes
 
 
+def _build_segments(
+    base_id: int, stops: list[dict],
+) -> list[tuple[str, int, str, int]]:
+    """Construire la liste des segments du tour / Build list of tour segments.
+    Returns: [(origin_type, origin_id, dest_type, dest_id), ...]
+    """
+    segments: list[tuple[str, int, str, int]] = []
+    sorted_stops = sorted(stops, key=lambda s: s.get("sequence_order", 0))
+    prev_type = "BASE"
+    prev_id = base_id
+    for stop in sorted_stops:
+        pdv_id = stop["pdv_id"]
+        segments.append((prev_type, prev_id, "PDV", pdv_id))
+        prev_type = "PDV"
+        prev_id = pdv_id
+    if sorted_stops:
+        segments.append(("PDV", sorted_stops[-1]["pdv_id"], "BASE", base_id))
+    return segments
+
+
 async def _calculate_cost(
+    db: AsyncSession,
     total_km: float,
-    total_duration_minutes: int,
     contract: Contract,
+    tour_date: str,
+    tour_base_id: int,
+    stops: list[dict],
 ) -> float:
-    """Calculer le coût du tour via contrat / Calculate tour cost from contract."""
-    cost = float(contract.fixed_daily_cost or 0)
-    cost += total_km * float(contract.cost_per_km or 0)
-    hours = total_duration_minutes / 60
-    cost += hours * float(contract.cost_per_hour or 0)
-    if contract.min_hours_per_day and hours < float(contract.min_hours_per_day):
-        cost = max(cost, float(contract.min_hours_per_day) * float(contract.cost_per_hour or 0) + float(contract.fixed_daily_cost or 0))
-    if contract.min_km_per_day and total_km < float(contract.min_km_per_day):
-        cost = max(cost, float(contract.min_km_per_day) * float(contract.cost_per_km or 0) + float(contract.fixed_daily_cost or 0))
+    """Calculer le coût du tour / Calculate tour cost.
+    Formule : (fixed_daily_cost / nb_tours_jour) + (km * fuel_price * consumption_coeff) + sum(km_tax par segment)
+    """
+    cost = 0.0
+
+    # 1. Terme fixe / nombre de tours du contrat ce jour
+    nb_tours = await db.scalar(
+        select(func.count(Tour.id)).where(
+            Tour.contract_id == contract.id,
+            Tour.date == tour_date,
+        )
+    ) or 1
+    cost += float(contract.fixed_daily_cost or 0) / nb_tours
+
+    # 2. km * prix gasoil * coefficient consommation
+    fuel = await db.scalar(
+        select(FuelPrice.price_per_liter)
+        .where(FuelPrice.start_date <= tour_date, FuelPrice.end_date >= tour_date)
+        .order_by(FuelPrice.start_date.desc())
+        .limit(1)
+    )
+    fuel_price = float(fuel) if fuel else 0.0
+    consumption = float(contract.consumption_coefficient or 0)
+    cost += total_km * fuel_price * consumption
+
+    # 3. Taxe km (somme des taxes par segment du tour)
+    km_tax_total = 0.0
+    segments = _build_segments(tour_base_id, stops)
+    for seg in segments:
+        tax_entry = await db.scalar(
+            select(KmTax.tax_per_km).where(
+                KmTax.origin_type == seg[0], KmTax.origin_id == seg[1],
+                KmTax.destination_type == seg[2], KmTax.destination_id == seg[3],
+            )
+        )
+        if tax_entry:
+            dist = await _get_distance(db, seg[0], seg[1], seg[2], seg[3])
+            seg_km = float(dist.distance_km) if dist else 0
+            km_tax_total += float(tax_entry) * seg_km
+    cost += km_tax_total
+
     return round(cost, 2)
+
+
+async def _recalculate_sibling_tours(
+    db: AsyncSession,
+    contract_id: int | None,
+    tour_date: str,
+) -> int:
+    """Recalculer le coût de tous les tours d'un contrat pour une date /
+    Recalculate cost for all tours of a contract on a given date.
+    Returns the number of tours recalculated.
+    """
+    if not contract_id:
+        return 0
+    contract = await db.get(Contract, contract_id)
+    if not contract:
+        return 0
+    result = await db.execute(
+        select(Tour)
+        .where(Tour.contract_id == contract_id, Tour.date == tour_date)
+        .options(selectinload(Tour.stops))
+    )
+    siblings = result.scalars().all()
+    count = 0
+    for tour in siblings:
+        if not tour.departure_time:
+            continue
+        stops_data = [
+            {"pdv_id": s.pdv_id, "sequence_order": s.sequence_order, "eqp_count": s.eqp_count}
+            for s in sorted(tour.stops, key=lambda s: s.sequence_order)
+        ]
+        new_cost = await _calculate_cost(
+            db, float(tour.total_km or 0), contract, tour.date, tour.base_id, stops_data,
+        )
+        if tour.total_cost != new_cost:
+            tour.total_cost = new_cost
+            count += 1
+    return count
+
+
+async def _log_audit(
+    db: AsyncSession,
+    entity_type: str,
+    entity_id: int,
+    action: str,
+    user: User,
+    changes: dict | None = None,
+) -> None:
+    """Enregistrer une action dans l'historique / Log an action to audit_logs."""
+    db.add(AuditLog(
+        entity_type=entity_type,
+        entity_id=entity_id,
+        action=action,
+        changes=json.dumps(changes, ensure_ascii=False) if changes else None,
+        user=user.username,
+        timestamp=datetime.utcnow().isoformat(),
+    ))
 
 
 # =========================================================================
@@ -312,6 +427,266 @@ async def tour_timeline(
     return timeline
 
 
+@router.get("/transporter-summary")
+async def transporter_summary(
+    date_from: str = Query(...),
+    date_to: str = Query(...),
+    base_id: int | None = Query(default=None),
+    transporter_name: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("tour-history", "read")),
+):
+    """Synthèse par transporteur/contrat sur une période / Transporter summary over a period."""
+    # 1. Charger les tours sur la période / Load tours in the period
+    query = (
+        select(Tour)
+        .where(
+            Tour.date >= date_from,
+            Tour.date <= date_to,
+            Tour.contract_id.isnot(None),
+            Tour.departure_time.isnot(None),
+        )
+        .options(selectinload(Tour.stops))
+    )
+    if base_id:
+        query = query.where(Tour.base_id == base_id)
+    # Scope région / Region scope
+    user_region_ids = get_user_region_ids(user)
+    if user_region_ids is not None:
+        query = query.join(BaseLogistics, Tour.base_id == BaseLogistics.id).where(
+            BaseLogistics.region_id.in_(user_region_ids)
+        )
+    result = await db.execute(query)
+    tours = result.scalars().all()
+
+    if not tours:
+        return {"period": {"date_from": date_from, "date_to": date_to}, "transporters": []}
+
+    # 2. Batch load contrats, bases, PDVs / Batch load contracts, bases, PDVs
+    contract_ids = list({t.contract_id for t in tours if t.contract_id})
+    contracts_map: dict[int, Contract] = {}
+    if contract_ids:
+        c_result = await db.execute(select(Contract).where(Contract.id.in_(contract_ids)))
+        for c in c_result.scalars().all():
+            contracts_map[c.id] = c
+
+    base_ids = list({t.base_id for t in tours})
+    bases_map: dict[int, BaseLogistics] = {}
+    if base_ids:
+        b_result = await db.execute(select(BaseLogistics).where(BaseLogistics.id.in_(base_ids)))
+        for b in b_result.scalars().all():
+            bases_map[b.id] = b
+
+    pdv_ids = list({s.pdv_id for t in tours for s in t.stops})
+    pdvs_map: dict[int, PDV] = {}
+    if pdv_ids:
+        p_result = await db.execute(select(PDV).where(PDV.id.in_(pdv_ids)))
+        for p in p_result.scalars().all():
+            pdvs_map[p.id] = p
+
+    # Filtre transporteur / Transporter filter
+    if transporter_name:
+        name_lower = transporter_name.lower()
+        tours = [
+            t for t in tours
+            if t.contract_id and contracts_map.get(t.contract_id)
+            and name_lower in (contracts_map[t.contract_id].transporter_name or "").lower()
+        ]
+
+    # 3. Calculer le cost breakdown par tour / Calculate cost breakdown per tour
+    # Pré-charger nb_tours par (contract_id, date) / Pre-load nb_tours per (contract_id, date)
+    contract_date_pairs = list({(t.contract_id, t.date) for t in tours if t.contract_id})
+    nb_tours_map: dict[tuple[int, str], int] = {}
+    for cid, d in contract_date_pairs:
+        count = await db.scalar(
+            select(func.count(Tour.id)).where(Tour.contract_id == cid, Tour.date == d)
+        )
+        nb_tours_map[(cid, d)] = count or 1
+
+    # Pré-charger prix carburant par date unique / Pre-load fuel price per unique date
+    unique_dates = list({t.date for t in tours})
+    fuel_map: dict[str, float] = {}
+    for d in unique_dates:
+        fuel = await db.scalar(
+            select(FuelPrice.price_per_liter)
+            .where(FuelPrice.start_date <= d, FuelPrice.end_date >= d)
+            .order_by(FuelPrice.start_date.desc())
+            .limit(1)
+        )
+        fuel_map[d] = float(fuel) if fuel else 0.0
+
+    # 4. Construire les données par tour / Build per-tour data
+    tour_rows: list[dict] = []
+    for tour in tours:
+        contract = contracts_map.get(tour.contract_id)
+        if not contract:
+            continue
+        base = bases_map.get(tour.base_id)
+        total_km = float(tour.total_km or 0)
+        nb_tours = nb_tours_map.get((contract.id, tour.date), 1)
+        fixed_share = round(float(contract.fixed_daily_cost or 0) / nb_tours, 2)
+
+        fuel_price = fuel_map.get(tour.date, 0.0)
+        consumption = float(contract.consumption_coefficient or 0)
+        fuel_cost = round(total_km * fuel_price * consumption, 2)
+
+        # Taxe km / Km tax
+        stops_data = [
+            {"pdv_id": s.pdv_id, "sequence_order": s.sequence_order, "eqp_count": s.eqp_count}
+            for s in sorted(tour.stops, key=lambda s: s.sequence_order)
+        ]
+        segments = _build_segments(tour.base_id, stops_data)
+        km_tax_total = 0.0
+        for seg in segments:
+            tax_entry = await db.scalar(
+                select(KmTax.tax_per_km).where(
+                    KmTax.origin_type == seg[0], KmTax.origin_id == seg[1],
+                    KmTax.destination_type == seg[2], KmTax.destination_id == seg[3],
+                )
+            )
+            if tax_entry:
+                dist = await _get_distance(db, seg[0], seg[1], seg[2], seg[3])
+                seg_km = float(dist.distance_km) if dist else 0
+                km_tax_total += float(tax_entry) * seg_km
+        km_tax_total = round(km_tax_total, 2)
+        total_calculated = round(fixed_share + fuel_cost + km_tax_total, 2)
+
+        sorted_stops = sorted(tour.stops, key=lambda s: s.sequence_order)
+        tour_rows.append({
+            "tour_id": tour.id,
+            "tour_code": tour.code,
+            "date": tour.date,
+            "base_code": base.code if base else "",
+            "base_name": base.name if base else "",
+            "departure_time": tour.departure_time,
+            "return_time": tour.return_time,
+            "total_km": total_km,
+            "total_eqp": tour.total_eqp or 0,
+            "total_duration_minutes": tour.total_duration_minutes or 0,
+            "total_cost": float(tour.total_cost) if tour.total_cost else total_calculated,
+            "status": tour.status.value if hasattr(tour.status, 'value') else tour.status,
+            "driver_name": tour.driver_name,
+            "driver_arrival_time": tour.driver_arrival_time,
+            "loading_end_time": tour.loading_end_time,
+            "barrier_exit_time": tour.barrier_exit_time,
+            "barrier_entry_time": tour.barrier_entry_time,
+            "remarks": tour.remarks,
+            "cost_breakdown": {
+                "fixed_share": fixed_share,
+                "fuel_cost": fuel_cost,
+                "km_tax_total": km_tax_total,
+                "total_calculated": total_calculated,
+            },
+            "stops": [
+                {
+                    "sequence_order": s.sequence_order,
+                    "pdv_code": pdvs_map[s.pdv_id].code if s.pdv_id in pdvs_map else f"#{s.pdv_id}",
+                    "pdv_name": pdvs_map[s.pdv_id].name if s.pdv_id in pdvs_map else "",
+                    "eqp_count": s.eqp_count,
+                    "distance_from_previous_km": float(s.distance_from_previous_km) if s.distance_from_previous_km else 0,
+                    "duration_from_previous_minutes": s.duration_from_previous_minutes or 0,
+                    "arrival_time": s.arrival_time,
+                    "departure_time": s.departure_time,
+                    "pickup_cardboard": getattr(s, "pickup_cardboard", False),
+                    "pickup_containers": getattr(s, "pickup_containers", False),
+                    "pickup_returns": getattr(s, "pickup_returns", False),
+                }
+                for s in sorted_stops
+            ],
+            # Pour le groupement / For grouping
+            "_transporter_name": contract.transporter_name or "",
+            "_contract_id": contract.id,
+            "_contract_code": contract.code,
+            "_vehicle_code": contract.vehicle_code,
+            "_vehicle_name": contract.vehicle_name,
+        })
+
+    # 5. Grouper par transporteur > contrat / Group by transporter > contract
+    from collections import defaultdict
+    by_transporter: dict[str, dict[int, list[dict]]] = defaultdict(lambda: defaultdict(list))
+    for row in tour_rows:
+        by_transporter[row["_transporter_name"]][row["_contract_id"]].append(row)
+
+    transporters_result = []
+    for t_name in sorted(by_transporter.keys()):
+        contracts_group = by_transporter[t_name]
+        contracts_result = []
+        grand_nb_tours = 0
+        grand_km = 0.0
+        grand_eqp = 0
+        grand_duration = 0
+        grand_fixed = 0.0
+        grand_fuel = 0.0
+        grand_km_tax = 0.0
+        grand_cost = 0.0
+
+        for cid in sorted(contracts_group.keys()):
+            c_tours = contracts_group[cid]
+            contract = contracts_map[cid]
+            # Sous-totaux contrat / Contract subtotals
+            sub_km = sum(t["total_km"] for t in c_tours)
+            sub_eqp = sum(t["total_eqp"] for t in c_tours)
+            sub_duration = sum(t["total_duration_minutes"] for t in c_tours)
+            sub_fixed = sum(t["cost_breakdown"]["fixed_share"] for t in c_tours)
+            sub_fuel = sum(t["cost_breakdown"]["fuel_cost"] for t in c_tours)
+            sub_km_tax = sum(t["cost_breakdown"]["km_tax_total"] for t in c_tours)
+            sub_cost = sum(t["total_cost"] for t in c_tours)
+
+            # Nettoyer les clés internes / Remove internal keys
+            clean_tours = []
+            for t in sorted(c_tours, key=lambda x: (x["date"], x["departure_time"] or "")):
+                ct = {k: v for k, v in t.items() if not k.startswith("_")}
+                clean_tours.append(ct)
+
+            contracts_result.append({
+                "contract_id": cid,
+                "contract_code": contract.code,
+                "vehicle_code": contract.vehicle_code,
+                "vehicle_name": contract.vehicle_name,
+                "tours": clean_tours,
+                "subtotal": {
+                    "nb_tours": len(c_tours),
+                    "total_km": round(sub_km, 2),
+                    "total_eqp": sub_eqp,
+                    "total_duration_minutes": sub_duration,
+                    "fixed_cost_total": round(sub_fixed, 2),
+                    "fuel_cost_total": round(sub_fuel, 2),
+                    "km_tax_total": round(sub_km_tax, 2),
+                    "total_cost": round(sub_cost, 2),
+                },
+            })
+
+            grand_nb_tours += len(c_tours)
+            grand_km += sub_km
+            grand_eqp += sub_eqp
+            grand_duration += sub_duration
+            grand_fixed += sub_fixed
+            grand_fuel += sub_fuel
+            grand_km_tax += sub_km_tax
+            grand_cost += sub_cost
+
+        transporters_result.append({
+            "transporter_name": t_name,
+            "contracts": contracts_result,
+            "grand_total": {
+                "nb_contracts": len(contracts_result),
+                "nb_tours": grand_nb_tours,
+                "total_km": round(grand_km, 2),
+                "total_eqp": grand_eqp,
+                "total_duration_minutes": grand_duration,
+                "fixed_cost_total": round(grand_fixed, 2),
+                "fuel_cost_total": round(grand_fuel, 2),
+                "km_tax_total": round(grand_km_tax, 2),
+                "total_cost": round(grand_cost, 2),
+            },
+        })
+
+    return {
+        "period": {"date_from": date_from, "date_to": date_to},
+        "transporters": transporters_result,
+    }
+
+
 @router.get("/{tour_id}", response_model=TourRead)
 async def get_tour(
     tour_id: int,
@@ -368,8 +743,6 @@ async def create_tour(
         total_km = round(total_km, 2)
 
     total_cost = data.total_cost or 0
-    if contract and data.departure_time:
-        total_cost = await _calculate_cost(total_km, total_duration or 0, contract)
 
     tour = Tour(
         date=data.date,
@@ -388,6 +761,12 @@ async def create_tour(
     )
     db.add(tour)
     await db.flush()
+
+    # Calculer le coût après flush (pour que nb_tours inclue le tour courant)
+    if contract and data.departure_time:
+        tour.total_cost = await _calculate_cost(
+            db, total_km, contract, data.date, data.base_id, stops_input,
+        )
 
     pdv_ids = []
     # Index des données pickup originales par (pdv_id, seq) / Original pickup data index
@@ -422,6 +801,16 @@ async def create_tour(
         for vol in vol_result.scalars().all():
             vol.tour_id = tour.id
 
+    # Recalculer les tours frères (terme fixe réparti) / Recalculate sibling tours (shared fixed cost)
+    if data.contract_id:
+        await _recalculate_sibling_tours(db, data.contract_id, data.date)
+
+    # Audit log
+    await _log_audit(db, "tour", tour.id, "CREATE", user, {
+        "code": tour.code, "date": tour.date, "contract_id": tour.contract_id,
+        "total_cost": float(tour.total_cost) if tour.total_cost else None,
+    })
+
     await db.flush()
     result = await db.execute(
         select(Tour).where(Tour.id == tour.id).options(selectinload(Tour.stops))
@@ -439,8 +828,13 @@ async def update_tour(
     tour = await db.get(Tour, tour_id)
     if not tour:
         raise HTTPException(status_code=404, detail="Tour not found")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    changes = data.model_dump(exclude_unset=True)
+    for key, value in changes.items():
         setattr(tour, key, value)
+
+    # Audit log
+    await _log_audit(db, "tour", tour.id, "UPDATE", user, changes)
+
     await db.flush()
     result = await db.execute(
         select(Tour).where(Tour.id == tour.id).options(selectinload(Tour.stops))
@@ -499,13 +893,17 @@ async def schedule_tour(
             total_km += float(return_dist.distance_km)
     total_km = round(total_km, 2)
 
-    total_cost = await _calculate_cost(total_km, total_duration, contract) if contract else 0
-
     tour.contract_id = data.contract_id
     tour.departure_time = data.departure_time
     tour.return_time = return_time
     tour.total_km = total_km
     tour.total_duration_minutes = total_duration
+
+    # Flush d'abord pour que nb_tours soit correct / Flush first so nb_tours count is correct
+    await db.flush()
+    total_cost = await _calculate_cost(
+        db, total_km, contract, tour.date, tour.base_id, stops_data,
+    ) if contract else 0
     tour.total_cost = total_cost
 
     for stop in tour.stops:
@@ -516,6 +914,15 @@ async def schedule_tour(
                 stop.distance_from_previous_km = enriched.get("distance_from_previous_km")
                 stop.duration_from_previous_minutes = enriched.get("duration_from_previous_minutes")
                 break
+
+    # Recalculer les tours frères / Recalculate sibling tours
+    await _recalculate_sibling_tours(db, data.contract_id, tour.date)
+
+    # Audit log
+    await _log_audit(db, "tour", tour.id, "SCHEDULE", user, {
+        "contract_id": data.contract_id, "departure_time": data.departure_time,
+        "total_cost": float(tour.total_cost) if tour.total_cost else None,
+    })
 
     await db.flush()
     result = await db.execute(
@@ -538,6 +945,9 @@ async def unschedule_tour(
     if not tour:
         raise HTTPException(status_code=404, detail="Tour not found")
 
+    old_contract_id = tour.contract_id
+    old_date = tour.date
+
     tour.contract_id = None
     tour.departure_time = None
     tour.return_time = None
@@ -547,6 +957,15 @@ async def unschedule_tour(
     for stop in tour.stops:
         stop.arrival_time = None
         stop.departure_time = None
+
+    # Recalculer les tours frères restants / Recalculate remaining sibling tours
+    if old_contract_id:
+        await _recalculate_sibling_tours(db, old_contract_id, old_date)
+
+    # Audit log
+    await _log_audit(db, "tour", tour.id, "UNSCHEDULE", user, {
+        "old_contract_id": old_contract_id,
+    })
 
     await db.flush()
     result = await db.execute(
@@ -573,8 +992,10 @@ async def update_tour_operations(
     tour = result.scalar_one_or_none()
     if not tour:
         raise HTTPException(status_code=404, detail="Tour not found")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    changes = data.model_dump(exclude_unset=True)
+    for key, value in changes.items():
         setattr(tour, key, value)
+    await _log_audit(db, "tour", tour.id, "UPDATE_OPERATIONS", user, changes)
     await db.flush()
     result = await db.execute(
         select(Tour).where(Tour.id == tour.id).options(selectinload(Tour.stops))
@@ -596,8 +1017,10 @@ async def update_tour_gate(
     tour = result.scalar_one_or_none()
     if not tour:
         raise HTTPException(status_code=404, detail="Tour not found")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    changes = data.model_dump(exclude_unset=True)
+    for key, value in changes.items():
         setattr(tour, key, value)
+    await _log_audit(db, "tour", tour.id, "UPDATE_GATE", user, changes)
     await db.flush()
     result = await db.execute(
         select(Tour).where(Tour.id == tour.id).options(selectinload(Tour.stops))
@@ -696,6 +1119,191 @@ async def get_tour_waybill(
     }
 
 
+@router.get("/{tour_id}/cost-breakdown")
+async def get_tour_cost_breakdown(
+    tour_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("tour-planning", "read")),
+):
+    """Détail du calcul de coût d'un tour / Tour cost calculation breakdown."""
+    result = await db.execute(
+        select(Tour).where(Tour.id == tour_id).options(selectinload(Tour.stops))
+    )
+    tour = result.scalar_one_or_none()
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found")
+
+    contract = await db.get(Contract, tour.contract_id) if tour.contract_id else None
+    if not contract:
+        return {
+            "tour_id": tour.id, "tour_code": tour.code,
+            "total_cost": float(tour.total_cost) if tour.total_cost else 0,
+            "message": "No contract assigned",
+        }
+
+    total_km = float(tour.total_km or 0)
+
+    # 1. Terme fixe / Fixed cost share
+    nb_tours = await db.scalar(
+        select(func.count(Tour.id)).where(
+            Tour.contract_id == contract.id,
+            Tour.date == tour.date,
+        )
+    ) or 1
+    fixed_daily = float(contract.fixed_daily_cost or 0)
+    fixed_share = round(fixed_daily / nb_tours, 2)
+
+    # 2. Coût carburant / Fuel cost
+    fuel = await db.scalar(
+        select(FuelPrice.price_per_liter)
+        .where(FuelPrice.start_date <= tour.date, FuelPrice.end_date >= tour.date)
+        .order_by(FuelPrice.start_date.desc())
+        .limit(1)
+    )
+    fuel_price = float(fuel) if fuel else 0.0
+    consumption = float(contract.consumption_coefficient or 0)
+    fuel_cost = round(total_km * fuel_price * consumption, 2)
+
+    # 3. Taxe km par segment / Km tax per segment
+    stops_data = [
+        {"pdv_id": s.pdv_id, "sequence_order": s.sequence_order, "eqp_count": s.eqp_count}
+        for s in sorted(tour.stops, key=lambda s: s.sequence_order)
+    ]
+    segments = _build_segments(tour.base_id, stops_data)
+
+    # Charger les noms des PDV et bases / Load PDV and base names
+    pdv_ids = list({s.pdv_id for s in tour.stops})
+    pdv_result = await db.execute(select(PDV).where(PDV.id.in_(pdv_ids))) if pdv_ids else None
+    pdv_map = {p.id: p for p in pdv_result.scalars().all()} if pdv_result else {}
+    base = await db.get(BaseLogistics, tour.base_id)
+
+    segment_details = []
+    km_tax_total = 0.0
+    for seg in segments:
+        tax_entry = await db.scalar(
+            select(KmTax.tax_per_km).where(
+                KmTax.origin_type == seg[0], KmTax.origin_id == seg[1],
+                KmTax.destination_type == seg[2], KmTax.destination_id == seg[3],
+            )
+        )
+        dist = await _get_distance(db, seg[0], seg[1], seg[2], seg[3])
+        seg_km = float(dist.distance_km) if dist else 0
+        tax_rate = float(tax_entry) if tax_entry else 0
+        seg_tax = round(tax_rate * seg_km, 2)
+        km_tax_total += seg_tax
+
+        # Labels
+        if seg[0] == "BASE" and base:
+            origin_label = base.name
+        else:
+            pdv = pdv_map.get(seg[1])
+            origin_label = f"{pdv.code} {pdv.name}" if pdv else f"#{seg[1]}"
+        if seg[2] == "BASE" and base:
+            dest_label = base.name
+        else:
+            pdv = pdv_map.get(seg[3])
+            dest_label = f"{pdv.code} {pdv.name}" if pdv else f"#{seg[3]}"
+
+        segment_details.append({
+            "origin": f"{seg[0]}:{origin_label}",
+            "destination": f"{seg[2]}:{dest_label}",
+            "distance_km": seg_km,
+            "tax_per_km": tax_rate,
+            "segment_tax": seg_tax,
+        })
+
+    km_tax_total = round(km_tax_total, 2)
+    total_calculated = round(fixed_share + fuel_cost + km_tax_total, 2)
+
+    return {
+        "tour_id": tour.id,
+        "tour_code": tour.code,
+        "tour_date": tour.date,
+        "total_km": total_km,
+        "total_cost_stored": float(tour.total_cost) if tour.total_cost else 0,
+        "total_cost_calculated": total_calculated,
+        "contract": {
+            "code": contract.code,
+            "transporter_name": contract.transporter_name,
+            "fixed_daily_cost": fixed_daily,
+            "consumption_coefficient": consumption,
+        },
+        "fixed_cost": {
+            "daily_cost": fixed_daily,
+            "nb_tours_today": nb_tours,
+            "share": fixed_share,
+        },
+        "fuel_cost": {
+            "total_km": total_km,
+            "fuel_price_per_liter": fuel_price,
+            "consumption_coefficient": consumption,
+            "cost": fuel_cost,
+        },
+        "km_tax": {
+            "total": km_tax_total,
+            "segments": segment_details,
+        },
+    }
+
+
+@router.post("/recalculate")
+async def recalculate_tour_costs(
+    date: str | None = Query(default=None),
+    base_id: int | None = Query(default=None),
+    contract_id: int | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("tour-planning", "update")),
+):
+    """Recalculer en masse les coûts des tours / Bulk recalculate tour costs.
+    Filtres optionnels : date, base_id, contract_id. Sans filtre = tous les tours planifiés.
+    """
+    query = (
+        select(Tour)
+        .where(Tour.departure_time.isnot(None), Tour.contract_id.isnot(None))
+        .options(selectinload(Tour.stops))
+    )
+    if date:
+        query = query.where(Tour.date == date)
+    if base_id:
+        query = query.where(Tour.base_id == base_id)
+    if contract_id:
+        query = query.where(Tour.contract_id == contract_id)
+
+    result = await db.execute(query)
+    tours = result.scalars().all()
+
+    # Charger les contrats en une seule requête / Load contracts in a single query
+    contract_ids = list({t.contract_id for t in tours if t.contract_id})
+    contracts_map: dict[int, Contract] = {}
+    if contract_ids:
+        c_result = await db.execute(select(Contract).where(Contract.id.in_(contract_ids)))
+        for c in c_result.scalars().all():
+            contracts_map[c.id] = c
+
+    updated = 0
+    for tour in tours:
+        contract = contracts_map.get(tour.contract_id)
+        if not contract:
+            continue
+        stops_data = [
+            {"pdv_id": s.pdv_id, "sequence_order": s.sequence_order, "eqp_count": s.eqp_count}
+            for s in sorted(tour.stops, key=lambda s: s.sequence_order)
+        ]
+        old_cost = float(tour.total_cost) if tour.total_cost else 0
+        new_cost = await _calculate_cost(
+            db, float(tour.total_km or 0), contract, tour.date, tour.base_id, stops_data,
+        )
+        if old_cost != new_cost:
+            tour.total_cost = new_cost
+            await _log_audit(db, "tour", tour.id, "RECALCULATE", user, {
+                "old_cost": old_cost, "new_cost": new_cost,
+            })
+            updated += 1
+
+    await db.flush()
+    return {"total": len(tours), "updated": updated}
+
+
 @router.delete("/{tour_id}", status_code=204)
 async def delete_tour(
     tour_id: int,
@@ -706,7 +1314,23 @@ async def delete_tour(
     tour = await db.get(Tour, tour_id)
     if not tour:
         raise HTTPException(status_code=404, detail="Tour not found")
+
+    old_contract_id = tour.contract_id
+    old_date = tour.date
+    old_code = tour.code
+
     vol_result = await db.execute(select(Volume).where(Volume.tour_id == tour_id))
     for vol in vol_result.scalars().all():
         vol.tour_id = None
+
+    # Audit log (avant suppression / before delete)
+    await _log_audit(db, "tour", tour_id, "DELETE", user, {
+        "code": old_code, "date": old_date, "contract_id": old_contract_id,
+    })
+
     await db.delete(tour)
+    await db.flush()
+
+    # Recalculer les tours frères restants / Recalculate remaining sibling tours
+    if old_contract_id:
+        await _recalculate_sibling_tours(db, old_contract_id, old_date)

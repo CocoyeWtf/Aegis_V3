@@ -23,10 +23,14 @@ const navItems: NavItem[] = [
   { path: '/distances', label: 'nav.distances', icon: '📏', resource: 'distances' },
   { path: '/base-activities', label: 'nav.baseActivities', icon: '🏷️', resource: 'base-activities' },
   { path: '/parameters', label: 'nav.parameters', icon: '⚙️', resource: 'parameters' },
+  { path: '/fuel-prices', label: 'nav.fuelPrices', icon: '⛽', resource: 'parameters' },
+  { path: '/km-tax', label: 'nav.kmTax', icon: '💰', resource: 'distances' },
   { path: '/tour-planning', label: 'nav.tourPlanning', icon: '🗺️', resource: 'tour-planning' },
   { path: '/tour-history', label: 'nav.tourHistory', icon: '📜', resource: 'tour-history' },
+  { path: '/transporter-summary', label: 'nav.transporterSummary', icon: '🧾', resource: 'tour-history' },
   { path: '/operations', label: 'nav.operations', icon: '🏭', resource: 'operations' },
   { path: '/guard-post', label: 'nav.guardPost', icon: '🚧', resource: 'guard-post' },
+  { path: '/audit', label: 'nav.auditLog', icon: '📜', resource: 'parameters' },
 ]
 
 const adminItems: NavItem[] = [

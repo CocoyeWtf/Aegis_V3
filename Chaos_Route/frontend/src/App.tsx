@@ -15,14 +15,18 @@ const SupplierManagement = lazy(() => import('./pages/SupplierManagement'))
 const VolumeManagement = lazy(() => import('./pages/VolumeManagement'))
 const ContractManagement = lazy(() => import('./pages/ContractManagement'))
 const DistanceMatrix = lazy(() => import('./pages/DistanceMatrix'))
+const FuelPrices = lazy(() => import('./pages/FuelPrices'))
+const KmTax = lazy(() => import('./pages/KmTax'))
 const BaseActivityManagement = lazy(() => import('./pages/BaseActivityManagement'))
 const ParameterSettings = lazy(() => import('./pages/ParameterSettings'))
 const TourPlanning = lazy(() => import('./pages/TourPlanning'))
 const TourHistory = lazy(() => import('./pages/TourHistory'))
+const TransporterSummary = lazy(() => import('./pages/TransporterSummary'))
 const Operations = lazy(() => import('./pages/Operations'))
 const GuardPost = lazy(() => import('./pages/GuardPost'))
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'))
 const RoleManagement = lazy(() => import('./pages/admin/RoleManagement'))
+const AuditLog = lazy(() => import('./pages/AuditLog'))
 const Help = lazy(() => import('./pages/Help'))
 
 function Loading() {
@@ -48,12 +52,16 @@ export default function App() {
             <Route path="/volumes" element={<VolumeManagement />} />
             <Route path="/contracts" element={<ContractManagement />} />
             <Route path="/distances" element={<DistanceMatrix />} />
+            <Route path="/fuel-prices" element={<FuelPrices />} />
+            <Route path="/km-tax" element={<KmTax />} />
             <Route path="/base-activities" element={<BaseActivityManagement />} />
             <Route path="/parameters" element={<ParameterSettings />} />
             <Route path="/tour-planning" element={<TourPlanning />} />
             <Route path="/tour-history" element={<TourHistory />} />
+            <Route path="/transporter-summary" element={<TransporterSummary />} />
             <Route path="/operations" element={<Operations />} />
             <Route path="/guard-post" element={<GuardPost />} />
+            <Route path="/audit" element={<AuditLog />} />
             <Route path="/admin/users" element={<UserManagement />} />
             <Route path="/admin/roles" element={<RoleManagement />} />
             <Route path="/help" element={<Help />} />

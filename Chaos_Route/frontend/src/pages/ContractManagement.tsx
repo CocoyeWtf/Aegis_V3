@@ -59,6 +59,10 @@ export default function ContractManagement() {
       key: 'cost_per_km', label: t('contracts.costPerKm'), width: '80px',
       render: (row) => row.cost_per_km != null ? `${row.cost_per_km} €` : '—',
     },
+    {
+      key: 'consumption_coefficient' as keyof Contract, label: t('contracts.consumptionCoefficient'), width: '100px',
+      render: (row) => row.consumption_coefficient != null ? String(row.consumption_coefficient) : '—',
+    },
     { key: 'start_date', label: t('common.startDate'), width: '100px' },
     { key: 'end_date', label: t('common.endDate'), width: '100px' },
     {
@@ -100,6 +104,7 @@ export default function ContractManagement() {
     { key: 'cost_per_hour', label: t('contracts.costPerHour'), type: 'number', step: 0.01 },
     { key: 'min_hours_per_day', label: t('contracts.minHoursPerDay'), type: 'number', step: 0.5 },
     { key: 'min_km_per_day', label: t('contracts.minKmPerDay'), type: 'number' },
+    { key: 'consumption_coefficient', label: t('contracts.consumptionCoefficient'), type: 'number', step: 0.0001 },
     { key: 'start_date', label: t('common.startDate'), type: 'text', placeholder: 'YYYY-MM-DD' },
     { key: 'end_date', label: t('common.endDate'), type: 'text', placeholder: 'YYYY-MM-DD' },
     {

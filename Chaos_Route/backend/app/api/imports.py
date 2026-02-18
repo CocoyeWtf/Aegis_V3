@@ -13,6 +13,7 @@ from app.models.supplier import Supplier
 from app.models.volume import Volume
 from app.models.contract import Contract
 from app.models.distance_matrix import DistanceMatrix
+from app.models.km_tax import KmTax
 from app.models.user import User
 from app.services.import_service import ImportService
 from app.api.deps import require_permission
@@ -29,6 +30,7 @@ ENTITY_MODEL_MAP = {
     "volumes": Volume,
     "contracts": Contract,
     "distances": DistanceMatrix,
+    "km-tax": KmTax,
 }
 
 # Champs obligatoires par entité / Required fields per entity
@@ -41,6 +43,7 @@ REQUIRED_FIELDS = {
     "volumes": {"pdv_id", "date", "eqp_count", "base_origin_id"},
     "contracts": {"code", "transporter_name", "region_id"},
     "distances": {"origin_type", "origin_id", "destination_type", "destination_id", "distance_km", "duration_minutes"},
+    "km-tax": {"origin_type", "origin_id", "destination_type", "destination_id", "tax_per_km"},
 }
 
 _NA_VALUES = {"#n/a", "#na", "n/a", "na", "#ref!", "#value!", "#div/0!", "-", "null", "none", "nan"}
@@ -86,8 +89,8 @@ def _coerce_value(val, field_name: str):
             return s
 
     float_fields = {"latitude", "longitude", "fixed_cost", "cost_per_km", "cost_per_hour",
-                    "fixed_daily_cost", "min_hours_per_day", "min_km_per_day", "weight_kg",
-                    "distance_km", "total_km", "total_cost"}
+                    "fixed_daily_cost", "min_hours_per_day", "min_km_per_day", "consumption_coefficient",
+                    "weight_kg", "distance_km", "total_km", "total_cost", "tax_per_km"}
     if field_name in float_fields:
         try:
             return float(s.replace(",", "."))
@@ -126,6 +129,7 @@ UNIQUE_KEY_FIELDS = {
     "contracts": "code",
     "volumes": None,
     "distances": None,
+    "km-tax": None,
 }
 
 
@@ -194,7 +198,7 @@ async def import_data(
         raise HTTPException(status_code=400, detail="No data found in file")
 
     region_lookup = await _build_region_lookup(db)
-    code_lookup = await _build_code_lookup(db) if entity_type == "distances" else {}
+    code_lookup = await _build_code_lookup(db) if entity_type in ("distances", "km-tax") else {}
 
     model_class = ENTITY_MODEL_MAP[entity_type]
     allowed_fields = set(ImportService.ENTITY_FIELDS.get(entity_type, []))
@@ -237,7 +241,7 @@ async def import_data(
             if "code" in data and data["code"] is not None:
                 data["code"] = str(data["code"]).strip()
 
-            if entity_type == "distances" and code_lookup:
+            if entity_type in ("distances", "km-tax") and code_lookup:
                 for prefix in ("origin", "destination"):
                     id_key = f"{prefix}_id"
                     type_key = f"{prefix}_type"
@@ -272,6 +276,16 @@ async def import_data(
                         DistanceMatrix.origin_id == data.get("origin_id"),
                         DistanceMatrix.destination_type == data.get("destination_type"),
                         DistanceMatrix.destination_id == data.get("destination_id"),
+                    )
+                )
+                existing = result.scalar_one_or_none()
+            elif entity_type == "km-tax":
+                result = await db.execute(
+                    select(KmTax).where(
+                        KmTax.origin_type == data.get("origin_type"),
+                        KmTax.origin_id == data.get("origin_id"),
+                        KmTax.destination_type == data.get("destination_type"),
+                        KmTax.destination_id == data.get("destination_id"),
                     )
                 )
                 existing = result.scalar_one_or_none()

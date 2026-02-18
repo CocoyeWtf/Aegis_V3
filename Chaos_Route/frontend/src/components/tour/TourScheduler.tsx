@@ -9,6 +9,7 @@ import { TourPrintPlan } from './TourPrintPlan'
 import { formatDuration, parseTime, formatTime, DEFAULT_DOCK_TIME, DEFAULT_UNLOAD_PER_EQP } from '../../utils/tourTimeUtils'
 import { VEHICLE_TYPE_DEFAULTS } from '../../types'
 import api from '../../services/api'
+import { CostBreakdown } from './CostBreakdown'
 import type { Tour, BaseLogistics, Contract, DistanceEntry, PDV, VehicleType, Volume } from '../../types'
 
 interface TourSchedulerProps {
@@ -36,6 +37,8 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
   const [highlightedTourId, setHighlightedTourId] = useState<number | null>(null)
   const [scheduleInputs, setScheduleInputs] = useState<Record<number, { time: string; contractId: number | null }>>({})
   const [scheduling, setScheduling] = useState<number | null>(null)
+  const [recalculating, setRecalculating] = useState(false)
+  const [costTourId, setCostTourId] = useState<number | null>(null)
   const [showPrintPlan, setShowPrintPlan] = useState(false)
   /* Contrats disponibles par tour (chargés selon vehicle_type) / Available contracts per tour */
   const [availableContractsMap, setAvailableContractsMap] = useState<Record<number, Contract[]>>({})
@@ -187,6 +190,23 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
     }
   }
 
+  /* Recalculer les coûts / Recalculate costs */
+  const handleRecalculate = async () => {
+    if (!selectedDate || !selectedBaseId) return
+    setRecalculating(true)
+    try {
+      const { data } = await api.post<{ total: number; updated: number }>('/tours/recalculate', null, {
+        params: { date: selectedDate, base_id: selectedBaseId },
+      })
+      await loadData()
+      alert(t('tourPlanning.recalculateResult', { total: data.total, updated: data.updated }))
+    } catch (e) {
+      console.error('Failed to recalculate', e)
+    } finally {
+      setRecalculating(false)
+    }
+  }
+
   const updateInput = (tourId: number, field: 'time' | 'contractId', value: string | number | null) => {
     setScheduleInputs((prev) => ({
       ...prev,
@@ -297,14 +317,25 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
             <span className="text-lg font-bold" style={{ color: 'var(--color-success)' }}>{scheduledTours.length}</span>
           </div>
           {scheduledTours.length > 0 && (
-            <button
-              onClick={() => setShowPrintPlan(true)}
-              className="px-3 py-2 rounded-lg text-xs font-semibold border transition-all hover:opacity-80"
-              style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
-              title={t('tourPlanning.printPlan.title')}
-            >
-              {t('tourPlanning.printPlan.print')}
-            </button>
+            <>
+              <button
+                onClick={handleRecalculate}
+                disabled={recalculating}
+                className="px-3 py-2 rounded-lg text-xs font-semibold border transition-all hover:opacity-80 disabled:opacity-40"
+                style={{ borderColor: 'var(--color-warning)', color: 'var(--color-warning)' }}
+                title={t('tourPlanning.recalculateCosts')}
+              >
+                {recalculating ? '...' : t('tourPlanning.recalculateCosts')}
+              </button>
+              <button
+                onClick={() => setShowPrintPlan(true)}
+                className="px-3 py-2 rounded-lg text-xs font-semibold border transition-all hover:opacity-80"
+                style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
+                title={t('tourPlanning.printPlan.title')}
+              >
+                {t('tourPlanning.printPlan.print')}
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -481,7 +512,16 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
                       {tour.total_duration_minutes != null && (
                         <span className="block" style={{ color: 'var(--text-muted)' }}>
                           {formatDuration(tour.total_duration_minutes)}
-                          {tour.total_cost != null && ` | ${tour.total_cost}€`}
+                          {tour.total_cost != null && (
+                            <span
+                              className="ml-1 cursor-pointer underline decoration-dotted hover:opacity-80"
+                              style={{ color: 'var(--color-primary)' }}
+                              onClick={(e) => { e.stopPropagation(); setCostTourId(tour.id) }}
+                              title={t('costBreakdown.title')}
+                            >
+                              {tour.total_cost}€
+                            </span>
+                          )}
                         </span>
                       )}
                     </div>
@@ -547,6 +587,10 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
           date={selectedDate}
           onClose={() => setShowPrintPlan(false)}
         />
+      )}
+
+      {costTourId && (
+        <CostBreakdown tourId={costTourId} onClose={() => setCostTourId(null)} />
       )}
     </div>
   )

@@ -24,6 +24,7 @@ class ContractBase(BaseModel):
     cost_per_hour: float | None = None
     min_hours_per_day: float | None = None
     min_km_per_day: float | None = None
+    consumption_coefficient: float | None = None
     start_date: str | None = None
     end_date: str | None = None
     region_id: int
@@ -50,6 +51,7 @@ class ContractUpdate(BaseModel):
     cost_per_hour: float | None = None
     min_hours_per_day: float | None = None
     min_km_per_day: float | None = None
+    consumption_coefficient: float | None = None
     start_date: str | None = None
     end_date: str | None = None
     region_id: int | None = None

@@ -46,6 +46,7 @@ class Contract(Base):
     cost_per_hour: Mapped[float | None] = mapped_column(Numeric(10, 2))
     min_hours_per_day: Mapped[float | None] = mapped_column(Numeric(5, 2))
     min_km_per_day: Mapped[float | None] = mapped_column(Numeric(8, 2))
+    consumption_coefficient: Mapped[float | None] = mapped_column(Numeric(6, 4))
     start_date: Mapped[str | None] = mapped_column(String(10))  # YYYY-MM-DD
     end_date: Mapped[str | None] = mapped_column(String(10))
     region_id: Mapped[int] = mapped_column(ForeignKey("regions.id"), nullable=False)

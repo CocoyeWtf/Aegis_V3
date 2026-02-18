@@ -16,6 +16,8 @@ from app.models.tour_stop import TourStop
 from app.models.contract import Contract
 from app.models.contract_schedule import ContractSchedule
 from app.models.distance_matrix import DistanceMatrix
+from app.models.fuel_price import FuelPrice
+from app.models.km_tax import KmTax
 from app.models.parameter import Parameter
 from app.models.audit import AuditLog
 from app.models.user import User, Role, Permission, user_roles, user_regions
@@ -34,6 +36,8 @@ __all__ = [
     "Contract",
     "ContractSchedule",
     "DistanceMatrix",
+    "FuelPrice",
+    "KmTax",
     "Parameter",
     "AuditLog",
     "User",

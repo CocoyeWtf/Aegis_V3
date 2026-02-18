@@ -8,11 +8,13 @@ import { remove } from '../services/api'
 import type { Tour, BaseLogistics, Contract } from '../types'
 import type { Column } from '../components/data/DataTable'
 import { DataTable } from '../components/data/DataTable'
+import { CostBreakdown } from '../components/tour/CostBreakdown'
 
 export default function TourHistory() {
   const { t } = useTranslation()
   const { selectedRegionId } = useAppStore()
   const [deleting, setDeleting] = useState<number | null>(null)
+  const [costTourId, setCostTourId] = useState<number | null>(null)
 
   const params = selectedRegionId ? { region_id: selectedRegionId } : undefined
   const { data: tours, loading, refetch } = useApi<Tour>('/tours', params)
@@ -138,7 +140,12 @@ export default function TourHistory() {
           data={tours}
           columns={columns}
           searchKeys={['code', 'date']}
+          onRowClick={(row) => setCostTourId(row.id)}
         />
+      )}
+
+      {costTourId && (
+        <CostBreakdown tourId={costTourId} onClose={() => setCostTourId(null)} />
       )}
     </div>
   )

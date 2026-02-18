@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api import (
+    audit,
     auth,
     countries,
     regions,
@@ -14,6 +15,8 @@ from app.api import (
     tours,
     contracts,
     distance_matrix,
+    fuel_prices,
+    km_tax,
     parameters,
     imports,
     exports,
@@ -23,6 +26,7 @@ from app.api import (
 
 api_router = APIRouter(prefix="/api")
 
+api_router.include_router(audit.router, prefix="/audit", tags=["audit"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(roles.router, prefix="/roles", tags=["roles"])
@@ -36,6 +40,8 @@ api_router.include_router(volumes.router, prefix="/volumes", tags=["volumes"])
 api_router.include_router(tours.router, prefix="/tours", tags=["tours"])
 api_router.include_router(contracts.router, prefix="/contracts", tags=["contracts"])
 api_router.include_router(distance_matrix.router, prefix="/distance-matrix", tags=["distance-matrix"])
+api_router.include_router(fuel_prices.router, prefix="/fuel-prices", tags=["fuel-prices"])
+api_router.include_router(km_tax.router, prefix="/km-tax", tags=["km-tax"])
 api_router.include_router(parameters.router, prefix="/parameters", tags=["parameters"])
 api_router.include_router(imports.router, prefix="/imports", tags=["imports"])
 api_router.include_router(exports.router, prefix="/exports", tags=["exports"])

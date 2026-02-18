@@ -84,8 +84,10 @@ class ImportService:
         "suppliers": ["code", "name", "address", "postal_code", "city", "phone", "email", "latitude", "longitude", "region_id"],
         "volumes": ["pdv_id", "date", "eqp_count", "weight_kg", "temperature_class", "base_origin_id", "preparation_start", "preparation_end"],
         "contracts": ["code", "transporter_name", "fixed_daily_cost", "cost_per_km", "cost_per_hour",
-                       "min_hours_per_day", "min_km_per_day", "start_date", "end_date", "region_id",
+                       "min_hours_per_day", "min_km_per_day", "consumption_coefficient",
+                       "start_date", "end_date", "region_id",
                        "vehicle_code", "vehicle_name", "temperature_type", "vehicle_type",
                        "capacity_eqp", "capacity_weight_kg", "has_tailgate", "tailgate_type"],
         "distances": ["origin_type", "origin_id", "destination_type", "destination_id", "distance_km", "duration_minutes"],
+        "km-tax": ["origin_type", "origin_id", "destination_type", "destination_id", "tax_per_km"],
     }
