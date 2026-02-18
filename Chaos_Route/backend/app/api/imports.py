@@ -409,6 +409,26 @@ async def import_data(
     region_lookup = await _build_region_lookup(db)
     code_lookup = await _build_code_lookup(db) if entity_type in ("distances", "km-tax", "volumes") else {}
 
+    # Volumes : lookups séparés par type pour éviter les collisions de codes
+    # Volumes: separate lookups per type to avoid code collisions (e.g. PDV "92" vs Base "092")
+    pdv_code_lookup: dict[str, int] = {}
+    base_code_lookup: dict[str, int] = {}
+    if entity_type == "volumes":
+        result = await db.execute(select(PDV.id, PDV.code))
+        for db_id, code in result.all():
+            key = str(code).strip().lower()
+            pdv_code_lookup[key] = db_id
+            stripped = key.lstrip("0")
+            if stripped and stripped not in pdv_code_lookup:
+                pdv_code_lookup[stripped] = db_id
+        result = await db.execute(select(BaseLogistics.id, BaseLogistics.code))
+        for db_id, code in result.all():
+            key = str(code).strip().lower()
+            base_code_lookup[key] = db_id
+            stripped = key.lstrip("0")
+            if stripped and stripped not in base_code_lookup:
+                base_code_lookup[stripped] = db_id
+
     model_class = ENTITY_MODEL_MAP[entity_type]
     allowed_fields = set(ImportService.ENTITY_FIELDS.get(entity_type, []))
     required = REQUIRED_FIELDS.get(entity_type, set())
@@ -469,16 +489,17 @@ async def import_data(
                 if not data:
                     continue
 
-            # Volumes : résoudre pdv_id et base_origin_id par code
-            # Volumes: resolve pdv_id and base_origin_id from entity code
-            if entity_type == "volumes" and code_lookup:
-                for fk_field in ("pdv_id", "base_origin_id"):
+            # Volumes : résoudre pdv_id et base_origin_id par code (lookups séparés)
+            # Volumes: resolve pdv_id and base_origin_id from code (separate lookups)
+            if entity_type == "volumes" and pdv_code_lookup:
+                fk_lookups = {"pdv_id": pdv_code_lookup, "base_origin_id": base_code_lookup}
+                for fk_field, fk_lookup in fk_lookups.items():
                     raw_val = data.get(fk_field)
                     if raw_val is not None:
                         code_str = str(raw_val).strip().lower()
-                        resolved = code_lookup.get(code_str)
-                        if resolved:
-                            data[fk_field] = resolved[1]
+                        resolved_id = fk_lookup.get(code_str)
+                        if resolved_id is not None:
+                            data[fk_field] = resolved_id
                         else:
                             errors.append(f"Row {i + 2}: unknown code '{raw_val}' for {fk_field}")
                             skipped += 1
