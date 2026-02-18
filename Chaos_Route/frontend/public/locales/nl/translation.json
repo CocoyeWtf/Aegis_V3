@@ -69,7 +69,12 @@
     "importsExports": "Import/Export",
     "admin": "Beheer",
     "users": "Gebruikers",
-    "roles": "Rollen"
+    "roles": "Rollen",
+    "database": "Databank",
+    "transportOps": "Transport exploitatie",
+    "baseOps": "Basis exploitatie",
+    "postier": "Postbeheerder",
+    "back": "Terug"
   },
   "auth": {
     "login": "Inloggen",

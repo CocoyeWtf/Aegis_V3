@@ -1,6 +1,7 @@
-/* Barre latérale de navigation / Navigation sidebar (collapsible) */
+/* Barre latérale de navigation 2 niveaux / Two-level sliding navigation sidebar */
 
-import { NavLink } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '../../stores/useAppStore'
 import { useAuthStore } from '../../stores/useAuthStore'
@@ -12,31 +13,79 @@ interface NavItem {
   resource: string
 }
 
-const navItems: NavItem[] = [
-  { path: '/', label: 'nav.dashboard', icon: '📊', resource: 'dashboard' },
-  { path: '/countries', label: 'nav.countries', icon: '🌍', resource: 'countries' },
-  { path: '/bases', label: 'nav.bases', icon: '🏭', resource: 'bases' },
-  { path: '/pdvs', label: 'nav.pdvs', icon: '🏪', resource: 'pdvs' },
-  { path: '/suppliers', label: 'nav.suppliers', icon: '📦', resource: 'suppliers' },
-  { path: '/volumes', label: 'nav.volumes', icon: '📋', resource: 'volumes' },
-  { path: '/contracts', label: 'nav.contracts', icon: '📝', resource: 'contracts' },
-  { path: '/distances', label: 'nav.distances', icon: '📏', resource: 'distances' },
-  { path: '/base-activities', label: 'nav.baseActivities', icon: '🏷️', resource: 'base-activities' },
-  { path: '/parameters', label: 'nav.parameters', icon: '⚙️', resource: 'parameters' },
-  { path: '/fuel-prices', label: 'nav.fuelPrices', icon: '⛽', resource: 'parameters' },
-  { path: '/km-tax', label: 'nav.kmTax', icon: '💰', resource: 'distances' },
-  { path: '/tour-planning', label: 'nav.tourPlanning', icon: '🗺️', resource: 'tour-planning' },
-  { path: '/tour-history', label: 'nav.tourHistory', icon: '📜', resource: 'tour-history' },
-  { path: '/transporter-summary', label: 'nav.transporterSummary', icon: '🧾', resource: 'tour-history' },
-  { path: '/operations', label: 'nav.operations', icon: '🏭', resource: 'operations' },
-  { path: '/guard-post', label: 'nav.guardPost', icon: '🚧', resource: 'guard-post' },
-  { path: '/audit', label: 'nav.auditLog', icon: '📜', resource: 'parameters' },
+interface NavGroup {
+  key: string
+  label: string
+  icon: string
+  path?: string
+  resource?: string
+  children?: NavItem[]
+}
+
+const navGroups: NavGroup[] = [
+  { key: 'dashboard', label: 'nav.dashboard', icon: '📊', path: '/', resource: 'dashboard' },
+  {
+    key: 'database',
+    label: 'nav.database',
+    icon: '🗄️',
+    children: [
+      { path: '/countries', label: 'nav.countries', icon: '🌍', resource: 'countries' },
+      { path: '/bases', label: 'nav.bases', icon: '🏭', resource: 'bases' },
+      { path: '/pdvs', label: 'nav.pdvs', icon: '🏪', resource: 'pdvs' },
+      { path: '/suppliers', label: 'nav.suppliers', icon: '📦', resource: 'suppliers' },
+      { path: '/base-activities', label: 'nav.baseActivities', icon: '🏷️', resource: 'base-activities' },
+    ],
+  },
+  {
+    key: 'transport',
+    label: 'nav.transportOps',
+    icon: '🚛',
+    children: [
+      { path: '/contracts', label: 'nav.contracts', icon: '📝', resource: 'contracts' },
+      { path: '/distances', label: 'nav.distances', icon: '📏', resource: 'distances' },
+      { path: '/volumes', label: 'nav.volumes', icon: '📋', resource: 'volumes' },
+      { path: '/fuel-prices', label: 'nav.fuelPrices', icon: '⛽', resource: 'parameters' },
+      { path: '/km-tax', label: 'nav.kmTax', icon: '💰', resource: 'distances' },
+      { path: '/tour-planning', label: 'nav.tourPlanning', icon: '🗺️', resource: 'tour-planning' },
+      { path: '/tour-history', label: 'nav.tourHistory', icon: '📜', resource: 'tour-history' },
+      { path: '/transporter-summary', label: 'nav.transporterSummary', icon: '🧾', resource: 'tour-history' },
+    ],
+  },
+  {
+    key: 'baseOps',
+    label: 'nav.baseOps',
+    icon: '🏭',
+    children: [
+      { path: '/operations', label: 'nav.postier', icon: '📮', resource: 'operations' },
+    ],
+  },
+  { key: 'guardPost', label: 'nav.guardPost', icon: '🚧', path: '/guard-post', resource: 'guard-post' },
+  {
+    key: 'admin',
+    label: 'nav.admin',
+    icon: '⚙️',
+    children: [
+      { path: '/admin/users', label: 'nav.users', icon: '👥', resource: 'users' },
+      { path: '/admin/roles', label: 'nav.roles', icon: '🛡️', resource: 'roles' },
+      { path: '/parameters', label: 'nav.parameters', icon: '⚙️', resource: 'parameters' },
+      { path: '/audit', label: 'nav.auditLog', icon: '📜', resource: 'parameters' },
+    ],
+  },
 ]
 
-const adminItems: NavItem[] = [
-  { path: '/admin/users', label: 'nav.users', icon: '👥', resource: 'users' },
-  { path: '/admin/roles', label: 'nav.roles', icon: '🛡️', resource: 'roles' },
-]
+/* Trouve le groupe contenant la route active / Find group containing active route */
+function findGroupForPath(pathname: string): string | null {
+  for (const group of navGroups) {
+    if (group.children) {
+      for (const child of group.children) {
+        if (pathname === child.path || pathname.startsWith(child.path + '/')) {
+          return group.key
+        }
+      }
+    }
+  }
+  return null
+}
 
 function NavItemLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   const { t } = useTranslation()
@@ -66,9 +115,45 @@ export function Sidebar() {
   const { t } = useTranslation()
   const { sidebarCollapsed, toggleSidebar } = useAppStore()
   const hasPermission = useAuthStore((s) => s.hasPermission)
+  const location = useLocation()
 
-  const visibleNav = navItems.filter((item) => hasPermission(item.resource, 'read'))
-  const visibleAdmin = adminItems.filter((item) => hasPermission(item.resource, 'read'))
+  const [activeGroup, setActiveGroup] = useState<string | null>(null)
+
+  /* Auto-détection du groupe actif au montage et à chaque changement de route */
+  useEffect(() => {
+    const groupKey = findGroupForPath(location.pathname)
+    if (groupKey) {
+      setActiveGroup(groupKey)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* Filtrage RBAC : un groupe avec children est visible si au moins un enfant est accessible */
+  const visibleGroups = navGroups.filter((group) => {
+    if (group.children) {
+      return group.children.some((child) => hasPermission(child.resource, 'read'))
+    }
+    return group.resource ? hasPermission(group.resource, 'read') : true
+  })
+
+  /* Groupe actuellement ouvert / Currently open group */
+  const currentGroup = activeGroup ? navGroups.find((g) => g.key === activeGroup) : null
+  const visibleChildren = currentGroup?.children?.filter((child) =>
+    hasPermission(child.resource, 'read')
+  ) ?? []
+
+  /* Gestion du clic sur un groupe L1 / Handle L1 group click */
+  const handleGroupClick = (group: NavGroup) => {
+    if (group.path) {
+      // Lien direct (Dashboard, Poste de garde)
+      return // NavLink gère la navigation
+    }
+    if (group.children) {
+      if (sidebarCollapsed) {
+        toggleSidebar()
+      }
+      setActiveGroup(group.key)
+    }
+  }
 
   return (
     <aside
@@ -99,26 +184,92 @@ export function Sidebar() {
         </button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-1.5">
-        {visibleNav.map((item) => (
-          <NavItemLink key={item.path} item={item} collapsed={sidebarCollapsed} />
-        ))}
+      {/* Navigation glissante / Sliding navigation */}
+      <nav className="flex-1 overflow-hidden relative">
+        <div
+          className="flex h-full"
+          style={{
+            width: '200%',
+            transform: activeGroup && !sidebarCollapsed ? 'translateX(-50%)' : 'translateX(0)',
+            transition: 'transform 0.25s ease',
+          }}
+        >
+          {/* Panel L1 — Liste des groupes / Group list */}
+          <div className="w-1/2 overflow-y-auto p-1.5">
+            {visibleGroups.map((group) =>
+              group.path ? (
+                /* Lien direct / Direct link */
+                <NavLink
+                  key={group.key}
+                  to={group.path}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-3 py-2 rounded-lg mb-0.5 text-sm transition-colors ${
+                      isActive ? 'font-semibold' : ''
+                    }`
+                  }
+                  style={({ isActive }) => ({
+                    backgroundColor: isActive ? 'var(--bg-tertiary)' : 'transparent',
+                    color: isActive ? 'var(--color-primary)' : 'var(--text-secondary)',
+                    justifyContent: sidebarCollapsed ? 'center' : undefined,
+                  })}
+                  title={sidebarCollapsed ? t(group.label) : undefined}
+                >
+                  <span className="text-base shrink-0">{group.icon}</span>
+                  {!sidebarCollapsed && <span className="truncate">{t(group.label)}</span>}
+                </NavLink>
+              ) : (
+                /* Bouton de groupe / Group button */
+                <button
+                  key={group.key}
+                  onClick={() => handleGroupClick(group)}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg mb-0.5 text-sm transition-colors text-left"
+                  style={{
+                    backgroundColor: activeGroup === group.key ? 'var(--bg-tertiary)' : 'transparent',
+                    color: activeGroup === group.key ? 'var(--color-primary)' : 'var(--text-secondary)',
+                    justifyContent: sidebarCollapsed ? 'center' : undefined,
+                  }}
+                  title={sidebarCollapsed ? t(group.label) : undefined}
+                >
+                  <span className="text-base shrink-0">{group.icon}</span>
+                  {!sidebarCollapsed && (
+                    <>
+                      <span className="truncate flex-1">{t(group.label)}</span>
+                      <span className="text-xs opacity-50 shrink-0">›</span>
+                    </>
+                  )}
+                </button>
+              )
+            )}
+          </div>
 
-        {/* Section Administration / Admin section */}
-        {visibleAdmin.length > 0 && (
-          <>
-            <div
-              className="mt-4 mb-1 px-3 py-1 text-xs font-semibold uppercase tracking-wider"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              {!sidebarCollapsed && t('nav.admin')}
-              {sidebarCollapsed && '—'}
-            </div>
-            {visibleAdmin.map((item) => (
-              <NavItemLink key={item.path} item={item} collapsed={sidebarCollapsed} />
-            ))}
-          </>
-        )}
+          {/* Panel L2 — Items du groupe actif / Active group items */}
+          <div className="w-1/2 overflow-y-auto p-1.5">
+            {currentGroup && (
+              <>
+                {/* Bouton retour + en-tête groupe / Back button + group header */}
+                <button
+                  onClick={() => setActiveGroup(null)}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg mb-1 text-sm transition-colors"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  <span className="text-base shrink-0">←</span>
+                  <span className="truncate">{t('nav.back')}</span>
+                </button>
+                <div
+                  className="flex items-center gap-2 px-3 py-1.5 mb-1 text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  <span>{currentGroup.icon}</span>
+                  <span className="truncate">{t(currentGroup.label)}</span>
+                </div>
+                {/* Items L2 */}
+                {visibleChildren.map((item) => (
+                  <NavItemLink key={item.path} item={item} collapsed={false} />
+                ))}
+              </>
+            )}
+          </div>
+        </div>
       </nav>
     </aside>
   )

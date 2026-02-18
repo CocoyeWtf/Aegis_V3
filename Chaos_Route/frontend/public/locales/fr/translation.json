@@ -69,7 +69,12 @@
     "importsExports": "Imports/Exports",
     "admin": "Administration",
     "users": "Utilisateurs",
-    "roles": "Rôles"
+    "roles": "Rôles",
+    "database": "Base de données",
+    "transportOps": "Exploitation transport",
+    "baseOps": "Exploitation base",
+    "postier": "Postier",
+    "back": "Retour"
   },
   "auth": {
     "login": "Connexion",
