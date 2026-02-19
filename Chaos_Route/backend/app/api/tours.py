@@ -185,14 +185,16 @@ async def _calculate_cost(
     cost = 0.0
 
     # 1. Terme fixe + vacation / nombre de tours du contrat ce jour
+    # Arrondir chaque composant à 2 décimales (cohérent avec cost-breakdown)
+    # Round each component to 2 decimals (consistent with cost-breakdown)
     nb_tours = await db.scalar(
         select(func.count(Tour.id)).where(
             Tour.contract_id == contract.id,
             Tour.date == tour_date,
         )
     ) or 1
-    cost += float(contract.fixed_daily_cost or 0) / nb_tours
-    cost += float(contract.vacation or 0) / nb_tours
+    cost += round(float(contract.fixed_daily_cost or 0) / nb_tours, 2)
+    cost += round(float(contract.vacation or 0) / nb_tours, 2)
 
     # 2. km * prix gasoil * coefficient consommation
     fuel = await db.scalar(
@@ -203,9 +205,9 @@ async def _calculate_cost(
     )
     fuel_price = float(fuel) if fuel else 0.0
     consumption = float(contract.consumption_coefficient or 0)
-    cost += total_km * fuel_price * consumption
+    cost += round(total_km * fuel_price * consumption, 2)
 
-    # 3. Taxe km (somme des taxes par segment du tour)
+    # 3. Taxe km (somme des taxes par segment du tour, arrondi par segment)
     km_tax_total = 0.0
     segments = _build_segments(tour_base_id, stops)
     for seg in segments:
@@ -218,8 +220,8 @@ async def _calculate_cost(
         if tax_entry:
             dist = await _get_distance(db, seg[0], seg[1], seg[2], seg[3])
             seg_km = float(dist.distance_km) if dist else 0
-            km_tax_total += float(tax_entry) * seg_km
-    cost += km_tax_total
+            km_tax_total += round(float(tax_entry) * seg_km, 2)
+    cost += round(km_tax_total, 2)
 
     return round(cost, 2)
 
@@ -645,7 +647,7 @@ async def transporter_summary(
             "total_km": total_km,
             "total_eqp": tour.total_eqp or 0,
             "total_duration_minutes": tour.total_duration_minutes or 0,
-            "total_cost": float(tour.total_cost) if tour.total_cost else total_calculated,
+            "total_cost": total_calculated,
             "status": tour.status.value if hasattr(tour.status, 'value') else tour.status,
             "driver_name": tour.driver_name,
             "driver_arrival_time": tour.driver_arrival_time,
@@ -721,7 +723,7 @@ async def transporter_summary(
             sub_vacation = sum(t["cost_breakdown"]["vacation_share"] for t in c_tours)
             sub_fuel = sum(t["cost_breakdown"]["fuel_cost"] for t in c_tours)
             sub_km_tax = sum(t["cost_breakdown"]["km_tax_total"] for t in c_tours)
-            sub_cost = sum(t["total_cost"] for t in c_tours)
+            sub_cost = sum(t["cost_breakdown"]["total_calculated"] for t in c_tours)
 
             # Nettoyer les clés internes / Remove internal keys
             clean_tours = []
