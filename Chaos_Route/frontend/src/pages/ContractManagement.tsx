@@ -56,6 +56,10 @@ export default function ContractManagement() {
       render: (row) => row.fixed_daily_cost != null ? `${row.fixed_daily_cost} €` : '—',
     },
     {
+      key: 'vacation' as keyof Contract, label: t('contracts.vacation'), width: '100px',
+      render: (row) => row.vacation != null ? `${row.vacation} €` : '—',
+    },
+    {
       key: 'cost_per_km', label: t('contracts.costPerKm'), width: '80px',
       render: (row) => row.cost_per_km != null ? `${row.cost_per_km} €` : '—',
     },
@@ -100,6 +104,7 @@ export default function ContractManagement() {
     { key: 'has_tailgate', label: t('vehicles.hasTailgate'), type: 'checkbox' },
     { key: 'tailgate_type', label: t('vehicles.tailgateType'), type: 'select', options: tailgateOptions },
     { key: 'fixed_daily_cost', label: t('contracts.fixedDailyCost'), type: 'number', step: 0.01 },
+    { key: 'vacation', label: t('contracts.vacation'), type: 'number', step: 0.01 },
     { key: 'cost_per_km', label: t('contracts.costPerKm'), type: 'number', step: 0.0001 },
     { key: 'cost_per_hour', label: t('contracts.costPerHour'), type: 'number', step: 0.01 },
     { key: 'min_hours_per_day', label: t('contracts.minHoursPerDay'), type: 'number', step: 0.5 },

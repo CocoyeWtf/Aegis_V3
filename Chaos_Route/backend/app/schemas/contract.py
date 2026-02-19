@@ -20,6 +20,7 @@ class ContractBase(BaseModel):
     transporter_name: str
     code: str
     fixed_daily_cost: float | None = None
+    vacation: float | None = None
     cost_per_km: float | None = None
     cost_per_hour: float | None = None
     min_hours_per_day: float | None = None
@@ -47,6 +48,7 @@ class ContractUpdate(BaseModel):
     transporter_name: str | None = None
     code: str | None = None
     fixed_daily_cost: float | None = None
+    vacation: float | None = None
     cost_per_km: float | None = None
     cost_per_hour: float | None = None
     min_hours_per_day: float | None = None

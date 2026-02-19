@@ -42,6 +42,7 @@ class Contract(Base):
     transporter_name: Mapped[str] = mapped_column(String(150), nullable=False)
     code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
     fixed_daily_cost: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    vacation: Mapped[float | None] = mapped_column(Numeric(10, 2))
     cost_per_km: Mapped[float | None] = mapped_column(Numeric(10, 4))
     cost_per_hour: Mapped[float | None] = mapped_column(Numeric(10, 2))
     min_hours_per_day: Mapped[float | None] = mapped_column(Numeric(5, 2))

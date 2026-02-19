@@ -27,6 +27,7 @@ interface SummaryStop {
 
 interface SummaryCostBreakdown {
   fixed_share: number
+  vacation_share: number
   fuel_cost: number
   km_tax_total: number
   total_calculated: number
@@ -69,6 +70,7 @@ interface Subtotal {
   total_eqp: number
   total_duration_minutes: number
   fixed_cost_total: number
+  vacation_cost_total: number
   fuel_cost_total: number
   km_tax_total: number
   total_cost: number
@@ -204,6 +206,7 @@ export default function TransporterSummary() {
             [t('transporterSummary.km')]: tour.total_km,
             [t('transporterSummary.eqp')]: tour.total_eqp,
             [t('transporterSummary.fixedShare')]: tour.cost_breakdown.fixed_share,
+            [t('transporterSummary.vacationShare')]: tour.cost_breakdown.vacation_share,
             [t('transporterSummary.fuelCost')]: tour.cost_breakdown.fuel_cost,
             [t('transporterSummary.kmTax')]: tour.cost_breakdown.km_tax_total,
             [t('transporterSummary.totalCost')]: tour.total_cost,
@@ -223,6 +226,7 @@ export default function TransporterSummary() {
           [t('transporterSummary.km')]: cg.subtotal.total_km,
           [t('transporterSummary.eqp')]: cg.subtotal.total_eqp,
           [t('transporterSummary.fixedShare')]: cg.subtotal.fixed_cost_total,
+          [t('transporterSummary.vacationShare')]: cg.subtotal.vacation_cost_total,
           [t('transporterSummary.fuelCost')]: cg.subtotal.fuel_cost_total,
           [t('transporterSummary.kmTax')]: cg.subtotal.km_tax_total,
           [t('transporterSummary.totalCost')]: cg.subtotal.total_cost,
@@ -242,6 +246,7 @@ export default function TransporterSummary() {
         [t('transporterSummary.km')]: tr.grand_total.total_km,
         [t('transporterSummary.eqp')]: tr.grand_total.total_eqp,
         [t('transporterSummary.fixedShare')]: tr.grand_total.fixed_cost_total,
+        [t('transporterSummary.vacationShare')]: tr.grand_total.vacation_cost_total,
         [t('transporterSummary.fuelCost')]: tr.grand_total.fuel_cost_total,
         [t('transporterSummary.kmTax')]: tr.grand_total.km_tax_total,
         [t('transporterSummary.totalCost')]: tr.grand_total.total_cost,
@@ -427,6 +432,7 @@ export default function TransporterSummary() {
                                 <th className="text-right px-2 py-1.5 font-medium">{t('transporterSummary.km')}</th>
                                 <th className="text-right px-2 py-1.5 font-medium">{t('transporterSummary.eqp')}</th>
                                 <th className="text-right px-2 py-1.5 font-medium">{t('transporterSummary.fixedShare')}</th>
+                                <th className="text-right px-2 py-1.5 font-medium">{t('transporterSummary.vacationShare')}</th>
                                 <th className="text-right px-2 py-1.5 font-medium">{t('transporterSummary.fuelCost')}</th>
                                 <th className="text-right px-2 py-1.5 font-medium">{t('transporterSummary.kmTax')}</th>
                                 <th className="text-right px-3 py-1.5 font-medium">{t('transporterSummary.totalCost')}</th>
@@ -449,6 +455,7 @@ export default function TransporterSummary() {
                                   <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{tour.total_km.toFixed(1)}</td>
                                   <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-primary)' }}>{tour.total_eqp}</td>
                                   <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{tour.cost_breakdown.fixed_share.toFixed(2)}</td>
+                                  <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{tour.cost_breakdown.vacation_share.toFixed(2)}</td>
                                   <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{tour.cost_breakdown.fuel_cost.toFixed(2)}</td>
                                   <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{tour.cost_breakdown.km_tax_total.toFixed(2)}</td>
                                   <td className="px-3 py-1.5 text-right font-bold" style={{ color: 'var(--text-primary)' }}>{tour.total_cost.toFixed(2)}</td>
@@ -466,6 +473,7 @@ export default function TransporterSummary() {
                                 <td className="px-2 py-2 text-right font-bold" style={{ color: 'var(--text-primary)' }}>{cg.subtotal.total_km.toFixed(1)}</td>
                                 <td className="px-2 py-2 text-right font-bold" style={{ color: 'var(--text-primary)' }}>{cg.subtotal.total_eqp}</td>
                                 <td className="px-2 py-2 text-right font-bold" style={{ color: 'var(--text-primary)' }}>{cg.subtotal.fixed_cost_total.toFixed(2)}</td>
+                                <td className="px-2 py-2 text-right font-bold" style={{ color: 'var(--text-primary)' }}>{cg.subtotal.vacation_cost_total.toFixed(2)}</td>
                                 <td className="px-2 py-2 text-right font-bold" style={{ color: 'var(--text-primary)' }}>{cg.subtotal.fuel_cost_total.toFixed(2)}</td>
                                 <td className="px-2 py-2 text-right font-bold" style={{ color: 'var(--text-primary)' }}>{cg.subtotal.km_tax_total.toFixed(2)}</td>
                                 <td className="px-3 py-2 text-right font-bold" style={{ color: 'var(--color-primary)' }}>{cg.subtotal.total_cost.toFixed(2)}</td>

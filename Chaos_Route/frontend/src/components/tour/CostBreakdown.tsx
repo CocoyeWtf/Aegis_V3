@@ -24,9 +24,15 @@ interface CostBreakdownData {
     code: string
     transporter_name: string
     fixed_daily_cost: number
+    vacation: number
     consumption_coefficient: number
   }
   fixed_cost?: {
+    daily_cost: number
+    nb_tours_today: number
+    share: number
+  }
+  vacation_cost?: {
     daily_cost: number
     nb_tours_today: number
     share: number
@@ -134,6 +140,9 @@ export function CostBreakdown({ tourId, onClose }: CostBreakdownProps) {
                 {t('costBreakdown.formula')}:
                 <div className="mt-1 font-bold" style={{ color: 'var(--text-primary)' }}>
                   ({data.fixed_cost?.daily_cost ?? 0} / {data.fixed_cost?.nb_tours_today ?? 1})
+                  {(data.vacation_cost?.daily_cost ?? 0) > 0 && (
+                    <>{' + '}({data.vacation_cost?.daily_cost ?? 0} / {data.vacation_cost?.nb_tours_today ?? 1})</>
+                  )}
                   {' + '}({data.total_km} x {data.fuel_cost?.fuel_price_per_liter ?? 0} x {data.fuel_cost?.consumption_coefficient ?? 0})
                   {' + '}{t('costBreakdown.kmTaxSum')}
                 </div>
@@ -152,6 +161,22 @@ export function CostBreakdown({ tourId, onClose }: CostBreakdownProps) {
                   bold
                 />
               </Section>
+
+              {/* 1b. Vacation cost */}
+              {(data.vacation_cost?.daily_cost ?? 0) > 0 && (
+                <Section
+                  title={`1b. ${t('costBreakdown.vacationCost')}`}
+                  amount={data.vacation_cost?.share ?? 0}
+                >
+                  <Row label={t('costBreakdown.vacationDaily')} value={`${data.vacation_cost?.daily_cost ?? 0} €`} />
+                  <Row label={t('costBreakdown.nbToursToday')} value={String(data.vacation_cost?.nb_tours_today ?? 1)} />
+                  <Row
+                    label={t('costBreakdown.share')}
+                    value={`${data.vacation_cost?.daily_cost ?? 0} / ${data.vacation_cost?.nb_tours_today ?? 1} = ${data.vacation_cost?.share ?? 0} €`}
+                    bold
+                  />
+                </Section>
+              )}
 
               {/* 2. Fuel cost */}
               <Section

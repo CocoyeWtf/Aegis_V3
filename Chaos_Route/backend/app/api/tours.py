@@ -180,11 +180,11 @@ async def _calculate_cost(
     stops: list[dict],
 ) -> float:
     """Calculer le coût du tour / Calculate tour cost.
-    Formule : (fixed_daily_cost / nb_tours_jour) + (km * fuel_price * consumption_coeff) + sum(km_tax par segment)
+    Formule : (fixed_daily_cost / nb_tours_jour) + (vacation / nb_tours_jour) + (km * fuel_price * consumption_coeff) + sum(km_tax par segment)
     """
     cost = 0.0
 
-    # 1. Terme fixe / nombre de tours du contrat ce jour
+    # 1. Terme fixe + vacation / nombre de tours du contrat ce jour
     nb_tours = await db.scalar(
         select(func.count(Tour.id)).where(
             Tour.contract_id == contract.id,
@@ -192,6 +192,7 @@ async def _calculate_cost(
         )
     ) or 1
     cost += float(contract.fixed_daily_cost or 0) / nb_tours
+    cost += float(contract.vacation or 0) / nb_tours
 
     # 2. km * prix gasoil * coefficient consommation
     fuel = await db.scalar(
@@ -590,6 +591,7 @@ async def transporter_summary(
         total_km = float(tour.total_km or 0)
         nb_tours = nb_tours_map.get((contract.id, tour.date), 1)
         fixed_share = round(float(contract.fixed_daily_cost or 0) / nb_tours, 2)
+        vacation_share = round(float(contract.vacation or 0) / nb_tours, 2)
 
         fuel_price = fuel_map.get(tour.date, 0.0)
         consumption = float(contract.consumption_coefficient or 0)
@@ -614,7 +616,7 @@ async def transporter_summary(
                 seg_km = float(dist.distance_km) if dist else 0
                 km_tax_total += float(tax_entry) * seg_km
         km_tax_total = round(km_tax_total, 2)
-        total_calculated = round(fixed_share + fuel_cost + km_tax_total, 2)
+        total_calculated = round(fixed_share + vacation_share + fuel_cost + km_tax_total, 2)
 
         sorted_stops = sorted(tour.stops, key=lambda s: s.sequence_order)
 
@@ -653,6 +655,7 @@ async def transporter_summary(
             "remarks": tour.remarks,
             "cost_breakdown": {
                 "fixed_share": fixed_share,
+                "vacation_share": vacation_share,
                 "fuel_cost": fuel_cost,
                 "km_tax_total": km_tax_total,
                 "total_calculated": total_calculated,
@@ -702,6 +705,7 @@ async def transporter_summary(
         grand_eqp = 0
         grand_duration = 0
         grand_fixed = 0.0
+        grand_vacation = 0.0
         grand_fuel = 0.0
         grand_km_tax = 0.0
         grand_cost = 0.0
@@ -714,6 +718,7 @@ async def transporter_summary(
             sub_eqp = sum(t["total_eqp"] for t in c_tours)
             sub_duration = sum(t["total_duration_minutes"] for t in c_tours)
             sub_fixed = sum(t["cost_breakdown"]["fixed_share"] for t in c_tours)
+            sub_vacation = sum(t["cost_breakdown"]["vacation_share"] for t in c_tours)
             sub_fuel = sum(t["cost_breakdown"]["fuel_cost"] for t in c_tours)
             sub_km_tax = sum(t["cost_breakdown"]["km_tax_total"] for t in c_tours)
             sub_cost = sum(t["total_cost"] for t in c_tours)
@@ -736,6 +741,7 @@ async def transporter_summary(
                     "total_eqp": sub_eqp,
                     "total_duration_minutes": sub_duration,
                     "fixed_cost_total": round(sub_fixed, 2),
+                    "vacation_cost_total": round(sub_vacation, 2),
                     "fuel_cost_total": round(sub_fuel, 2),
                     "km_tax_total": round(sub_km_tax, 2),
                     "total_cost": round(sub_cost, 2),
@@ -747,6 +753,7 @@ async def transporter_summary(
             grand_eqp += sub_eqp
             grand_duration += sub_duration
             grand_fixed += sub_fixed
+            grand_vacation += sub_vacation
             grand_fuel += sub_fuel
             grand_km_tax += sub_km_tax
             grand_cost += sub_cost
@@ -761,6 +768,7 @@ async def transporter_summary(
                 "total_eqp": grand_eqp,
                 "total_duration_minutes": grand_duration,
                 "fixed_cost_total": round(grand_fixed, 2),
+                "vacation_cost_total": round(grand_vacation, 2),
                 "fuel_cost_total": round(grand_fuel, 2),
                 "km_tax_total": round(grand_km_tax, 2),
                 "total_cost": round(grand_cost, 2),
@@ -1378,7 +1386,7 @@ async def get_tour_cost_breakdown(
 
     total_km = float(tour.total_km or 0)
 
-    # 1. Terme fixe / Fixed cost share
+    # 1. Terme fixe + vacation / Fixed cost + vacation share
     nb_tours = await db.scalar(
         select(func.count(Tour.id)).where(
             Tour.contract_id == contract.id,
@@ -1387,6 +1395,8 @@ async def get_tour_cost_breakdown(
     ) or 1
     fixed_daily = float(contract.fixed_daily_cost or 0)
     fixed_share = round(fixed_daily / nb_tours, 2)
+    vacation_daily = float(contract.vacation or 0)
+    vacation_share = round(vacation_daily / nb_tours, 2)
 
     # 2. Coût carburant / Fuel cost
     fuel = await db.scalar(
@@ -1448,7 +1458,7 @@ async def get_tour_cost_breakdown(
         })
 
     km_tax_total = round(km_tax_total, 2)
-    total_calculated = round(fixed_share + fuel_cost + km_tax_total, 2)
+    total_calculated = round(fixed_share + vacation_share + fuel_cost + km_tax_total, 2)
 
     return {
         "tour_id": tour.id,
@@ -1461,12 +1471,18 @@ async def get_tour_cost_breakdown(
             "code": contract.code,
             "transporter_name": contract.transporter_name,
             "fixed_daily_cost": fixed_daily,
+            "vacation": vacation_daily,
             "consumption_coefficient": consumption,
         },
         "fixed_cost": {
             "daily_cost": fixed_daily,
             "nb_tours_today": nb_tours,
             "share": fixed_share,
+        },
+        "vacation_cost": {
+            "daily_cost": vacation_daily,
+            "nb_tours_today": nb_tours,
+            "share": vacation_share,
         },
         "fuel_cost": {
             "total_km": total_km,

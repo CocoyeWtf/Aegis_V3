@@ -221,6 +221,7 @@ export interface Contract {
   transporter_name: string
   code: string
   fixed_daily_cost?: number
+  vacation?: number
   cost_per_km?: number
   cost_per_hour?: number
   min_hours_per_day?: number
