@@ -8,6 +8,7 @@ from app.models.volume import TemperatureClass
 class VolumeBase(BaseModel):
     pdv_id: int
     date: str
+    nb_colis: int | None = None
     eqp_count: int
     weight_kg: float | None = None
     temperature_class: TemperatureClass
@@ -23,6 +24,7 @@ class VolumeCreate(VolumeBase):
 class VolumeUpdate(BaseModel):
     pdv_id: int | None = None
     date: str | None = None
+    nb_colis: int | None = None
     eqp_count: int | None = None
     weight_kg: float | None = None
     temperature_class: TemperatureClass | None = None

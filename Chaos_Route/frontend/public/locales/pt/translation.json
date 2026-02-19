@@ -531,11 +531,13 @@
   "kpi": {
     "totalTours": "Rotas total",
     "totalEqp": "EQP total",
+    "totalColis": "Volumes total",
     "totalKm": "Km total",
     "totalCost": "Custo total",
     "co2": "CO₂ estimado",
     "avgKmPerTour": "Km médio/rota",
     "avgEqpPerTour": "EQP médio/rota",
+    "avgColisPerTour": "Volumes médio/rota",
     "avgCostPerTour": "Custo médio/rota",
     "avgKmPerEqp": "Km médio/EQP",
     "thisMonth": "Este mês",

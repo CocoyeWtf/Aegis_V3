@@ -531,11 +531,13 @@
   "kpi": {
     "totalTours": "Tours total",
     "totalEqp": "EQP total",
+    "totalColis": "Colis total",
     "totalKm": "Km total",
     "totalCost": "Coût total",
     "co2": "CO₂ estimé",
     "avgKmPerTour": "Km moyen/tour",
     "avgEqpPerTour": "EQP moyen/tour",
+    "avgColisPerTour": "Colis moyen/tour",
     "avgCostPerTour": "Coût moyen/tour",
     "avgKmPerEqp": "Km moyen/EQP",
     "thisMonth": "Ce mois",

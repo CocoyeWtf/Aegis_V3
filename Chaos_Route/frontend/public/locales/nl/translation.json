@@ -531,11 +531,13 @@
   "kpi": {
     "totalTours": "Totaal routes",
     "totalEqp": "Totaal EQP",
+    "totalColis": "Totaal pakketten",
     "totalKm": "Totaal km",
     "totalCost": "Totale kosten",
     "co2": "Geschatte CO₂",
     "avgKmPerTour": "Gem. km/route",
     "avgEqpPerTour": "Gem. EQP/route",
+    "avgColisPerTour": "Gem. pakketten/route",
     "avgCostPerTour": "Gem. kosten/route",
     "avgKmPerEqp": "Gem. km/EQP",
     "thisMonth": "Deze maand",

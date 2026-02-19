@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useApi } from '../hooks/useApi'
 import { useAppStore } from '../stores/useAppStore'
 import { KpiDashboard } from '../components/kpi/KpiDashboard'
-import type { Tour } from '../types'
+import type { Tour, Volume } from '../types'
 
 /** Lundi de la semaine courante (YYYY-MM-DD) / Monday of current week */
 function getWeekStart(today: string): string {
@@ -31,6 +31,7 @@ export default function Dashboard() {
   }, [monthStart, today, selectedRegionId])
 
   const { data: tours, loading } = useApi<Tour>('/tours', params)
+  const { data: volumes } = useApi<Volume>('/volumes', params)
 
   return (
     <div>
@@ -41,7 +42,7 @@ export default function Dashboard() {
       {loading ? (
         <p style={{ color: 'var(--text-muted)' }}>{t('common.loading')}</p>
       ) : tours.length > 0 ? (
-        <KpiDashboard tours={tours} today={today} weekStart={weekStart} />
+        <KpiDashboard tours={tours} volumes={volumes} today={today} weekStart={weekStart} />
       ) : (
         <div
           className="rounded-xl p-6 border"

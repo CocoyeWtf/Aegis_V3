@@ -85,6 +85,7 @@ export interface Volume {
   id: number
   pdv_id: number
   date: string
+  nb_colis?: number
   eqp_count: number
   weight_kg?: number
   temperature_class: TemperatureClass

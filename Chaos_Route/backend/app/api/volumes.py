@@ -18,6 +18,8 @@ router = APIRouter()
 async def list_volumes(
     pdv_id: int | None = None,
     date: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     base_origin_id: int | None = None,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("volumes", "read")),
@@ -28,6 +30,10 @@ async def list_volumes(
         query = query.where(Volume.pdv_id == pdv_id)
     if date is not None:
         query = query.where(Volume.date == date)
+    if date_from is not None:
+        query = query.where(Volume.date >= date_from)
+    if date_to is not None:
+        query = query.where(Volume.date <= date_to)
     if base_origin_id is not None:
         query = query.where(Volume.base_origin_id == base_origin_id)
     # Scope région via PDV / Region scope via PDV join
@@ -96,14 +102,17 @@ async def split_volume(
 
     remainder = volume.eqp_count - data.eqp_count
     original_weight = float(volume.weight_kg) if volume.weight_kg else 0
+    original_colis = volume.nb_colis or 0
     ratio = data.eqp_count / volume.eqp_count
 
     volume.eqp_count = data.eqp_count
     volume.weight_kg = round(original_weight * ratio, 2) if original_weight else None
+    volume.nb_colis = round(original_colis * ratio) if original_colis else None
 
     new_vol = Volume(
         pdv_id=volume.pdv_id,
         date=volume.date,
+        nb_colis=round(original_colis * (1 - ratio)) if original_colis else None,
         eqp_count=remainder,
         weight_kg=round(original_weight * (1 - ratio), 2) if original_weight else None,
         temperature_class=volume.temperature_class,

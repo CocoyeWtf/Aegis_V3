@@ -7,10 +7,11 @@ import {
   PieChart, Pie, Cell, Legend,
 } from 'recharts'
 import { KpiCard } from './KpiCard'
-import type { Tour } from '../../types'
+import type { Tour, Volume } from '../../types'
 
 interface KpiDashboardProps {
   tours: Tour[]
+  volumes: Volume[]
   today: string
   weekStart: string
 }
@@ -18,44 +19,53 @@ interface KpiDashboardProps {
 interface KpiSet {
   totalTours: number
   totalEqp: number
+  totalColis: number
   totalKm: number
   totalCost: number
   estimatedCO2: number
 }
 
-function computeKpis(tours: Tour[]): KpiSet {
+function computeKpis(tours: Tour[], volumes: Volume[]): KpiSet {
   if (tours.length === 0) {
-    return { totalTours: 0, totalEqp: 0, totalKm: 0, totalCost: 0, estimatedCO2: 0 }
+    return { totalTours: 0, totalEqp: 0, totalColis: 0, totalKm: 0, totalCost: 0, estimatedCO2: 0 }
   }
   const totalEqp = tours.reduce((s, t) => s + (t.total_eqp ?? 0), 0)
   const totalKm = tours.reduce((s, t) => s + (t.total_km ?? 0), 0)
   const totalCost = tours.reduce((s, t) => s + (t.total_cost ?? 0), 0)
+  const tourIds = new Set(tours.map(t => t.id))
+  const totalColis = volumes
+    .filter(v => v.tour_id && tourIds.has(v.tour_id))
+    .reduce((s, v) => s + (v.nb_colis ?? 0), 0)
   return {
     totalTours: tours.length,
     totalEqp,
+    totalColis,
     totalKm: Math.round(totalKm),
     totalCost: Math.round(totalCost * 100) / 100,
     estimatedCO2: Math.round(totalKm * 0.9),
   }
 }
 
-export function KpiDashboard({ tours, today, weekStart }: KpiDashboardProps) {
+export function KpiDashboard({ tours, volumes, today, weekStart }: KpiDashboardProps) {
   const { t } = useTranslation()
 
   /* Filtrage client-side pour les 3 périodes / Client-side filtering for 3 periods */
   const weekTours = useMemo(() => tours.filter(tour => tour.date >= weekStart), [tours, weekStart])
   const todayTours = useMemo(() => tours.filter(tour => tour.date === today), [tours, today])
+  const weekVolumes = useMemo(() => volumes.filter(v => v.date >= weekStart), [volumes, weekStart])
+  const todayVolumes = useMemo(() => volumes.filter(v => v.date === today), [volumes, today])
 
-  const monthKpis = useMemo(() => computeKpis(tours), [tours])
-  const weekKpis = useMemo(() => computeKpis(weekTours), [weekTours])
-  const todayKpis = useMemo(() => computeKpis(todayTours), [todayTours])
+  const monthKpis = useMemo(() => computeKpis(tours, volumes), [tours, volumes])
+  const weekKpis = useMemo(() => computeKpis(weekTours, weekVolumes), [weekTours, weekVolumes])
+  const todayKpis = useMemo(() => computeKpis(todayTours, todayVolumes), [todayTours, todayVolumes])
 
   /* Moyennes sur le mois / Monthly averages */
   const avgKpis = useMemo(() => {
-    if (tours.length === 0) return { avgKmPerTour: 0, avgEqpPerTour: 0, avgCostPerTour: 0, avgKmPerEqp: 0 }
+    if (tours.length === 0) return { avgKmPerTour: 0, avgEqpPerTour: 0, avgColisPerTour: 0, avgCostPerTour: 0, avgKmPerEqp: 0 }
     return {
       avgKmPerTour: Math.round(monthKpis.totalKm / tours.length),
       avgEqpPerTour: Math.round(monthKpis.totalEqp / tours.length),
+      avgColisPerTour: monthKpis.totalColis > 0 ? Math.round(monthKpis.totalColis / tours.length) : 0,
       avgCostPerTour: Math.round((monthKpis.totalCost / tours.length) * 100) / 100,
       avgKmPerEqp: monthKpis.totalEqp > 0 ? Math.round((monthKpis.totalKm / monthKpis.totalEqp) * 10) / 10 : 0,
     }
@@ -95,6 +105,7 @@ export function KpiDashboard({ tours, today, weekStart }: KpiDashboardProps) {
       <div className="space-y-3">
         <KpiCard label={t('kpi.totalTours')} value={kpis.totalTours} color="var(--color-primary)" />
         <KpiCard label={t('kpi.totalEqp')} value={kpis.totalEqp} color="var(--color-success)" />
+        <KpiCard label={t('kpi.totalColis')} value={kpis.totalColis} color="var(--color-info, #3b82f6)" />
         <KpiCard label={t('kpi.totalKm')} value={kpis.totalKm} unit="km" color="var(--color-warning)" />
         <KpiCard label={t('kpi.totalCost')} value={`${kpis.totalCost}`} unit="€" color="var(--color-danger)" />
         <KpiCard label={t('kpi.co2')} value={kpis.estimatedCO2} unit="kg" color="var(--text-muted)" />
@@ -112,9 +123,10 @@ export function KpiDashboard({ tours, today, weekStart }: KpiDashboardProps) {
       </div>
 
       {/* Cartes KPI moyennes (mois) / Average KPI cards (month) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <KpiCard label={t('kpi.avgKmPerTour')} value={avgKpis.avgKmPerTour} unit="km" color="var(--color-primary)" />
         <KpiCard label={t('kpi.avgEqpPerTour')} value={avgKpis.avgEqpPerTour} color="var(--color-success)" />
+        <KpiCard label={t('kpi.avgColisPerTour')} value={avgKpis.avgColisPerTour} color="var(--color-info, #3b82f6)" />
         <KpiCard label={t('kpi.avgCostPerTour')} value={`${avgKpis.avgCostPerTour}`} unit="€" color="var(--color-warning)" />
         <KpiCard label={t('kpi.avgKmPerEqp')} value={avgKpis.avgKmPerEqp} unit="km" color="var(--color-danger)" />
       </div>
