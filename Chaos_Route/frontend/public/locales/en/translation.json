@@ -620,6 +620,9 @@
     "address": "Address",
     "arrival": "Arrival",
     "departure": "Departure",
+    "pickups": "Pickups",
+    "baseDeparture": "BASE DEPARTURE",
+    "baseReturn": "BASE RETURN",
     "message": "Message"
   },
   "help": {

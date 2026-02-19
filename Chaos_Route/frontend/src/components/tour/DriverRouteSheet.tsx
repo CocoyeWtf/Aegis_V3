@@ -10,6 +10,15 @@ interface DriverRouteSheetProps {
   onClose: () => void
 }
 
+/* Construire libellé reprises / Build pickup label */
+function pickupLabel(stop: { pickup_cardboard?: boolean; pickup_containers?: boolean; pickup_returns?: boolean }): string {
+  const parts: string[] = []
+  if (stop.pickup_cardboard) parts.push('C')
+  if (stop.pickup_containers) parts.push('B')
+  if (stop.pickup_returns) parts.push('R')
+  return parts.join('+')
+}
+
 export function DriverRouteSheet({ tourId, onClose }: DriverRouteSheetProps) {
   const { t } = useTranslation()
   const [data, setData] = useState<WaybillData | null>(null)
@@ -30,6 +39,7 @@ export function DriverRouteSheet({ tourId, onClose }: DriverRouteSheetProps) {
 
   const totalEqp = data ? data.stops.reduce((s, st) => s + st.eqp_count, 0) : 0
   const totalWeight = data ? data.stops.reduce((s, st) => s + (st.weight_kg || 0), 0) : 0
+  const baseLabel = data?.base ? `${data.base.code} — ${data.base.name}` : ''
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ backgroundColor: '#fff' }}>
@@ -79,35 +89,60 @@ export function DriverRouteSheet({ tourId, onClose }: DriverRouteSheetProps) {
                 <table style={tblStyle}>
                   <thead>
                     <tr style={{ backgroundColor: '#eee' }}>
-                      <th style={{ ...thStyle, width: '65px' }}>{t('driverRoute.pdvCode')}</th>
-                      <th style={{ ...thStyle, width: '45px' }}>EQP</th>
-                      <th style={{ ...thStyle, width: '55px' }}>{t('driverRoute.weight')}</th>
+                      <th style={{ ...thStyle, width: '30px' }}>#</th>
+                      <th style={{ ...thStyle, width: '60px' }}>{t('driverRoute.pdvCode')}</th>
+                      <th style={{ ...thStyle, width: '40px' }}>EQP</th>
+                      <th style={{ ...thStyle, width: '50px' }}>{t('driverRoute.weight')}</th>
                       <th style={thStyle}>{t('driverRoute.city')}</th>
                       <th style={thStyle}>{t('driverRoute.address')}</th>
-                      <th style={{ ...thStyle, width: '50px' }}>{t('driverRoute.arrival')}</th>
-                      <th style={{ ...thStyle, width: '50px' }}>{t('driverRoute.departure')}</th>
-                      <th style={{ ...thStyle, width: '80px' }}>{t('driverRoute.message')}</th>
+                      <th style={{ ...thStyle, width: '45px' }}>{t('driverRoute.arrival')}</th>
+                      <th style={{ ...thStyle, width: '45px' }}>{t('driverRoute.departure')}</th>
+                      <th style={{ ...thStyle, width: '50px' }}>{t('driverRoute.pickups')}</th>
+                      <th style={{ ...thStyle, width: '70px' }}>{t('driverRoute.message')}</th>
                     </tr>
                   </thead>
                   <tbody>
+                    {/* Ligne départ base / Base departure row */}
+                    <tr style={{ backgroundColor: '#f5f5f5' }}>
+                      <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>D</td>
+                      <td style={{ ...tdStyle, fontWeight: 'bold' }} colSpan={3}>{t('driverRoute.baseDeparture')}</td>
+                      <td style={tdStyle} colSpan={2}>{baseLabel}</td>
+                      <td style={{ ...tdStyle, textAlign: 'center' }}></td>
+                      <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>{data.departure_time ?? ''}</td>
+                      <td style={tdStyle}></td>
+                      <td style={tdStyle}></td>
+                    </tr>
                     {data.stops.map((stop, idx) => (
                       <tr key={idx}>
+                        <td style={{ ...tdStyle, textAlign: 'center' }}>{idx + 1}</td>
                         <td style={{ ...tdStyle, fontWeight: 'bold' }}>{stop.pdv_code}</td>
                         <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>{stop.eqp_count}</td>
                         <td style={{ ...tdStyle, textAlign: 'right' }}>{stop.weight_kg > 0 ? Math.round(stop.weight_kg) : ''}</td>
                         <td style={tdStyle}>{stop.city}</td>
                         <td style={{ ...tdStyle, fontSize: '10px' }}>{stop.address}</td>
-                        <td style={{ ...tdStyle, textAlign: 'center' }}>__h__</td>
-                        <td style={{ ...tdStyle, textAlign: 'center' }}>__h__</td>
+                        <td style={{ ...tdStyle, textAlign: 'center' }}>{stop.arrival_time ?? ''}</td>
+                        <td style={{ ...tdStyle, textAlign: 'center' }}>{stop.departure_time ?? ''}</td>
+                        <td style={{ ...tdStyle, textAlign: 'center', fontSize: '10px' }}>{pickupLabel(stop)}</td>
                         <td style={tdStyle}></td>
                       </tr>
                     ))}
+                    {/* Ligne retour base / Base return row */}
+                    <tr style={{ backgroundColor: '#f5f5f5' }}>
+                      <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>R</td>
+                      <td style={{ ...tdStyle, fontWeight: 'bold' }} colSpan={3}>{t('driverRoute.baseReturn')}</td>
+                      <td style={tdStyle} colSpan={2}>{baseLabel}</td>
+                      <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>{data.return_time ?? ''}</td>
+                      <td style={{ ...tdStyle, textAlign: 'center' }}></td>
+                      <td style={tdStyle}></td>
+                      <td style={tdStyle}></td>
+                    </tr>
                     {/* Ligne totaux / Totals row */}
                     <tr style={{ backgroundColor: '#eee', fontWeight: 'bold' }}>
+                      <td style={{ ...tdStyle, fontWeight: 'bold' }}></td>
                       <td style={{ ...tdStyle, fontWeight: 'bold' }}>TOTAL</td>
                       <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>{totalEqp}</td>
                       <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 'bold' }}>{totalWeight > 0 ? Math.round(totalWeight) : ''}</td>
-                      <td style={tdStyle} colSpan={5}></td>
+                      <td style={tdStyle} colSpan={6}></td>
                     </tr>
                   </tbody>
                 </table>

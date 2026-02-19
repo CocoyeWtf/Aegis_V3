@@ -620,6 +620,9 @@
     "address": "Adres",
     "arrival": "Aankomst",
     "departure": "Vertrek",
+    "pickups": "Ophaling",
+    "baseDeparture": "VERTREK BASIS",
+    "baseReturn": "TERUGKEER BASIS",
     "message": "Bericht"
   },
   "help": {
