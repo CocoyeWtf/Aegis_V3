@@ -291,7 +291,8 @@
     "timestamp": "Data/Hora",
     "noLogs": "Nenhuma ação registrada",
     "filterByType": "Filtrar por tipo",
-    "allTypes": "Todos"
+    "allTypes": "Todos",
+    "loginHistory": "Conexões"
   },
   "distances": {
     "title": "Distanciário",

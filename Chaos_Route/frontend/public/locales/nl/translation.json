@@ -291,7 +291,8 @@
     "timestamp": "Datum/Tijd",
     "noLogs": "Geen acties geregistreerd",
     "filterByType": "Filteren op type",
-    "allTypes": "Alle"
+    "allTypes": "Alle",
+    "loginHistory": "Inloggen"
   },
   "distances": {
     "title": "Afstandsmatrix",

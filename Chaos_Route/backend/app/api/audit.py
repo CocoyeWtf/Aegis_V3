@@ -1,13 +1,13 @@
 """Routes Historique / Audit log API routes."""
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.audit import AuditLog
 from app.models.user import User
-from app.api.deps import require_permission
+from app.api.deps import get_current_user
 
 router = APIRouter()
 
@@ -20,9 +20,11 @@ async def list_audit_logs(
     limit: int = Query(default=100, le=500),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("parameters", "read")),
+    user: User = Depends(get_current_user),
 ):
-    """Lister les logs d'audit / List audit logs with optional filters."""
+    """Lister les logs d'audit (superadmin uniquement) / List audit logs (superadmin only)."""
+    if not user.is_superadmin:
+        raise HTTPException(status_code=403, detail="Superadmin only")
     query = select(AuditLog).order_by(AuditLog.id.desc())
     count_query = select(func.count(AuditLog.id))
 

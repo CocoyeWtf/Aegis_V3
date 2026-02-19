@@ -11,6 +11,7 @@ interface NavItem {
   label: string
   icon: string
   resource: string
+  superadminOnly?: boolean
 }
 
 interface NavGroup {
@@ -68,7 +69,7 @@ const navGroups: NavGroup[] = [
       { path: '/admin/users', label: 'nav.users', icon: '👥', resource: 'users' },
       { path: '/admin/roles', label: 'nav.roles', icon: '🛡️', resource: 'roles' },
       { path: '/parameters', label: 'nav.parameters', icon: '⚙️', resource: 'parameters' },
-      { path: '/audit', label: 'nav.auditLog', icon: '📜', resource: 'parameters' },
+      { path: '/audit', label: 'nav.auditLog', icon: '📜', resource: 'parameters', superadminOnly: true },
     ],
   },
 ]
@@ -115,6 +116,7 @@ export function Sidebar() {
   const { t } = useTranslation()
   const { sidebarCollapsed, toggleSidebar } = useAppStore()
   const hasPermission = useAuthStore((s) => s.hasPermission)
+  const isSuperadmin = useAuthStore((s) => s.user?.is_superadmin ?? false)
   const location = useLocation()
 
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
@@ -127,19 +129,20 @@ export function Sidebar() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* Filtrage RBAC : un groupe avec children est visible si au moins un enfant est accessible */
+  /* Filtrage RBAC + superadmin / RBAC filtering + superadmin-only items */
+  const canSeeItem = (child: NavItem) =>
+    hasPermission(child.resource, 'read') && (!child.superadminOnly || isSuperadmin)
+
   const visibleGroups = navGroups.filter((group) => {
     if (group.children) {
-      return group.children.some((child) => hasPermission(child.resource, 'read'))
+      return group.children.some(canSeeItem)
     }
     return group.resource ? hasPermission(group.resource, 'read') : true
   })
 
   /* Groupe actuellement ouvert / Currently open group */
   const currentGroup = activeGroup ? navGroups.find((g) => g.key === activeGroup) : null
-  const visibleChildren = currentGroup?.children?.filter((child) =>
-    hasPermission(child.resource, 'read')
-  ) ?? []
+  const visibleChildren = currentGroup?.children?.filter(canSeeItem) ?? []
 
   /* Gestion du clic sur un groupe L1 / Handle L1 group click */
   const handleGroupClick = (group: NavGroup) => {

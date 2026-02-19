@@ -291,7 +291,8 @@
     "timestamp": "Date/Time",
     "noLogs": "No actions recorded",
     "filterByType": "Filter by type",
-    "allTypes": "All"
+    "allTypes": "All",
+    "loginHistory": "Logins"
   },
   "distances": {
     "title": "Distance matrix",

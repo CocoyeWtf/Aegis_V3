@@ -65,11 +65,12 @@ export default function AuditLog() {
   }
 
   const actionColor = (action: string): string => {
-    if (action === 'CREATE') return 'var(--color-success)'
+    if (action === 'CREATE' || action === 'LOGIN') return 'var(--color-success)'
     if (action === 'DELETE') return 'var(--color-danger)'
     if (action.startsWith('UPDATE') || action === 'SCHEDULE') return 'var(--color-primary)'
     if (action === 'RECALCULATE') return 'var(--color-warning)'
     if (action === 'UNSCHEDULE') return 'var(--text-muted)'
+    if (action === 'LOGIN_FAILED' || action === 'LOGIN_DISABLED') return 'var(--color-danger)'
     return 'var(--text-primary)'
   }
 
@@ -92,6 +93,7 @@ export default function AuditLog() {
             style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
           >
             <option value="">{t('audit.allTypes')}</option>
+            <option value="auth">{t('audit.loginHistory')}</option>
             <option value="tour">Tour</option>
           </select>
         </div>
