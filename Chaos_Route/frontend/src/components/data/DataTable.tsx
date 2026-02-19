@@ -11,6 +11,10 @@ export interface Column<T> {
   width?: string
   minWidth?: string
   defaultHidden?: boolean
+  /** Afficher un input filtre sous l'en-tête / Show a filter input below header */
+  filterable?: boolean
+  /** Clé alternative pour le filtrage (ex: origin_label au lieu de origin_id) / Alt key for filtering */
+  filterKey?: keyof T
 }
 
 interface DataTableProps<T extends { id: number }> {
@@ -48,6 +52,7 @@ export function DataTable<T extends { id: number }>({
 }: DataTableProps<T>) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
+  const [colFilters, setColFilters] = useState<Record<string, string>>({})
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [page, setPage] = useState(0)
@@ -131,17 +136,45 @@ export function DataTable<T extends { id: number }>({
     document.addEventListener('mouseup', handleMouseUp)
   }, [])
 
+  /* Colonnes filtrables / Filterable columns */
+  const hasColumnFilters = columns.some((c) => c.filterable)
+
   /* Filtrage / Filtering */
   const filtered = useMemo(() => {
-    if (!search || searchKeys.length === 0) return data
-    const q = search.toLowerCase()
-    return data.filter((row) =>
-      searchKeys.some((key) => {
-        const val = row[key]
-        return val != null && String(val).toLowerCase().includes(q)
-      })
-    )
-  }, [data, search, searchKeys])
+    let result = data
+
+    // Filtres par colonne (ET) / Column filters (AND)
+    const activeColFilters = Object.entries(colFilters).filter(([, v]) => v.length > 0)
+    if (activeColFilters.length > 0) {
+      result = result.filter((row) =>
+        activeColFilters.every(([colKey, filterVal]) => {
+          const col = columns.find((c) => String(c.key) === colKey)
+          const q = filterVal.toLowerCase()
+          // Chercher dans filterKey (label) puis dans key (id) / Search in filterKey then key
+          const fk = col?.filterKey
+          if (fk) {
+            const labelVal = row[fk]
+            if (labelVal != null && String(labelVal).toLowerCase().includes(q)) return true
+          }
+          const val = (row as Record<string, unknown>)[colKey]
+          return val != null && String(val).toLowerCase().includes(q)
+        })
+      )
+    }
+
+    // Recherche globale / Global search
+    if (search && searchKeys.length > 0) {
+      const q = search.toLowerCase()
+      result = result.filter((row) =>
+        searchKeys.some((key) => {
+          const val = row[key]
+          return val != null && String(val).toLowerCase().includes(q)
+        })
+      )
+    }
+
+    return result
+  }, [data, search, searchKeys, colFilters, columns])
 
   /* Tri / Sorting */
   const sorted = useMemo(() => {
@@ -355,6 +388,47 @@ export function DataTable<T extends { id: number }>({
                   </th>
                 )}
               </tr>
+              {/* Rangée de filtres par colonne / Column filter row */}
+              {hasColumnFilters && (
+                <tr style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                  {visibleColumns.map((col) => (
+                    <th key={`filter-${String(col.key)}`} className="px-2 pb-2 pt-0">
+                      {col.filterable ? (
+                        <input
+                          type="text"
+                          value={colFilters[String(col.key)] ?? ''}
+                          onChange={(e) => {
+                            setColFilters((prev) => ({ ...prev, [String(col.key)]: e.target.value }))
+                            setPage(0)
+                          }}
+                          placeholder="🔍"
+                          className="w-full px-2 py-1 rounded text-xs border outline-none focus:ring-1"
+                          style={{
+                            backgroundColor: 'var(--bg-primary)',
+                            borderColor: colFilters[String(col.key)] ? 'var(--color-primary)' : 'var(--border-color)',
+                            color: 'var(--text-primary)',
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span />
+                      )}
+                    </th>
+                  ))}
+                  {(onEdit || onDelete || onDuplicate) && (
+                    <th
+                      className="px-2 pb-2 pt-0"
+                      style={{
+                        position: 'sticky',
+                        right: 0,
+                        zIndex: 2,
+                        backgroundColor: 'var(--bg-tertiary)',
+                        boxShadow: '-4px 0 8px -4px rgba(0,0,0,0.15)',
+                      }}
+                    />
+                  )}
+                </tr>
+              )}
             </thead>
             <tbody>
               {loading ? (

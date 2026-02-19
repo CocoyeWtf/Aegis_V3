@@ -21,17 +21,21 @@ export default function DistanceMatrix() {
   const columns: Column<DistanceEntry>[] = [
     {
       key: 'origin_type', label: t('distances.originType'), width: '90px',
+      filterable: true,
     },
     {
       key: 'origin_id', label: t('distances.originId'), width: '180px',
       render: (row) => row.origin_label ?? `#${row.origin_id}`,
+      filterable: true, filterKey: 'origin_label',
     },
     {
       key: 'destination_type', label: t('distances.destinationType'), width: '90px',
+      filterable: true,
     },
     {
       key: 'destination_id', label: t('distances.destinationId'), width: '180px',
       render: (row) => row.destination_label ?? `#${row.destination_id}`,
+      filterable: true, filterKey: 'destination_label',
     },
     {
       key: 'distance_km', label: t('distances.distanceKm'), width: '100px',
