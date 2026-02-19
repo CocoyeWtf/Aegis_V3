@@ -15,15 +15,17 @@ export default function KmTax() {
   ]
 
   const columns: Column<KmTaxEntry>[] = [
-    { key: 'origin_type', label: t('kmTax.originType'), width: '90px' },
+    { key: 'origin_type', label: t('kmTax.originType'), width: '90px', filterable: true },
     {
       key: 'origin_id', label: t('kmTax.originId'), width: '180px',
       render: (row) => row.origin_label ?? `#${row.origin_id}`,
+      filterable: true, filterKey: 'origin_label',
     },
-    { key: 'destination_type', label: t('kmTax.destType'), width: '90px' },
+    { key: 'destination_type', label: t('kmTax.destType'), width: '90px', filterable: true },
     {
       key: 'destination_id', label: t('kmTax.destId'), width: '180px',
       render: (row) => row.destination_label ?? `#${row.destination_id}`,
+      filterable: true, filterKey: 'destination_label',
     },
     {
       key: 'tax_per_km', label: t('kmTax.taxPerKm'), width: '120px',
