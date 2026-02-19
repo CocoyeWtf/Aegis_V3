@@ -8,7 +8,6 @@ interface SegmentDetail {
   origin: string
   destination: string
   distance_km: number
-  tax_per_km: number
   segment_tax: number
 }
 
@@ -204,7 +203,6 @@ export function CostBreakdown({ tourId, onClose }: CostBreakdownProps) {
                       <tr style={{ color: 'var(--text-muted)' }}>
                         <th className="text-left pb-1 font-medium">{t('costBreakdown.segment')}</th>
                         <th className="text-right pb-1 font-medium">km</th>
-                        <th className="text-right pb-1 font-medium">{t('costBreakdown.taxRate')}</th>
                         <th className="text-right pb-1 font-medium">{t('costBreakdown.segmentTax')}</th>
                       </tr>
                     </thead>
@@ -212,15 +210,12 @@ export function CostBreakdown({ tourId, onClose }: CostBreakdownProps) {
                       {data.km_tax.segments.map((seg, idx) => (
                         <tr key={idx} className="border-t" style={{ borderColor: 'var(--border-color)' }}>
                           <td className="py-1" style={{ color: 'var(--text-primary)' }}>
-                            <span className="truncate block max-w-[200px]" title={`${seg.origin} → ${seg.destination}`}>
+                            <span className="truncate block max-w-[250px]" title={`${seg.origin} → ${seg.destination}`}>
                               {seg.origin.split(':')[1]} → {seg.destination.split(':')[1]}
                             </span>
                           </td>
                           <td className="text-right py-1" style={{ color: 'var(--text-muted)' }}>
                             {seg.distance_km.toFixed(1)}
-                          </td>
-                          <td className="text-right py-1" style={{ color: 'var(--text-muted)' }}>
-                            {seg.tax_per_km > 0 ? seg.tax_per_km.toFixed(4) : '—'}
                           </td>
                           <td className="text-right py-1 font-medium" style={{ color: 'var(--text-primary)' }}>
                             {seg.segment_tax > 0 ? `${seg.segment_tax.toFixed(2)} €` : '—'}

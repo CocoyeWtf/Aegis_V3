@@ -207,7 +207,8 @@ async def _calculate_cost(
     consumption = float(contract.consumption_coefficient or 0)
     cost += round(total_km * fuel_price * consumption, 2)
 
-    # 3. Taxe km (somme des taxes par segment du tour, arrondi par segment)
+    # 3. Taxe km (montant forfaitaire par segment, pas un taux/km)
+    # Km tax (flat amount per segment, not a rate per km)
     km_tax_total = 0.0
     segments = _build_segments(tour_base_id, stops)
     for seg in segments:
@@ -218,9 +219,7 @@ async def _calculate_cost(
             )
         )
         if tax_entry:
-            dist = await _get_distance(db, seg[0], seg[1], seg[2], seg[3])
-            seg_km = float(dist.distance_km) if dist else 0
-            km_tax_total += round(float(tax_entry) * seg_km, 2)
+            km_tax_total += round(float(tax_entry), 2)
     cost += round(km_tax_total, 2)
 
     return round(cost, 2)
@@ -614,9 +613,7 @@ async def transporter_summary(
                 )
             )
             if tax_entry:
-                dist = await _get_distance(db, seg[0], seg[1], seg[2], seg[3])
-                seg_km = float(dist.distance_km) if dist else 0
-                km_tax_total += float(tax_entry) * seg_km
+                km_tax_total += round(float(tax_entry), 2)
         km_tax_total = round(km_tax_total, 2)
         total_calculated = round(fixed_share + vacation_share + fuel_cost + km_tax_total, 2)
 
@@ -1435,8 +1432,7 @@ async def get_tour_cost_breakdown(
         )
         dist = await _get_distance(db, seg[0], seg[1], seg[2], seg[3])
         seg_km = float(dist.distance_km) if dist else 0
-        tax_rate = float(tax_entry) if tax_entry else 0
-        seg_tax = round(tax_rate * seg_km, 2)
+        seg_tax = round(float(tax_entry), 2) if tax_entry else 0
         km_tax_total += seg_tax
 
         # Labels
@@ -1455,7 +1451,6 @@ async def get_tour_cost_breakdown(
             "origin": f"{seg[0]}:{origin_label}",
             "destination": f"{seg[2]}:{dest_label}",
             "distance_km": seg_km,
-            "tax_per_km": tax_rate,
             "segment_tax": seg_tax,
         })
 

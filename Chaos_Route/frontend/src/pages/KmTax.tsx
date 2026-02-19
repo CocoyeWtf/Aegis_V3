@@ -29,7 +29,7 @@ export default function KmTax() {
     },
     {
       key: 'tax_per_km', label: t('kmTax.taxPerKm'), width: '120px',
-      render: (row) => `${row.tax_per_km} €/km`,
+      render: (row) => `${row.tax_per_km} €`,
     },
   ]
 
