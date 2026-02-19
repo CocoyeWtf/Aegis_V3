@@ -73,6 +73,16 @@ def _coerce_value(val, field_name: str):
     """Convertir les valeurs selon le nom du champ / Coerce values based on field name."""
     if val is None or val == "":
         return None
+
+    # Gérer les types natifs openpyxl avant str() / Handle native openpyxl types before str()
+    from datetime import datetime as dt_datetime, date as dt_date
+    if isinstance(val, dt_datetime):
+        return val.strftime("%Y-%m-%d")
+    if isinstance(val, dt_date):
+        return val.isoformat()
+    if isinstance(val, dt_time):
+        return val.strftime("%H:%M")
+
     s = str(val).strip()
     if s == "" or s.lower() in _NA_VALUES:
         return None
@@ -81,7 +91,7 @@ def _coerce_value(val, field_name: str):
         return s.lower() in ("true", "1", "yes", "oui", "vrai")
 
     int_fields = {"country_id", "region_id", "pdv_id", "base_origin_id", "contract_id",
-                  "capacity_eqp", "capacity_weight_kg", "eqp_count", "dock_time_minutes",
+                  "capacity_eqp", "capacity_weight_kg", "eqp_count", "nb_colis", "dock_time_minutes",
                   "unload_time_per_eqp_minutes", "sas_capacity", "origin_id", "destination_id",
                   "duration_minutes", "sequence_order"}
     if field_name in int_fields:
