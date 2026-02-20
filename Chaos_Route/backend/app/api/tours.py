@@ -1196,6 +1196,12 @@ async def unschedule_tour(
     if not tour:
         raise HTTPException(status_code=404, detail="Tour not found")
 
+    if tour.departure_signal_time:
+        raise HTTPException(
+            status_code=409,
+            detail="Tour verrouillé : top départ validé / Tour locked: departure signal confirmed",
+        )
+
     old_contract_id = tour.contract_id
     old_date = tour.date
 
@@ -1586,6 +1592,12 @@ async def delete_tour(
     tour = await db.get(Tour, tour_id)
     if not tour:
         raise HTTPException(status_code=404, detail="Tour not found")
+
+    if tour.departure_signal_time:
+        raise HTTPException(
+            status_code=409,
+            detail="Tour verrouillé : top départ validé / Tour locked: departure signal confirmed",
+        )
 
     old_contract_id = tour.contract_id
     old_date = tour.date

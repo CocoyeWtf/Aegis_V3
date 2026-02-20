@@ -680,14 +680,20 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
                   {renderStopList(tour)}
 
                   <div className="mt-2 flex justify-end">
-                    <button
-                      className="px-3 py-1 rounded-lg text-xs border transition-all hover:opacity-80"
-                      style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
-                      disabled={scheduling === tour.id}
-                      onClick={(e) => { e.stopPropagation(); handleUnschedule(tour.id) }}
-                    >
-                      {scheduling === tour.id ? '...' : t('tourPlanning.unscheduleTour')}
-                    </button>
+                    {tour.departure_signal_time ? (
+                      <span className="px-3 py-1 rounded-lg text-xs font-semibold" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}>
+                        🔒 Top départ validé
+                      </span>
+                    ) : (
+                      <button
+                        className="px-3 py-1 rounded-lg text-xs border transition-all hover:opacity-80"
+                        style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
+                        disabled={scheduling === tour.id}
+                        onClick={(e) => { e.stopPropagation(); handleUnschedule(tour.id) }}
+                      >
+                        {scheduling === tour.id ? '...' : t('tourPlanning.unscheduleTour')}
+                      </button>
+                    )}
                   </div>
                 </div>
                 )

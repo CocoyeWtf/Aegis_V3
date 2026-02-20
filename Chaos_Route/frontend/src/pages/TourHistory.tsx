@@ -9,6 +9,7 @@ import type { Tour, BaseLogistics, Contract } from '../types'
 import type { Column } from '../components/data/DataTable'
 import { DataTable } from '../components/data/DataTable'
 import { CostBreakdown } from '../components/tour/CostBreakdown'
+import { displayDateTime } from '../utils/tourTimeUtils'
 
 export default function TourHistory() {
   const { t } = useTranslation()
@@ -118,19 +119,63 @@ export default function TourHistory() {
       render: (row) => row.return_time ?? '—',
     },
     {
+      key: 'driver_name',
+      label: 'Chauffeur',
+      width: '110px', filterable: true,
+      render: (row) => row.driver_name ?? '—',
+    },
+    {
+      key: 'driver_arrival_time',
+      label: 'Arrivée chauffeur',
+      width: '110px',
+      render: (row) => displayDateTime(row.driver_arrival_time),
+    },
+    {
+      key: 'loading_end_time',
+      label: 'Fin chargement',
+      width: '110px',
+      render: (row) => displayDateTime(row.loading_end_time),
+    },
+    {
+      key: 'departure_signal_time',
+      label: 'Top départ',
+      width: '110px',
+      render: (row) => displayDateTime(row.departure_signal_time),
+    },
+    {
+      key: 'barrier_exit_time',
+      label: 'Sortie barrière',
+      width: '110px',
+      render: (row) => displayDateTime(row.barrier_exit_time),
+    },
+    {
+      key: 'barrier_entry_time',
+      label: 'Retour barrière',
+      width: '110px',
+      render: (row) => displayDateTime(row.barrier_entry_time),
+    },
+    {
       key: 'id' as keyof Tour,
       label: '',
       width: '80px',
-      render: (row) => (
-        <button
-          className="text-xs px-2 py-1 rounded transition-colors hover:opacity-80"
-          style={{ color: 'var(--color-danger)', backgroundColor: 'rgba(239,68,68,0.1)' }}
-          onClick={(e) => { e.stopPropagation(); handleDelete(row) }}
-          disabled={deleting === row.id}
-        >
-          {deleting === row.id ? '...' : t('tourHistory.undoTour')}
-        </button>
-      ),
+      render: (row) => {
+        const locked = !!row.departure_signal_time
+        return (
+          <button
+            className="text-xs px-2 py-1 rounded transition-colors hover:opacity-80"
+            style={{
+              color: locked ? 'var(--text-muted)' : 'var(--color-danger)',
+              backgroundColor: locked ? 'var(--bg-tertiary)' : 'rgba(239,68,68,0.1)',
+              cursor: locked ? 'not-allowed' : undefined,
+            }}
+            onClick={(e) => { e.stopPropagation(); if (!locked) handleDelete(row) }}
+            disabled={deleting === row.id || locked}
+            title={locked ? 'Tour verrouillé (top départ validé)' : undefined}
+          >
+            {locked ? '🔒' : deleting === row.id ? '...' : t('tourHistory.undoTour')}
+          </button>
+        )
+      },
     },
   ]
 
