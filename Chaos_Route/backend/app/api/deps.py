@@ -3,12 +3,13 @@ Dépendances d'authentification et d'autorisation / Authentication and authoriza
 Injectées dans les routes via Depends().
 """
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.mobile_device import MobileDevice
 from app.models.user import User
 from app.utils.auth import decode_token
 
@@ -55,6 +56,30 @@ def require_permission(resource: str, action: str):
         )
 
     return _check
+
+
+async def get_authenticated_device(
+    x_device_id: str = Header(..., alias="X-Device-ID"),
+    db: AsyncSession = Depends(get_db),
+) -> MobileDevice:
+    """Authentifier un appareil mobile via son UUID / Authenticate a mobile device via its UUID.
+
+    Le telephone envoie son device_identifier dans le header X-Device-ID.
+    """
+    if not x_device_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing X-Device-ID header")
+
+    result = await db.execute(
+        select(MobileDevice).where(MobileDevice.device_identifier == x_device_id)
+    )
+    device = result.scalar_one_or_none()
+
+    if device is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unknown device")
+    if not device.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Device deactivated")
+
+    return device
 
 
 def get_user_region_ids(user: User) -> list[int] | None:

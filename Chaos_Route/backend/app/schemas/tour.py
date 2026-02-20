@@ -27,6 +27,12 @@ class TourStopRead(TourStopBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
     tour_id: int
+    delivery_status: str | None = None
+    actual_arrival_time: str | None = None
+    actual_departure_time: str | None = None
+    missing_supports_count: int | None = 0
+    forced_closure: bool = False
+    delivery_notes: str | None = None
 
 
 class TourBase(BaseModel):
@@ -58,6 +64,9 @@ class TourBase(BaseModel):
     trailer_ready_time: str | None = None
     eqp_loaded: int | None = None
     departure_signal_time: str | None = None
+    driver_user_id: int | None = None
+    device_assignment_id: int | None = None
+    actual_return_time: str | None = None
 
 
 class TourCreate(TourBase):
@@ -93,6 +102,9 @@ class TourUpdate(BaseModel):
     trailer_ready_time: str | None = None
     eqp_loaded: int | None = None
     departure_signal_time: str | None = None
+    driver_user_id: int | None = None
+    device_assignment_id: int | None = None
+    actual_return_time: str | None = None
 
 
 class TourOperationsUpdate(BaseModel):

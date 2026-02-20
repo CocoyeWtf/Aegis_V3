@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { QRCodeSVG } from 'qrcode.react'
 import api from '../services/api'
 import type { Tour, BaseLogistics, Contract, PDV, Volume } from '../types'
 import { TourWaybill } from '../components/tour/TourWaybill'
@@ -73,6 +74,7 @@ export default function Operations() {
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [waybillTourId, setWaybillTourId] = useState<number | null>(null)
   const [routeSheetTourId, setRouteSheetTourId] = useState<number | null>(null)
+  const [assignQrTour, setAssignQrTour] = useState<{ id: number; code: string; driver_name?: string } | null>(null)
   const [lastRefresh, setLastRefresh] = useState<string>('')
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -326,6 +328,32 @@ export default function Operations() {
       {waybillTourId && <TourWaybill tourId={waybillTourId} onClose={() => setWaybillTourId(null)} />}
       {routeSheetTourId && <DriverRouteSheet tourId={routeSheetTourId} onClose={() => setRouteSheetTourId(null)} />}
 
+      {/* Modale QR affectation telephone / Device assignment QR modal */}
+      {assignQrTour && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <div className="rounded-2xl p-6 shadow-2xl text-center" style={{ backgroundColor: 'var(--bg-secondary)', minWidth: 320 }}>
+            <h3 className="text-lg font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Affecter au telephone</h3>
+            <p className="text-sm mb-1" style={{ color: 'var(--color-primary)' }}>{assignQrTour.code}</p>
+            {assignQrTour.driver_name ? (
+              <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Chauffeur: {assignQrTour.driver_name}</p>
+            ) : null}
+            <div className="flex justify-center mb-4 p-4 rounded-xl" style={{ backgroundColor: '#fff' }}>
+              <QRCodeSVG value={`TOUR:${assignQrTour.id}`} size={200} level="H" />
+            </div>
+            <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
+              Scannez ce QR avec l'application chauffeur pour affecter le tour.
+            </p>
+            <button
+              onClick={() => setAssignQrTour(null)}
+              className="px-6 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-80"
+              style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* En-tête / Header */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
@@ -456,6 +484,7 @@ export default function Operations() {
                           onSave={() => handleSave(tour.id)}
                           onRouteSheet={() => setRouteSheetTourId(tour.id)}
                           onWaybill={() => setWaybillTourId(tour.id)}
+                          onAssignDevice={() => setAssignQrTour({ id: tour.id, code: tour.code, driver_name: tour.driver_name ?? undefined })}
                           onSetNow={(field) => updateForm(tour.id, field, nowFormatted())}
                           onLoaderLookup={(code) => handleLoaderLookup(tour.id, code)}
                         />
@@ -514,6 +543,7 @@ interface TourRowProps {
   onSave: () => void
   onRouteSheet: () => void
   onWaybill: () => void
+  onAssignDevice: () => void
   onSetNow: (field: string) => void
   onLoaderLookup: (code: string) => void
 }
@@ -521,7 +551,7 @@ interface TourRowProps {
 function TourRow({
   tour, contract, form, isExpanded, color, pdvMap, volumes, saving, eqc,
   visibleCols, colCount, t,
-  onToggle, onFormChange, onSave, onRouteSheet, onWaybill, onSetNow, onLoaderLookup,
+  onToggle, onFormChange, onSave, onRouteSheet, onWaybill, onAssignDevice, onSetNow, onLoaderLookup,
 }: TourRowProps) {
   const vehicleLabel = contract?.vehicle_code
     ? `${contract.vehicle_code} — ${contract.vehicle_name ?? ''}`
@@ -533,6 +563,9 @@ function TourRow({
       <span className="flex items-center gap-1">
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{isExpanded ? '▾' : '▸'}</span>
         <span className="font-bold" style={{ color: 'var(--color-primary)' }}>{tour.code}</span>
+        {tour.device_assignment_id ? (
+          <span className="text-[9px] px-1 py-0.5 rounded font-bold" style={{ backgroundColor: '#3b82f622', color: '#3b82f6' }}>TEL</span>
+        ) : null}
       </span>
     ),
     vehicle: <span className="truncate" title={vehicleLabel}>{vehicleLabel}</span>,
@@ -763,6 +796,13 @@ function TourRow({
 
             {/* Actions */}
             <div className="flex gap-2 justify-end">
+              <button onClick={(e) => { e.stopPropagation(); onAssignDevice() }}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:opacity-80"
+                style={{
+                  borderColor: tour.device_assignment_id ? '#22c55e' : '#3b82f6',
+                  color: tour.device_assignment_id ? '#22c55e' : '#3b82f6',
+                  backgroundColor: tour.device_assignment_id ? '#22c55e11' : undefined,
+                }}>{tour.device_assignment_id ? 'Affecte' : 'Affecter tel.'}</button>
               <button onClick={(e) => { e.stopPropagation(); onRouteSheet() }}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:opacity-80"
                 style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}>{t('operations.driverRoute')}</button>

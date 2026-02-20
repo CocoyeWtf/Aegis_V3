@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///./chaos_route.db"
 
     # CORS - origines autorisées / allowed origins
-    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000", "http://localhost:8081", "http://localhost:19006"]
 
     # JWT Authentication
     SECRET_KEY: str = "change-me-in-production"

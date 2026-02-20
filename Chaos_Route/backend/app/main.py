@@ -12,6 +12,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api import api_router
+from app.api.ws_tracking import router as ws_router
+from app.api.mobile_setup import router as mobile_setup_router
 from app.config import settings
 from app.database import async_session, init_db
 from app.utils.seed import seed_superadmin
@@ -49,6 +51,12 @@ app.add_middleware(
 
 # Routes API
 app.include_router(api_router)
+
+# WebSocket (monte a la racine, pas sous /api) / WebSocket (mounted at root, not under /api)
+app.include_router(ws_router)
+
+# Page installation mobile (racine, publique) / Mobile install page (root, public)
+app.include_router(mobile_setup_router)
 
 
 # Santé de l'API / API health check

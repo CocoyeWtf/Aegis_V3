@@ -29,6 +29,8 @@ const UserManagement = lazy(() => import('./pages/admin/UserManagement'))
 const RoleManagement = lazy(() => import('./pages/admin/RoleManagement'))
 const AuditLog = lazy(() => import('./pages/AuditLog'))
 const Help = lazy(() => import('./pages/Help'))
+const DeviceManagement = lazy(() => import('./pages/DeviceManagement'))
+const Tracking = lazy(() => import('./pages/Tracking'))
 
 function Loading() {
   return (
@@ -66,6 +68,8 @@ export default function App() {
             <Route path="/audit" element={<AuditLog />} />
             <Route path="/admin/users" element={<UserManagement />} />
             <Route path="/admin/roles" element={<RoleManagement />} />
+            <Route path="/devices" element={<DeviceManagement />} />
+            <Route path="/tracking" element={<Tracking />} />
             <Route path="/help" element={<Help />} />
           </Route>
         </Route>

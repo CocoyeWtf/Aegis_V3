@@ -112,6 +112,12 @@ export interface TourStop {
   pickup_cardboard?: boolean
   pickup_containers?: boolean
   pickup_returns?: boolean
+  delivery_status?: string
+  actual_arrival_time?: string
+  actual_departure_time?: string
+  missing_supports_count?: number
+  forced_closure?: boolean
+  delivery_notes?: string
 }
 
 export interface Tour {
@@ -145,6 +151,9 @@ export interface Tour {
   trailer_ready_time?: string
   eqp_loaded?: number
   departure_signal_time?: string
+  driver_user_id?: number | null
+  device_assignment_id?: number | null
+  actual_return_time?: string | null
 }
 
 export interface Loader {
@@ -310,4 +319,63 @@ export interface UserAccount {
   regions: { id: number; name: string }[]
   created_at: string
   updated_at: string
+}
+
+/* ─── Mobile / Tracking types ─── */
+
+export interface MobileDevice {
+  id: number
+  device_identifier: string | null
+  friendly_name?: string
+  registration_code: string
+  base_id?: number | null
+  is_active: boolean
+  registered_at?: string | null
+}
+
+export interface DeviceAssignment {
+  id: number
+  device_id: number
+  user_id: number
+  tour_id: number
+  date: string
+  assigned_at?: string
+  returned_at?: string
+}
+
+export interface GPSPosition {
+  id: number
+  device_id: number
+  tour_id: number
+  latitude: number
+  longitude: number
+  accuracy?: number
+  speed?: number
+  timestamp: string
+}
+
+export interface DriverPosition {
+  tour_id: number
+  tour_code: string
+  driver_name?: string
+  latitude: number
+  longitude: number
+  speed?: number
+  accuracy?: number
+  timestamp: string
+  stops_total: number
+  stops_delivered: number
+}
+
+export interface DeliveryAlert {
+  id: number
+  tour_id: number
+  tour_stop_id?: number | null
+  alert_type: string
+  severity: string
+  message?: string
+  created_at: string
+  acknowledged_at?: string | null
+  acknowledged_by?: number | null
+  device_id?: number | null
 }

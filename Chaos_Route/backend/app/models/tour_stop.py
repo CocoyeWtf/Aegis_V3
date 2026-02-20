@@ -1,6 +1,6 @@
 """Modèle Arrêt de tournée / Tour stop model."""
 
-from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -21,6 +21,14 @@ class TourStop(Base):
     pickup_cardboard: Mapped[bool] = mapped_column(Boolean, default=False)
     pickup_containers: Mapped[bool] = mapped_column(Boolean, default=False)
     pickup_returns: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Champs suivi livraison mobile / Mobile delivery tracking fields
+    delivery_status: Mapped[str | None] = mapped_column(String(20))  # PENDING | ARRIVED | DELIVERED | SKIPPED
+    actual_arrival_time: Mapped[str | None] = mapped_column(String(25))  # ISO 8601
+    actual_departure_time: Mapped[str | None] = mapped_column(String(25))  # ISO 8601
+    missing_supports_count: Mapped[int | None] = mapped_column(Integer, default=0)
+    forced_closure: Mapped[bool] = mapped_column(Boolean, default=False)
+    delivery_notes: Mapped[str | None] = mapped_column(Text)
 
     # Relations
     tour: Mapped["Tour"] = relationship(back_populates="stops")

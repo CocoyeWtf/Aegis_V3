@@ -22,6 +22,12 @@ from app.models.parameter import Parameter
 from app.models.audit import AuditLog
 from app.models.loader import Loader
 from app.models.user import User, Role, Permission, user_roles, user_regions
+from app.models.mobile_device import MobileDevice
+from app.models.device_assignment import DeviceAssignment
+from app.models.gps_position import GPSPosition
+from app.models.stop_event import StopEvent, StopEventType
+from app.models.support_scan import SupportScan
+from app.models.delivery_alert import DeliveryAlert, AlertType, AlertSeverity
 
 __all__ = [
     "Country",
@@ -47,4 +53,13 @@ __all__ = [
     "user_roles",
     "user_regions",
     "Loader",
+    "MobileDevice",
+    "DeviceAssignment",
+    "GPSPosition",
+    "StopEvent",
+    "StopEventType",
+    "SupportScan",
+    "DeliveryAlert",
+    "AlertType",
+    "AlertSeverity",
 ]

@@ -55,12 +55,19 @@ class Tour(Base):
     eqp_loaded: Mapped[int | None] = mapped_column(Integer)
     departure_signal_time: Mapped[str | None] = mapped_column(String(16))
 
+    # Champs suivi mobile / Mobile tracking fields
+    driver_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    device_assignment_id: Mapped[int | None] = mapped_column(ForeignKey("device_assignments.id"))
+    actual_return_time: Mapped[str | None] = mapped_column(String(25))  # ISO 8601
+
     # Relations
     contract: Mapped["Contract | None"] = relationship(back_populates="tours")
     base: Mapped["BaseLogistics"] = relationship(back_populates="tours")
     stops: Mapped[list["TourStop"]] = relationship(
         back_populates="tour", cascade="all, delete-orphan", order_by="TourStop.sequence_order"
     )
+    driver_user: Mapped["User | None"] = relationship(foreign_keys=[driver_user_id])
+    device_assignment: Mapped["DeviceAssignment | None"] = relationship(foreign_keys=[device_assignment_id])
 
     def __repr__(self) -> str:
         return f"<Tour {self.code} - {self.date}>"

@@ -1,6 +1,8 @@
 /* Page Points de vente / Point of Sale management page */
 
+import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { QRCodeSVG } from 'qrcode.react'
 import { CrudPage } from '../components/data/CrudPage'
 import type { Column } from '../components/data/DataTable'
 import type { FieldDef } from '../components/data/FormDialog'
@@ -10,6 +12,8 @@ import type { PDV, Region } from '../types'
 export default function PdvManagement() {
   const { t } = useTranslation()
   const { data: regions } = useApi<Region>('/regions')
+  const [qrPdv, setQrPdv] = useState<PDV | null>(null)
+  const printRef = useRef<HTMLDivElement>(null)
 
   const pdvTypeOptions = [
     { value: 'EXPRESS', label: t('pdvs.express') },
@@ -23,6 +27,18 @@ export default function PdvManagement() {
   ]
 
   const columns: Column<PDV>[] = [
+    {
+      key: 'qr' as keyof PDV, label: 'QR', width: '50px',
+      render: (row) => (
+        <button
+          onClick={(e) => { e.stopPropagation(); setQrPdv(row) }}
+          title="QR Code"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: '2px 6px' }}
+        >
+          ⊞
+        </button>
+      ),
+    },
     { key: 'code', label: t('common.code'), width: '100px', filterable: true },
     { key: 'name', label: t('common.name'), filterable: true },
     { key: 'type', label: t('common.type'), width: '160px', filterable: true },
@@ -74,18 +90,89 @@ export default function PdvManagement() {
     },
   ]
 
+  /* Impression QR / Print QR code */
+  const handlePrint = () => {
+    if (!printRef.current || !qrPdv) return
+    const win = window.open('', '_blank', 'width=400,height=500')
+    if (!win) return
+    win.document.write(`<!DOCTYPE html><html><head><title>QR ${qrPdv.code}</title>
+      <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 40px; }
+        .code { font-size: 28px; font-weight: bold; margin: 16px 0 4px; }
+        .name { font-size: 16px; color: #666; margin-bottom: 8px; }
+        .city { font-size: 14px; color: #999; }
+        @media print { body { padding: 20px; } }
+      </style></head><body>
+      ${printRef.current.innerHTML}
+      <script>window.onload=function(){window.print();window.close();}<\/script>
+    </body></html>`)
+    win.document.close()
+  }
+
   return (
-    <CrudPage<PDV>
-      title={t('pdvs.title')}
-      endpoint="/pdvs"
-      columns={columns}
-      fields={fields}
-      searchKeys={['code', 'name', 'city']}
-      createTitle={t('pdvs.new')}
-      editTitle={t('pdvs.edit')}
-      importEntity="pdvs"
-      exportEntity="pdvs"
-      transformPayload={(d) => ({ ...d, region_id: Number(d.region_id) })}
-    />
+    <>
+      <CrudPage<PDV>
+        title={t('pdvs.title')}
+        endpoint="/pdvs"
+        columns={columns}
+        fields={fields}
+        searchKeys={['code', 'name', 'city']}
+        createTitle={t('pdvs.new')}
+        editTitle={t('pdvs.edit')}
+        importEntity="pdvs"
+        exportEntity="pdvs"
+        transformPayload={(d) => ({ ...d, region_id: Number(d.region_id) })}
+      />
+
+      {/* Modale QR PDV / PDV QR code modal */}
+      {qrPdv && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+          }}
+          onClick={() => setQrPdv(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'var(--bg-secondary)', borderRadius: 12, padding: 32,
+              border: '1px solid var(--border-color)', textAlign: 'center', minWidth: 320,
+            }}
+          >
+            <div ref={printRef}>
+              <QRCodeSVG value={qrPdv.code} size={200} level="H" />
+              <div className="code" style={{ fontSize: 28, fontWeight: 'bold', marginTop: 16 }}>{qrPdv.code}</div>
+              <div className="name" style={{ fontSize: 16, color: 'var(--text-secondary)', marginBottom: 4 }}>{qrPdv.name}</div>
+              {qrPdv.city && (
+                <div className="city" style={{ fontSize: 14, color: 'var(--text-muted)' }}>{qrPdv.address} — {qrPdv.city}</div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 24, justifyContent: 'center' }}>
+              <button
+                onClick={handlePrint}
+                style={{
+                  padding: '10px 24px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                  background: 'var(--accent-color)', color: '#fff', fontWeight: 600, fontSize: 14,
+                }}
+              >
+                Imprimer
+              </button>
+              <button
+                onClick={() => setQrPdv(null)}
+                style={{
+                  padding: '10px 24px', borderRadius: 8, cursor: 'pointer',
+                  background: 'none', border: '1px solid var(--border-color)',
+                  color: 'var(--text-secondary)', fontWeight: 600, fontSize: 14,
+                }}
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

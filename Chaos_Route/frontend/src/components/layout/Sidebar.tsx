@@ -59,6 +59,8 @@ const navGroups: NavGroup[] = [
     icon: '🏭',
     children: [
       { path: '/operations', label: 'nav.postier', icon: '📮', resource: 'operations' },
+      { path: '/devices', label: 'Appareils', icon: '📱', resource: 'devices' },
+      { path: '/tracking', label: 'Suivi chauffeurs', icon: '📡', resource: 'tracking' },
     ],
   },
   { key: 'guardPost', label: 'nav.guardPost', icon: '🚧', path: '/guard-post', resource: 'guard-post' },

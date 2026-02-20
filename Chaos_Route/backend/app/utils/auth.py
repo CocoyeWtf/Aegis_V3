@@ -31,6 +31,8 @@ RESOURCES = [
     "users",
     "roles",
     "loaders",
+    "devices",
+    "tracking",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

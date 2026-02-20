@@ -16,7 +16,7 @@ from app.models.fuel_price import FuelPrice
 from app.models.km_tax import KmTax
 from app.models.parameter import Parameter
 from app.models.pdv import PDV
-from app.models.tour import Tour
+from app.models.tour import Tour, TourStatus
 from app.models.tour_stop import TourStop
 from app.models.volume import Volume
 from app.models.base_logistics import BaseLogistics
@@ -1229,6 +1229,89 @@ async def unschedule_tour(
         select(Tour).where(Tour.id == tour.id).options(selectinload(Tour.stops))
     )
     return result.scalar_one()
+
+
+# =========================================================================
+# Validation endpoints / Endpoints de validation
+# =========================================================================
+
+@router.put("/{tour_id}/validate", response_model=TourRead)
+async def validate_tour(
+    tour_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("tour-planning", "update")),
+):
+    """Valider un tour DRAFT → VALIDATED / Validate a DRAFT tour."""
+    result = await db.execute(
+        select(Tour).where(Tour.id == tour_id).options(selectinload(Tour.stops))
+    )
+    tour = result.scalar_one_or_none()
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found")
+    if tour.status != TourStatus.DRAFT:
+        raise HTTPException(status_code=422, detail="Seuls les tours DRAFT peuvent etre valides")
+    tour.status = TourStatus.VALIDATED
+    await _log_audit(db, "tour", tour.id, "VALIDATE", user, {"old_status": "DRAFT", "new_status": "VALIDATED"})
+    await db.flush()
+    result = await db.execute(
+        select(Tour).where(Tour.id == tour.id).options(selectinload(Tour.stops))
+    )
+    return result.scalar_one()
+
+
+@router.put("/{tour_id}/revert-draft", response_model=TourRead)
+async def revert_tour_draft(
+    tour_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("tour-planning", "update")),
+):
+    """Remettre un tour VALIDATED → DRAFT / Revert a VALIDATED tour to DRAFT."""
+    result = await db.execute(
+        select(Tour).where(Tour.id == tour_id).options(selectinload(Tour.stops))
+    )
+    tour = result.scalar_one_or_none()
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found")
+    if tour.status != TourStatus.VALIDATED:
+        raise HTTPException(status_code=422, detail="Seuls les tours VALIDATED peuvent etre remis en DRAFT")
+    if tour.departure_signal_time:
+        raise HTTPException(
+            status_code=409,
+            detail="Tour verrouille : top depart valide / Tour locked: departure signal confirmed",
+        )
+    tour.status = TourStatus.DRAFT
+    await _log_audit(db, "tour", tour.id, "REVERT_DRAFT", user, {"old_status": "VALIDATED", "new_status": "DRAFT"})
+    await db.flush()
+    result = await db.execute(
+        select(Tour).where(Tour.id == tour.id).options(selectinload(Tour.stops))
+    )
+    return result.scalar_one()
+
+
+@router.post("/validate-batch")
+async def validate_batch(
+    date: str = Query(...),
+    base_id: int = Query(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("tour-planning", "update")),
+):
+    """Valider tous les tours DRAFT planifies pour une date/base / Validate all scheduled DRAFT tours for a date/base."""
+    result = await db.execute(
+        select(Tour).where(
+            Tour.date == date,
+            Tour.base_id == base_id,
+            Tour.status == TourStatus.DRAFT,
+            Tour.departure_time.isnot(None),
+        )
+    )
+    tours_to_validate = result.scalars().all()
+    count = 0
+    for tour in tours_to_validate:
+        tour.status = TourStatus.VALIDATED
+        await _log_audit(db, "tour", tour.id, "VALIDATE", user, {"old_status": "DRAFT", "new_status": "VALIDATED"})
+        count += 1
+    await db.flush()
+    return {"validated": count}
 
 
 # =========================================================================

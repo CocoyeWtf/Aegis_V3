@@ -285,6 +285,59 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
     }
   }
 
+  /* Valider un tour / Validate a tour */
+  const handleValidate = async (tourId: number) => {
+    setScheduling(tourId)
+    try {
+      await api.put(`/tours/${tourId}/validate`)
+      await loadData()
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      alert(detail || 'Erreur validation')
+    } finally {
+      setScheduling(null)
+    }
+  }
+
+  /* Remettre en DRAFT / Revert to DRAFT */
+  const handleRevertDraft = async (tourId: number) => {
+    setScheduling(tourId)
+    try {
+      await api.put(`/tours/${tourId}/revert-draft`)
+      await loadData()
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      if (detail) alert(detail)
+      else console.error('Failed to revert tour', e)
+    } finally {
+      setScheduling(null)
+    }
+  }
+
+  /* Valider tous les tours DRAFT / Validate all DRAFT tours */
+  const [validatingBatch, setValidatingBatch] = useState(false)
+  const handleValidateBatch = async () => {
+    if (!selectedDate || !selectedBaseId) return
+    setValidatingBatch(true)
+    try {
+      const { data } = await api.post<{ validated: number }>('/tours/validate-batch', null, {
+        params: { date: selectedDate, base_id: selectedBaseId },
+      })
+      await loadData()
+      alert(`${data.validated} tour(s) valide(s)`)
+    } catch (e) {
+      console.error('Failed to validate batch', e)
+    } finally {
+      setValidatingBatch(false)
+    }
+  }
+
+  /* Nombre de tours DRAFT planifiés / Count of scheduled DRAFT tours */
+  const draftScheduledCount = useMemo(
+    () => scheduledTours.filter((t) => t.status === 'DRAFT').length,
+    [scheduledTours]
+  )
+
   /* Recalculer les coûts / Recalculate costs */
   const handleRecalculate = async () => {
     if (!selectedDate || !selectedBaseId) return
@@ -422,6 +475,16 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
           </div>
           {scheduledTours.length > 0 && (
             <>
+              {draftScheduledCount > 0 && (
+                <button
+                  onClick={handleValidateBatch}
+                  disabled={validatingBatch}
+                  className="px-3 py-2 rounded-lg text-xs font-semibold border transition-all hover:opacity-80 disabled:opacity-40"
+                  style={{ borderColor: 'var(--color-success)', color: 'var(--color-success)' }}
+                >
+                  {validatingBatch ? '...' : `Valider tout (${draftScheduledCount})`}
+                </button>
+              )}
               <button
                 onClick={handleRecalculate}
                 disabled={recalculating}
@@ -679,21 +742,56 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
                   {/* Liste des stops / Stop list */}
                   {renderStopList(tour)}
 
-                  <div className="mt-2 flex justify-end">
-                    {tour.departure_signal_time ? (
-                      <span className="px-3 py-1 rounded-lg text-xs font-semibold" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}>
-                        🔒 Top départ validé
-                      </span>
-                    ) : (
-                      <button
-                        className="px-3 py-1 rounded-lg text-xs border transition-all hover:opacity-80"
-                        style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
-                        disabled={scheduling === tour.id}
-                        onClick={(e) => { e.stopPropagation(); handleUnschedule(tour.id) }}
-                      >
-                        {scheduling === tour.id ? '...' : t('tourPlanning.unscheduleTour')}
-                      </button>
-                    )}
+                  <div className="mt-2 flex items-center justify-between">
+                    {/* Badge statut / Status badge */}
+                    <span
+                      className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
+                      style={{
+                        backgroundColor: tour.status === 'VALIDATED' ? 'rgba(34,197,94,0.15)' : 'rgba(249,115,22,0.15)',
+                        color: tour.status === 'VALIDATED' ? 'var(--color-success)' : 'var(--color-warning)',
+                      }}
+                    >
+                      {tour.status === 'VALIDATED' ? 'Valide' : 'Brouillon'}
+                    </span>
+
+                    <div className="flex items-center gap-2">
+                      {tour.departure_signal_time ? (
+                        <span className="px-3 py-1 rounded-lg text-xs font-semibold" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}>
+                          🔒 Top départ validé
+                        </span>
+                      ) : (
+                        <>
+                          {/* Bouton valider ou défaire / Validate or revert button */}
+                          {tour.status === 'DRAFT' ? (
+                            <button
+                              className="px-3 py-1 rounded-lg text-xs font-semibold border transition-all hover:opacity-80"
+                              style={{ borderColor: 'var(--color-success)', color: 'var(--color-success)' }}
+                              disabled={scheduling === tour.id}
+                              onClick={(e) => { e.stopPropagation(); handleValidate(tour.id) }}
+                            >
+                              {scheduling === tour.id ? '...' : 'Valider'}
+                            </button>
+                          ) : (
+                            <button
+                              className="px-3 py-1 rounded-lg text-xs border transition-all hover:opacity-80"
+                              style={{ borderColor: 'var(--color-warning)', color: 'var(--color-warning)' }}
+                              disabled={scheduling === tour.id}
+                              onClick={(e) => { e.stopPropagation(); handleRevertDraft(tour.id) }}
+                            >
+                              {scheduling === tour.id ? '...' : 'Defaire'}
+                            </button>
+                          )}
+                          <button
+                            className="px-3 py-1 rounded-lg text-xs border transition-all hover:opacity-80"
+                            style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
+                            disabled={scheduling === tour.id}
+                            onClick={(e) => { e.stopPropagation(); handleUnschedule(tour.id) }}
+                          >
+                            {scheduling === tour.id ? '...' : t('tourPlanning.unscheduleTour')}
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
                 )

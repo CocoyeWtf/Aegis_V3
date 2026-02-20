@@ -1,0 +1,281 @@
+/* Detail tour / feuille de route / Tour detail / driver route sheet */
+
+import { useState, useEffect, useCallback } from 'react'
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native'
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router'
+import api from '../../services/api'
+import { StopCard } from '../../components/StopCard'
+import { COLORS, STATUS_COLORS } from '../../constants/config'
+import { startGPSTracking, stopGPSTracking } from '../../services/gps'
+import type { DriverTour } from '../../types'
+
+export default function TourDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>()
+  const router = useRouter()
+  const [tour, setTour] = useState<DriverTour | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [gpsActive, setGpsActive] = useState(false)
+
+  const tourId = Number(id)
+
+  const loadTour = useCallback(async () => {
+    try {
+      const { data } = await api.get<DriverTour>(`/driver/tour/${tourId}`)
+      setTour(data)
+    } catch (e) {
+      console.error('Failed to load tour', e)
+      Alert.alert('Erreur', 'Impossible de charger le tour')
+    } finally {
+      setLoading(false)
+    }
+  }, [tourId])
+
+  // Recharger a chaque focus (retour depuis scan/supports) / Reload on every focus
+  useFocusEffect(
+    useCallback(() => {
+      loadTour()
+    }, [loadTour])
+  )
+
+  // Demarrer GPS auto / Auto-start GPS
+  useEffect(() => {
+    if (!tour || tour.status === 'COMPLETED') return
+    startGPSTracking(tourId).then((ok) => {
+      setGpsActive(ok)
+      if (!ok) console.warn('GPS tracking failed to start — permissions not granted')
+    })
+    return () => {
+      stopGPSTracking()
+    }
+  }, [tour?.status, tourId])
+
+  const handleCloseStop = (stopId: number, pdvName: string) => {
+    Alert.alert(
+      'Confirmer la livraison',
+      `Confirmer la livraison a ${pdvName} ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Confirmer',
+          onPress: async () => {
+            try {
+              await api.post(`/driver/tour/${tourId}/stops/${stopId}/close`, {
+                timestamp: new Date().toISOString(),
+                force: false,
+              })
+              loadTour()
+            } catch (e: unknown) {
+              const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur'
+              // Proposer cloture forcee / Offer forced closure
+              Alert.alert('Erreur', msg, [
+                { text: 'Annuler', style: 'cancel' },
+                {
+                  text: 'Forcer',
+                  style: 'destructive',
+                  onPress: async () => {
+                    await api.post(`/driver/tour/${tourId}/stops/${stopId}/close`, {
+                      timestamp: new Date().toISOString(),
+                      force: true,
+                    })
+                    loadTour()
+                  },
+                },
+              ])
+            }
+          },
+        },
+      ],
+    )
+  }
+
+  const handleReturnBase = () => {
+    Alert.alert(
+      'Retour base',
+      'Confirmer le retour a la base ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Confirmer',
+          onPress: async () => {
+            try {
+              await api.post(`/driver/tour/${tourId}/return`, {
+                timestamp: new Date().toISOString(),
+              })
+              await stopGPSTracking()
+              setGpsActive(false)
+              loadTour()
+            } catch (e) {
+              console.error('Failed to return to base', e)
+            }
+          },
+        },
+      ],
+    )
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    )
+  }
+
+  if (!tour) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>Tour introuvable</Text>
+      </View>
+    )
+  }
+
+  const delivered = tour.stops.filter((s) => s.delivery_status === 'DELIVERED').length
+  const total = tour.stops.length
+  const statusColor = STATUS_COLORS[tour.status] || COLORS.textMuted
+
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerRow}>
+          <Text style={styles.code}>{tour.code}</Text>
+          <View style={[styles.badge, { borderColor: statusColor }]}>
+            <Text style={[styles.badgeText, { color: statusColor }]}>{tour.status}</Text>
+          </View>
+        </View>
+        <View style={styles.headerRow}>
+          <Text style={styles.meta}>
+            {tour.delivery_date} · Dep. {tour.departure_time || '—'} · {tour.vehicle_code || '—'}
+          </Text>
+          {gpsActive ? <Text style={styles.gpsBadge}>GPS</Text> : null}
+        </View>
+        {/* Barre progression / Progress bar */}
+        <View style={styles.progressRow}>
+          <Text style={styles.progressText}>{delivered}/{total} livres</Text>
+          <View style={styles.progressBg}>
+            <View style={[styles.progressFill, { width: total > 0 ? `${(delivered / total) * 100}%` : '0%' }]} />
+          </View>
+        </View>
+      </View>
+
+      {/* Liste stops / Stop list */}
+      <FlatList
+        data={tour.stops}
+        keyExtractor={(s) => String(s.id)}
+        renderItem={({ item }) => (
+          <StopCard
+            stop={item}
+            onScanPdv={() => router.push(`/tour/${tourId}/stop/${item.id}/scan`)}
+            onScanSupports={() => router.push(`/tour/${tourId}/stop/${item.id}/supports`)}
+            onClose={() => handleCloseStop(item.id, item.pdv_name || item.pdv_code || '—')}
+          />
+        )}
+        contentContainerStyle={styles.list}
+        ListFooterComponent={
+          tour.status !== 'COMPLETED' ? (
+            <TouchableOpacity onPress={handleReturnBase} style={styles.returnBtn}>
+              <Text style={styles.returnBtnText}>Retour base</Text>
+            </TouchableOpacity>
+          ) : null
+        }
+      />
+    </View>
+  )
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.bgPrimary,
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.bgPrimary,
+  },
+  errorText: {
+    color: COLORS.textMuted,
+    fontSize: 16,
+  },
+  header: {
+    backgroundColor: COLORS.bgSecondary,
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  code: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  meta: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+  },
+  gpsBadge: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.success,
+    backgroundColor: COLORS.success + '22',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+  },
+  progressText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    width: 70,
+  },
+  progressBg: {
+    flex: 1,
+    height: 6,
+    backgroundColor: COLORS.bgTertiary,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: 6,
+    backgroundColor: COLORS.success,
+    borderRadius: 3,
+  },
+  list: {
+    padding: 14,
+    paddingBottom: 40,
+  },
+  returnBtn: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  returnBtnText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+})

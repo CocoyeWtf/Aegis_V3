@@ -23,6 +23,11 @@ from app.api import (
     users,
     roles,
     loaders,
+    devices,
+    assignments,
+    driver,
+    tracking,
+    ws_tracking,
 )
 
 api_router = APIRouter(prefix="/api")
@@ -47,3 +52,7 @@ api_router.include_router(parameters.router, prefix="/parameters", tags=["parame
 api_router.include_router(imports.router, prefix="/imports", tags=["imports"])
 api_router.include_router(exports.router, prefix="/exports", tags=["exports"])
 api_router.include_router(loaders.router, prefix="/loaders", tags=["loaders"])
+api_router.include_router(devices.router, prefix="/devices", tags=["devices"])
+api_router.include_router(assignments.router, prefix="/assignments", tags=["assignments"])
+api_router.include_router(driver.router, prefix="/driver", tags=["driver"])
+api_router.include_router(tracking.router, prefix="/tracking", tags=["tracking"])

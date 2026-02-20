@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "CMRO Driver",
+    "slug": "cmro-driver",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "cmro-driver",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a1a1a"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Suivi de tournee en cours",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Suivi GPS en arriere-plan pendant la tournee",
+        "NSCameraUsageDescription": "Scanner les QR codes des points de vente",
+        "UIBackgroundModes": ["location"]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a1a1a"
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "CAMERA",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Suivi GPS en arriere-plan pendant la tournee"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Scanner les QR codes des points de vente"
+        }
+      ]
+    ]
+  }
+}
