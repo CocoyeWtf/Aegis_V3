@@ -8,6 +8,7 @@ import {
 } from 'recharts'
 import { KpiCard } from './KpiCard'
 import type { Tour, Volume } from '../../types'
+import { EQC_PER_EQP } from '../../utils/tourTimeUtils'
 
 interface KpiDashboardProps {
   tours: Tour[]
@@ -19,6 +20,7 @@ interface KpiDashboardProps {
 interface KpiSet {
   totalTours: number
   totalEqp: number
+  totalEqpDerived: number
   totalColis: number
   totalKm: number
   totalCost: number
@@ -27,7 +29,7 @@ interface KpiSet {
 
 function computeKpis(tours: Tour[], volumes: Volume[]): KpiSet {
   if (tours.length === 0) {
-    return { totalTours: 0, totalEqp: 0, totalColis: 0, totalKm: 0, totalCost: 0, estimatedCO2: 0 }
+    return { totalTours: 0, totalEqp: 0, totalEqpDerived: 0, totalColis: 0, totalKm: 0, totalCost: 0, estimatedCO2: 0 }
   }
   const totalEqp = tours.reduce((s, t) => s + (t.total_eqp ?? 0), 0)
   const totalKm = tours.reduce((s, t) => s + (t.total_km ?? 0), 0)
@@ -39,6 +41,7 @@ function computeKpis(tours: Tour[], volumes: Volume[]): KpiSet {
   return {
     totalTours: tours.length,
     totalEqp,
+    totalEqpDerived: Math.round((totalEqp / EQC_PER_EQP) * 10) / 10,
     totalColis,
     totalKm: Math.round(totalKm),
     totalCost: Math.round(totalCost * 100) / 100,
@@ -61,13 +64,21 @@ export function KpiDashboard({ tours, volumes, today, weekStart }: KpiDashboardP
 
   /* Moyennes sur le mois / Monthly averages */
   const avgKpis = useMemo(() => {
-    if (tours.length === 0) return { avgKmPerTour: 0, avgEqpPerTour: 0, avgColisPerTour: 0, avgCostPerTour: 0, avgKmPerEqp: 0 }
+    if (tours.length === 0) return { avgKmPerTour: 0, avgEqpPerTour: 0, avgColisPerTour: 0, avgCostPerTour: 0, avgKmPerEqp: 0, avgColisPerEqc: 0, avgColisPerEqp: 0 }
+    const avgColisPerEqc = monthKpis.totalEqp > 0 && monthKpis.totalColis > 0
+      ? Math.round((monthKpis.totalColis / monthKpis.totalEqp) * 10) / 10
+      : 0
+    const avgColisPerEqp = monthKpis.totalEqpDerived > 0 && monthKpis.totalColis > 0
+      ? Math.round((monthKpis.totalColis / monthKpis.totalEqpDerived) * 10) / 10
+      : 0
     return {
       avgKmPerTour: Math.round(monthKpis.totalKm / tours.length),
       avgEqpPerTour: Math.round(monthKpis.totalEqp / tours.length),
       avgColisPerTour: monthKpis.totalColis > 0 ? Math.round(monthKpis.totalColis / tours.length) : 0,
       avgCostPerTour: Math.round((monthKpis.totalCost / tours.length) * 100) / 100,
       avgKmPerEqp: monthKpis.totalEqp > 0 ? Math.round((monthKpis.totalKm / monthKpis.totalEqp) * 10) / 10 : 0,
+      avgColisPerEqc,
+      avgColisPerEqp,
     }
   }, [tours, monthKpis])
 
@@ -80,7 +91,7 @@ export function KpiDashboard({ tours, volumes, today, weekStart }: KpiDashboardP
     return Object.entries(counts).map(([name, value]) => ({ name, value }))
   }, [tours])
 
-  /* Données pour le graphique EQP par jour / EQP per day chart */
+  /* Données pour le graphique EQC par jour / EQC per day bar chart */
   const dailyData = useMemo(() => {
     const byDate: Record<string, { eqp: number; km: number; tours: number }> = {}
     tours.forEach((tour) => {
@@ -99,12 +110,13 @@ export function KpiDashboard({ tours, volumes, today, weekStart }: KpiDashboardP
   /* Rendu d'une colonne de KPIs pour une période / Render a KPI column for one period */
   const renderPeriodColumn = (label: string, kpis: KpiSet) => (
     <div className="flex-1 min-w-0">
-      <h3 className="text-sm font-semibold mb-3 text-center" style={{ color: 'var(--text-primary)' }}>
+      <h3 className="text-sm font-semibold mb-2 text-center" style={{ color: 'var(--text-primary)' }}>
         {label}
       </h3>
-      <div className="space-y-3">
+      <div className="space-y-2">
         <KpiCard label={t('kpi.totalTours')} value={kpis.totalTours} color="var(--color-primary)" />
         <KpiCard label={t('kpi.totalEqp')} value={kpis.totalEqp} color="var(--color-success)" />
+        <KpiCard label={t('kpi.totalEqpDerived')} value={kpis.totalEqpDerived} color="var(--color-success)" />
         <KpiCard label={t('kpi.totalColis')} value={kpis.totalColis} color="var(--color-info, #3b82f6)" />
         <KpiCard label={t('kpi.totalKm')} value={kpis.totalKm} unit="km" color="var(--color-warning)" />
         <KpiCard label={t('kpi.totalCost')} value={`${kpis.totalCost}`} unit="€" color="var(--color-danger)" />
@@ -114,7 +126,7 @@ export function KpiDashboard({ tours, volumes, today, weekStart }: KpiDashboardP
   )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 3 colonnes de KPIs par période / 3 KPI columns by period */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {renderPeriodColumn(t('kpi.thisMonth'), monthKpis)}
@@ -123,17 +135,19 @@ export function KpiDashboard({ tours, volumes, today, weekStart }: KpiDashboardP
       </div>
 
       {/* Cartes KPI moyennes (mois) / Average KPI cards (month) */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
         <KpiCard label={t('kpi.avgKmPerTour')} value={avgKpis.avgKmPerTour} unit="km" color="var(--color-primary)" />
         <KpiCard label={t('kpi.avgEqpPerTour')} value={avgKpis.avgEqpPerTour} color="var(--color-success)" />
         <KpiCard label={t('kpi.avgColisPerTour')} value={avgKpis.avgColisPerTour} color="var(--color-info, #3b82f6)" />
         <KpiCard label={t('kpi.avgCostPerTour')} value={`${avgKpis.avgCostPerTour}`} unit="€" color="var(--color-warning)" />
         <KpiCard label={t('kpi.avgKmPerEqp')} value={avgKpis.avgKmPerEqp} unit="km" color="var(--color-danger)" />
+        <KpiCard label={t('kpi.avgColisPerEqc')} value={avgKpis.avgColisPerEqc} color="var(--color-info, #3b82f6)" />
+        <KpiCard label={t('kpi.avgColisPerEqp')} value={avgKpis.avgColisPerEqp} color="var(--text-muted)" />
       </div>
 
       {/* Graphiques / Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* EQP par jour / EQP per day */}
+        {/* EQC par jour / EQC per day */}
         <div
           className="lg:col-span-2 rounded-xl border p-4"
           style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
@@ -154,7 +168,7 @@ export function KpiDashboard({ tours, volumes, today, weekStart }: KpiDashboardP
                   color: 'var(--text-primary)',
                 }}
               />
-              <Bar dataKey="eqp" fill="var(--color-primary)" radius={[4, 4, 0, 0]} name="EQP" />
+              <Bar dataKey="eqp" fill="var(--color-primary)" radius={[4, 4, 0, 0]} name="EQC" />
               <Bar dataKey="tours" fill="var(--color-success)" radius={[4, 4, 0, 0]} name="Tours" />
             </BarChart>
           </ResponsiveContainer>

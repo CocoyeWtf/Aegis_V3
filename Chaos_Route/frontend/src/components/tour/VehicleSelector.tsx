@@ -29,7 +29,7 @@ export function VehicleSelector({ selectedType, onSelect }: VehicleSelectorProps
           >
             <span className="block font-semibold">{info.label}</span>
             <span className="block text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              {info.capacity_eqp} EQP
+              {info.capacity_eqp} EQC
             </span>
           </button>
         )

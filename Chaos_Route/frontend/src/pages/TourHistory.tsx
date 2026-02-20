@@ -75,7 +75,7 @@ export default function TourHistory() {
       width: '70px',
       render: (row) => row.stops?.length ?? 0,
     },
-    { key: 'total_eqp', label: 'EQP', width: '70px' },
+    { key: 'total_eqp', label: 'EQC', width: '70px' },
     {
       key: 'total_km',
       label: 'Km',

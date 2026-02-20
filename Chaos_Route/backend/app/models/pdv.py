@@ -37,14 +37,14 @@ class PDV(Base):
 
     # SAS (zone tampon de réception / reception airlock)
     has_sas: Mapped[bool] = mapped_column(Boolean, default=False)
-    sas_capacity: Mapped[int | None] = mapped_column(Integer)  # capacité en EQP
+    sas_capacity: Mapped[int | None] = mapped_column(Integer)  # capacité en EQC (colonne DB héritée)
 
     # Quai de déchargement / Unloading dock
     has_dock: Mapped[bool] = mapped_column(Boolean, default=False)
     dock_has_niche: Mapped[bool] = mapped_column(Boolean, default=False)
     # Niche sous quai (permet hayon rabattable) / Dock recess (allows foldable tailgate)
     dock_time_minutes: Mapped[int | None] = mapped_column(Integer)  # temps de mise à quai
-    unload_time_per_eqp_minutes: Mapped[int | None] = mapped_column(Integer)  # temps déchargement par EQP
+    unload_time_per_eqp_minutes: Mapped[int | None] = mapped_column(Integer)  # temps déchargement par EQC (colonne DB héritée)
 
     # Fenêtre de livraison / Delivery window
     delivery_window_start: Mapped[str | None] = mapped_column(String(5))  # HH:MM

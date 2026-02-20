@@ -167,7 +167,7 @@ export default function Operations() {
                   <div className="text-right text-xs" style={{ color: 'var(--text-muted)' }}>
                     <div>{contract?.transporter_name ?? '—'}</div>
                     <div className="font-bold" style={{ color: 'var(--text-primary)' }}>
-                      {tour.departure_time} — {tour.stops.length} {t('tourPlanning.stops')} — {getTourEqp(tour)} EQP
+                      {tour.departure_time} — {tour.stops.length} {t('tourPlanning.stops')} — {getTourEqp(tour)} EQC
                     </div>
                   </div>
                 </div>

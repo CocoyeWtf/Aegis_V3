@@ -177,7 +177,7 @@ export function TourGantt({ tours, highlightedTourId, onTourClick, warningTourId
                           opacity: isHighlighted ? 1 : 0.85,
                           zIndex: isHighlighted ? 10 : 1,
                         }}
-                        title={`${tour.code} | ${tour.departure_time} → ${tour.return_time} | ${tour.total_eqp ?? 0} EQP${hasWindowViolation ? ' ⚠ ' + t('tourPlanning.deliveryWindowWarning', { violations: '' }) : ''}`}
+                        title={`${tour.code} | ${tour.departure_time} → ${tour.return_time} | ${tour.total_eqp ?? 0} EQC${hasWindowViolation ? ' ⚠ ' + t('tourPlanning.deliveryWindowWarning', { violations: '' }) : ''}`}
                         onClick={() => onTourClick(tour.tour_id)}
                       >
                         {width > 5 && (

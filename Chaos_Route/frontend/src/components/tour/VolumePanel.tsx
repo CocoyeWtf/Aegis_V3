@@ -127,7 +127,7 @@ export function VolumePanel({
                     color: overCapacity && !assigned ? 'var(--color-danger)' : 'var(--color-primary)',
                   }}
                 >
-                  {vol.eqp_count} EQP
+                  {vol.eqp_count} EQC
                 </span>
               </div>
               <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>

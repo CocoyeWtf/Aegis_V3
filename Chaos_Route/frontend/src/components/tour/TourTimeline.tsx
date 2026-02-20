@@ -198,7 +198,7 @@ export function TourTimeline({ date, baseId }: TourTimelineProps) {
                         overflow: 'hidden',
                         whiteSpace: 'nowrap',
                       }}
-                      title={`${tour.code} | ${tour.departure_time} → ${tour.return_time} | ${tour.total_eqp ?? 0} EQP`}
+                      title={`${tour.code} | ${tour.departure_time} → ${tour.return_time} | ${tour.total_eqp ?? 0} EQC`}
                     >
                       {width > 5 && (
                         <span className="px-1 truncate">

@@ -297,7 +297,7 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
               </span>
               <span className="truncate max-w-[120px]">— {pdv?.name ?? ''}</span>
               <span className="font-bold shrink-0" style={{ color: 'var(--text-primary)' }}>
-                {stop.eqp_count} EQP
+                {stop.eqp_count} EQC
               </span>
               {hasPickup && (
                 <span className="flex items-center gap-1 ml-auto shrink-0">
@@ -429,14 +429,14 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
                       <div>
                         <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{tour.code}</span>
                         <span className="text-xs ml-2" style={{ color: 'var(--text-muted)' }}>
-                          {tour.stops?.length ?? 0} {t('tourPlanning.stops')} | {tour.total_eqp ?? 0} EQP | {tour.total_km ?? 0} km
+                          {tour.stops?.length ?? 0} {t('tourPlanning.stops')} | {tour.total_eqp ?? 0} EQC | {tour.total_km ?? 0} km
                         </span>
                       </div>
                       <span
                         className="text-xs font-bold px-2 py-0.5 rounded-full"
                         style={{ backgroundColor: 'rgba(249,115,22,0.15)', color: 'var(--color-primary)' }}
                       >
-                        {getVehicleLabel(tour)} ({tour.capacity_eqp ?? 0} EQP)
+                        {getVehicleLabel(tour)} ({tour.capacity_eqp ?? 0} EQC)
                       </span>
                     </div>
 
@@ -557,7 +557,7 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
                     <div>
                       <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{tour.code}</span>
                       <span className="text-xs ml-2" style={{ color: 'var(--text-muted)' }}>
-                        {tour.stops?.length ?? 0} {t('tourPlanning.stops')} | {tour.total_eqp ?? 0} EQP | {tour.total_km ?? 0} km
+                        {tour.stops?.length ?? 0} {t('tourPlanning.stops')} | {tour.total_eqp ?? 0} EQC | {tour.total_km ?? 0} km
                       </span>
                       <span className="text-xs ml-2 font-semibold" style={{ color: 'var(--color-primary)' }}>
                         {getVehicleLabel(tour)}

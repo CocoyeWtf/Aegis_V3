@@ -47,7 +47,7 @@ export function PdvMarker({ pdv, onClick, selected, volumeStatus = 'none' }: Pdv
           <strong>{pdv.code}</strong> — {pdv.name}<br />
           {pdv.city && <span>{pdv.city}<br /></span>}
           <span style={{ color: '#888' }}>{pdv.type}</span>
-          {pdv.has_sas && <span> | SAS: {pdv.sas_capacity} EQP</span>}
+          {pdv.has_sas && <span> | SAS: {pdv.sas_capacity} EQC</span>}
         </div>
       </Tooltip>
     </Marker>

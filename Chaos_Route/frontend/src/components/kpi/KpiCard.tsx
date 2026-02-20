@@ -11,7 +11,7 @@ interface KpiCardProps {
 export function KpiCard({ label, value, unit, color, icon }: KpiCardProps) {
   return (
     <div
-      className="rounded-xl p-5 border"
+      className="rounded-xl p-3 border"
       style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
     >
       <div className="flex items-center justify-between mb-2">
@@ -20,7 +20,7 @@ export function KpiCard({ label, value, unit, color, icon }: KpiCardProps) {
         </p>
         {icon && <span className="text-lg">{icon}</span>}
       </div>
-      <p className="text-2xl font-bold" style={{ color }}>
+      <p className="text-xl font-bold" style={{ color }}>
         {value}
         {unit && <span className="text-sm font-normal ml-1" style={{ color: 'var(--text-muted)' }}>{unit}</span>}
       </p>

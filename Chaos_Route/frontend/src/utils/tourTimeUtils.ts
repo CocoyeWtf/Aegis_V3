@@ -1,7 +1,10 @@
 /* Utilitaires temps pour tours / Tour time utility helpers */
 
 export const DEFAULT_DOCK_TIME = 15
-export const DEFAULT_UNLOAD_PER_EQP = 2
+export const DEFAULT_UNLOAD_PER_EQP = 2  // minutes par EQC / minutes per EQC (nom hérité)
+
+/* Facteur de conversion : 1 EQP = 1.64 EQC / Conversion factor: 1 EQP = 1.64 EQC */
+export const EQC_PER_EQP = 1.64
 
 export interface StopTimeline {
   pdv_id: number

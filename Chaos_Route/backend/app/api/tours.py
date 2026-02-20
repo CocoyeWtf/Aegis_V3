@@ -28,7 +28,10 @@ router = APIRouter()
 
 # -- Constantes par défaut / Default constants --
 DEFAULT_DOCK_TIME_MINUTES = 15
-DEFAULT_UNLOAD_TIME_PER_EQP_MINUTES = 2
+DEFAULT_UNLOAD_TIME_PER_EQP_MINUTES = 2  # minutes par EQC / minutes per EQC (nom hérité)
+
+# Facteur de conversion : 1 EQP = 1.64 EQC / Conversion factor: 1 EQP = 1.64 EQC
+EQC_PER_EQP = 1.64
 
 
 def _parse_time(t: str) -> datetime:

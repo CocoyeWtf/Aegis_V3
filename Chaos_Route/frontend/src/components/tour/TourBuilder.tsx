@@ -334,7 +334,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
           </label>
           <span className="text-sm font-semibold px-3 py-2" style={{ color: selectedVehicleType ? 'var(--color-primary)' : 'var(--text-muted)' }}>
             {selectedVehicleType
-              ? `${VEHICLE_TYPE_DEFAULTS[selectedVehicleType].label} (${capacityEqp} EQP)`
+              ? `${VEHICLE_TYPE_DEFAULTS[selectedVehicleType].label} (${capacityEqp} EQC)`
               : t('tourPlanning.selectVehicleType')}
           </span>
         </div>
@@ -540,7 +540,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                 style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               />
               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                → {splitDialog.volume.eqp_count - splitEqp} EQP {t('tourPlanning.splitRemainder')}
+                → {splitDialog.volume.eqp_count - splitEqp} EQC {t('tourPlanning.splitRemainder')}
               </span>
             </div>
 

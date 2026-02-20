@@ -163,7 +163,7 @@ function exportToExcel(tourDetails: TourDetail[], date: string, t: (key: string)
         [t('tourPlanning.printPlan.pdvName')]: stop.pdvName,
         [t('tourPlanning.printPlan.cityCol')]: stop.city,
         [t('tourPlanning.printPlan.activity')]: stop.activity,
-        'EQP': stop.eqpCount,
+        'EQC': stop.eqpCount,
         [t('tourPlanning.pickupCardboard')]: stop.pickupCardboard ? '✓' : '',
         [t('tourPlanning.pickupContainers')]: stop.pickupContainers ? '✓' : '',
         [t('tourPlanning.pickupReturns')]: stop.pickupReturns ? '✓' : '',
@@ -344,7 +344,7 @@ export function TourPrintPlan({ tours, pdvs, contracts, bases, distances, volume
                         {detail.baseName}
                       </span>
                       <span style={{ marginLeft: '16px' }}>
-                        {detail.stops.length} {t('tourPlanning.stops')} | {detail.totalEqp} EQP | {detail.totalKm} km
+                        {detail.stops.length} {t('tourPlanning.stops')} | {detail.totalEqp} EQC | {detail.totalKm} km
                         {detail.totalCost > 0 && ` | ${detail.totalCost}€`}
                       </span>
                     </td>
@@ -355,7 +355,7 @@ export function TourPrintPlan({ tours, pdvs, contracts, bases, distances, volume
                     <th style={{ ...thStyle, textAlign: 'left' }}>PDV</th>
                     <th style={{ ...thStyle, textAlign: 'left' }}>{t('tourPlanning.printPlan.cityCol')}</th>
                     <th style={thStyle}>{t('tourPlanning.printPlan.activity')}</th>
-                    <th style={thStyle}>EQP</th>
+                    <th style={thStyle}>EQC</th>
                     <th style={thStyle}>{t('tourPlanning.pickups')}</th>
                     <th style={thStyle}>{t('tourPlanning.printPlan.travel')}</th>
                     <th style={thStyle}>{t('tourPlanning.arrivalAt')}</th>
@@ -454,7 +454,7 @@ export function TourPrintPlan({ tours, pdvs, contracts, bases, distances, volume
                   <strong>{tourDetails.reduce((s, d) => s + d.stops.length, 0)}</strong> {t('tourPlanning.stops')}
                 </td>
                 <td style={{ ...tdStyle, textAlign: 'center' }}>
-                  <strong>{tourDetails.reduce((s, d) => s + d.totalEqp, 0)}</strong> EQP
+                  <strong>{tourDetails.reduce((s, d) => s + d.totalEqp, 0)}</strong> EQC
                 </td>
                 <td style={{ ...tdStyle, textAlign: 'center' }}>
                   <strong>{tourDetails.reduce((s, d) => s + d.totalKm, 0)}</strong> km

@@ -150,7 +150,7 @@ export default function GuardPost() {
                   <span className="mx-2">|</span>
                   <span>{t('guardPost.driver')}: <strong style={{ color: 'var(--text-primary)' }}>{tour.driver_name || '—'}</strong></span>
                   <span className="mx-2">|</span>
-                  <span>{tour.departure_time} — {tour.stops.length} {t('tourPlanning.stops')} — {getTourEqp(tour)} EQP</span>
+                  <span>{tour.departure_time} — {tour.stops.length} {t('tourPlanning.stops')} — {getTourEqp(tour)} EQC</span>
                 </div>
 
                 {/* Sortie barrière / Barrier exit */}

@@ -144,7 +144,7 @@ export function TourWaybill({ tourId, onClose }: TourWaybillProps) {
                   <th style={{ ...thStyle, textAlign: 'left' }}>{t('waybill.pdvName')}</th>
                   <th style={{ ...thStyle, textAlign: 'left' }}>{t('waybill.address')}</th>
                   <th style={{ ...thStyle, textAlign: 'left' }}>{t('waybill.city')}</th>
-                  <th style={thStyle}>EQP</th>
+                  <th style={thStyle}>EQC</th>
                   <th style={thStyle}>{t('waybill.temperature')}</th>
                   <th style={thStyle}>{t('waybill.pickups')}</th>
                 </tr>
@@ -181,7 +181,7 @@ export function TourWaybill({ tourId, onClose }: TourWaybillProps) {
                     {t('waybill.totalEqp')}
                   </td>
                   <td style={{ ...cellStyle, fontWeight: 'bold' }}>
-                    {data.total_eqp} EQP
+                    {data.total_eqp} EQC
                   </td>
                   <td style={{ ...cellStyle, width: '140px', fontWeight: 'bold' }}>
                     {t('waybill.totalWeight')}

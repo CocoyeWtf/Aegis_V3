@@ -15,14 +15,14 @@ class KpiService:
 
     @staticmethod
     def cost_per_eqp(total_cost: float, total_eqp: int) -> float:
-        """Coût par EQP / Cost per EQP."""
+        """Coût par EQC / Cost per EQC (nom hérité)."""
         if total_eqp <= 0:
             return 0.0
         return round(total_cost / total_eqp, 2)
 
     @staticmethod
     def km_per_eqp(total_km: float, total_eqp: int) -> float:
-        """Km par EQP / Km per EQP."""
+        """Km par EQC / Km per EQC (nom hérité)."""
         if total_eqp <= 0:
             return 0.0
         return round(total_km / total_eqp, 2)

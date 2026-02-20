@@ -492,7 +492,7 @@ export default function TransporterSummary() {
                   style={{ backgroundColor: 'rgba(249,115,22,0.08)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                 >
                   <span>
-                    {t('transporterSummary.grandTotalTransporter')} {tr.transporter_name} — {tr.grand_total.nb_tours} {t('transporterSummary.nbTours')} · {tr.grand_total.total_km.toFixed(1)} km · {tr.grand_total.total_eqp} EQP
+                    {t('transporterSummary.grandTotalTransporter')} {tr.transporter_name} — {tr.grand_total.nb_tours} {t('transporterSummary.nbTours')} · {tr.grand_total.total_km.toFixed(1)} km · {tr.grand_total.total_eqp} EQC
                   </span>
                   <span className="text-base" style={{ color: 'var(--color-primary)' }}>
                     {tr.grand_total.total_cost.toFixed(2)} &euro;

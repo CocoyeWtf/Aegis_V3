@@ -183,13 +183,13 @@ export interface WaybillData {
   total_weight_kg: number
 }
 
-/* Capacité par défaut selon le type de véhicule / Default capacity per vehicle type */
+/* Capacité par défaut selon le type de véhicule (en EQC) / Default capacity per vehicle type (in EQC) */
 export const VEHICLE_TYPE_DEFAULTS: Record<VehicleType, { label: string; capacity_eqp: number }> = {
-  SEMI: { label: 'Semi-remorque', capacity_eqp: 33 },
-  PORTEUR: { label: 'Porteur', capacity_eqp: 20 },
-  PORTEUR_REMORQUE: { label: 'Porteur + Remorque', capacity_eqp: 26 },
-  CITY: { label: 'City', capacity_eqp: 10 },
-  VL: { label: 'VL', capacity_eqp: 5 },
+  SEMI: { label: 'Semi-remorque', capacity_eqp: 54 },
+  PORTEUR: { label: 'Porteur', capacity_eqp: 33 },
+  PORTEUR_REMORQUE: { label: 'Porteur + Remorque', capacity_eqp: 43 },
+  CITY: { label: 'City', capacity_eqp: 16 },
+  VL: { label: 'VL', capacity_eqp: 8 },
 }
 
 export interface ContractSchedule {

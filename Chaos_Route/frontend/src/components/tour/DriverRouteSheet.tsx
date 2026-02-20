@@ -91,7 +91,7 @@ export function DriverRouteSheet({ tourId, onClose }: DriverRouteSheetProps) {
                     <tr style={{ backgroundColor: '#eee' }}>
                       <th style={{ ...thStyle, width: '30px' }}>#</th>
                       <th style={{ ...thStyle, width: '60px' }}>{t('driverRoute.pdvCode')}</th>
-                      <th style={{ ...thStyle, width: '40px' }}>EQP</th>
+                      <th style={{ ...thStyle, width: '40px' }}>EQC</th>
                       <th style={{ ...thStyle, width: '50px' }}>{t('driverRoute.weight')}</th>
                       <th style={thStyle}>{t('driverRoute.city')}</th>
                       <th style={thStyle}>{t('driverRoute.address')}</th>

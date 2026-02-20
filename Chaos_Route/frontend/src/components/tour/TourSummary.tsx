@@ -104,7 +104,7 @@ function SortableStopRow({
           </div>
           <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
             {pdv?.city && <span>{pdv.city}</span>}
-            <span>{stop.eqp_count} EQP</span>
+            <span>{stop.eqp_count} EQC</span>
           </div>
         </div>
 
@@ -228,7 +228,7 @@ export function TourSummary({
             )}
           </h3>
           <span className="text-xs font-bold" style={{ color: capacityColor }}>
-            {totalEqp} / {capacityEqp > 0 ? capacityEqp : '—'} EQP ({capacityPct}%)
+            {totalEqp} / {capacityEqp > 0 ? capacityEqp : '—'} EQC ({capacityPct}%)
           </span>
         </div>
         {/* Barre de progression / Progress bar */}
@@ -310,7 +310,7 @@ export function TourSummary({
           </div>
           <div>
             <span className="block font-semibold" style={{ color: 'var(--text-primary)' }}>{totalEqp}</span>
-            EQP
+            EQC
           </div>
           <div>
             <span className="block font-semibold" style={{ color: 'var(--text-primary)' }}>

@@ -495,7 +495,7 @@ export default function Help() {
               {/* Panel gauche / Left panel */}
               <div className="w-1/3 border-r pr-2 space-y-2" style={{ borderColor: 'var(--border-color)' }}>
                 <div className="text-[10px] font-bold" style={{ color: 'var(--text-primary)' }}>{t('tourPlanning.availableVolumes')}</div>
-                {['PDV001 — 12 EQP', 'PDV002 — 8 EQP', 'PDV003 — 15 EQP'].map((v, i) => (
+                {['PDV001 — 12 EQC', 'PDV002 — 8 EQC', 'PDV003 — 15 EQC'].map((v, i) => (
                   <div key={i} className="rounded border px-1.5 py-1 text-[9px]" style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}>
                     {v}
                   </div>
@@ -511,7 +511,7 @@ export default function Help() {
               <div className="w-1/3 border-l pl-2 space-y-2" style={{ borderColor: 'var(--border-color)' }}>
                 <div className="text-[10px] font-bold" style={{ color: 'var(--text-primary)' }}>{t('tourPlanning.currentTour')}</div>
                 <div className="text-[9px] space-y-1" style={{ color: 'var(--text-muted)' }}>
-                  <div>🚛 Semi — GEL — 33 EQP</div>
+                  <div>🚛 Semi — GEL — 54 EQC</div>
                   <div className="rounded px-1.5 py-0.5" style={{ backgroundColor: 'rgba(249,115,22,0.1)' }}>
                     {t('tourPlanning.fillRate')}: <span style={{ color: 'var(--color-primary)' }}>72%</span>
                   </div>
