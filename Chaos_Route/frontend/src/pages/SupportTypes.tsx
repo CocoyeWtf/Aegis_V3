@@ -40,7 +40,6 @@ export default function SupportTypes() {
       searchKeys={['code', 'name']}
       createTitle="Nouveau type de support"
       editTitle="Modifier type de support"
-      defaultValues={{ unit_quantity: 1, is_active: 'true' }}
       transformPayload={(d) => ({
         ...d,
         unit_quantity: Number(d.unit_quantity),

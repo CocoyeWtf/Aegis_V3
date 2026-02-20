@@ -5,7 +5,7 @@ import { useApi } from '../hooks/useApi'
 import { useAuthStore } from '../stores/useAuthStore'
 import api from '../services/api'
 import { PickupLabelPrint } from '../components/pickup/PickupLabelPrint'
-import type { PickupRequest, SupportType, PDV, PickupLabel } from '../types'
+import type { PickupRequest, SupportType, PDV } from '../types'
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   REQUESTED: { bg: '#6b7280', text: '#fff' },
