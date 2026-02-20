@@ -15,6 +15,8 @@ class VolumeBase(BaseModel):
     base_origin_id: int
     preparation_start: str | None = None
     preparation_end: str | None = None
+    dispatch_date: str | None = None
+    dispatch_time: str | None = None
 
 
 class VolumeCreate(VolumeBase):
@@ -31,6 +33,8 @@ class VolumeUpdate(BaseModel):
     base_origin_id: int | None = None
     preparation_start: str | None = None
     preparation_end: str | None = None
+    dispatch_date: str | None = None
+    dispatch_time: str | None = None
 
 
 class VolumeRead(VolumeBase):

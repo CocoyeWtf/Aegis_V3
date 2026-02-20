@@ -92,6 +92,8 @@ export interface Volume {
   base_origin_id: number
   preparation_start?: string
   preparation_end?: string
+  dispatch_date?: string | null
+  dispatch_time?: string | null
   tour_id?: number | null
 }
 

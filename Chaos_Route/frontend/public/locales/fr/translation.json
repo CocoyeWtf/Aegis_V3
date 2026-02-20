@@ -134,10 +134,14 @@
     "dropOrClick": "Cliquez ou déposez un fichier ici",
     "duplicateWarning": "Des volumes existent déjà pour les dates/bases suivantes :",
     "duplicateDetail": "{{date}} — {{base}} : {{count}} volumes",
+    "duplicateDetailDispatch": "{{dispatch_date}} {{dispatch_time}} — {{base}} : {{count}} volumes",
     "totalExisting": "Total existant : {{count}} volumes",
     "newRows": "Nouvelles lignes à importer : {{count}}",
     "replaceExisting": "Remplacer les existants",
-    "appendAnyway": "Ajouter quand même"
+    "appendAnyway": "Ajouter quand même",
+    "dispatchDate": "Date de répartition",
+    "dispatchTime": "Heure de répartition",
+    "dispatchDateRequired": "La date de répartition est obligatoire pour l'import de volumes."
   },
   "countryRegion": {
     "title": "Pays & Régions",
@@ -239,7 +243,9 @@
     "temperatureClass": "Classe température",
     "baseOrigin": "Base d'origine",
     "prepStart": "Début préparation",
-    "prepEnd": "Fin préparation"
+    "prepEnd": "Fin préparation",
+    "dispatchDate": "Date répartition",
+    "dispatchTime": "Heure répartition"
   },
   "contracts": {
     "title": "Contrats transporteurs",

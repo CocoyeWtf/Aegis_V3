@@ -119,6 +119,8 @@ async def split_volume(
         base_origin_id=volume.base_origin_id,
         preparation_start=volume.preparation_start,
         preparation_end=volume.preparation_end,
+        dispatch_date=volume.dispatch_date,
+        dispatch_time=volume.dispatch_time,
         tour_id=None,
     )
     db.add(new_vol)

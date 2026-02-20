@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 export interface FieldDef {
   key: string
   label: string
-  type: 'text' | 'number' | 'select' | 'checkbox' | 'textarea' | 'time' | 'multicheck' | 'password'
+  type: 'text' | 'number' | 'select' | 'checkbox' | 'textarea' | 'time' | 'date' | 'multicheck' | 'password'
   required?: boolean
   options?: { value: string; label: string }[]
   placeholder?: string

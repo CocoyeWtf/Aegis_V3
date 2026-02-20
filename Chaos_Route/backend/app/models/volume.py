@@ -28,6 +28,8 @@ class Volume(Base):
     base_origin_id: Mapped[int] = mapped_column(ForeignKey("bases_logistics.id"), nullable=False)
     preparation_start: Mapped[str | None] = mapped_column(String(5))  # HH:MM
     preparation_end: Mapped[str | None] = mapped_column(String(5))  # HH:MM
+    dispatch_date: Mapped[str | None] = mapped_column(String(10))   # YYYY-MM-DD — date de répartition
+    dispatch_time: Mapped[str | None] = mapped_column(String(5))    # HH:MM — heure de répartition
     tour_id: Mapped[int | None] = mapped_column(ForeignKey("tours.id", ondelete="SET NULL"), nullable=True)
 
     # Relations

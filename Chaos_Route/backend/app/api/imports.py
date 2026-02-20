@@ -399,6 +399,8 @@ async def import_data(
     entity_type: str,
     file: UploadFile = File(...),
     mode: str = Query("check", description="check (default) = warn on duplicates, replace = delete existing, append = skip check"),
+    dispatch_date: str | None = Query(None, description="Date de répartition (YYYY-MM-DD) — volumes only"),
+    dispatch_time: str | None = Query(None, description="Heure de répartition (HH:MM) — volumes only"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("imports-exports", "create")),
 ):
@@ -445,17 +447,12 @@ async def import_data(
 
     # --- Détection doublons volumes / Volume duplicate detection ---
     if entity_type == "volumes" and mode != "append":
-        dates_in_file: set[str] = set()
         base_ids_in_file: set[int] = set()
         base_lk = typed_lookups.get("BASE", {})
         for row in rows:
             for key, val in row.items():
                 ck = key.strip().lower().replace(" ", "_")
-                if ck == "date" and val is not None:
-                    coerced = _coerce_value(val, "date")
-                    if coerced:
-                        dates_in_file.add(str(coerced))
-                elif ck == "base_origin_id" and val is not None:
+                if ck == "base_origin_id" and val is not None:
                     code_str = str(val).strip().lower()
                     resolved = base_lk.get(code_str)
                     if not resolved:
@@ -465,13 +462,40 @@ async def import_data(
                             pass
                     if resolved:
                         base_ids_in_file.add(resolved)
-        if dates_in_file and base_ids_in_file:
-            result = await db.execute(
-                select(Volume.date, Volume.base_origin_id, func.count(Volume.id))
-                .where(Volume.date.in_(list(dates_in_file)), Volume.base_origin_id.in_(list(base_ids_in_file)))
-                .group_by(Volume.date, Volume.base_origin_id)
-            )
-            existing_groups = result.all()
+
+        if base_ids_in_file:
+            # Si dispatch_date fourni → détection par (dispatch_date, dispatch_time, base_origin_id)
+            # If dispatch_date provided → detect by (dispatch_date, dispatch_time, base_origin_id)
+            if dispatch_date:
+                dup_query = select(Volume.dispatch_date, Volume.dispatch_time, Volume.base_origin_id, func.count(Volume.id)).where(
+                    Volume.dispatch_date == dispatch_date,
+                    Volume.base_origin_id.in_(list(base_ids_in_file)),
+                )
+                if dispatch_time:
+                    dup_query = dup_query.where(Volume.dispatch_time == dispatch_time)
+                dup_query = dup_query.group_by(Volume.dispatch_date, Volume.dispatch_time, Volume.base_origin_id)
+                result = await db.execute(dup_query)
+                existing_groups = result.all()
+            else:
+                # Fallback : détection par (date, base_origin_id) / Fallback: detect by (date, base_origin_id)
+                dates_in_file: set[str] = set()
+                for row in rows:
+                    for key, val in row.items():
+                        ck = key.strip().lower().replace(" ", "_")
+                        if ck == "date" and val is not None:
+                            coerced = _coerce_value(val, "date")
+                            if coerced:
+                                dates_in_file.add(str(coerced))
+                if dates_in_file:
+                    result = await db.execute(
+                        select(Volume.date, Volume.base_origin_id, func.count(Volume.id))
+                        .where(Volume.date.in_(list(dates_in_file)), Volume.base_origin_id.in_(list(base_ids_in_file)))
+                        .group_by(Volume.date, Volume.base_origin_id)
+                    )
+                    existing_groups = result.all()
+                else:
+                    existing_groups = []
+
             if existing_groups:
                 if mode == "check":
                     base_result = await db.execute(
@@ -479,10 +503,16 @@ async def import_data(
                         .where(BaseLogistics.id.in_(list(base_ids_in_file)))
                     )
                     base_names = {bid: f"{code} — {name}" for bid, code, name in base_result.all()}
-                    existing_details = [
-                        {"date": d, "base": base_names.get(b, str(b)), "count": c}
-                        for d, b, c in existing_groups
-                    ]
+                    if dispatch_date:
+                        existing_details = [
+                            {"dispatch_date": dd or "", "dispatch_time": dt or "", "base": base_names.get(b, str(b)), "count": c}
+                            for dd, dt, b, c in existing_groups
+                        ]
+                    else:
+                        existing_details = [
+                            {"date": d, "base": base_names.get(b, str(b)), "count": c}
+                            for d, b, c in existing_groups
+                        ]
                     total = sum(e["count"] for e in existing_details)
                     return {
                         "status": "duplicate_warning",
@@ -492,12 +522,23 @@ async def import_data(
                         "message": f"{total} volumes existent déjà pour les mêmes dates/bases",
                     }
                 elif mode == "replace":
-                    await db.execute(
-                        sa_delete(Volume).where(
-                            Volume.date.in_(list(dates_in_file)),
+                    if dispatch_date:
+                        del_query = sa_delete(Volume).where(
+                            Volume.dispatch_date == dispatch_date,
                             Volume.base_origin_id.in_(list(base_ids_in_file)),
                         )
-                    )
+                        if dispatch_time:
+                            del_query = del_query.where(Volume.dispatch_time == dispatch_time)
+                        await db.execute(del_query)
+                    else:
+                        dates_in_file_list = list(dates_in_file) if dates_in_file else []
+                        if dates_in_file_list:
+                            await db.execute(
+                                sa_delete(Volume).where(
+                                    Volume.date.in_(dates_in_file_list),
+                                    Volume.base_origin_id.in_(list(base_ids_in_file)),
+                                )
+                            )
 
     model_class = ENTITY_MODEL_MAP[entity_type]
     allowed_fields = set(ImportService.ENTITY_FIELDS.get(entity_type, []))
@@ -597,6 +638,14 @@ async def import_data(
                             break
                 if not data:
                     continue
+
+            # Injecter dispatch_date/dispatch_time dans chaque volume importé
+            # Inject dispatch metadata into each imported volume
+            if entity_type == "volumes":
+                if dispatch_date:
+                    data["dispatch_date"] = dispatch_date
+                if dispatch_time:
+                    data["dispatch_time"] = dispatch_time
 
             missing = [f for f in required if f not in data or data[f] is None]
             if missing:

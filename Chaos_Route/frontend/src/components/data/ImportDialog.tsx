@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import api from '../../services/api'
 
 interface DuplicateInfo {
-  existing: { date: string; base: string; count: number }[]
+  existing: { date?: string; dispatch_date?: string; dispatch_time?: string; base: string; count: number }[]
   total_existing: number
   new_row_count: number
 }
@@ -25,11 +25,16 @@ export function ImportDialog({ open, onClose, entityType, onSuccess }: ImportDia
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<string | null>(null)
   const [duplicateWarning, setDuplicateWarning] = useState<DuplicateInfo | null>(null)
+  const [dispatchDate, setDispatchDate] = useState('')
+  const [dispatchTime, setDispatchTime] = useState('')
 
   if (!open) return null
 
+  const isVolumes = entityType === 'volumes'
+
   const doImport = async (mode: string) => {
     if (!file) return
+    if (isVolumes && !dispatchDate) return
     setLoading(true)
     setError(null)
     setResult(null)
@@ -38,7 +43,12 @@ export function ImportDialog({ open, onClose, entityType, onSuccess }: ImportDia
     formData.append('file', file)
 
     try {
-      const resp = await api.post(`/imports/${entityType}?mode=${mode}`, formData, {
+      let url = `/imports/${entityType}?mode=${mode}`
+      if (isVolumes && dispatchDate) {
+        url += `&dispatch_date=${encodeURIComponent(dispatchDate)}`
+        if (dispatchTime) url += `&dispatch_time=${encodeURIComponent(dispatchTime)}`
+      }
+      const resp = await api.post(url, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
 
@@ -67,6 +77,8 @@ export function ImportDialog({ open, onClose, entityType, onSuccess }: ImportDia
     setDuplicateWarning(null)
     setError(null)
     setResult(null)
+    setDispatchDate('')
+    setDispatchTime('')
   }
 
   return (
@@ -103,6 +115,41 @@ export function ImportDialog({ open, onClose, entityType, onSuccess }: ImportDia
             <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>CSV, XLSX</p>
           </div>
 
+          {/* Champs date/heure répartition pour volumes / Dispatch date/time fields for volumes */}
+          {isVolumes && file && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+                  {t('import.dispatchDate')} *
+                </label>
+                <input
+                  type="date"
+                  value={dispatchDate}
+                  onChange={(e) => setDispatchDate(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-lg border text-sm"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+                  {t('import.dispatchTime')}
+                </label>
+                <input
+                  type="time"
+                  value={dispatchTime}
+                  onChange={(e) => setDispatchTime(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-lg border text-sm"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                />
+              </div>
+              {!dispatchDate && (
+                <p className="col-span-2 text-xs" style={{ color: 'var(--color-warning)' }}>
+                  {t('import.dispatchDateRequired')}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Alerte doublons / Duplicate warning */}
           {duplicateWarning && (
             <div className="rounded-lg border p-4 space-y-2" style={{ backgroundColor: 'rgba(249,115,22,0.08)', borderColor: 'var(--color-warning)' }}>
@@ -111,7 +158,11 @@ export function ImportDialog({ open, onClose, entityType, onSuccess }: ImportDia
               </p>
               <ul className="text-xs space-y-0.5" style={{ color: 'var(--text-primary)' }}>
                 {duplicateWarning.existing.map((e, i) => (
-                  <li key={i}>{t('import.duplicateDetail', { date: e.date, base: e.base, count: e.count })}</li>
+                  <li key={i}>
+                    {e.dispatch_date
+                      ? t('import.duplicateDetailDispatch', { dispatch_date: e.dispatch_date, dispatch_time: e.dispatch_time || '', base: e.base, count: e.count })
+                      : t('import.duplicateDetail', { date: e.date, base: e.base, count: e.count })}
+                  </li>
                 ))}
               </ul>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -163,7 +214,7 @@ export function ImportDialog({ open, onClose, entityType, onSuccess }: ImportDia
             {!duplicateWarning && (
               <button
                 onClick={handleImport}
-                disabled={!file || loading}
+                disabled={!file || loading || (isVolumes && !dispatchDate)}
                 className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >

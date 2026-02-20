@@ -33,6 +33,8 @@ export default function VolumeManagement() {
       render: (row) => bases.find((b) => b.id === row.base_origin_id)?.name || '—',
       filterValue: (row) => bases.find((b) => b.id === row.base_origin_id)?.name || '',
     },
+    { key: 'dispatch_date' as keyof Volume, label: t('volumes.dispatchDate'), width: '120px', filterable: true },
+    { key: 'dispatch_time' as keyof Volume, label: t('volumes.dispatchTime'), width: '100px' },
     {
       key: 'tour_id' as keyof Volume, label: 'Tour', width: '100px', filterable: true,
       filterValue: (row) => row.tour_id ? t('tourPlanning.assigned') : '',
@@ -61,6 +63,8 @@ export default function VolumeManagement() {
     },
     { key: 'preparation_start', label: t('volumes.prepStart'), type: 'time' },
     { key: 'preparation_end', label: t('volumes.prepEnd'), type: 'time' },
+    { key: 'dispatch_date', label: t('volumes.dispatchDate'), type: 'date', required: true },
+    { key: 'dispatch_time', label: t('volumes.dispatchTime'), type: 'time' },
   ]
 
   return (
