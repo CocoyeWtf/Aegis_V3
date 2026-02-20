@@ -38,16 +38,16 @@ export default function ContractManagement() {
   ]
 
   const columns: Column<Contract>[] = [
-    { key: 'code', label: t('common.code'), width: '90px' },
-    { key: 'transporter_name', label: t('contracts.transporterName'), width: '140px' },
-    { key: 'vehicle_code' as keyof Contract, label: t('contracts.vehicleCode'), width: '100px' },
-    { key: 'vehicle_name' as keyof Contract, label: t('contracts.vehicleName'), width: '130px' },
+    { key: 'code', label: t('common.code'), width: '90px', filterable: true },
+    { key: 'transporter_name', label: t('contracts.transporterName'), width: '140px', filterable: true },
+    { key: 'vehicle_code' as keyof Contract, label: t('contracts.vehicleCode'), width: '100px', filterable: true },
+    { key: 'vehicle_name' as keyof Contract, label: t('contracts.vehicleName'), width: '130px', filterable: true },
     {
-      key: 'temperature_type' as keyof Contract, label: t('vehicles.temperatureType'), width: '90px',
+      key: 'temperature_type' as keyof Contract, label: t('vehicles.temperatureType'), width: '90px', filterable: true,
       render: (row) => row.temperature_type ?? '—',
     },
     {
-      key: 'vehicle_type' as keyof Contract, label: t('vehicles.vehicleType'), width: '100px',
+      key: 'vehicle_type' as keyof Contract, label: t('vehicles.vehicleType'), width: '100px', filterable: true,
       render: (row) => row.vehicle_type ?? '—',
     },
     { key: 'capacity_eqp' as keyof Contract, label: t('contracts.capacity'), width: '80px' },
@@ -70,7 +70,7 @@ export default function ContractManagement() {
     { key: 'start_date', label: t('common.startDate'), width: '100px' },
     { key: 'end_date', label: t('common.endDate'), width: '100px' },
     {
-      key: 'region_id', label: t('common.region'), width: '100px',
+      key: 'region_id', label: t('common.region'), width: '100px', filterable: true,
       render: (row) => regions.find((r) => r.id === row.region_id)?.name || '—',
     },
     {

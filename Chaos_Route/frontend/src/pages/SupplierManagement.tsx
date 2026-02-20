@@ -12,12 +12,12 @@ export default function SupplierManagement() {
   const { data: regions } = useApi<Region>('/regions')
 
   const columns: Column<Supplier>[] = [
-    { key: 'code', label: t('common.code'), width: '100px' },
-    { key: 'name', label: t('common.name') },
-    { key: 'city', label: t('common.city'), width: '120px' },
+    { key: 'code', label: t('common.code'), width: '100px', filterable: true },
+    { key: 'name', label: t('common.name'), filterable: true },
+    { key: 'city', label: t('common.city'), width: '120px', filterable: true },
     { key: 'phone', label: t('common.phone'), width: '130px' },
     {
-      key: 'region_id', label: t('common.region'), width: '120px',
+      key: 'region_id', label: t('common.region'), width: '120px', filterable: true,
       render: (row) => regions.find((r) => r.id === row.region_id)?.name || '—',
     },
   ]

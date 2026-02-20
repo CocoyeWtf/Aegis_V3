@@ -45,18 +45,18 @@ export default function TourHistory() {
   }
 
   const columns: Column<Tour>[] = [
-    { key: 'code', label: t('common.code'), width: '120px' },
-    { key: 'date', label: t('common.date'), width: '110px' },
+    { key: 'code', label: t('common.code'), width: '120px', filterable: true },
+    { key: 'date', label: t('common.date'), width: '110px', filterable: true },
     {
       key: 'base_id',
       label: t('tourHistory.base'),
-      width: '140px',
+      width: '140px', filterable: true,
       render: (row) => baseMap.get(row.base_id)?.name ?? `#${row.base_id}`,
     },
     {
       key: 'contract_id',
       label: t('tourHistory.vehicle'),
-      width: '160px',
+      width: '160px', filterable: true,
       render: (row) => {
         const c = row.contract_id != null ? contractMap.get(row.contract_id) : undefined
         if (!c) return row.contract_id != null ? `#${row.contract_id}` : '—'
@@ -91,7 +91,7 @@ export default function TourHistory() {
     {
       key: 'status',
       label: t('common.status'),
-      width: '100px',
+      width: '100px', filterable: true,
       render: (row) => (
         <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ color: statusColors[row.status] }}>
           {t(`tourHistory.status.${row.status}`)}

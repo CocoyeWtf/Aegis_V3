@@ -23,12 +23,12 @@ export default function PdvManagement() {
   ]
 
   const columns: Column<PDV>[] = [
-    { key: 'code', label: t('common.code'), width: '100px' },
-    { key: 'name', label: t('common.name') },
-    { key: 'type', label: t('common.type'), width: '160px' },
+    { key: 'code', label: t('common.code'), width: '100px', filterable: true },
+    { key: 'name', label: t('common.name'), filterable: true },
+    { key: 'type', label: t('common.type'), width: '160px', filterable: true },
     { key: 'address', label: t('common.address'), defaultHidden: true },
     { key: 'postal_code', label: t('common.postalCode'), width: '100px', defaultHidden: true },
-    { key: 'city', label: t('common.city'), width: '120px' },
+    { key: 'city', label: t('common.city'), width: '120px', filterable: true },
     { key: 'phone', label: t('common.phone'), width: '130px', defaultHidden: true },
     { key: 'email', label: t('common.email'), defaultHidden: true },
     { key: 'latitude', label: t('common.latitude'), width: '100px', defaultHidden: true },
@@ -42,7 +42,7 @@ export default function PdvManagement() {
     { key: 'delivery_window_start', label: t('pdvs.deliveryStart'), width: '100px', defaultHidden: true },
     { key: 'delivery_window_end', label: t('pdvs.deliveryEnd'), width: '100px', defaultHidden: true },
     {
-      key: 'region_id', label: t('common.region'), width: '120px',
+      key: 'region_id', label: t('common.region'), width: '120px', filterable: true,
       render: (row) => regions.find((r) => r.id === row.region_id)?.name || '—',
     },
   ]

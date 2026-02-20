@@ -19,20 +19,20 @@ export default function VolumeManagement() {
   ]
 
   const columns: Column<Volume>[] = [
-    { key: 'date', label: t('common.date'), width: '110px' },
+    { key: 'date', label: t('common.date'), width: '110px', filterable: true },
     {
-      key: 'pdv_id', label: t('volumes.pdv'),
+      key: 'pdv_id', label: t('volumes.pdv'), filterable: true,
       render: (row) => pdvs.find((p) => p.id === row.pdv_id)?.name || String(row.pdv_id),
     },
     { key: 'eqp_count', label: t('volumes.eqpCount'), width: '90px' },
     { key: 'weight_kg', label: t('volumes.weightKg'), width: '100px' },
-    { key: 'temperature_class', label: t('volumes.temperatureClass'), width: '100px' },
+    { key: 'temperature_class', label: t('volumes.temperatureClass'), width: '100px', filterable: true },
     {
-      key: 'base_origin_id', label: t('volumes.baseOrigin'), width: '140px',
+      key: 'base_origin_id', label: t('volumes.baseOrigin'), width: '140px', filterable: true,
       render: (row) => bases.find((b) => b.id === row.base_origin_id)?.name || '—',
     },
     {
-      key: 'tour_id' as keyof Volume, label: 'Tour', width: '100px',
+      key: 'tour_id' as keyof Volume, label: 'Tour', width: '100px', filterable: true,
       render: (row) => row.tour_id ? (
         <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(249,115,22,0.15)', color: 'var(--color-primary)' }}>
           ✓ {t('tourPlanning.assigned')}
