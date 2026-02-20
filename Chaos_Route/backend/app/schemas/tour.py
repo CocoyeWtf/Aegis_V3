@@ -51,6 +51,13 @@ class TourBase(BaseModel):
     barrier_exit_time: str | None = None
     barrier_entry_time: str | None = None
     remarks: str | None = None
+    loader_code: str | None = None
+    loader_name: str | None = None
+    trailer_number: str | None = None
+    dock_door_number: str | None = None
+    trailer_ready_time: str | None = None
+    eqp_loaded: int | None = None
+    departure_signal_time: str | None = None
 
 
 class TourCreate(TourBase):
@@ -79,6 +86,13 @@ class TourUpdate(BaseModel):
     barrier_exit_time: str | None = None
     barrier_entry_time: str | None = None
     remarks: str | None = None
+    loader_code: str | None = None
+    loader_name: str | None = None
+    trailer_number: str | None = None
+    dock_door_number: str | None = None
+    trailer_ready_time: str | None = None
+    eqp_loaded: int | None = None
+    departure_signal_time: str | None = None
 
 
 class TourOperationsUpdate(BaseModel):
@@ -88,6 +102,13 @@ class TourOperationsUpdate(BaseModel):
     loading_end_time: str | None = None
     total_weight_kg: float | None = None
     remarks: str | None = None
+    loader_code: str | None = None
+    loader_name: str | None = None
+    trailer_number: str | None = None
+    dock_door_number: str | None = None
+    trailer_ready_time: str | None = None
+    eqp_loaded: int | None = None
+    departure_signal_time: str | None = None
 
 
 class TourGateUpdate(BaseModel):

@@ -9,7 +9,7 @@ import { DriverRouteSheet } from '../components/tour/DriverRouteSheet'
 import { TourGantt } from '../components/operations/TourGantt'
 import { computeTourDelay, detectSecondTourImpacts, DELAY_COLORS } from '../utils/tourDelay'
 import type { TourWithDelay, TourImpact } from '../utils/tourDelay'
-import { parseTime } from '../utils/tourTimeUtils'
+import { parseTime, displayDateTime, nowDateTimeLocal } from '../utils/tourTimeUtils'
 import { useAppStore } from '../stores/useAppStore'
 
 const REFRESH_INTERVAL = 30_000
@@ -187,6 +187,13 @@ export default function Operations() {
     loading_end_time: string
     total_weight_kg: string
     remarks: string
+    loader_code: string
+    loader_name: string
+    trailer_number: string
+    dock_door_number: string
+    trailer_ready_time: string
+    eqp_loaded: string
+    departure_signal_time: string
   }>>({})
 
   /* Charger référentiels / Load reference data */
@@ -222,6 +229,13 @@ export default function Operations() {
             loading_end_time: tour.loading_end_time ?? '',
             total_weight_kg: tour.total_weight_kg != null ? String(tour.total_weight_kg) : '',
             remarks: tour.remarks ?? '',
+            loader_code: tour.loader_code ?? '',
+            loader_name: tour.loader_name ?? '',
+            trailer_number: tour.trailer_number ?? '',
+            dock_door_number: tour.dock_door_number ?? '',
+            trailer_ready_time: tour.trailer_ready_time ?? '',
+            eqp_loaded: tour.eqp_loaded != null ? String(tour.eqp_loaded) : '',
+            departure_signal_time: tour.departure_signal_time ?? '',
           }
         }
         return next
@@ -261,6 +275,16 @@ export default function Operations() {
     setForms((prev) => ({ ...prev, [tourId]: { ...prev[tourId], [field]: value } }))
   }
 
+  const handleLoaderLookup = async (tourId: number, code: string) => {
+    if (!code || code.length < 2) return
+    try {
+      const res = await api.get(`/loaders/by-code/${encodeURIComponent(code)}`)
+      updateForm(tourId, 'loader_name', res.data.name)
+    } catch {
+      updateForm(tourId, 'loader_name', '')
+    }
+  }
+
   const handleSave = async (tourId: number) => {
     setSaving(tourId)
     try {
@@ -268,6 +292,7 @@ export default function Operations() {
       await api.put(`/tours/${tourId}/operations`, {
         ...f,
         total_weight_kg: f.total_weight_kg ? parseFloat(f.total_weight_kg) : null,
+        eqp_loaded: f.eqp_loaded ? parseInt(f.eqp_loaded, 10) : null,
       })
       await loadTours()
     } catch (e) {
@@ -280,10 +305,7 @@ export default function Operations() {
   const getTourEqp = (tour: Tour) => tour.total_eqp ?? tour.stops.reduce((s, st) => s + st.eqp_count, 0)
   const toggleExpand = (id: number) => setExpandedId((prev) => (prev === id ? null : id))
 
-  const nowFormatted = () => {
-    const d = new Date()
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-  }
+  const nowFormatted = () => nowDateTimeLocal()
 
   const colCount = visibleCols.length
 
@@ -435,6 +457,7 @@ export default function Operations() {
                           onRouteSheet={() => setRouteSheetTourId(tour.id)}
                           onWaybill={() => setWaybillTourId(tour.id)}
                           onSetNow={(field) => updateForm(tour.id, field, nowFormatted())}
+                          onLoaderLookup={(code) => handleLoaderLookup(tour.id, code)}
                         />
                       </tbody>
                     )
@@ -476,7 +499,7 @@ export default function Operations() {
 interface TourRowProps {
   tour: TourWithDelay
   contract: Contract | null
-  form: { driver_name: string; driver_arrival_time: string; loading_end_time: string; total_weight_kg: string; remarks: string } | undefined
+  form: { driver_name: string; driver_arrival_time: string; loading_end_time: string; total_weight_kg: string; remarks: string; loader_code: string; loader_name: string; trailer_number: string; dock_door_number: string; trailer_ready_time: string; eqp_loaded: string; departure_signal_time: string } | undefined
   isExpanded: boolean
   color: string
   pdvMap: Map<number, PDV>
@@ -492,12 +515,13 @@ interface TourRowProps {
   onRouteSheet: () => void
   onWaybill: () => void
   onSetNow: (field: string) => void
+  onLoaderLookup: (code: string) => void
 }
 
 function TourRow({
   tour, contract, form, isExpanded, color, pdvMap, volumes, saving, eqc,
   visibleCols, colCount, t,
-  onToggle, onFormChange, onSave, onRouteSheet, onWaybill, onSetNow,
+  onToggle, onFormChange, onSave, onRouteSheet, onWaybill, onSetNow, onLoaderLookup,
 }: TourRowProps) {
   const vehicleLabel = contract?.vehicle_code
     ? `${contract.vehicle_code} — ${contract.vehicle_name ?? ''}`
@@ -517,7 +541,7 @@ function TourRow({
     stops: <>{tour.stops.length}</>,
     eqc: <>{eqc}</>,
     delay: <DelayBadge delay={tour.delay_minutes} color={color} t={t} />,
-    exit: <span className="font-mono text-xs" style={{ color: tour.barrier_exit_time ? 'var(--text-primary)' : 'var(--text-muted)' }}>{tour.barrier_exit_time || '—'}</span>,
+    exit: <span className="font-mono text-xs" style={{ color: tour.barrier_exit_time ? 'var(--text-primary)' : 'var(--text-muted)' }}>{displayDateTime(tour.barrier_exit_time)}</span>,
   }
 
   return (
@@ -624,7 +648,73 @@ function TourRow({
               </table>
             </div>
 
-            {/* Formulaire éditable / Editable form */}
+            {/* Ligne 1 — Prépa semi / Trailer preparation */}
+            <div className="grid grid-cols-3 gap-3 mb-2">
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Dispo semi</label>
+                <div className="flex gap-1">
+                  <input type="datetime-local" value={form.trailer_ready_time} onChange={(e) => onFormChange('trailer_ready_time', e.target.value)}
+                    className="flex-1 px-2 py-1.5 rounded border text-xs"
+                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                    onClick={(e) => e.stopPropagation()} />
+                  <button onClick={(e) => { e.stopPropagation(); onSetNow('trailer_ready_time') }}
+                    className="px-1.5 rounded text-xs font-bold" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-primary)' }} title="Maintenant">&#9201;</button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>N° semi</label>
+                <input type="text" value={form.trailer_number} onChange={(e) => onFormChange('trailer_number', e.target.value)}
+                  className="w-full px-2 py-1.5 rounded border text-xs"
+                  style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  onClick={(e) => e.stopPropagation()} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Porte de quai</label>
+                <input type="text" value={form.dock_door_number} onChange={(e) => onFormChange('dock_door_number', e.target.value)}
+                  className="w-full px-2 py-1.5 rounded border text-xs"
+                  style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  onClick={(e) => e.stopPropagation()} />
+              </div>
+            </div>
+
+            {/* Ligne 2 — Chargement / Loading */}
+            <div className="grid grid-cols-4 gap-3 mb-2">
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Code chargeur</label>
+                <input type="text" value={form.loader_code} onChange={(e) => onFormChange('loader_code', e.target.value)}
+                  onBlur={(e) => onLoaderLookup(e.target.value)}
+                  className="w-full px-2 py-1.5 rounded border text-xs"
+                  style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  onClick={(e) => e.stopPropagation()} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Chargeur</label>
+                <input type="text" value={form.loader_name} readOnly
+                  className="w-full px-2 py-1.5 rounded border text-xs"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-muted)' }}
+                  onClick={(e) => e.stopPropagation()} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>{t('operations.loadingEnd')}</label>
+                <div className="flex gap-1">
+                  <input type="datetime-local" value={form.loading_end_time} onChange={(e) => onFormChange('loading_end_time', e.target.value)}
+                    className="flex-1 px-2 py-1.5 rounded border text-xs"
+                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                    onClick={(e) => e.stopPropagation()} />
+                  <button onClick={(e) => { e.stopPropagation(); onSetNow('loading_end_time') }}
+                    className="px-1.5 rounded text-xs font-bold" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-primary)' }} title="Maintenant">&#9201;</button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>EQC chargés</label>
+                <input type="number" min="0" value={form.eqp_loaded} onChange={(e) => onFormChange('eqp_loaded', e.target.value)}
+                  className="w-full px-2 py-1.5 rounded border text-xs"
+                  style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  onClick={(e) => e.stopPropagation()} />
+              </div>
+            </div>
+
+            {/* Ligne 3 — Départ / Departure */}
             <div className="grid grid-cols-5 gap-3 mb-3">
               <div>
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>{t('operations.driverName')}</label>
@@ -636,22 +726,11 @@ function TourRow({
               <div>
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>{t('operations.driverArrival')}</label>
                 <div className="flex gap-1">
-                  <input type="time" value={form.driver_arrival_time} onChange={(e) => onFormChange('driver_arrival_time', e.target.value)}
+                  <input type="datetime-local" value={form.driver_arrival_time} onChange={(e) => onFormChange('driver_arrival_time', e.target.value)}
                     className="flex-1 px-2 py-1.5 rounded border text-xs"
                     style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                     onClick={(e) => e.stopPropagation()} />
                   <button onClick={(e) => { e.stopPropagation(); onSetNow('driver_arrival_time') }}
-                    className="px-1.5 rounded text-xs font-bold" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-primary)' }} title="Maintenant">&#9201;</button>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>{t('operations.loadingEnd')}</label>
-                <div className="flex gap-1">
-                  <input type="time" value={form.loading_end_time} onChange={(e) => onFormChange('loading_end_time', e.target.value)}
-                    className="flex-1 px-2 py-1.5 rounded border text-xs"
-                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-                    onClick={(e) => e.stopPropagation()} />
-                  <button onClick={(e) => { e.stopPropagation(); onSetNow('loading_end_time') }}
                     className="px-1.5 rounded text-xs font-bold" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-primary)' }} title="Maintenant">&#9201;</button>
                 </div>
               </div>
@@ -661,6 +740,17 @@ function TourRow({
                   className="w-full px-2 py-1.5 rounded border text-xs"
                   style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                   placeholder="kg" onClick={(e) => e.stopPropagation()} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Top départ</label>
+                <div className="flex gap-1">
+                  <input type="datetime-local" value={form.departure_signal_time} onChange={(e) => onFormChange('departure_signal_time', e.target.value)}
+                    className="flex-1 px-2 py-1.5 rounded border text-xs"
+                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                    onClick={(e) => e.stopPropagation()} />
+                  <button onClick={(e) => { e.stopPropagation(); onSetNow('departure_signal_time') }}
+                    className="px-1.5 rounded text-xs font-bold" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-primary)' }} title="Maintenant">&#9201;</button>
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>{t('operations.remarks')}</label>

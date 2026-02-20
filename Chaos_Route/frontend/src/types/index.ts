@@ -138,6 +138,20 @@ export interface Tour {
   barrier_exit_time?: string
   barrier_entry_time?: string
   remarks?: string
+  loader_code?: string
+  loader_name?: string
+  trailer_number?: string
+  dock_door_number?: string
+  trailer_ready_time?: string
+  eqp_loaded?: number
+  departure_signal_time?: string
+}
+
+export interface Loader {
+  id: number
+  code: string
+  name: string
+  base_id: number
 }
 
 export interface WaybillStop {

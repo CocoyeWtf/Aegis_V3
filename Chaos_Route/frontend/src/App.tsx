@@ -22,6 +22,7 @@ const ParameterSettings = lazy(() => import('./pages/ParameterSettings'))
 const TourPlanning = lazy(() => import('./pages/TourPlanning'))
 const TourHistory = lazy(() => import('./pages/TourHistory'))
 const TransporterSummary = lazy(() => import('./pages/TransporterSummary'))
+const LoaderManagement = lazy(() => import('./pages/LoaderManagement'))
 const Operations = lazy(() => import('./pages/Operations'))
 const GuardPost = lazy(() => import('./pages/GuardPost'))
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'))
@@ -59,6 +60,7 @@ export default function App() {
             <Route path="/tour-planning" element={<TourPlanning />} />
             <Route path="/tour-history" element={<TourHistory />} />
             <Route path="/transporter-summary" element={<TransporterSummary />} />
+            <Route path="/loaders" element={<LoaderManagement />} />
             <Route path="/operations" element={<Operations />} />
             <Route path="/guard-post" element={<GuardPost />} />
             <Route path="/audit" element={<AuditLog />} />

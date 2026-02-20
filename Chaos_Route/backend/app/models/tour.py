@@ -38,13 +38,22 @@ class Tour(Base):
     base_id: Mapped[int] = mapped_column(ForeignKey("bases_logistics.id"), nullable=False)
     delivery_date: Mapped[str | None] = mapped_column(String(10))  # YYYY-MM-DD — date de livraison
 
-    # Champs opérationnels / Operational fields
+    # Champs opérationnels / Operational fields — datetime-local YYYY-MM-DDTHH:MM
     driver_name: Mapped[str | None] = mapped_column(String(100))
-    driver_arrival_time: Mapped[str | None] = mapped_column(String(5))  # HH:MM
-    loading_end_time: Mapped[str | None] = mapped_column(String(5))     # HH:MM
-    barrier_exit_time: Mapped[str | None] = mapped_column(String(5))    # HH:MM
-    barrier_entry_time: Mapped[str | None] = mapped_column(String(5))   # HH:MM
+    driver_arrival_time: Mapped[str | None] = mapped_column(String(16))
+    loading_end_time: Mapped[str | None] = mapped_column(String(16))
+    barrier_exit_time: Mapped[str | None] = mapped_column(String(16))
+    barrier_entry_time: Mapped[str | None] = mapped_column(String(16))
     remarks: Mapped[str | None] = mapped_column(Text)
+
+    # Champs opérationnels postier / Dispatcher operational fields
+    loader_code: Mapped[str | None] = mapped_column(String(20))
+    loader_name: Mapped[str | None] = mapped_column(String(100))
+    trailer_number: Mapped[str | None] = mapped_column(String(30))
+    dock_door_number: Mapped[str | None] = mapped_column(String(10))
+    trailer_ready_time: Mapped[str | None] = mapped_column(String(16))
+    eqp_loaded: Mapped[int | None] = mapped_column(Integer)
+    departure_signal_time: Mapped[str | None] = mapped_column(String(16))
 
     # Relations
     contract: Mapped["Contract | None"] = relationship(back_populates="tours")

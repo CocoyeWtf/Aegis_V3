@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import api from '../services/api'
 import type { Tour, BaseLogistics, Contract, Volume } from '../types'
 import { getDelayMinutes, getDelayLevel, DELAY_COLORS } from '../utils/tourDelay'
-import { parseTime } from '../utils/tourTimeUtils'
+import { parseTime, displayDateTime, nowDateTimeLocal } from '../utils/tourTimeUtils'
 import { useAppStore } from '../stores/useAppStore'
 
 type GateStatus = 'waiting' | 'en_route' | 'returned'
@@ -75,10 +75,7 @@ export default function GuardPost() {
     return () => clearInterval(id)
   }, [baseId, loadTours])
 
-  const now = () => {
-    const d = new Date()
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-  }
+  const now = () => nowDateTimeLocal()
 
   const handleGateUpdate = async (tourId: number, field: 'barrier_exit_time' | 'barrier_entry_time', value: string | null) => {
     setSaving(tourId)
@@ -215,7 +212,7 @@ export default function GuardPost() {
                     {tour.barrier_entry_time ? (
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-lg font-mono" style={{ color: 'var(--text-primary)' }}>
-                          {tour.barrier_entry_time}
+                          {displayDateTime(tour.barrier_entry_time)}
                         </span>
                         <button
                           onClick={() => handleGateUpdate(tour.id, 'barrier_entry_time', null)}
@@ -247,7 +244,7 @@ export default function GuardPost() {
                     {tour.barrier_exit_time ? (
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-lg font-mono" style={{ color: 'var(--text-primary)' }}>
-                          {tour.barrier_exit_time}
+                          {displayDateTime(tour.barrier_exit_time)}
                         </span>
                         <button
                           onClick={() => handleGateUpdate(tour.id, 'barrier_exit_time', null)}

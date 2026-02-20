@@ -22,6 +22,7 @@ from app.api import (
     exports,
     users,
     roles,
+    loaders,
 )
 
 api_router = APIRouter(prefix="/api")
@@ -45,3 +46,4 @@ api_router.include_router(km_tax.router, prefix="/km-tax", tags=["km-tax"])
 api_router.include_router(parameters.router, prefix="/parameters", tags=["parameters"])
 api_router.include_router(imports.router, prefix="/imports", tags=["imports"])
 api_router.include_router(exports.router, prefix="/exports", tags=["exports"])
+api_router.include_router(loaders.router, prefix="/loaders", tags=["loaders"])

@@ -35,6 +35,7 @@ const navGroups: NavGroup[] = [
       { path: '/pdvs', label: 'nav.pdvs', icon: '🏪', resource: 'pdvs' },
       { path: '/suppliers', label: 'nav.suppliers', icon: '📦', resource: 'suppliers' },
       { path: '/base-activities', label: 'nav.baseActivities', icon: '🏷️', resource: 'base-activities' },
+      { path: '/loaders', label: 'Chargeurs', icon: '🧑‍🔧', resource: 'loaders' },
     ],
   },
   {

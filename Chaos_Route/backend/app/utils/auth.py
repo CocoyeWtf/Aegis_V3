@@ -30,6 +30,7 @@ RESOURCES = [
     "imports-exports",
     "users",
     "roles",
+    "loaders",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

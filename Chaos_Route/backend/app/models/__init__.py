@@ -20,6 +20,7 @@ from app.models.fuel_price import FuelPrice
 from app.models.km_tax import KmTax
 from app.models.parameter import Parameter
 from app.models.audit import AuditLog
+from app.models.loader import Loader
 from app.models.user import User, Role, Permission, user_roles, user_regions
 
 __all__ = [
@@ -45,4 +46,5 @@ __all__ = [
     "Permission",
     "user_roles",
     "user_regions",
+    "Loader",
 ]

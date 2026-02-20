@@ -20,6 +20,7 @@ const RESOURCES = [
   'imports-exports',
   'users',
   'roles',
+  'loaders',
 ]
 
 const ACTIONS = ['read', 'create', 'update', 'delete'] as const
@@ -53,6 +54,7 @@ const RESOURCE_I18N: Record<string, string> = {
   'imports-exports': 'nav.importsExports',
   'users': 'nav.users',
   'roles': 'nav.roles',
+  'loaders': 'Chargeurs',
 }
 
 export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {

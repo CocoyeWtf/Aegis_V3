@@ -1,6 +1,7 @@
 /* Fiche détaillée d'un tour (overlay imprimable) / Printable tour detail sheet */
 
 import { useTranslation } from 'react-i18next'
+import { displayDateTime } from '../../utils/tourTimeUtils'
 
 interface TourStop {
   sequence_order: number
@@ -241,10 +242,10 @@ export function TourDetailSheet({ tour, onClose }: TourDetailSheetProps) {
           </h3>
           <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
             <InfoRow label={t('transporterSummary.driverName')} value={tour.driver_name || '—'} />
-            <InfoRow label={t('transporterSummary.driverArrival')} value={tour.driver_arrival_time || '—'} />
-            <InfoRow label={t('transporterSummary.loadingEnd')} value={tour.loading_end_time || '—'} />
-            <InfoRow label={t('transporterSummary.barrierExit')} value={tour.barrier_exit_time || '—'} />
-            <InfoRow label={t('transporterSummary.barrierEntry')} value={tour.barrier_entry_time || '—'} />
+            <InfoRow label={t('transporterSummary.driverArrival')} value={displayDateTime(tour.driver_arrival_time)} />
+            <InfoRow label={t('transporterSummary.loadingEnd')} value={displayDateTime(tour.loading_end_time)} />
+            <InfoRow label={t('transporterSummary.barrierExit')} value={displayDateTime(tour.barrier_exit_time)} />
+            <InfoRow label={t('transporterSummary.barrierEntry')} value={displayDateTime(tour.barrier_entry_time)} />
           </div>
           {tour.remarks && (
             <div className="mt-3 p-3 rounded-lg text-sm" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>
