@@ -6,28 +6,32 @@ import type { DriverPosition } from '../../types'
 
 const TRUCK_ICONS: Record<string, L.DivIcon> = {}
 
-function getTruckIcon(color: string): L.DivIcon {
-  if (!TRUCK_ICONS[color]) {
-    TRUCK_ICONS[color] = L.divIcon({
+function getTruckIcon(color: string, highlighted = false): L.DivIcon {
+  const key = highlighted ? color + '_hl' : color
+  if (!TRUCK_ICONS[key]) {
+    const size = highlighted ? 36 : 28
+    const border = highlighted ? '3px solid #f97316' : '2px solid white'
+    const fontSize = highlighted ? 18 : 14
+    TRUCK_ICONS[key] = L.divIcon({
       html: `<div style="
         background: ${color};
-        width: 28px;
-        height: 28px;
+        width: ${size}px;
+        height: ${size}px;
         border-radius: 50%;
-        border: 2px solid white;
+        border: ${border};
         box-shadow: 0 2px 6px rgba(0,0,0,0.3);
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 14px;
+        font-size: ${fontSize}px;
       ">🚛</div>`,
       className: '',
-      iconSize: [28, 28],
-      iconAnchor: [14, 14],
-      popupAnchor: [0, -16],
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+      popupAnchor: [0, -(size / 2 + 2)],
     })
   }
-  return TRUCK_ICONS[color]
+  return TRUCK_ICONS[key]
 }
 
 function getColor(position: DriverPosition): string {
@@ -42,11 +46,12 @@ function getColor(position: DriverPosition): string {
 interface DriverMarkerProps {
   position: DriverPosition
   onClick?: () => void
+  highlighted?: boolean
 }
 
-export function DriverMarker({ position, onClick }: DriverMarkerProps) {
+export function DriverMarker({ position, onClick, highlighted }: DriverMarkerProps) {
   const color = getColor(position)
-  const icon = getTruckIcon(color)
+  const icon = getTruckIcon(color, highlighted)
 
   const lastUpdate = new Date(position.timestamp)
   const timeStr = lastUpdate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })

@@ -5,10 +5,12 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models.delivery_alert import DeliveryAlert
 from app.models.gps_position import GPSPosition
+from app.models.pdv import PDV
 from app.models.stop_event import StopEvent
 from app.models.tour import Tour, TourStatus
 from app.models.tour_stop import TourStop
@@ -173,6 +175,68 @@ async def acknowledge_alert(
     alert.acknowledged_by = user.id
     await db.flush()
     return alert
+
+
+@router.get("/active-stops")
+async def get_active_stops(
+    date: str | None = None,
+    base_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("tracking", "read")),
+):
+    """Stops des tours actifs avec infos PDV / Active tour stops with PDV info."""
+    target_date = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # Meme filtre que get_latest_positions / Same filter as get_latest_positions
+    query = (
+        select(Tour)
+        .where(
+            Tour.delivery_date == target_date,
+            Tour.status.in_([TourStatus.IN_PROGRESS, TourStatus.VALIDATED]),
+        )
+        .options(selectinload(Tour.stops).selectinload(TourStop.pdv))
+    )
+    if base_id is not None:
+        query = query.where(Tour.base_id == base_id)
+
+    # Scope region
+    region_ids = get_user_region_ids(user)
+    if region_ids is not None:
+        query = query.join(BaseLogistics, Tour.base_id == BaseLogistics.id).where(
+            BaseLogistics.region_id.in_(region_ids)
+        )
+
+    result = await db.execute(query)
+    tours = result.scalars().unique().all()
+
+    data = []
+    for tour in tours:
+        stops_data = []
+        for stop in tour.stops:
+            pdv = stop.pdv
+            stops_data.append({
+                "stop_id": stop.id,
+                "sequence_order": stop.sequence_order,
+                "delivery_status": stop.delivery_status or "PENDING",
+                "arrival_time": stop.arrival_time,
+                "eqp_count": stop.eqp_count,
+                "pdv_code": pdv.code if pdv else None,
+                "pdv_name": pdv.name if pdv else None,
+                "pdv_city": pdv.city if pdv else None,
+                "pdv_latitude": pdv.latitude if pdv else None,
+                "pdv_longitude": pdv.longitude if pdv else None,
+                "pdv_delivery_window_start": pdv.delivery_window_start if pdv else None,
+                "pdv_delivery_window_end": pdv.delivery_window_end if pdv else None,
+            })
+        data.append({
+            "tour_id": tour.id,
+            "tour_code": tour.code,
+            "driver_name": tour.driver_name,
+            "departure_time": tour.departure_time,
+            "stops": stops_data,
+        })
+
+    return data
 
 
 @router.get("/dashboard", response_model=TrackingDashboard)

@@ -367,6 +367,29 @@ export interface DriverPosition {
   stops_delivered: number
 }
 
+export interface ActiveTourStop {
+  stop_id: number
+  sequence_order: number
+  delivery_status: string
+  arrival_time?: string
+  eqp_count: number
+  pdv_code?: string
+  pdv_name?: string
+  pdv_city?: string
+  pdv_latitude?: number
+  pdv_longitude?: number
+  pdv_delivery_window_start?: string
+  pdv_delivery_window_end?: string
+}
+
+export interface ActiveTour {
+  tour_id: number
+  tour_code: string
+  driver_name?: string
+  departure_time?: string
+  stops: ActiveTourStop[]
+}
+
 export interface DeliveryAlert {
   id: number
   tour_id: number
