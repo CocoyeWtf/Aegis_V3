@@ -1,7 +1,7 @@
 /* Barre latérale de navigation 2 niveaux / Two-level sliding navigation sidebar */
 
-import { useState, useEffect } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '../../stores/useAppStore'
 import { useAuthStore } from '../../stores/useAuthStore'
@@ -112,14 +112,28 @@ function NavItemLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
   )
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  /** Forcer le mode collapsed (ex: fullscreen) / Force collapsed mode */
+  forceCollapsed?: boolean
+}
+
+export function Sidebar({ forceCollapsed = false }: SidebarProps) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { sidebarCollapsed, toggleSidebar } = useAppStore()
   const hasPermission = useAuthStore((s) => s.hasPermission)
   const isSuperadmin = useAuthStore((s) => s.user?.is_superadmin ?? false)
   const location = useLocation()
 
+  /* En mode forceCollapsed, toujours collapsed / When forced, always collapsed */
+  const isCollapsed = forceCollapsed || sidebarCollapsed
+
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
+
+  /* Popover pour groupes en mode collapsed / Popover for groups in collapsed mode */
+  const [popoverGroup, setPopoverGroup] = useState<string | null>(null)
+  const [popoverY, setPopoverY] = useState(0)
+  const popoverRef = useRef<HTMLDivElement>(null)
 
   /* Auto-détection du groupe actif au montage et à chaque changement de route */
   useEffect(() => {
@@ -128,6 +142,22 @@ export function Sidebar() {
       setActiveGroup(groupKey)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* Fermer popover sur navigation ou clic en dehors / Close popover on nav or outside click */
+  useEffect(() => {
+    setPopoverGroup(null)
+  }, [location.pathname])
+
+  useEffect(() => {
+    if (!popoverGroup) return
+    const handler = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setPopoverGroup(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [popoverGroup])
 
   /* Filtrage RBAC + superadmin / RBAC filtering + superadmin-only items */
   const canSeeItem = (child: NavItem) =>
@@ -144,25 +174,38 @@ export function Sidebar() {
   const currentGroup = activeGroup ? navGroups.find((g) => g.key === activeGroup) : null
   const visibleChildren = currentGroup?.children?.filter(canSeeItem) ?? []
 
+  /* Groupe popover visible / Popover group children */
+  const popoverGroupObj = popoverGroup ? navGroups.find((g) => g.key === popoverGroup) : null
+  const popoverChildren = popoverGroupObj?.children?.filter(canSeeItem) ?? []
+
   /* Gestion du clic sur un groupe L1 / Handle L1 group click */
-  const handleGroupClick = (group: NavGroup) => {
+  const handleGroupClick = (group: NavGroup, e: React.MouseEvent) => {
     if (group.path) {
-      // Lien direct (Dashboard, Poste de garde)
       return // NavLink gère la navigation
     }
     if (group.children) {
-      if (sidebarCollapsed) {
-        toggleSidebar()
+      if (isCollapsed) {
+        /* En mode collapsed : afficher popover / In collapsed mode: show popover */
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+        setPopoverY(rect.top)
+        setPopoverGroup(popoverGroup === group.key ? null : group.key)
+      } else {
+        setActiveGroup(group.key)
       }
-      setActiveGroup(group.key)
     }
+  }
+
+  /* Navigation depuis le popover / Navigate from popover */
+  const handlePopoverNav = (path: string) => {
+    navigate(path)
+    setPopoverGroup(null)
   }
 
   return (
     <aside
-      className="h-screen flex flex-col border-r transition-all duration-300 shrink-0"
+      className="h-screen flex flex-col border-r transition-all duration-300 shrink-0 relative"
       style={{
-        width: sidebarCollapsed ? '56px' : '240px',
+        width: isCollapsed ? '56px' : '240px',
         backgroundColor: 'var(--sidebar-bg)',
         borderColor: 'var(--border-color)',
       }}
@@ -171,20 +214,23 @@ export function Sidebar() {
       <div className="p-3 flex items-center justify-between border-b" style={{ borderColor: 'var(--border-color)' }}>
         <div className="flex items-center gap-2 overflow-hidden">
           <span className="text-xl shrink-0">🔥</span>
-          {!sidebarCollapsed && (
+          {!isCollapsed && (
             <span className="font-bold text-base whitespace-nowrap" style={{ color: 'var(--color-primary)' }}>
               Chaos Route
             </span>
           )}
         </div>
-        <button
-          onClick={toggleSidebar}
-          className="shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors hover:opacity-80"
-          style={{ color: 'var(--text-muted)' }}
-          title={sidebarCollapsed ? 'Expand' : 'Collapse'}
-        >
-          {sidebarCollapsed ? '»' : '«'}
-        </button>
+        {/* Masquer toggle en forceCollapsed / Hide toggle when forceCollapsed */}
+        {!forceCollapsed && (
+          <button
+            onClick={toggleSidebar}
+            className="shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors hover:opacity-80"
+            style={{ color: 'var(--text-muted)' }}
+            title={sidebarCollapsed ? 'Expand' : 'Collapse'}
+          >
+            {sidebarCollapsed ? '»' : '«'}
+          </button>
+        )}
       </div>
 
       {/* Navigation glissante / Sliding navigation */}
@@ -193,7 +239,7 @@ export function Sidebar() {
           className="flex h-full"
           style={{
             width: '200%',
-            transform: activeGroup && !sidebarCollapsed ? 'translateX(-50%)' : 'translateX(0)',
+            transform: activeGroup && !isCollapsed ? 'translateX(-50%)' : 'translateX(0)',
             transition: 'transform 0.25s ease',
           }}
         >
@@ -213,28 +259,28 @@ export function Sidebar() {
                   style={({ isActive }) => ({
                     backgroundColor: isActive ? 'var(--bg-tertiary)' : 'transparent',
                     color: isActive ? 'var(--color-primary)' : 'var(--text-secondary)',
-                    justifyContent: sidebarCollapsed ? 'center' : undefined,
+                    justifyContent: isCollapsed ? 'center' : undefined,
                   })}
-                  title={sidebarCollapsed ? t(group.label) : undefined}
+                  title={isCollapsed ? t(group.label) : undefined}
                 >
                   <span className="text-base shrink-0">{group.icon}</span>
-                  {!sidebarCollapsed && <span className="truncate">{t(group.label)}</span>}
+                  {!isCollapsed && <span className="truncate">{t(group.label)}</span>}
                 </NavLink>
               ) : (
                 /* Bouton de groupe / Group button */
                 <button
                   key={group.key}
-                  onClick={() => handleGroupClick(group)}
+                  onClick={(e) => handleGroupClick(group, e)}
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-lg mb-0.5 text-sm transition-colors text-left"
                   style={{
-                    backgroundColor: activeGroup === group.key ? 'var(--bg-tertiary)' : 'transparent',
-                    color: activeGroup === group.key ? 'var(--color-primary)' : 'var(--text-secondary)',
-                    justifyContent: sidebarCollapsed ? 'center' : undefined,
+                    backgroundColor: (activeGroup === group.key || popoverGroup === group.key) ? 'var(--bg-tertiary)' : 'transparent',
+                    color: (activeGroup === group.key || popoverGroup === group.key) ? 'var(--color-primary)' : 'var(--text-secondary)',
+                    justifyContent: isCollapsed ? 'center' : undefined,
                   }}
-                  title={sidebarCollapsed ? t(group.label) : undefined}
+                  title={isCollapsed ? t(group.label) : undefined}
                 >
                   <span className="text-base shrink-0">{group.icon}</span>
-                  {!sidebarCollapsed && (
+                  {!isCollapsed && (
                     <>
                       <span className="truncate flex-1">{t(group.label)}</span>
                       <span className="text-xs opacity-50 shrink-0">›</span>
@@ -274,6 +320,41 @@ export function Sidebar() {
           </div>
         </div>
       </nav>
+
+      {/* Popover flottant pour groupes en mode collapsed / Floating popover for collapsed groups */}
+      {popoverGroup && popoverChildren.length > 0 && (
+        <div
+          ref={popoverRef}
+          className="fixed z-50 rounded-lg border shadow-xl py-1 min-w-[180px]"
+          style={{
+            left: '60px',
+            top: `${popoverY}px`,
+            backgroundColor: 'var(--bg-secondary)',
+            borderColor: 'var(--border-color)',
+          }}
+        >
+          <div className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+            {popoverGroupObj && t(popoverGroupObj.label)}
+          </div>
+          {popoverChildren.map((item) => {
+            const isActive = location.pathname === item.path
+            return (
+              <button
+                key={item.path}
+                onClick={() => handlePopoverNav(item.path)}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm transition-colors text-left hover:opacity-80"
+                style={{
+                  backgroundColor: isActive ? 'var(--bg-tertiary)' : 'transparent',
+                  color: isActive ? 'var(--color-primary)' : 'var(--text-secondary)',
+                }}
+              >
+                <span className="text-base shrink-0">{item.icon}</span>
+                <span className="truncate">{t(item.label)}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
     </aside>
   )
 }
