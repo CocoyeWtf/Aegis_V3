@@ -131,7 +131,13 @@
     "welcome": "Bienvenue sur Chaos RouteManager. Sélectionnez une section dans le menu pour commencer."
   },
   "import": {
-    "dropOrClick": "Cliquez ou déposez un fichier ici"
+    "dropOrClick": "Cliquez ou déposez un fichier ici",
+    "duplicateWarning": "Des volumes existent déjà pour les dates/bases suivantes :",
+    "duplicateDetail": "{{date}} — {{base}} : {{count}} volumes",
+    "totalExisting": "Total existant : {{count}} volumes",
+    "newRows": "Nouvelles lignes à importer : {{count}}",
+    "replaceExisting": "Remplacer les existants",
+    "appendAnyway": "Ajouter quand même"
   },
   "countryRegion": {
     "title": "Pays & Régions",

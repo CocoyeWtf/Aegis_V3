@@ -2,8 +2,8 @@
 
 from datetime import time as dt_time
 
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
-from sqlalchemy import select, inspect
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
+from sqlalchemy import select, inspect, func, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -398,12 +398,14 @@ async def import_time_matrix(
 async def import_data(
     entity_type: str,
     file: UploadFile = File(...),
+    mode: str = Query("check", description="check (default) = warn on duplicates, replace = delete existing, append = skip check"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("imports-exports", "create")),
 ):
     """
     Importer des données depuis un fichier CSV ou Excel.
     Import data from a CSV or Excel file.
+    mode: check (détecte doublons), replace (remplace existants), append (ajoute sans vérifier)
     """
     if entity_type not in ENTITY_MODEL_MAP:
         raise HTTPException(status_code=400, detail=f"Invalid entity type. Allowed: {list(ENTITY_MODEL_MAP.keys())}")
@@ -440,6 +442,62 @@ async def import_data(
                 if stripped and stripped not in lk:
                     lk[stripped] = db_id
             typed_lookups[etype] = lk
+
+    # --- Détection doublons volumes / Volume duplicate detection ---
+    if entity_type == "volumes" and mode != "append":
+        dates_in_file: set[str] = set()
+        base_ids_in_file: set[int] = set()
+        base_lk = typed_lookups.get("BASE", {})
+        for row in rows:
+            for key, val in row.items():
+                ck = key.strip().lower().replace(" ", "_")
+                if ck == "date" and val is not None:
+                    coerced = _coerce_value(val, "date")
+                    if coerced:
+                        dates_in_file.add(str(coerced))
+                elif ck == "base_origin_id" and val is not None:
+                    code_str = str(val).strip().lower()
+                    resolved = base_lk.get(code_str)
+                    if not resolved:
+                        try:
+                            resolved = base_lk.get(str(int(float(code_str))))
+                        except (ValueError, TypeError):
+                            pass
+                    if resolved:
+                        base_ids_in_file.add(resolved)
+        if dates_in_file and base_ids_in_file:
+            result = await db.execute(
+                select(Volume.date, Volume.base_origin_id, func.count(Volume.id))
+                .where(Volume.date.in_(list(dates_in_file)), Volume.base_origin_id.in_(list(base_ids_in_file)))
+                .group_by(Volume.date, Volume.base_origin_id)
+            )
+            existing_groups = result.all()
+            if existing_groups:
+                if mode == "check":
+                    base_result = await db.execute(
+                        select(BaseLogistics.id, BaseLogistics.code, BaseLogistics.name)
+                        .where(BaseLogistics.id.in_(list(base_ids_in_file)))
+                    )
+                    base_names = {bid: f"{code} — {name}" for bid, code, name in base_result.all()}
+                    existing_details = [
+                        {"date": d, "base": base_names.get(b, str(b)), "count": c}
+                        for d, b, c in existing_groups
+                    ]
+                    total = sum(e["count"] for e in existing_details)
+                    return {
+                        "status": "duplicate_warning",
+                        "existing": existing_details,
+                        "total_existing": total,
+                        "new_row_count": len(rows),
+                        "message": f"{total} volumes existent déjà pour les mêmes dates/bases",
+                    }
+                elif mode == "replace":
+                    await db.execute(
+                        sa_delete(Volume).where(
+                            Volume.date.in_(list(dates_in_file)),
+                            Volume.base_origin_id.in_(list(base_ids_in_file)),
+                        )
+                    )
 
     model_class = ENTITY_MODEL_MAP[entity_type]
     allowed_fields = set(ImportService.ENTITY_FIELDS.get(entity_type, []))
