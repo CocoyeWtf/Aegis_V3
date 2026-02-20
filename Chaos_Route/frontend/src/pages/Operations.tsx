@@ -3,7 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import api from '../services/api'
-import type { Tour, BaseLogistics, Contract, PDV } from '../types'
+import type { Tour, BaseLogistics, Contract, PDV, Volume } from '../types'
 import { TourWaybill } from '../components/tour/TourWaybill'
 import { DriverRouteSheet } from '../components/tour/DriverRouteSheet'
 import { TourGantt } from '../components/operations/TourGantt'
@@ -67,6 +67,7 @@ export default function Operations() {
   const [tours, setTours] = useState<Tour[]>([])
   const [contracts, setContracts] = useState<Contract[]>([])
   const [pdvs, setPdvs] = useState<PDV[]>([])
+  const [volumes, setVolumes] = useState<Volume[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState<number | null>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -200,11 +201,16 @@ export default function Operations() {
 
   /* Charger tours / Load tours */
   const loadTours = useCallback(async (silent = false) => {
-    if (!baseId) { setTours([]); return }
+    if (!baseId) { setTours([]); setVolumes([]); return }
     if (!silent) setLoading(true)
     try {
-      const params: Record<string, unknown> = { date, base_id: baseId }
-      const { data } = await api.get<Tour[]>('/tours/', { params })
+      const params: Record<string, unknown> = { delivery_date: date, base_id: baseId }
+      const [toursRes, volRes] = await Promise.all([
+        api.get<Tour[]>('/tours/', { params }),
+        api.get<Volume[]>('/volumes/', { params: { base_origin_id: baseId } }),
+      ])
+      const data = toursRes.data
+      setVolumes(volRes.data)
       const scheduled = data.filter((t) => t.departure_time)
       setTours(scheduled)
       setForms((prev) => {
@@ -420,7 +426,7 @@ export default function Operations() {
                       <tbody key={tour.id} data-tour-id={tour.id}>
                         <TourRow
                           tour={tour} contract={contract ?? null} form={form}
-                          isExpanded={isExpanded} color={color} pdvMap={pdvMap}
+                          isExpanded={isExpanded} color={color} pdvMap={pdvMap} volumes={volumes}
                           saving={saving === tour.id} eqc={getTourEqp(tour)}
                           visibleCols={visibleCols} colCount={colCount} t={t}
                           onToggle={() => toggleExpand(tour.id)}
@@ -474,6 +480,7 @@ interface TourRowProps {
   isExpanded: boolean
   color: string
   pdvMap: Map<number, PDV>
+  volumes: Volume[]
   saving: boolean
   eqc: number
   visibleCols: OpsCol[]
@@ -488,7 +495,7 @@ interface TourRowProps {
 }
 
 function TourRow({
-  tour, contract, form, isExpanded, color, pdvMap, saving, eqc,
+  tour, contract, form, isExpanded, color, pdvMap, volumes, saving, eqc,
   visibleCols, colCount, t,
   onToggle, onFormChange, onSave, onRouteSheet, onWaybill, onSetNow,
 }: TourRowProps) {
@@ -533,6 +540,28 @@ function TourRow({
       {isExpanded && form && (
         <tr style={{ backgroundColor: 'rgba(249,115,22,0.03)' }}>
           <td colSpan={colCount} className="px-3 py-3">
+            {/* Info répartition + livraison / Dispatch + delivery info */}
+            {(() => {
+              const tourVolumes = volumes.filter((v) => v.tour_id === tour.id)
+              const dispatchVol = tourVolumes.find((v) => v.dispatch_date)
+              return (
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs px-1 py-1.5 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                  {dispatchVol && (
+                    <span style={{ color: 'var(--text-muted)' }}>
+                      {t('tourPlanning.dispatchInfo')} <strong style={{ color: 'var(--text-primary)' }}>{dispatchVol.dispatch_date}{dispatchVol.dispatch_time ? ` ${dispatchVol.dispatch_time}` : ''}</strong>
+                    </span>
+                  )}
+                  {tour.delivery_date && (
+                    <span style={{ color: 'var(--text-muted)' }}>
+                      {t('tourPlanning.deliveryDate')}: <strong style={{ color: 'var(--text-primary)' }}>{tour.delivery_date}</strong>
+                    </span>
+                  )}
+                  <span style={{ color: 'var(--text-muted)' }}>
+                    {t('tourPlanning.departureTime')}: <strong style={{ color: 'var(--text-primary)' }}>{tour.departure_time ?? '—'}</strong>
+                  </span>
+                </div>
+              )
+            })()}
             {/* Arrêts / Stops */}
             <div className="mb-3 overflow-x-auto">
               <table className="w-full text-xs" style={{ tableLayout: 'auto' }}>
@@ -556,6 +585,7 @@ function TourRow({
                         stop.pickup_containers && 'B',
                         stop.pickup_returns && 'R',
                       ].filter(Boolean).join(' ')
+                      const stopDispatch = volumes.find((v) => v.tour_id === tour.id && v.pdv_id === stop.pdv_id && v.dispatch_date)
 
                       return (
                         <tr key={stop.id} className="border-t" style={{ borderColor: 'var(--border-color)' }}>
@@ -564,6 +594,11 @@ function TourRow({
                             <span className="font-semibold">{pdv?.code ?? ''}</span>
                             <span className="ml-1">{pdv?.name ?? `#${stop.pdv_id}`}</span>
                             {pdv?.city && <span className="ml-1" style={{ color: 'var(--text-muted)' }}>({pdv.city})</span>}
+                            {stopDispatch && (
+                              <span className="ml-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                {t('tourPlanning.dispatchInfo')} {stopDispatch.dispatch_date}{stopDispatch.dispatch_time ? ` ${stopDispatch.dispatch_time}` : ''}
+                              </span>
+                            )}
                           </td>
                           <td className="px-2 py-1 text-center font-mono" style={{ color: 'var(--text-muted)' }}>{stop.arrival_time ?? '—'}</td>
                           <td className="px-2 py-1 text-center font-mono font-semibold" style={{ color: tour.delay_minutes > 0 ? color : 'var(--text-primary)' }}>

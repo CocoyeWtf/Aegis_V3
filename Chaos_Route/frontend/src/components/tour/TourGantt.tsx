@@ -19,6 +19,7 @@ export interface GanttTour {
   total_km: number | null
   total_cost: number | null
   total_duration_minutes: number | null
+  delivery_date: string | null
   status: string
   stops: { id: number; pdv_id: number; sequence_order: number; eqp_count: number; arrival_time: string | null; departure_time: string | null }[]
 }
@@ -177,12 +178,12 @@ export function TourGantt({ tours, highlightedTourId, onTourClick, warningTourId
                           opacity: isHighlighted ? 1 : 0.85,
                           zIndex: isHighlighted ? 10 : 1,
                         }}
-                        title={`${tour.code} | ${tour.departure_time} → ${tour.return_time} | ${tour.total_eqp ?? 0} EQC${hasWindowViolation ? ' ⚠ ' + t('tourPlanning.deliveryWindowWarning', { violations: '' }) : ''}`}
+                        title={`${tour.code}${tour.delivery_date ? ` | ${t('tourPlanning.deliveryDate')}: ${tour.delivery_date}` : ''} | ${tour.departure_time} → ${tour.return_time} | ${tour.total_eqp ?? 0} EQC${hasWindowViolation ? ' ⚠ ' + t('tourPlanning.deliveryWindowWarning', { violations: '' }) : ''}`}
                         onClick={() => onTourClick(tour.tour_id)}
                       >
                         {width > 5 && (
                           <span className="px-1 truncate">
-                            {hasWindowViolation && '⚠ '}{tour.departure_time}–{tour.return_time}
+                            {hasWindowViolation && '⚠ '}{tour.delivery_date ? `${tour.delivery_date} ` : ''}{tour.departure_time}–{tour.return_time}
                           </span>
                         )}
                       </div>

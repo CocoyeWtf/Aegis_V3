@@ -36,6 +36,7 @@ class Tour(Base):
     # Poids total du tour (saisi par le postier) / Total tour weight (entered by dispatcher)
     status: Mapped[TourStatus] = mapped_column(Enum(TourStatus), default=TourStatus.DRAFT)
     base_id: Mapped[int] = mapped_column(ForeignKey("bases_logistics.id"), nullable=False)
+    delivery_date: Mapped[str | None] = mapped_column(String(10))  # YYYY-MM-DD — date de livraison
 
     # Champs opérationnels / Operational fields
     driver_name: Mapped[str | None] = mapped_column(String(100))

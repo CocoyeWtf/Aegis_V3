@@ -330,6 +330,7 @@ async def list_tours(
     date: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    delivery_date: str | None = None,
     base_id: int | None = None,
     status: str | None = None,
     db: AsyncSession = Depends(get_db),
@@ -343,6 +344,8 @@ async def list_tours(
         query = query.where(Tour.date >= date_from)
     if date_to is not None:
         query = query.where(Tour.date <= date_to)
+    if delivery_date is not None:
+        query = query.where(Tour.delivery_date == delivery_date)
     if base_id is not None:
         query = query.where(Tour.base_id == base_id)
     if status is not None:
@@ -477,6 +480,7 @@ async def tour_timeline(
             "total_km": float(tour.total_km) if tour.total_km else None,
             "total_cost": float(tour.total_cost) if tour.total_cost else None,
             "total_duration_minutes": tour.total_duration_minutes,
+            "delivery_date": tour.delivery_date,
             "status": tour.status.value if hasattr(tour.status, 'value') else tour.status,
             "stops": [
                 {
@@ -1141,6 +1145,8 @@ async def schedule_tour(
     tour.contract_id = data.contract_id
     tour.departure_time = data.departure_time
     tour.return_time = return_time
+    if data.delivery_date:
+        tour.delivery_date = data.delivery_date
     tour.total_km = total_km
     tour.total_duration_minutes = total_duration
 

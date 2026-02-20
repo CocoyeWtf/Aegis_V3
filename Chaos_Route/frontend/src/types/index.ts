@@ -130,6 +130,7 @@ export interface Tour {
   total_weight_kg?: number
   status: TourStatus
   base_id: number
+  delivery_date?: string | null
   stops: TourStop[]
   driver_name?: string
   driver_arrival_time?: string

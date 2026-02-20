@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import api from '../services/api'
-import type { Tour, BaseLogistics, Contract } from '../types'
+import type { Tour, BaseLogistics, Contract, Volume } from '../types'
 import { getDelayMinutes, getDelayLevel, DELAY_COLORS } from '../utils/tourDelay'
 import { parseTime } from '../utils/tourTimeUtils'
 import { useAppStore } from '../stores/useAppStore'
@@ -33,6 +33,7 @@ export default function GuardPost() {
   const [bases, setBases] = useState<BaseLogistics[]>([])
   const [tours, setTours] = useState<Tour[]>([])
   const [contracts, setContracts] = useState<Contract[]>([])
+  const [volumes, setVolumes] = useState<Volume[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState<number | null>(null)
   const [lastRefresh, setLastRefresh] = useState('')
@@ -45,11 +46,16 @@ export default function GuardPost() {
   const contractMap = useMemo(() => new Map(contracts.map((c) => [c.id, c])), [contracts])
 
   const loadTours = useCallback(async (silent = false) => {
-    if (!baseId) { setTours([]); return }
+    if (!baseId) { setTours([]); setVolumes([]); return }
     if (!silent) setLoading(true)
     try {
-      const params: Record<string, unknown> = { date, base_id: baseId }
-      const { data } = await api.get<Tour[]>('/tours/', { params })
+      const params: Record<string, unknown> = { delivery_date: date, base_id: baseId }
+      const [toursRes, volRes] = await Promise.all([
+        api.get<Tour[]>('/tours/', { params }),
+        api.get<Volume[]>('/volumes/', { params: { base_origin_id: baseId } }),
+      ])
+      setVolumes(volRes.data)
+      const data = toursRes.data
       setTours(data.filter((t) => t.departure_time).sort((a, b) => parseTime(a.departure_time!) - parseTime(b.departure_time!)))
       const now = new Date()
       setLastRefresh(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`)
@@ -173,14 +179,31 @@ export default function GuardPost() {
                 </div>
 
                 {/* Infos tour / Tour info */}
-                <div className="px-4 py-2 text-xs flex flex-wrap gap-x-4 gap-y-1" style={{ color: 'var(--text-muted)' }}>
-                  <span>{contract?.transporter_name ?? '—'}</span>
-                  <span>{t('guardPost.driver')}: <strong style={{ color: 'var(--text-primary)' }}>{tour.driver_name || '—'}</strong></span>
-                  <span>{tour.departure_time} &middot; {tour.stops.length} {t('tourPlanning.stops')} &middot; {getTourEqp(tour)} EQC</span>
-                  {delay > 0 && (
-                    <span className="font-bold" style={{ color: delayColor }}>+{delay}&#8242;</span>
-                  )}
-                </div>
+                {(() => {
+                  const tourVols = volumes.filter((v) => v.tour_id === tour.id)
+                  const dispVol = tourVols.find((v) => v.dispatch_date)
+                  return (
+                    <div className="px-4 py-2 text-xs flex flex-col gap-1" style={{ color: 'var(--text-muted)' }}>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1">
+                        <span>{contract?.transporter_name ?? '—'}</span>
+                        <span>{t('guardPost.driver')}: <strong style={{ color: 'var(--text-primary)' }}>{tour.driver_name || '—'}</strong></span>
+                        <span>{tour.stops.length} {t('tourPlanning.stops')} &middot; {getTourEqp(tour)} EQC</span>
+                        {delay > 0 && (
+                          <span className="font-bold" style={{ color: delayColor }}>+{delay}&#8242;</span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1">
+                        {dispVol && (
+                          <span>{t('tourPlanning.dispatchInfo')} <strong style={{ color: 'var(--text-primary)' }}>{dispVol.dispatch_date}{dispVol.dispatch_time ? ` ${dispVol.dispatch_time}` : ''}</strong></span>
+                        )}
+                        {tour.delivery_date && (
+                          <span>{t('tourPlanning.deliveryDate')}: <strong style={{ color: 'var(--text-primary)' }}>{tour.delivery_date}</strong></span>
+                        )}
+                        <span>{t('tourPlanning.departureTime')}: <strong style={{ color: 'var(--text-primary)' }}>{tour.departure_time}</strong></span>
+                      </div>
+                    </div>
+                  )
+                })()}
 
                 {/* Actions barrière — Entrée à gauche, Sortie à droite / Entry left, Exit right */}
                 <div className="px-4 py-3 flex gap-3">

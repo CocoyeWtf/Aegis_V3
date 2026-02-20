@@ -140,6 +140,11 @@ export function VolumePanel({
                   </span>
                 )}
               </div>
+              {vol.dispatch_date && (
+                <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                  {t('tourPlanning.dispatchInfo')} {vol.dispatch_date}{vol.dispatch_time ? ` ${vol.dispatch_time}` : ''}
+                </div>
+              )}
               {assigned && (
                 <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>✓ {t('tourPlanning.assigned')}</div>
               )}

@@ -389,6 +389,8 @@
     "pickupContainers": "Contenants",
     "pickupReturns": "Retour march.",
     "pickups": "Reprises",
+    "deliveryDate": "Date de livraison",
+    "dispatchInfo": "Répart.",
     "estimatedReturn": "Retour estimé",
     "recalculateCosts": "Recalculer les coûts",
     "recalculateResult": "{{updated}} tour(s) mis à jour sur {{total}} analysé(s)",

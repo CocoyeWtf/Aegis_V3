@@ -44,6 +44,7 @@ class TourBase(BaseModel):
     total_weight_kg: float | None = None
     status: TourStatus = TourStatus.DRAFT
     base_id: int
+    delivery_date: str | None = None
     driver_name: str | None = None
     driver_arrival_time: str | None = None
     loading_end_time: str | None = None
@@ -71,6 +72,7 @@ class TourUpdate(BaseModel):
     total_weight_kg: float | None = None
     status: TourStatus | None = None
     base_id: int | None = None
+    delivery_date: str | None = None
     driver_name: str | None = None
     driver_arrival_time: str | None = None
     loading_end_time: str | None = None
@@ -98,6 +100,7 @@ class TourSchedule(BaseModel):
     """Planification : contrat + heure de départ / Schedule: contract + departure time."""
     contract_id: int
     departure_time: str  # HH:MM
+    delivery_date: str | None = None  # YYYY-MM-DD
 
 
 class TourRead(TourBase):

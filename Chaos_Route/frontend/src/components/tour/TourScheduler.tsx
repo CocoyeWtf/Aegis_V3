@@ -35,7 +35,7 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
   const [tours, setTours] = useState<Tour[]>([])
   const [timeline, setTimeline] = useState<GanttTour[]>([])
   const [highlightedTourId, setHighlightedTourId] = useState<number | null>(null)
-  const [scheduleInputs, setScheduleInputs] = useState<Record<number, { time: string; contractId: number | null }>>({})
+  const [scheduleInputs, setScheduleInputs] = useState<Record<number, { time: string; contractId: number | null; deliveryDate: string }>>({})
   const [scheduling, setScheduling] = useState<number | null>(null)
   const [recalculating, setRecalculating] = useState(false)
   const [costTourId, setCostTourId] = useState<number | null>(null)
@@ -101,11 +101,48 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
     }
   }, [selectedDate, selectedBaseId])
 
+  /* Calculer la date de livraison par défaut (dispatch_date + 1 jour le plus fréquent) /
+     Compute default delivery date (most frequent dispatch_date + 1 day) */
+  const computeDefaultDeliveryDate = useCallback((tour: Tour): string => {
+    const tourVolumes = allVolumes.filter((v) => v.tour_id === tour.id && v.dispatch_date)
+    if (tourVolumes.length === 0) return ''
+    const freq = new Map<string, number>()
+    tourVolumes.forEach((v) => {
+      const d = v.dispatch_date!
+      freq.set(d, (freq.get(d) ?? 0) + 1)
+    })
+    let best = ''
+    let bestCount = 0
+    freq.forEach((count, d) => { if (count > bestCount) { best = d; bestCount = count } })
+    if (!best) return ''
+    const dt = new Date(best)
+    dt.setDate(dt.getDate() + 1)
+    return dt.toISOString().slice(0, 10)
+  }, [allVolumes])
+
   /* Charger contrats pour tous les tours non planifiés / Load contracts for all unscheduled tours */
   useEffect(() => {
     const unscheduled = tours.filter((t) => !t.departure_time && !t.contract_id)
     unscheduled.forEach((tour) => loadContractsForTour(tour))
   }, [tours, loadContractsForTour])
+
+  /* Auto-init deliveryDate pour les tours non-planifiés / Auto-init deliveryDate for unscheduled tours */
+  useEffect(() => {
+    const unscheduled = tours.filter((t) => !t.departure_time && !t.contract_id)
+    setScheduleInputs((prev) => {
+      const next = { ...prev }
+      for (const tour of unscheduled) {
+        if (!next[tour.id]?.deliveryDate) {
+          next[tour.id] = {
+            time: next[tour.id]?.time ?? '',
+            contractId: next[tour.id]?.contractId ?? null,
+            deliveryDate: computeDefaultDeliveryDate(tour),
+          }
+        }
+      }
+      return next
+    })
+  }, [tours, computeDefaultDeliveryDate])
 
   /* Séparer tours planifiés et non-planifiés / Split scheduled vs unscheduled */
   const unscheduledTours = useMemo(() => tours.filter((t) => !t.departure_time), [tours])
@@ -190,6 +227,7 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
       await api.put(`/tours/${tourId}/schedule`, {
         contract_id: input.contractId,
         departure_time: input.time,
+        delivery_date: input.deliveryDate || null,
       }, { params: force ? { force: true } : undefined })
       await loadData()
     } catch (e: unknown) {
@@ -264,12 +302,13 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
     }
   }
 
-  const updateInput = (tourId: number, field: 'time' | 'contractId', value: string | number | null) => {
+  const updateInput = (tourId: number, field: 'time' | 'contractId' | 'deliveryDate', value: string | number | null) => {
     setScheduleInputs((prev) => ({
       ...prev,
       [tourId]: {
         time: field === 'time' ? (value as string) : (prev[tourId]?.time ?? ''),
         contractId: field === 'contractId' ? (value as number | null) : (prev[tourId]?.contractId ?? null),
+        deliveryDate: field === 'deliveryDate' ? (value as string) : (prev[tourId]?.deliveryDate ?? ''),
       },
     }))
   }
@@ -280,7 +319,7 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
     return tour.vehicle_type ?? '—'
   }
 
-  /* Liste des stops d'un tour avec badges reprises / Stop list with pickup badges */
+  /* Liste des stops d'un tour avec badges reprises + dispatch info / Stop list with pickup badges + dispatch info */
   const renderStopList = (tour: Tour) => {
     const sortedStops = [...(tour.stops ?? [])].sort((a, b) => a.sequence_order - b.sequence_order)
     if (sortedStops.length === 0) return null
@@ -289,6 +328,9 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
         {sortedStops.map((stop, idx) => {
           const pdv = pdvMap.get(stop.pdv_id)
           const hasPickup = stop.pickup_cardboard || stop.pickup_containers || stop.pickup_returns
+          /* Dispatch info des volumes liés au stop / Dispatch info from volumes linked to this stop */
+          const stopVolumes = allVolumes.filter((v) => v.tour_id === tour.id && v.pdv_id === stop.pdv_id)
+          const dispatchInfo = stopVolumes.find((v) => v.dispatch_date)
           return (
             <div key={stop.id} className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] pl-2" style={{ color: 'var(--text-muted)' }}>
               <span className="w-4 text-right font-mono shrink-0" style={{ color: 'var(--text-primary)' }}>{idx + 1}</span>
@@ -299,6 +341,11 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
               <span className="font-bold shrink-0" style={{ color: 'var(--text-primary)' }}>
                 {stop.eqp_count} EQC
               </span>
+              {dispatchInfo && (
+                <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>
+                  {t('tourPlanning.dispatchInfo')} {dispatchInfo.dispatch_date}{dispatchInfo.dispatch_time ? ` ${dispatchInfo.dispatch_time}` : ''}
+                </span>
+              )}
               {hasPickup && (
                 <span className="flex items-center gap-1 ml-auto shrink-0">
                   {stop.pickup_cardboard && (
@@ -408,7 +455,7 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
                 {t('tourPlanning.unscheduledTours')} ({unscheduledTours.length})
               </h4>
               {unscheduledTours.map((tour) => {
-                const input = scheduleInputs[tour.id] ?? { time: '', contractId: null }
+                const input = scheduleInputs[tour.id] ?? { time: '', contractId: null, deliveryDate: '' }
                 const estReturn = input.time && input.contractId ? estimateReturn(tour, input.time) : null
                 const overlap = input.time && input.contractId ? detectOverlap(tour, input.time, input.contractId) : null
                 const contracts = availableContractsMap[tour.id] ?? []
@@ -476,6 +523,21 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
                         type="time"
                         value={input.time}
                         onChange={(e) => updateInput(tour.id, 'time', e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="rounded-lg border px-2 py-1.5 text-sm w-40"
+                        style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+
+                    {/* Date de livraison / Delivery date */}
+                    <div className="flex flex-col gap-1 mt-2">
+                      <label className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                        {t('tourPlanning.deliveryDate')}
+                      </label>
+                      <input
+                        type="date"
+                        value={input.deliveryDate}
+                        onChange={(e) => updateInput(tour.id, 'deliveryDate', e.target.value)}
                         onClick={(e) => e.stopPropagation()}
                         className="rounded-lg border px-2 py-1.5 text-sm w-40"
                         style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
@@ -567,6 +629,11 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
                       <span className="font-bold" style={{ color: 'var(--text-primary)' }}>
                         {tour.departure_time} → {tour.return_time}
                       </span>
+                      {tour.delivery_date && (
+                        <span className="block text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                          {t('tourPlanning.deliveryDate')}: {tour.delivery_date}
+                        </span>
+                      )}
                       {tour.total_duration_minutes != null && (
                         <span className="block" style={{ color: 'var(--text-muted)' }}>
                           {formatDuration(tour.total_duration_minutes)}
