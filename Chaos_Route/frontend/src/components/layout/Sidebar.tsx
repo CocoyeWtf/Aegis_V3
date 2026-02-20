@@ -211,11 +211,11 @@ export function Sidebar({ forceCollapsed = false }: SidebarProps) {
       }}
     >
       {/* Logo + toggle */}
-      <div className="p-3 flex items-center justify-between border-b" style={{ borderColor: 'var(--border-color)' }}>
+      <div className={`${isCollapsed ? 'px-1 py-2' : 'p-3'} flex items-center justify-between border-b transition-all`} style={{ borderColor: 'var(--border-color)' }}>
         <div className="flex items-center gap-2 overflow-hidden">
-          <img src="/LogoCMRO.png" alt="CMRO" className="shrink-0 rounded" style={{ width: '40px', height: '40px' }} />
+          <img src="/LogoCMRO.png" alt="CMRO" className="shrink-0 rounded" style={{ width: '48px', height: '48px' }} />
           {!isCollapsed && (
-            <div className="flex flex-col leading-tight">
+            <div className="flex flex-col items-center leading-tight">
               <span className="font-bold text-base" style={{ color: 'var(--color-primary)' }}>CMRO</span>
               <span className="text-[10px] font-semibold" style={{ color: 'var(--text-secondary)' }}>Chaos Manager</span>
               <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>Route Optimizer</span>
