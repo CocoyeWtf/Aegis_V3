@@ -14,7 +14,7 @@ import { ResizeHandle } from './ResizeHandle'
 import { MapView } from '../map/MapView'
 import { create } from '../../services/api'
 import api from '../../services/api'
-import type { VehicleType, Volume, PDV, BaseLogistics, Tour, TourStop, DistanceEntry, Contract } from '../../types'
+import type { VehicleType, Volume, PDV, BaseLogistics, Tour, TourStop, DistanceEntry, Contract, PdvPickupSummary } from '../../types'
 import type { PdvVolumeStatus } from '../map/PdvMarker'
 import { VEHICLE_TYPE_DEFAULTS } from '../../types'
 
@@ -55,13 +55,13 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   const { data: allVolumes, refetch: refetchVolumes } = useApi<Volume>('/volumes', regionParams)
   const volumes = useMemo(() => {
     if (!selectedDate) return allVolumes.filter((v) => !v.tour_id)
-    const dateCompact = selectedDate.replace(/-/g, '')
-    return allVolumes.filter((v) => (v.date === selectedDate || v.date === dateCompact) && !v.tour_id)
+    return allVolumes.filter((v) => v.dispatch_date === selectedDate && !v.tour_id)
   }, [allVolumes, selectedDate])
   const { data: pdvs } = useApi<PDV>('/pdvs', regionParams)
   const { data: bases } = useApi<BaseLogistics>('/bases', regionParams)
   const { data: distances } = useApi<DistanceEntry>('/distance-matrix')
   const { data: contracts } = useApi<Contract>('/contracts', regionParams)
+  const { data: pickupSummaries } = useApi<PdvPickupSummary>('/pickup-requests/by-pdv/pending')
 
   /* Coût moyen/km par type de véhicule / Average cost/km for vehicle type */
   const avgCostPerKm = useMemo(() => {
@@ -107,7 +107,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   /* Tous les volumes du jour (avec et sans tour_id) filtrés par base / All day's volumes (assigned+unassigned) filtered by base */
   const allDayVolumes = useMemo(() => {
     const dateFiltered = selectedDate
-      ? (() => { const dc = selectedDate.replace(/-/g, ''); return allVolumes.filter((v) => v.date === selectedDate || v.date === dc) })()
+      ? allVolumes.filter((v) => v.dispatch_date === selectedDate)
       : allVolumes
     if (!selectedBaseId) return dateFiltered
     return dateFiltered.filter((v) => v.base_origin_id === selectedBaseId)
@@ -284,7 +284,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         {/* Date */}
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-            {t('common.date')}
+            Date de répartition
           </label>
           <input
             type="date"
@@ -416,6 +416,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                             lastStopPdvId={lastStopPdvId}
                             baseId={selectedBaseId}
                             distanceIndex={distanceIndex}
+                            pickupSummaries={pickupSummaries}
                           />
                         </div>
                       </Panel>
@@ -482,6 +483,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
               lastStopPdvId={lastStopPdvId}
               baseId={selectedBaseId}
               distanceIndex={distanceIndex}
+              pickupSummaries={pickupSummaries}
             />
             <TourSummary
               stops={currentStops}

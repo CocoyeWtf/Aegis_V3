@@ -33,6 +33,8 @@ RESOURCES = [
     "loaders",
     "devices",
     "tracking",
+    "support-types",
+    "pickup-requests",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

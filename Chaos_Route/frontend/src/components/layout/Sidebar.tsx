@@ -36,6 +36,7 @@ const navGroups: NavGroup[] = [
       { path: '/suppliers', label: 'nav.suppliers', icon: '📦', resource: 'suppliers' },
       { path: '/base-activities', label: 'nav.baseActivities', icon: '🏷️', resource: 'base-activities' },
       { path: '/loaders', label: 'Chargeurs', icon: '🧑‍🔧', resource: 'loaders' },
+      { path: '/support-types', label: 'Types de support', icon: '📦', resource: 'support-types' },
     ],
   },
   {
@@ -61,6 +62,15 @@ const navGroups: NavGroup[] = [
       { path: '/operations', label: 'nav.postier', icon: '📮', resource: 'operations' },
       { path: '/devices', label: 'Appareils', icon: '📱', resource: 'devices' },
       { path: '/tracking', label: 'Suivi chauffeurs', icon: '📡', resource: 'tracking' },
+      { path: '/base-reception', label: 'Reception reprises', icon: '📥', resource: 'pickup-requests' },
+    ],
+  },
+  {
+    key: 'pdvOps',
+    label: 'PDV',
+    icon: '🏪',
+    children: [
+      { path: '/pickup-requests', label: 'Demandes de reprise', icon: '📋', resource: 'pickup-requests' },
     ],
   },
   { key: 'guardPost', label: 'nav.guardPost', icon: '🚧', path: '/guard-post', resource: 'guard-post' },

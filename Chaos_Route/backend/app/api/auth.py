@@ -101,6 +101,7 @@ async def me(user: User = Depends(get_current_user)):
         username=user.username,
         email=user.email,
         is_superadmin=user.is_superadmin,
+        pdv_id=user.pdv_id,
         roles=user.roles,
         regions=user.regions,
         permissions=permissions,

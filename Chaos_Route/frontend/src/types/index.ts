@@ -315,6 +315,7 @@ export interface UserAccount {
   email: string
   is_active: boolean
   is_superadmin: boolean
+  pdv_id?: number | null
   roles: { id: number; name: string }[]
   regions: { id: number; name: string }[]
   created_at: string
@@ -401,4 +402,55 @@ export interface DeliveryAlert {
   acknowledged_at?: string | null
   acknowledged_by?: number | null
   device_id?: number | null
+}
+
+/* ─── Pickup / Container return types ─── */
+
+export interface SupportType {
+  id: number
+  code: string
+  name: string
+  unit_quantity: number
+  unit_label?: string | null
+  is_active: boolean
+}
+
+export type PickupTypeEnum = 'CONTAINER' | 'MERCHANDISE' | 'CARDBOARD'
+export type PickupStatusEnum = 'REQUESTED' | 'PLANNED' | 'PICKED_UP' | 'RECEIVED'
+export type LabelStatusEnum = 'PENDING' | 'PLANNED' | 'PICKED_UP' | 'RECEIVED'
+
+export interface PickupLabel {
+  id: number
+  pickup_request_id: number
+  label_code: string
+  sequence_number: number
+  status: LabelStatusEnum
+  tour_stop_id?: number | null
+  picked_up_at?: string | null
+  picked_up_device_id?: number | null
+  received_at?: string | null
+}
+
+export interface PickupRequest {
+  id: number
+  pdv_id: number
+  support_type_id: number
+  quantity: number
+  availability_date: string
+  pickup_type: PickupTypeEnum
+  status: PickupStatusEnum
+  requested_at?: string | null
+  requested_by_user_id?: number | null
+  notes?: string | null
+  pdv?: { id: number; code: string; name: string } | null
+  support_type?: SupportType | null
+  labels?: PickupLabel[]
+}
+
+export interface PdvPickupSummary {
+  pdv_id: number
+  pdv_code: string
+  pdv_name: string
+  pending_count: number
+  requests: PickupRequest[]
 }

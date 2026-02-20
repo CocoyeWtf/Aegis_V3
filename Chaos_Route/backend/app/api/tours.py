@@ -21,6 +21,7 @@ from app.models.tour_stop import TourStop
 from app.models.volume import Volume
 from app.models.base_logistics import BaseLogistics
 from app.models.user import User
+from app.models.pickup_request import PickupRequest, PickupLabel, PickupStatus, LabelStatus
 from app.schemas.tour import TourCreate, TourGateUpdate, TourOperationsUpdate, TourRead, TourSchedule, TourUpdate
 from app.api.deps import require_permission, get_user_region_ids
 
@@ -444,10 +445,14 @@ async def tour_timeline(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("tour-planning", "read")),
 ):
-    """Timeline du jour : tous les tours avec leurs stops / Day timeline: all tours with stops."""
+    """Timeline 3 jours (J, J+1, J+2) / 3-day timeline with stops."""
+    from datetime import datetime as _dt, timedelta as _td
+    _base = _dt.strptime(date, "%Y-%m-%d")
+    _dates = [(_base + _td(days=i)).strftime("%Y-%m-%d") for i in range(3)]
+
     result = await db.execute(
         select(Tour)
-        .where(Tour.date == date, Tour.base_id == base_id)
+        .where(Tour.date.in_(_dates), Tour.base_id == base_id)
         .options(selectinload(Tour.stops))
         .order_by(Tour.departure_time)
     )
@@ -467,6 +472,7 @@ async def tour_timeline(
         timeline.append({
             "tour_id": tour.id,
             "code": tour.code,
+            "tour_date": tour.date,
             "contract_id": tour.contract_id,
             "vehicle_type": vt.value if (vt and hasattr(vt, 'value')) else vt,
             "capacity_eqp": tour.capacity_eqp,
@@ -997,7 +1003,7 @@ async def create_tour(
         vol_result = await db.execute(
             select(Volume).where(
                 Volume.pdv_id.in_(pdv_ids),
-                Volume.date.in_([data.date, data.date.replace("-", "")]),
+                Volume.dispatch_date == data.date,
                 Volume.tour_id.is_(None),
             )
         )
@@ -1251,6 +1257,39 @@ async def validate_tour(
     if tour.status != TourStatus.DRAFT:
         raise HTTPException(status_code=422, detail="Seuls les tours DRAFT peuvent etre valides")
     tour.status = TourStatus.VALIDATED
+
+    # Auto-link pickup labels aux tour_stops avec pickup_containers / Auto-link pickup labels to stops with pickup_containers
+    for stop in tour.stops:
+        if not stop.pickup_containers:
+            continue
+        # Etiquettes PENDING pour ce PDV / PENDING labels for this PDV
+        label_result = await db.execute(
+            select(PickupLabel)
+            .join(PickupRequest)
+            .where(
+                PickupRequest.pdv_id == stop.pdv_id,
+                PickupLabel.status.in_([LabelStatus.PENDING]),
+                PickupLabel.tour_stop_id.is_(None),
+            )
+        )
+        labels = label_result.scalars().all()
+        for label in labels:
+            label.tour_stop_id = stop.id
+            label.status = LabelStatus.PLANNED
+        # Auto-progress parent requests / Auto-progression demandes parent
+        if labels:
+            req_ids = list({lb.pickup_request_id for lb in labels})
+            for rid in req_ids:
+                req_result = await db.execute(
+                    select(PickupRequest)
+                    .where(PickupRequest.id == rid)
+                    .options(selectinload(PickupRequest.labels))
+                )
+                req = req_result.scalar_one_or_none()
+                if req:
+                    from app.api.pickup_requests import _auto_progress_request
+                    _auto_progress_request(req)
+
     await _log_audit(db, "tour", tour.id, "VALIDATE", user, {"old_status": "DRAFT", "new_status": "VALIDATED"})
     await db.flush()
     result = await db.execute(

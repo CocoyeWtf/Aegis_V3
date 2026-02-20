@@ -138,6 +138,7 @@ class DriverTourStopRead(BaseModel):
     pickup_containers: bool = False
     pickup_returns: bool = False
     scanned_supports_count: int = 0
+    pending_pickup_labels_count: int = 0
 
 class DriverTourRead(BaseModel):
     """Vue tour complete pour le chauffeur / Full driver tour view."""

@@ -5,7 +5,7 @@ User, Role, Permission + tables de jonction / junction tables.
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Table, func
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -38,6 +38,7 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_superadmin: Mapped[bool] = mapped_column(Boolean, default=False)
+    pdv_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("pdvs.id"), nullable=True)  # Lien optionnel vers un PDV / Optional link to a PDV
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

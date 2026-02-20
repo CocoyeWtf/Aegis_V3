@@ -7,13 +7,14 @@ import { FormDialog, type FieldDef } from '../../components/data/FormDialog'
 import { ConfirmDialog } from '../../components/data/ConfirmDialog'
 import { useApi } from '../../hooks/useApi'
 import { create, update, remove } from '../../services/api'
-import type { UserAccount, Role, Region } from '../../types'
+import type { UserAccount, Role, Region, PDV } from '../../types'
 
 export default function UserManagement() {
   const { t } = useTranslation()
   const { data: users, loading, refetch } = useApi<UserAccount>('/users')
   const { data: roles } = useApi<Role>('/roles')
   const { data: regions } = useApi<Region>('/regions')
+  const { data: pdvs } = useApi<PDV>('/pdvs')
 
   const [formOpen, setFormOpen] = useState(false)
   const [editItem, setEditItem] = useState<Record<string, unknown> | undefined>()
@@ -73,6 +74,15 @@ export default function UserManagement() {
       type: 'multicheck',
       getOptions: () => regions.map((r) => ({ value: String(r.id), label: r.name })),
     },
+    {
+      key: 'pdv_id',
+      label: 'PDV lié',
+      type: 'select',
+      options: [
+        { value: '', label: '— Aucun —' },
+        ...pdvs.map((p) => ({ value: String(p.id), label: `${p.code} — ${p.name}` })),
+      ],
+    },
   ]
 
   const handleCreate = () => {
@@ -85,6 +95,7 @@ export default function UserManagement() {
       ...row,
       role_ids: row.roles.map((r) => String(r.id)),
       region_ids: row.regions.map((r) => String(r.id)),
+      pdv_id: row.pdv_id ? String(row.pdv_id) : '',
       password: '',
     })
     setFormOpen(true)
@@ -93,6 +104,7 @@ export default function UserManagement() {
   const handleSave = useCallback(async (formData: Record<string, unknown>) => {
     setSaving(true)
     try {
+      const pdvIdVal = formData.pdv_id ? Number(formData.pdv_id) : null
       const payload: Record<string, unknown> = {
         username: formData.username,
         email: formData.email,
@@ -100,6 +112,7 @@ export default function UserManagement() {
         is_superadmin: formData.is_superadmin ?? false,
         role_ids: ((formData.role_ids as string[]) || []).map(Number),
         region_ids: ((formData.region_ids as string[]) || []).map(Number),
+        pdv_id: pdvIdVal,
       }
       // N'envoyer le password que s'il est rempli / Only send password if filled
       const pwd = (formData.password as string | null) ?? ''

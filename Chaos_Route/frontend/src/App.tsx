@@ -31,6 +31,9 @@ const AuditLog = lazy(() => import('./pages/AuditLog'))
 const Help = lazy(() => import('./pages/Help'))
 const DeviceManagement = lazy(() => import('./pages/DeviceManagement'))
 const Tracking = lazy(() => import('./pages/Tracking'))
+const SupportTypes = lazy(() => import('./pages/SupportTypes'))
+const PdvPickupRequests = lazy(() => import('./pages/PdvPickupRequests'))
+const BaseReception = lazy(() => import('./pages/BaseReception'))
 
 function Loading() {
   return (
@@ -70,6 +73,9 @@ export default function App() {
             <Route path="/admin/roles" element={<RoleManagement />} />
             <Route path="/devices" element={<DeviceManagement />} />
             <Route path="/tracking" element={<Tracking />} />
+            <Route path="/support-types" element={<SupportTypes />} />
+            <Route path="/pickup-requests" element={<PdvPickupRequests />} />
+            <Route path="/base-reception" element={<BaseReception />} />
             <Route path="/help" element={<Help />} />
           </Route>
         </Route>

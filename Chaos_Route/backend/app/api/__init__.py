@@ -28,6 +28,8 @@ from app.api import (
     driver,
     tracking,
     ws_tracking,
+    support_types,
+    pickup_requests,
 )
 
 api_router = APIRouter(prefix="/api")
@@ -56,3 +58,5 @@ api_router.include_router(devices.router, prefix="/devices", tags=["devices"])
 api_router.include_router(assignments.router, prefix="/assignments", tags=["assignments"])
 api_router.include_router(driver.router, prefix="/driver", tags=["driver"])
 api_router.include_router(tracking.router, prefix="/tracking", tags=["tracking"])
+api_router.include_router(support_types.router, prefix="/support-types", tags=["support-types"])
+api_router.include_router(pickup_requests.router, prefix="/pickup-requests", tags=["pickup-requests"])

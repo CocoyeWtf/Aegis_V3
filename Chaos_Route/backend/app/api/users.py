@@ -61,6 +61,7 @@ async def create_user(
         hashed_password=hash_password(data.password),
         is_active=data.is_active,
         is_superadmin=data.is_superadmin,
+        pdv_id=data.pdv_id,
     )
 
     # Attacher les rôles / Attach roles
@@ -102,6 +103,8 @@ async def update_user(
         target.is_active = data.is_active
     if data.is_superadmin is not None:
         target.is_superadmin = data.is_superadmin
+    if data.pdv_id is not None:
+        target.pdv_id = data.pdv_id
 
     if data.role_ids is not None:
         roles_result = await db.execute(select(Role).where(Role.id.in_(data.role_ids)))

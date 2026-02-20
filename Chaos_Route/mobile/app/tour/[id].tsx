@@ -167,6 +167,7 @@ export default function TourDetailScreen() {
             stop={item}
             onScanPdv={() => router.push(`/tour/${tourId}/stop/${item.id}/scan`)}
             onScanSupports={() => router.push(`/tour/${tourId}/stop/${item.id}/supports`)}
+            onScanPickups={() => router.push(`/tour/${tourId}/stop/${item.id}/pickups`)}
             onClose={() => handleCloseStop(item.id, item.pdv_name || item.pdv_code || '—')}
           />
         )}

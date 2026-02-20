@@ -19,6 +19,19 @@ export interface DriverTourStop {
   pickup_containers: boolean
   pickup_returns: boolean
   scanned_supports_count?: number
+  pending_pickup_labels_count?: number
+}
+
+export interface PickupLabelMobile {
+  id: number
+  pickup_request_id: number
+  label_code: string
+  sequence_number: number
+  status: string
+  tour_stop_id?: number | null
+  picked_up_at?: string | null
+  picked_up_device_id?: number | null
+  received_at?: string | null
 }
 
 export interface SupportScan {

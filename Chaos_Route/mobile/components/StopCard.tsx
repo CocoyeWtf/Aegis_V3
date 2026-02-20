@@ -9,10 +9,11 @@ interface StopCardProps {
   stop: DriverTourStop
   onScanPdv: () => void
   onScanSupports: () => void
+  onScanPickups: () => void
   onClose: () => void
 }
 
-export function StopCard({ stop, onScanPdv, onScanSupports, onClose }: StopCardProps) {
+export function StopCard({ stop, onScanPdv, onScanSupports, onScanPickups, onClose }: StopCardProps) {
   const status = stop.delivery_status || 'PENDING'
   const color = STATUS_COLORS[status] || COLORS.textMuted
   const isPending = status === 'PENDING'
@@ -68,6 +69,14 @@ export function StopCard({ stop, onScanPdv, onScanSupports, onClose }: StopCardP
           <TouchableOpacity onPress={onScanSupports} style={styles.supportBtn}>
             <Text style={styles.supportBtnText}>
               Scanner supports{stop.scanned_supports_count ? ` (${stop.scanned_supports_count})` : ''}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {isArrived && stop.pickup_containers && (stop.pending_pickup_labels_count ?? 0) > 0 && (
+          <TouchableOpacity onPress={onScanPickups} style={styles.pickupBtn}>
+            <Text style={styles.pickupBtnText}>
+              Scanner reprises ({stop.pending_pickup_labels_count})
             </Text>
           </TouchableOpacity>
         )}
@@ -167,6 +176,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   supportBtnText: {
+    fontSize: 12,
+    color: COLORS.white,
+    fontWeight: '700',
+  },
+  pickupBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#22c55e',
+    flex: 1,
+    alignItems: 'center',
+  },
+  pickupBtnText: {
     fontSize: 12,
     color: COLORS.white,
     fontWeight: '700',

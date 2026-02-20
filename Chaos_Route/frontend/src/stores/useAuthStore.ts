@@ -8,6 +8,7 @@ export interface UserInfo {
   username: string
   email: string
   is_superadmin: boolean
+  pdv_id?: number | null
   permissions: string[] // ["pdvs:read", "pdvs:create", ...] ou ["*:*"]
   roles: { id: number; name: string }[]
   regions: { id: number; name: string }[]

@@ -22,6 +22,7 @@ from app.models.tour import Tour, TourStatus
 from app.models.tour_stop import TourStop
 from app.models.base_logistics import BaseLogistics
 from app.models.contract import Contract
+from app.models.pickup_request import PickupLabel, PickupRequest, LabelStatus
 from app.schemas.mobile import (
     AvailableTourRead,
     DriverTourRead,
@@ -34,6 +35,7 @@ from app.schemas.mobile import (
     SupportScanCreate,
     SupportScanRead,
 )
+from app.schemas.pickup import PickupLabelRead
 from app.api.deps import get_authenticated_device
 from app.api.ws_tracking import manager
 
@@ -45,10 +47,13 @@ def _now_iso() -> str:
 
 
 def _build_tour_stops(
-    stops: list, pdv_map: dict[int, "PDV"], support_counts: dict[int, int] | None = None,
+    stops: list, pdv_map: dict[int, "PDV"],
+    support_counts: dict[int, int] | None = None,
+    pickup_label_counts: dict[int, int] | None = None,
 ) -> list[DriverTourStopRead]:
     """Construire la liste de stops pour le chauffeur / Build driver stop list."""
     counts = support_counts or {}
+    plcounts = pickup_label_counts or {}
     result = []
     for s in sorted(stops, key=lambda x: x.sequence_order):
         pdv = pdv_map.get(s.pdv_id)
@@ -71,6 +76,7 @@ def _build_tour_stops(
             pickup_containers=s.pickup_containers,
             pickup_returns=s.pickup_returns,
             scanned_supports_count=counts.get(s.id, 0),
+            pending_pickup_labels_count=plcounts.get(s.id, 0),
         ))
     return result
 
@@ -89,6 +95,7 @@ async def _build_tour_read(tour: Tour, db: AsyncSession) -> DriverTourRead:
     # Compter les supports scannes par stop / Count scanned supports per stop
     stop_ids = [s.id for s in tour.stops]
     support_counts: dict[int, int] = {}
+    pickup_label_counts: dict[int, int] = {}
     if stop_ids:
         from sqlalchemy import func
         count_result = await db.execute(
@@ -97,6 +104,17 @@ async def _build_tour_read(tour: Tour, db: AsyncSession) -> DriverTourRead:
             .group_by(SupportScan.tour_stop_id)
         )
         support_counts = dict(count_result.all())
+
+        # Compter les etiquettes de reprise par stop / Count pickup labels per stop
+        pl_result = await db.execute(
+            select(PickupLabel.tour_stop_id, func.count(PickupLabel.id))
+            .where(
+                PickupLabel.tour_stop_id.in_(stop_ids),
+                PickupLabel.status.in_([LabelStatus.PLANNED, LabelStatus.PENDING]),
+            )
+            .group_by(PickupLabel.tour_stop_id)
+        )
+        pickup_label_counts = dict(pl_result.all())
 
     status_val = tour.status.value if hasattr(tour.status, "value") else tour.status
     return DriverTourRead(
@@ -112,7 +130,7 @@ async def _build_tour_read(tour: Tour, db: AsyncSession) -> DriverTourRead:
         base_name=base.name if base else None,
         vehicle_code=contract.vehicle_code if contract else None,
         vehicle_name=contract.vehicle_name if contract else None,
-        stops=_build_tour_stops(tour.stops, pdv_map, support_counts),
+        stops=_build_tour_stops(tour.stops, pdv_map, support_counts, pickup_label_counts),
     )
 
 
@@ -561,3 +579,62 @@ async def list_stop_supports(
         .order_by(SupportScan.id)
     )
     return result.scalars().all()
+
+
+@router.get("/tour/{tour_id}/pickups", response_model=list[PickupLabelRead])
+async def list_tour_pickups(
+    tour_id: int,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Etiquettes de reprise pour les stops du tour / Pickup labels for tour stops."""
+    result = await db.execute(
+        select(Tour).where(Tour.id == tour_id).options(selectinload(Tour.stops))
+    )
+    tour = result.scalar_one_or_none()
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found")
+
+    stop_ids = [s.id for s in tour.stops if s.pickup_containers]
+    if not stop_ids:
+        return []
+
+    label_result = await db.execute(
+        select(PickupLabel)
+        .where(PickupLabel.tour_stop_id.in_(stop_ids))
+        .order_by(PickupLabel.id)
+    )
+    return label_result.scalars().all()
+
+
+@router.post("/pickup-labels/{label_code}/scan", response_model=PickupLabelRead)
+async def scan_pickup_label(
+    label_code: str,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Scan etiquette reprise → PICKED_UP / Scan pickup label → PICKED_UP."""
+    result = await db.execute(
+        select(PickupLabel)
+        .where(PickupLabel.label_code == label_code)
+        .options(selectinload(PickupLabel.pickup_request).selectinload(PickupRequest.labels))
+    )
+    label = result.scalar_one_or_none()
+    if not label:
+        raise HTTPException(status_code=404, detail="Label not found")
+    if label.status == LabelStatus.PICKED_UP:
+        return label  # deja scanne / already scanned
+    if label.status == LabelStatus.RECEIVED:
+        raise HTTPException(status_code=400, detail="Label already received")
+
+    label.status = LabelStatus.PICKED_UP
+    label.picked_up_at = _now_iso()
+    label.picked_up_device_id = device.id
+
+    # Auto-progression demande parent / Auto-progress parent request
+    from app.api.pickup_requests import _auto_progress_request
+    _auto_progress_request(label.pickup_request)
+
+    await db.flush()
+    await db.refresh(label)
+    return label
