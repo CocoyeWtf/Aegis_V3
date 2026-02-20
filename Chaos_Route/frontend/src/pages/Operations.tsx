@@ -496,8 +496,6 @@ function TourRow({
     ? `${contract.vehicle_code} — ${contract.vehicle_name ?? ''}`
     : (contract?.code ?? '—')
 
-  const visibleKeys = useMemo(() => new Set(visibleCols.map((c) => c.key)), [visibleCols])
-
   /* Rendu cellule / Cell render */
   const cells: Record<string, React.ReactNode> = {
     code: (
