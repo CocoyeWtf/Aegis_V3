@@ -9,6 +9,7 @@ import type { Tour, BaseLogistics, Contract } from '../types'
 import type { Column } from '../components/data/DataTable'
 import { DataTable } from '../components/data/DataTable'
 import { CostBreakdown } from '../components/tour/CostBreakdown'
+import { GPSTrailModal } from '../components/tour/GPSTrailModal'
 import { displayDateTime } from '../utils/tourTimeUtils'
 
 export default function TourHistory() {
@@ -16,6 +17,7 @@ export default function TourHistory() {
   const { selectedRegionId } = useAppStore()
   const [deleting, setDeleting] = useState<number | null>(null)
   const [costTourId, setCostTourId] = useState<number | null>(null)
+  const [gpsTour, setGpsTour] = useState<{ id: number; code: string } | null>(null)
 
   const params = selectedRegionId ? { region_id: selectedRegionId } : undefined
   const { data: tours, loading, refetch } = useApi<Tour>('/tours', params)
@@ -156,6 +158,21 @@ export default function TourHistory() {
     },
     {
       key: 'id' as keyof Tour,
+      label: 'GPS',
+      width: '50px',
+      render: (row) => (
+        <button
+          className="text-xs px-2 py-1 rounded transition-colors hover:opacity-80"
+          style={{ color: 'var(--color-info, #3b82f6)', backgroundColor: 'rgba(59,130,246,0.1)' }}
+          onClick={(e) => { e.stopPropagation(); setGpsTour({ id: row.id, code: row.code }) }}
+          title="Tracé GPS"
+        >
+          GPS
+        </button>
+      ),
+    },
+    {
+      key: 'id' as keyof Tour,
       label: '',
       width: '80px',
       render: (row) => {
@@ -198,6 +215,10 @@ export default function TourHistory() {
 
       {costTourId && (
         <CostBreakdown tourId={costTourId} onClose={() => setCostTourId(null)} />
+      )}
+
+      {gpsTour && (
+        <GPSTrailModal tourId={gpsTour.id} tourCode={gpsTour.code} onClose={() => setGpsTour(null)} />
       )}
     </div>
   )

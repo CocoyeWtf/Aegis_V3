@@ -41,6 +41,21 @@ async def init_db():
     # Ajouter les colonnes manquantes sur tables existantes (SQLite) /
     # Add missing columns on existing tables (SQLite dev)
     await _migrate_missing_columns()
+    # Purger les positions GPS > 30 jours / Purge GPS positions older than 30 days
+    await _cleanup_old_gps()
+
+
+async def _cleanup_old_gps(days: int = 30):
+    """Purger les positions GPS des tours > 30 jours / Purge GPS positions for tours older than 30 days."""
+    from datetime import datetime, timedelta
+    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    async with engine.begin() as conn:
+        result = await conn.execute(text(
+            "DELETE FROM gps_positions WHERE tour_id IN "
+            "(SELECT id FROM tours WHERE date < :cutoff)"
+        ), {"cutoff": cutoff})
+        if result.rowcount:
+            print(f"[cleanup] {result.rowcount} GPS positions removed (tours before {cutoff})")
 
 
 async def _migrate_missing_columns():
