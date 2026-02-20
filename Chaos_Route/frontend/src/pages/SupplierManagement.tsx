@@ -19,6 +19,7 @@ export default function SupplierManagement() {
     {
       key: 'region_id', label: t('common.region'), width: '120px', filterable: true,
       render: (row) => regions.find((r) => r.id === row.region_id)?.name || '—',
+      filterValue: (row) => regions.find((r) => r.id === row.region_id)?.name || '',
     },
   ]
 

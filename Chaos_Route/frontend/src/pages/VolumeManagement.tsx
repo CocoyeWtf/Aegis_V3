@@ -23,6 +23,7 @@ export default function VolumeManagement() {
     {
       key: 'pdv_id', label: t('volumes.pdv'), filterable: true,
       render: (row) => pdvs.find((p) => p.id === row.pdv_id)?.name || String(row.pdv_id),
+      filterValue: (row) => pdvs.find((p) => p.id === row.pdv_id)?.name || '',
     },
     { key: 'eqp_count', label: t('volumes.eqpCount'), width: '90px' },
     { key: 'weight_kg', label: t('volumes.weightKg'), width: '100px' },
@@ -30,9 +31,11 @@ export default function VolumeManagement() {
     {
       key: 'base_origin_id', label: t('volumes.baseOrigin'), width: '140px', filterable: true,
       render: (row) => bases.find((b) => b.id === row.base_origin_id)?.name || '—',
+      filterValue: (row) => bases.find((b) => b.id === row.base_origin_id)?.name || '',
     },
     {
       key: 'tour_id' as keyof Volume, label: 'Tour', width: '100px', filterable: true,
+      filterValue: (row) => row.tour_id ? t('tourPlanning.assigned') : '',
       render: (row) => row.tour_id ? (
         <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(249,115,22,0.15)', color: 'var(--color-primary)' }}>
           ✓ {t('tourPlanning.assigned')}

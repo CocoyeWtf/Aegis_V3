@@ -52,6 +52,7 @@ export default function TourHistory() {
       label: t('tourHistory.base'),
       width: '140px', filterable: true,
       render: (row) => baseMap.get(row.base_id)?.name ?? `#${row.base_id}`,
+      filterValue: (row) => baseMap.get(row.base_id)?.name ?? '',
     },
     {
       key: 'contract_id',
@@ -61,6 +62,11 @@ export default function TourHistory() {
         const c = row.contract_id != null ? contractMap.get(row.contract_id) : undefined
         if (!c) return row.contract_id != null ? `#${row.contract_id}` : '—'
         return c.vehicle_code ? `${c.vehicle_code} — ${c.vehicle_name ?? ''}` : c.code
+      },
+      filterValue: (row) => {
+        const c = row.contract_id != null ? contractMap.get(row.contract_id) : undefined
+        if (!c) return ''
+        return c.vehicle_code ? `${c.vehicle_code} ${c.vehicle_name ?? ''}` : c.code
       },
     },
     {
@@ -92,6 +98,7 @@ export default function TourHistory() {
       key: 'status',
       label: t('common.status'),
       width: '100px', filterable: true,
+      filterValue: (row) => t(`tourHistory.status.${row.status}`),
       render: (row) => (
         <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ color: statusColors[row.status] }}>
           {t(`tourHistory.status.${row.status}`)}

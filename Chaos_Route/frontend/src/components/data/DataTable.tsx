@@ -15,6 +15,8 @@ export interface Column<T> {
   filterable?: boolean
   /** Clé alternative pour le filtrage (ex: origin_label au lieu de origin_id) / Alt key for filtering */
   filterKey?: keyof T
+  /** Fonction retournant le texte filtrable (pour colonnes avec render) / Returns filterable text for rendered columns */
+  filterValue?: (row: T) => string
 }
 
 interface DataTableProps<T extends { id: number }> {
@@ -150,6 +152,10 @@ export function DataTable<T extends { id: number }>({
         activeColFilters.every(([colKey, filterVal]) => {
           const col = columns.find((c) => String(c.key) === colKey)
           const q = filterVal.toLowerCase()
+          // filterValue callback (texte rendu) / filterValue callback (rendered text)
+          if (col?.filterValue) {
+            return col.filterValue(row).toLowerCase().includes(q)
+          }
           // Chercher dans filterKey (label) puis dans key (id) / Search in filterKey then key
           const fk = col?.filterKey
           if (fk) {

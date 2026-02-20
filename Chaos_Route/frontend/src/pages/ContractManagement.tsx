@@ -72,6 +72,7 @@ export default function ContractManagement() {
     {
       key: 'region_id', label: t('common.region'), width: '100px', filterable: true,
       render: (row) => regions.find((r) => r.id === row.region_id)?.name || '—',
+      filterValue: (row) => regions.find((r) => r.id === row.region_id)?.name || '',
     },
     {
       key: 'id' as keyof Contract,
