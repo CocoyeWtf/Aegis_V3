@@ -161,6 +161,9 @@ export interface WaybillData {
   tour_id: number
   tour_code: string
   date: string
+  delivery_date?: string | null
+  dispatch_date?: string | null
+  dispatch_time?: string | null
   departure_time?: string
   return_time?: string
   driver_name?: string

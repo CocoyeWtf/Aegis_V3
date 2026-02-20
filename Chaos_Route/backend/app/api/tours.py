@@ -1340,10 +1340,25 @@ async def get_tour_waybill(
             "pickup_returns": getattr(stop, "pickup_returns", False),
         })
 
+    # Dispatch info : prendre le premier volume avec dispatch_date / First volume with dispatch info
+    dispatch_date = None
+    dispatch_time = None
+    for vols in volumes_map.values():
+        for v in vols:
+            if v.dispatch_date:
+                dispatch_date = v.dispatch_date
+                dispatch_time = v.dispatch_time
+                break
+        if dispatch_date:
+            break
+
     return {
         "tour_id": tour.id,
         "tour_code": tour.code,
         "date": tour.date,
+        "delivery_date": tour.delivery_date,
+        "dispatch_date": dispatch_date,
+        "dispatch_time": dispatch_time,
         "departure_time": tour.departure_time,
         "return_time": tour.return_time,
         "driver_name": tour.driver_name,

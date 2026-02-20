@@ -23,11 +23,17 @@ export function TourWaybill({ tourId, onClose }: TourWaybillProps) {
       .finally(() => setLoading(false))
   }, [tourId])
 
-  const formattedDate = data
-    ? new Date(data.date + 'T00:00:00').toLocaleDateString('fr-FR', {
+  const deliveryDateStr = data?.delivery_date ?? data?.date ?? ''
+  const formattedDate = deliveryDateStr
+    ? new Date(deliveryDateStr + 'T00:00:00').toLocaleDateString('fr-FR', {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
       })
     : ''
+  const formattedDispatch = data?.dispatch_date
+    ? new Date(data.dispatch_date + 'T00:00:00').toLocaleDateString('fr-FR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+      }) + (data.dispatch_time ? ` ${data.dispatch_time}` : '')
+    : null
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ backgroundColor: 'var(--bg-primary)' }}>
@@ -204,6 +210,16 @@ export function TourWaybill({ tourId, onClose }: TourWaybillProps) {
                     {formattedDate} — {data.departure_time ?? '—'}
                   </td>
                 </tr>
+                {formattedDispatch && (
+                  <tr>
+                    <td style={{ ...cellStyle, width: '140px', fontWeight: 'bold', backgroundColor: 'var(--bg-tertiary)' }}>
+                      Répart.
+                    </td>
+                    <td style={cellStyle}>
+                      {formattedDispatch}
+                    </td>
+                  </tr>
+                )}
                 {data.remarks && (
                   <tr>
                     <td style={{ ...cellStyle, width: '140px', fontWeight: 'bold', backgroundColor: 'var(--bg-tertiary)' }}>

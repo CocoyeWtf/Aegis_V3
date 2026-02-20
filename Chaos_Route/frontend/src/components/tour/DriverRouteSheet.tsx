@@ -156,7 +156,7 @@ export function DriverRouteSheet({ tourId, onClose }: DriverRouteSheetProps) {
                     {t('driverRoute.documentTitle')}
                   </div>
                   <div style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>
-                    {formatDate(data.date)} {data.departure_time ?? ''}
+                    {formatDate(data.delivery_date ?? data.date)} {data.departure_time ?? ''}
                   </div>
                 </div>
 
@@ -169,8 +169,14 @@ export function DriverRouteSheet({ tourId, onClose }: DriverRouteSheetProps) {
                     </tr>
                     <tr>
                       <td style={labelCell}>{t('driverRoute.deliveryDate')}</td>
-                      <td style={valCell}>{formatDate(data.date)}</td>
+                      <td style={valCell}>{formatDate(data.delivery_date ?? data.date)}</td>
                     </tr>
+                    {data.dispatch_date && (
+                      <tr>
+                        <td style={labelCell}>Répart.</td>
+                        <td style={valCell}>{formatDate(data.dispatch_date)}{data.dispatch_time ? ` ${data.dispatch_time}` : ''}</td>
+                      </tr>
+                    )}
                     <tr>
                       <td style={labelCell}>{t('driverRoute.driver')}</td>
                       <td style={{ ...valCell, fontWeight: 'bold' }}>{data.driver_name || ''}</td>
