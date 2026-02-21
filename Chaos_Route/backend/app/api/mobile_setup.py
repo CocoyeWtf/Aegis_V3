@@ -110,11 +110,15 @@ async def mobile_setup_page(registration_code: str, request: Request):
 @router.get("/app/download/{filename}")
 async def download_apk(filename: str):
     """Telechargement de l'APK / APK download."""
-    file_path = APK_DIR / filename
+    # Sanitiser le filename pour eviter path traversal / Sanitize filename to prevent path traversal
+    safe_name = Path(filename).name
+    if safe_name != filename or ".." in filename:
+        return HTMLResponse("<h1>Invalid filename</h1>", status_code=400)
+    file_path = APK_DIR / safe_name
     if not file_path.is_file():
         return HTMLResponse("<h1>Fichier non disponible</h1>", status_code=404)
     return FileResponse(
         file_path,
         media_type="application/vnd.android.package-archive",
-        filename=filename,
+        filename=safe_name,
     )

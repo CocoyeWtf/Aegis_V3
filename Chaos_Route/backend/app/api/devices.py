@@ -3,7 +3,10 @@
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+
+from app.config import settings
+from app.rate_limit import limiter
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -96,7 +99,9 @@ async def delete_device(
 
 
 @router.post("/register", response_model=MobileDeviceRead)
+@limiter.limit(settings.RATE_LIMIT_REGISTER)
 async def register_device(
+    request: Request,
     data: DeviceRegistration,
     db: AsyncSession = Depends(get_db),
 ):

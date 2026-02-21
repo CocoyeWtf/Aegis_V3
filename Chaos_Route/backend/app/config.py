@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # Rate Limiting
+    RATE_LIMIT_LOGIN: str = "5/minute"
+    RATE_LIMIT_REGISTER: str = "3/minute"
+    RATE_LIMIT_GPS: str = "30/minute"
+    RATE_LIMIT_DEFAULT: str = "60/minute"
+
     # Paramètres par défaut / Default parameters
     DEFAULT_COMMERCIAL_SPEED_KMH: float = 60.0
     DEFAULT_MAX_DAILY_HOURS: float = 10.0

@@ -5,12 +5,16 @@ Auth par appareil (X-Device-ID header) — pas de JWT pour le chauffeur.
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+
+from app.config import settings
+from app.rate_limit import limiter
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
+from app.models.audit import AuditLog
 from app.models.delivery_alert import AlertSeverity, AlertType, DeliveryAlert
 from app.models.device_assignment import DeviceAssignment
 from app.models.gps_position import GPSPosition
@@ -28,6 +32,8 @@ from app.schemas.mobile import (
     DriverTourRead,
     DriverTourStopRead,
     GPSBatchCreate,
+    PickupRefusalCreate,
+    PickupSummaryItem,
     ReturnToBaseCreate,
     SelfAssignCreate,
     StopClosureCreate,
@@ -36,7 +42,7 @@ from app.schemas.mobile import (
     SupportScanRead,
 )
 from app.schemas.pickup import PickupLabelRead
-from app.api.deps import get_authenticated_device
+from app.api.deps import get_authenticated_device, require_device_tour_access
 from app.api.ws_tracking import manager
 
 router = APIRouter()
@@ -50,10 +56,12 @@ def _build_tour_stops(
     stops: list, pdv_map: dict[int, "PDV"],
     support_counts: dict[int, int] | None = None,
     pickup_label_counts: dict[int, int] | None = None,
+    pickup_summary_map: dict[int, list[PickupSummaryItem]] | None = None,
 ) -> list[DriverTourStopRead]:
     """Construire la liste de stops pour le chauffeur / Build driver stop list."""
     counts = support_counts or {}
     plcounts = pickup_label_counts or {}
+    ps_map = pickup_summary_map or {}
     result = []
     for s in sorted(stops, key=lambda x: x.sequence_order):
         pdv = pdv_map.get(s.pdv_id)
@@ -77,12 +85,16 @@ def _build_tour_stops(
             pickup_returns=s.pickup_returns,
             scanned_supports_count=counts.get(s.id, 0),
             pending_pickup_labels_count=plcounts.get(s.id, 0),
+            pickup_summary=ps_map.get(s.id, []),
         ))
     return result
 
 
 async def _build_tour_read(tour: Tour, db: AsyncSession) -> DriverTourRead:
     """Construire la vue tour complete / Build full tour read view."""
+    from collections import defaultdict
+    from app.models.support_type import SupportType
+
     base = await db.get(BaseLogistics, tour.base_id)
     contract = await db.get(Contract, tour.contract_id) if tour.contract_id else None
 
@@ -96,8 +108,9 @@ async def _build_tour_read(tour: Tour, db: AsyncSession) -> DriverTourRead:
     stop_ids = [s.id for s in tour.stops]
     support_counts: dict[int, int] = {}
     pickup_label_counts: dict[int, int] = {}
+    pickup_summary_map: dict[int, list[PickupSummaryItem]] = {}
     if stop_ids:
-        from sqlalchemy import func
+        from sqlalchemy import func, case
         count_result = await db.execute(
             select(SupportScan.tour_stop_id, func.count(SupportScan.id))
             .where(SupportScan.tour_stop_id.in_(stop_ids))
@@ -116,6 +129,33 @@ async def _build_tour_read(tour: Tour, db: AsyncSession) -> DriverTourRead:
         )
         pickup_label_counts = dict(pl_result.all())
 
+        # Resume reprises par (stop, type support) / Pickup summary per (stop, support type)
+        summary_result = await db.execute(
+            select(
+                PickupLabel.tour_stop_id,
+                SupportType.code,
+                SupportType.name,
+                func.count(PickupLabel.id).label("total"),
+                func.sum(case(
+                    (PickupLabel.status.in_([LabelStatus.PLANNED, LabelStatus.PENDING]), 1),
+                    else_=0,
+                )).label("pending"),
+            )
+            .join(PickupRequest, PickupLabel.pickup_request_id == PickupRequest.id)
+            .join(SupportType, PickupRequest.support_type_id == SupportType.id)
+            .where(PickupLabel.tour_stop_id.in_(stop_ids))
+            .group_by(PickupLabel.tour_stop_id, SupportType.code, SupportType.name)
+        )
+        summary_raw: dict[int, list[PickupSummaryItem]] = defaultdict(list)
+        for row in summary_result.all():
+            summary_raw[row[0]].append(PickupSummaryItem(
+                support_type_code=row[1],
+                support_type_name=row[2],
+                total_labels=row[3],
+                pending_labels=row[4],
+            ))
+        pickup_summary_map = dict(summary_raw)
+
     status_val = tour.status.value if hasattr(tour.status, "value") else tour.status
     return DriverTourRead(
         id=tour.id,
@@ -130,7 +170,7 @@ async def _build_tour_read(tour: Tour, db: AsyncSession) -> DriverTourRead:
         base_name=base.name if base else None,
         vehicle_code=contract.vehicle_code if contract else None,
         vehicle_name=contract.vehicle_name if contract else None,
-        stops=_build_tour_stops(tour.stops, pdv_map, support_counts, pickup_label_counts),
+        stops=_build_tour_stops(tour.stops, pdv_map, support_counts, pickup_label_counts, pickup_summary_map),
     )
 
 
@@ -227,6 +267,10 @@ async def assign_tour(
     if tour.status not in (TourStatus.DRAFT, TourStatus.VALIDATED):
         raise HTTPException(status_code=422, detail="Tour already in progress or completed")
 
+    # Verifier que le tour appartient a la base de l'appareil / Verify tour belongs to device's base
+    if device.base_id and tour.base_id != device.base_id:
+        raise HTTPException(status_code=403, detail="Tour does not belong to this device's base")
+
     # Auto-valider si DRAFT / Auto-validate if DRAFT
     if tour.status == TourStatus.DRAFT:
         tour.status = TourStatus.VALIDATED
@@ -257,6 +301,15 @@ async def assign_tour(
     await db.flush()
 
     tour.device_assignment_id = assignment.id
+
+    # 5A. Audit log — self-assign tour
+    db.add(AuditLog(
+        entity_type="tour", entity_id=tour.id, action="SELF_ASSIGN",
+        changes=f'{{"device_id":{device.id},"device_name":"{device.friendly_name or ""}","driver":"{driver or ""}","tour_code":"{tour.code}"}}',
+        user=f"device:{device.id}",
+        timestamp=_now_iso(),
+    ))
+
     await db.flush()
 
     return await _build_tour_read(tour, db)
@@ -266,7 +319,7 @@ async def assign_tour(
 async def get_driver_tour(
     tour_id: int,
     db: AsyncSession = Depends(get_db),
-    device: MobileDevice = Depends(get_authenticated_device),
+    device: MobileDevice = Depends(require_device_tour_access),
 ):
     """Detail tour + stops + PDV / Tour detail for driver."""
     result = await db.execute(
@@ -276,26 +329,28 @@ async def get_driver_tour(
     if not tour:
         raise HTTPException(status_code=404, detail="Tour not found")
 
-    # Verifier que l'appareil a acces a ce tour
+    return await _build_tour_read(tour, db)
+
+
+@router.post("/gps")
+@limiter.limit(settings.RATE_LIMIT_GPS)
+async def submit_gps_batch(
+    request: Request,
+    data: GPSBatchCreate,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Batch GPS positions / Batch insert GPS positions."""
+    # Verifier que l'appareil est assigne a ce tour / Verify device is assigned to this tour
     assignment_result = await db.execute(
         select(DeviceAssignment).where(
-            DeviceAssignment.tour_id == tour_id,
+            DeviceAssignment.tour_id == data.tour_id,
             DeviceAssignment.device_id == device.id,
         ).limit(1)
     )
     if not assignment_result.scalar_one_or_none():
         raise HTTPException(status_code=403, detail="Device not assigned to this tour")
 
-    return await _build_tour_read(tour, db)
-
-
-@router.post("/gps")
-async def submit_gps_batch(
-    data: GPSBatchCreate,
-    db: AsyncSession = Depends(get_db),
-    device: MobileDevice = Depends(get_authenticated_device),
-):
-    """Batch GPS positions / Batch insert GPS positions."""
     positions = []
     for pos in data.positions:
         gps = GPSPosition(
@@ -341,7 +396,7 @@ async def scan_pdv(
     stop_id: int,
     data: StopEventCreate,
     db: AsyncSession = Depends(get_db),
-    device: MobileDevice = Depends(get_authenticated_device),
+    device: MobileDevice = Depends(require_device_tour_access),
 ):
     """Scan QR PDV -> valide code vs attendu / Scan PDV QR code -> validate against expected."""
     stop = await db.get(TourStop, stop_id)
@@ -420,12 +475,29 @@ async def close_stop(
     stop_id: int,
     data: StopClosureCreate,
     db: AsyncSession = Depends(get_db),
-    device: MobileDevice = Depends(get_authenticated_device),
+    device: MobileDevice = Depends(require_device_tour_access),
 ):
     """Cloture stop (force possible) / Close stop (force possible)."""
     stop = await db.get(TourStop, stop_id)
     if not stop or stop.tour_id != tour_id:
         raise HTTPException(status_code=404, detail="Stop not found")
+
+    # Verifier reprises en attente / Check pending pickups
+    if not data.force:
+        from sqlalchemy import func
+        pending_result = await db.execute(
+            select(func.count(PickupLabel.id))
+            .where(
+                PickupLabel.tour_stop_id == stop_id,
+                PickupLabel.status.in_([LabelStatus.PLANNED, LabelStatus.PENDING]),
+            )
+        )
+        pending_count = pending_result.scalar() or 0
+        if pending_count > 0:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Reprises en attente ({pending_count}) — scannez ou refusez avant de fermer",
+            )
 
     forced = data.force
     if forced:
@@ -485,7 +557,7 @@ async def return_to_base(
     tour_id: int,
     data: ReturnToBaseCreate,
     db: AsyncSession = Depends(get_db),
-    device: MobileDevice = Depends(get_authenticated_device),
+    device: MobileDevice = Depends(require_device_tour_access),
 ):
     """Retour base / Return to base."""
     tour = await db.get(Tour, tour_id)
@@ -494,6 +566,14 @@ async def return_to_base(
 
     tour.status = TourStatus.COMPLETED
     tour.actual_return_time = data.timestamp
+
+    # 5A. Audit log — return to base
+    db.add(AuditLog(
+        entity_type="tour", entity_id=tour_id, action="RETURN_BASE",
+        changes=f'{{"device_id":{device.id},"tour_code":"{tour.code}","timestamp":"{data.timestamp}"}}',
+        user=f"device:{device.id}",
+        timestamp=_now_iso(),
+    ))
 
     await db.flush()
 
@@ -514,7 +594,7 @@ async def scan_support(
     stop_id: int,
     data: SupportScanCreate,
     db: AsyncSession = Depends(get_db),
-    device: MobileDevice = Depends(get_authenticated_device),
+    device: MobileDevice = Depends(require_device_tour_access),
 ):
     """Scan code barre support (1D) / Scan support barcode."""
     stop = await db.get(TourStop, stop_id)
@@ -567,7 +647,7 @@ async def list_stop_supports(
     tour_id: int,
     stop_id: int,
     db: AsyncSession = Depends(get_db),
-    device: MobileDevice = Depends(get_authenticated_device),
+    device: MobileDevice = Depends(require_device_tour_access),
 ):
     """Lister les supports scannes pour un stop / List scanned supports for a stop."""
     stop = await db.get(TourStop, stop_id)
@@ -586,7 +666,7 @@ async def list_stop_supports(
 async def list_tour_pickups(
     tour_id: int,
     db: AsyncSession = Depends(get_db),
-    device: MobileDevice = Depends(get_authenticated_device),
+    device: MobileDevice = Depends(require_device_tour_access),
 ):
     """Etiquettes de reprise pour les stops du tour / Pickup labels for tour stops."""
     result = await db.execute(
@@ -623,6 +703,20 @@ async def scan_pickup_label(
     label = result.scalar_one_or_none()
     if not label:
         raise HTTPException(status_code=404, detail="Label not found")
+
+    # Verifier que l'appareil a acces via label → stop → tour → DeviceAssignment
+    if label.tour_stop_id:
+        stop = await db.get(TourStop, label.tour_stop_id)
+        if stop:
+            assign_check = await db.execute(
+                select(DeviceAssignment).where(
+                    DeviceAssignment.tour_id == stop.tour_id,
+                    DeviceAssignment.device_id == device.id,
+                ).limit(1)
+            )
+            if not assign_check.scalar_one_or_none():
+                raise HTTPException(status_code=403, detail="Device not assigned to this tour")
+
     if label.status == LabelStatus.PICKED_UP:
         return label  # deja scanne / already scanned
     if label.status == LabelStatus.RECEIVED:
@@ -639,3 +733,70 @@ async def scan_pickup_label(
     await db.flush()
     await db.refresh(label)
     return label
+
+
+@router.post("/tour/{tour_id}/stops/{stop_id}/refuse-pickup")
+async def refuse_pickup(
+    tour_id: int,
+    stop_id: int,
+    data: PickupRefusalCreate,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(require_device_tour_access),
+):
+    """Refuser les reprises pour un stop / Refuse pickups for a stop."""
+    stop = await db.get(TourStop, stop_id)
+    if not stop or stop.tour_id != tour_id:
+        raise HTTPException(status_code=404, detail="Stop not found")
+
+    # Chercher les etiquettes PENDING/PLANNED liees au stop
+    label_result = await db.execute(
+        select(PickupLabel)
+        .where(
+            PickupLabel.tour_stop_id == stop_id,
+            PickupLabel.status.in_([LabelStatus.PLANNED, LabelStatus.PENDING]),
+        )
+        .options(selectinload(PickupLabel.pickup_request).selectinload(PickupRequest.labels))
+    )
+    labels = label_result.scalars().all()
+
+    if not labels:
+        return {"status": "ok", "refused": 0}
+
+    # Creer alerte PICKUP_REFUSED / Create PICKUP_REFUSED alert
+    alert = DeliveryAlert(
+        tour_id=tour_id,
+        tour_stop_id=stop_id,
+        alert_type=AlertType.PICKUP_REFUSED,
+        severity=AlertSeverity.WARNING,
+        message=data.reason,
+        created_at=_now_iso(),
+        device_id=device.id,
+    )
+    db.add(alert)
+
+    # Delier les etiquettes : retour pool non-assigne / Unlink labels: return to unassigned pool
+    from app.api.pickup_requests import _auto_progress_request
+    requests_seen: set[int] = set()
+    for label in labels:
+        label.tour_stop_id = None
+        label.status = LabelStatus.PENDING
+        requests_seen.add(label.pickup_request_id)
+
+    # Auto-progression demandes parentes / Auto-progress parent requests
+    for label in labels:
+        if label.pickup_request_id in requests_seen:
+            _auto_progress_request(label.pickup_request)
+            requests_seen.discard(label.pickup_request_id)
+
+    await db.flush()
+
+    # Broadcast WebSocket alert
+    await manager.broadcast({
+        "type": "alert",
+        "alert_type": "PICKUP_REFUSED",
+        "tour_id": tour_id,
+        "stop_id": stop_id,
+        "message": data.reason,
+    })
+
+    return {"status": "ok", "refused": len(labels)}

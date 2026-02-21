@@ -6,6 +6,9 @@ Login, refresh token, profil utilisateur.
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+
+from app.config import settings
+from app.rate_limit import limiter
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,7 +32,8 @@ def _client_ip(request: Request) -> str:
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(data: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
+@limiter.limit(settings.RATE_LIMIT_LOGIN)
+async def login(request: Request, data: LoginRequest, db: AsyncSession = Depends(get_db)):
     """Connexion par identifiants / Login with credentials."""
     result = await db.execute(select(User).where(User.username == data.username))
     user = result.scalar_one_or_none()

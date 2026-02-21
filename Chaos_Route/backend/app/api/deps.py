@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.device_assignment import DeviceAssignment
 from app.models.mobile_device import MobileDevice
 from app.models.user import User
 from app.utils.auth import decode_token
@@ -79,6 +80,23 @@ async def get_authenticated_device(
     if not device.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Device deactivated")
 
+    return device
+
+
+async def require_device_tour_access(
+    tour_id: int,
+    device: MobileDevice = Depends(get_authenticated_device),
+    db: AsyncSession = Depends(get_db),
+) -> MobileDevice:
+    """Vérifier que l'appareil est assigné au tour / Verify device is assigned to the tour."""
+    result = await db.execute(
+        select(DeviceAssignment).where(
+            DeviceAssignment.tour_id == tour_id,
+            DeviceAssignment.device_id == device.id,
+        ).limit(1)
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=403, detail="Device not assigned to this tour")
     return device
 
 

@@ -1,6 +1,6 @@
 """Schemas mobile / Mobile schemas — devices, assignments, GPS, stops, alerts."""
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ─── MobileDevice ───
@@ -27,8 +27,8 @@ class MobileDeviceRead(BaseModel):
 
 class DeviceRegistration(BaseModel):
     """Enregistrement mobile via QR / Mobile registration via QR code."""
-    registration_code: str
-    device_identifier: str
+    registration_code: str = Field(max_length=36, pattern=r"^[A-Z0-9]{6,12}$")
+    device_identifier: str = Field(max_length=100, pattern=r"^[0-9a-fA-F\-]{36}$")
 
 
 # ─── DeviceAssignment ───
@@ -54,16 +54,16 @@ class DeviceAssignmentRead(BaseModel):
 # ─── GPS ───
 
 class GPSPositionCreate(BaseModel):
-    latitude: float
-    longitude: float
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
     accuracy: float | None = None
     speed: float | None = None
-    timestamp: str  # ISO 8601
+    timestamp: str = Field(max_length=30)
 
 class GPSBatchCreate(BaseModel):
     """Batch de positions GPS / GPS position batch."""
     tour_id: int
-    positions: list[GPSPositionCreate]
+    positions: list[GPSPositionCreate] = Field(max_length=100)
 
 class GPSPositionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -81,20 +81,20 @@ class GPSPositionRead(BaseModel):
 
 class StopEventCreate(BaseModel):
     """Scan PDV a l'arrivee / PDV scan on arrival."""
-    scanned_pdv_code: str
-    latitude: float | None = None
-    longitude: float | None = None
+    scanned_pdv_code: str = Field(min_length=1, max_length=20, pattern=r"^[A-Za-z0-9_\-]+$")
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
     accuracy: float | None = None
-    timestamp: str
-    notes: str | None = None
+    timestamp: str = Field(max_length=30)
+    notes: str | None = Field(default=None, max_length=500)
 
 class StopClosureCreate(BaseModel):
     """Cloture d'un stop / Stop closure."""
-    latitude: float | None = None
-    longitude: float | None = None
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
     accuracy: float | None = None
-    timestamp: str
-    notes: str | None = None
+    timestamp: str = Field(max_length=30)
+    notes: str | None = Field(default=None, max_length=500)
     force: bool = False
 
 
@@ -102,10 +102,10 @@ class StopClosureCreate(BaseModel):
 
 class SupportScanCreate(BaseModel):
     """Scan d'un support (code barre 1D) / Support barcode scan."""
-    barcode: str
-    latitude: float | None = None
-    longitude: float | None = None
-    timestamp: str
+    barcode: str = Field(min_length=1, max_length=50, pattern=r"^[A-Za-z0-9\-_]+$")
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    timestamp: str = Field(max_length=30)
 
 class SupportScanRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -114,6 +114,22 @@ class SupportScanRead(BaseModel):
     barcode: str
     timestamp: str
     expected_at_stop: bool = True
+
+
+# ─── Pickup Summary ───
+
+class PickupSummaryItem(BaseModel):
+    """Resume reprise par type de support / Pickup summary per support type."""
+    support_type_code: str
+    support_type_name: str
+    total_labels: int
+    pending_labels: int
+
+
+class PickupRefusalCreate(BaseModel):
+    """Refus de reprise par le chauffeur / Pickup refusal by driver."""
+    reason: str = Field(default="Refuse par le chauffeur", max_length=500)
+    timestamp: str = Field(max_length=30)
 
 
 # ─── Driver Tour views ───
@@ -139,6 +155,7 @@ class DriverTourStopRead(BaseModel):
     pickup_returns: bool = False
     scanned_supports_count: int = 0
     pending_pickup_labels_count: int = 0
+    pickup_summary: list[PickupSummaryItem] = []
 
 class DriverTourRead(BaseModel):
     """Vue tour complete pour le chauffeur / Full driver tour view."""
@@ -198,9 +215,9 @@ class AlertAcknowledge(BaseModel):
 # ─── ReturnToBase ───
 
 class ReturnToBaseCreate(BaseModel):
-    latitude: float | None = None
-    longitude: float | None = None
-    timestamp: str
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    timestamp: str = Field(max_length=30)
 
 
 # ─── DriverPosition (tracking dashboard) ───

@@ -3,13 +3,13 @@ Schémas d'authentification / Authentication schemas.
 Login, tokens, refresh.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class LoginRequest(BaseModel):
     """Requête de connexion / Login request."""
-    username: str
-    password: str
+    username: str = Field(min_length=1, max_length=100)
+    password: str = Field(min_length=1, max_length=200)
 
 
 class TokenResponse(BaseModel):
