@@ -1,7 +1,7 @@
 /* Configuration de l'app mobile / Mobile app configuration */
 
 // URL du serveur API (a changer en production) / API server URL (change for production)
-export const API_BASE_URL = 'http://76.13.58.182/api'
+export const API_BASE_URL = 'https://chaosroute.chaosmanager.tech/api'
 
 // Intervalles GPS / GPS intervals
 export const GPS_INTERVAL_MS = 180_000  // 3 minutes

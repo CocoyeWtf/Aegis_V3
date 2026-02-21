@@ -9,3 +9,8 @@ chaosroute.chaosmanager.tech {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     }
 }
+
+# Acces IP direct pour l'app mobile (API_BASE_URL=http://76.13.58.182/api)
+http://76.13.58.182 {
+    reverse_proxy app:8000
+}
