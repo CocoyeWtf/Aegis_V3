@@ -1,14 +1,11 @@
 /* Layout racine — Device gate + navigation / Root layout
 
-Au demarrage :
-1. Gate device : l'appareil doit etre enregistre
-2. OTA check en arriere-plan (non-bloquant)
+Au demarrage : gate device — l'appareil doit etre enregistre.
 */
 
 import { useEffect } from 'react'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
-import * as Updates from 'expo-updates'
 import { useDeviceStore } from '../stores/useDeviceStore'
 import { COLORS } from '../constants/config'
 
@@ -16,20 +13,6 @@ export default function RootLayout() {
   const router = useRouter()
   const segments = useSegments()
   const { isRegistered, isLoading, loadDevice } = useDeviceStore()
-
-  // OTA check en arriere-plan (non-bloquant) / Background OTA check (non-blocking)
-  useEffect(() => {
-    if (__DEV__) return
-    Updates.checkForUpdateAsync()
-      .then((update) => {
-        if (update.isAvailable) {
-          Updates.fetchUpdateAsync()
-            .then(() => Updates.reloadAsync())
-            .catch(() => {})
-        }
-      })
-      .catch(() => {})
-  }, [])
 
   useEffect(() => {
     loadDevice()
