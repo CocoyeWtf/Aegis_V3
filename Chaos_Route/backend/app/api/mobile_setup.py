@@ -18,7 +18,10 @@ APK_DIR = Path(__file__).resolve().parent.parent.parent / "apk"
 @router.get("/app/setup/{registration_code}", response_class=HTMLResponse)
 async def mobile_setup_page(registration_code: str, request: Request):
     """Page d'installation et enregistrement / Install and registration page."""
-    base_url = str(request.base_url).rstrip("/")
+    # Utiliser le scheme du header X-Forwarded-Proto (Caddy) sinon request.url.scheme
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("host", request.base_url.hostname or "")
+    base_url = f"{scheme}://{host}"
     apk_exists = (APK_DIR / "cmro-driver.apk").is_file()
     apk_url = f"{base_url}/app/download/cmro-driver.apk" if apk_exists else ""
 
@@ -84,7 +87,7 @@ async def mobile_setup_page(registration_code: str, request: Request):
             <div class="step-desc">Telecharger et installer l'app CMRO Driver sur ce telephone.</div>
         </div>
 
-        {'<a href="' + apk_url + '" class="btn btn-primary">Telecharger CMRO Driver</a>' if apk_exists else '<div class="no-apk">APK non disponible — contactez votre administrateur</div>'}
+        {'<a href="' + apk_url + '" class="btn btn-primary" download="cmro-driver.apk">Telecharger CMRO Driver</a>' if apk_exists else '<div class="no-apk">APK non disponible — contactez votre administrateur</div>'}
 
         <div class="step">
             <span class="step-num">2</span>
