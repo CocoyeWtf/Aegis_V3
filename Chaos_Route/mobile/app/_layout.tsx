@@ -1,9 +1,7 @@
-/* Layout racine — Device gate + navigation / Root layout
-
-Au demarrage : gate device — l'appareil doit etre enregistre.
-*/
+/* Layout racine — Device gate + navigation / Root layout */
 
 import { useEffect } from 'react'
+import { View, Text } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useDeviceStore } from '../stores/useDeviceStore'
@@ -24,24 +22,20 @@ export default function RootLayout() {
     const inRegister = segments[0] === 'register'
     const inLogin = segments[0] === 'login'
 
-    // Appareil non enregistre → ecran register
     if (!isRegistered && !inRegister) {
       router.replace('/register')
-      return
-    }
-
-    // Appareil enregistre + sur register → aller aux tabs
-    if (isRegistered && inRegister) {
+    } else if (isRegistered && inRegister) {
       router.replace('/(tabs)')
-      return
-    }
-
-    // Apres login reussi → retour aux tabs
-    if (isRegistered && inLogin) {
-      // login.tsx gere la redirection apres connexion
-      return
     }
   }, [isRegistered, isLoading, segments, router])
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: COLORS.bgPrimary, justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ color: COLORS.primary, fontSize: 20, fontWeight: 'bold' }}>Chargement...</Text>
+      </View>
+    )
+  }
 
   return (
     <>
