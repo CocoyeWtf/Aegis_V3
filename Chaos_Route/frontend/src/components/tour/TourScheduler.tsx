@@ -380,7 +380,7 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
       <div className="mt-1 mb-2 space-y-0.5">
         {sortedStops.map((stop, idx) => {
           const pdv = pdvMap.get(stop.pdv_id)
-          const hasPickup = stop.pickup_cardboard || stop.pickup_containers || stop.pickup_returns
+          const hasPickup = stop.pickup_cardboard || stop.pickup_containers || stop.pickup_returns || stop.pickup_consignment
           /* Dispatch info des volumes liés au stop / Dispatch info from volumes linked to this stop */
           const stopVolumes = allVolumes.filter((v) => v.tour_id === tour.id && v.pdv_id === stop.pdv_id)
           const dispatchInfo = stopVolumes.find((v) => v.dispatch_date)
@@ -414,6 +414,11 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
                   {stop.pickup_returns && (
                     <span className="px-1 rounded text-[10px] font-semibold" style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: 'var(--color-danger)' }}>
                       {t('tourPlanning.pickupReturns')}
+                    </span>
+                  )}
+                  {stop.pickup_consignment && (
+                    <span className="px-1 rounded text-[10px] font-semibold" style={{ backgroundColor: 'rgba(168,85,247,0.15)', color: '#a855f7' }}>
+                      Consignes
                     </span>
                   )}
                 </span>

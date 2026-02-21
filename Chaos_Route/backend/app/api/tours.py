@@ -21,11 +21,19 @@ from app.models.tour_stop import TourStop
 from app.models.volume import Volume
 from app.models.base_logistics import BaseLogistics
 from app.models.user import User
-from app.models.pickup_request import PickupRequest, PickupLabel, PickupStatus, LabelStatus
+from app.models.pickup_request import PickupRequest, PickupLabel, PickupStatus, PickupType, LabelStatus
 from app.schemas.tour import TourCreate, TourGateUpdate, TourOperationsUpdate, TourRead, TourSchedule, TourUpdate
 from app.api.deps import require_permission, get_user_region_ids
 
 router = APIRouter()
+
+# -- Mapping checkbox TourStop → PickupType / TourStop checkbox → PickupType mapping --
+PICKUP_FLAG_TO_TYPE: dict[str, PickupType] = {
+    "pickup_containers": PickupType.CONTAINER,
+    "pickup_cardboard": PickupType.CARDBOARD,
+    "pickup_returns": PickupType.MERCHANDISE,
+    "pickup_consignment": PickupType.CONSIGNMENT,
+}
 
 # -- Constantes par défaut / Default constants --
 DEFAULT_DOCK_TIME_MINUTES = 15
@@ -691,6 +699,7 @@ async def transporter_summary(
                     "pickup_cardboard": getattr(s, "pickup_cardboard", False),
                     "pickup_containers": getattr(s, "pickup_containers", False),
                     "pickup_returns": getattr(s, "pickup_returns", False),
+                    "pickup_consignment": getattr(s, "pickup_consignment", False),
                 }
                 for s in sorted_stops
             ],
@@ -917,6 +926,7 @@ async def create_tour(
             "pickup_cardboard": s.pickup_cardboard,
             "pickup_containers": s.pickup_containers,
             "pickup_returns": s.pickup_returns,
+            "pickup_consignment": s.pickup_consignment,
         }
         for s in data.stops
     ]
@@ -995,6 +1005,7 @@ async def create_tour(
             pickup_cardboard=original.get("pickup_cardboard", False),
             pickup_containers=original.get("pickup_containers", False),
             pickup_returns=original.get("pickup_returns", False),
+            pickup_consignment=original.get("pickup_consignment", False),
         )
         db.add(stop)
         pdv_ids.append(stop_data["pdv_id"])
@@ -1238,6 +1249,48 @@ async def unschedule_tour(
 
 
 # =========================================================================
+# Auto-liaison reprises / Pickup auto-linking helper
+# =========================================================================
+
+async def _auto_link_pickup_labels(tour: Tour, db: AsyncSession) -> int:
+    """Lier les étiquettes PENDING aux stops qui ont un flag reprise /
+    Auto-link PENDING pickup labels to tour stops that have a pickup flag enabled.
+    Returns the number of labels linked.
+    """
+    linked = 0
+    for stop in tour.stops:
+        for flag_name, ptype in PICKUP_FLAG_TO_TYPE.items():
+            if not getattr(stop, flag_name, False):
+                continue
+            label_result = await db.execute(
+                select(PickupLabel).join(PickupRequest).where(
+                    PickupRequest.pdv_id == stop.pdv_id,
+                    PickupRequest.pickup_type == ptype,
+                    PickupLabel.status == LabelStatus.PENDING,
+                    PickupLabel.tour_stop_id.is_(None),
+                )
+            )
+            labels = label_result.scalars().all()
+            for label in labels:
+                label.tour_stop_id = stop.id
+                label.status = LabelStatus.PLANNED
+                linked += 1
+            if labels:
+                req_ids = list({lb.pickup_request_id for lb in labels})
+                for rid in req_ids:
+                    req_result = await db.execute(
+                        select(PickupRequest)
+                        .where(PickupRequest.id == rid)
+                        .options(selectinload(PickupRequest.labels))
+                    )
+                    req = req_result.scalar_one_or_none()
+                    if req:
+                        from app.api.pickup_requests import _auto_progress_request
+                        _auto_progress_request(req)
+    return linked
+
+
+# =========================================================================
 # Validation endpoints / Endpoints de validation
 # =========================================================================
 
@@ -1258,37 +1311,8 @@ async def validate_tour(
         raise HTTPException(status_code=422, detail="Seuls les tours DRAFT peuvent etre valides")
     tour.status = TourStatus.VALIDATED
 
-    # Auto-link pickup labels aux tour_stops avec pickup_containers / Auto-link pickup labels to stops with pickup_containers
-    for stop in tour.stops:
-        if not stop.pickup_containers:
-            continue
-        # Etiquettes PENDING pour ce PDV / PENDING labels for this PDV
-        label_result = await db.execute(
-            select(PickupLabel)
-            .join(PickupRequest)
-            .where(
-                PickupRequest.pdv_id == stop.pdv_id,
-                PickupLabel.status.in_([LabelStatus.PENDING]),
-                PickupLabel.tour_stop_id.is_(None),
-            )
-        )
-        labels = label_result.scalars().all()
-        for label in labels:
-            label.tour_stop_id = stop.id
-            label.status = LabelStatus.PLANNED
-        # Auto-progress parent requests / Auto-progression demandes parent
-        if labels:
-            req_ids = list({lb.pickup_request_id for lb in labels})
-            for rid in req_ids:
-                req_result = await db.execute(
-                    select(PickupRequest)
-                    .where(PickupRequest.id == rid)
-                    .options(selectinload(PickupRequest.labels))
-                )
-                req = req_result.scalar_one_or_none()
-                if req:
-                    from app.api.pickup_requests import _auto_progress_request
-                    _auto_progress_request(req)
+    # Auto-link pickup labels aux tour_stops (tous types) / Auto-link pickup labels to stops (all types)
+    await _auto_link_pickup_labels(tour, db)
 
     await _log_audit(db, "tour", tour.id, "VALIDATE", user, {"old_status": "DRAFT", "new_status": "VALIDATED"})
     await db.flush()
@@ -1341,12 +1365,13 @@ async def validate_batch(
             Tour.base_id == base_id,
             Tour.status == TourStatus.DRAFT,
             Tour.departure_time.isnot(None),
-        )
+        ).options(selectinload(Tour.stops))
     )
     tours_to_validate = result.scalars().all()
     count = 0
     for tour in tours_to_validate:
         tour.status = TourStatus.VALIDATED
+        await _auto_link_pickup_labels(tour, db)
         await _log_audit(db, "tour", tour.id, "VALIDATE", user, {"old_status": "DRAFT", "new_status": "VALIDATED"})
         count += 1
     await db.flush()
@@ -1466,6 +1491,7 @@ async def get_tour_waybill(
             "pickup_cardboard": getattr(stop, "pickup_cardboard", False),
             "pickup_containers": getattr(stop, "pickup_containers", False),
             "pickup_returns": getattr(stop, "pickup_returns", False),
+            "pickup_consignment": getattr(stop, "pickup_consignment", False),
         })
 
     # Dispatch info : prendre le premier volume avec dispatch_date / First volume with dispatch info

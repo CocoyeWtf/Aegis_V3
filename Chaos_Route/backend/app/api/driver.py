@@ -83,6 +83,7 @@ def _build_tour_stops(
             pickup_cardboard=s.pickup_cardboard,
             pickup_containers=s.pickup_containers,
             pickup_returns=s.pickup_returns,
+            pickup_consignment=getattr(s, "pickup_consignment", False),
             scanned_supports_count=counts.get(s.id, 0),
             pending_pickup_labels_count=plcounts.get(s.id, 0),
             pickup_summary=ps_map.get(s.id, []),
@@ -676,7 +677,10 @@ async def list_tour_pickups(
     if not tour:
         raise HTTPException(status_code=404, detail="Tour not found")
 
-    stop_ids = [s.id for s in tour.stops if s.pickup_containers]
+    stop_ids = [
+        s.id for s in tour.stops
+        if s.pickup_containers or s.pickup_cardboard or s.pickup_returns or getattr(s, "pickup_consignment", False)
+    ]
     if not stop_ids:
         return []
 

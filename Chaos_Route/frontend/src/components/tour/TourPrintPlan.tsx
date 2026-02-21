@@ -33,6 +33,7 @@ interface StopDetail {
   pickupCardboard: boolean
   pickupContainers: boolean
   pickupReturns: boolean
+  pickupConsignment: boolean
 }
 
 interface TourDetail {
@@ -110,6 +111,7 @@ function computeTourDetails(
           pickupCardboard: !!stop.pickup_cardboard,
           pickupContainers: !!stop.pickup_containers,
           pickupReturns: !!stop.pickup_returns,
+          pickupConsignment: !!stop.pickup_consignment,
         })
 
         prevType = 'PDV'
@@ -167,6 +169,7 @@ function exportToExcel(tourDetails: TourDetail[], date: string, t: (key: string)
         [t('tourPlanning.pickupCardboard')]: stop.pickupCardboard ? '✓' : '',
         [t('tourPlanning.pickupContainers')]: stop.pickupContainers ? '✓' : '',
         [t('tourPlanning.pickupReturns')]: stop.pickupReturns ? '✓' : '',
+        'Consignes': stop.pickupConsignment ? '✓' : '',
         [`${t('tourPlanning.printPlan.travel')} (min)`]: stop.travelMinutes,
         [`${t('tourPlanning.printPlan.travel')} (km)`]: stop.distanceKm,
         [t('tourPlanning.arrivalAt')]: stop.arrivalTime,
@@ -396,6 +399,7 @@ export function TourPrintPlan({ tours, pdvs, contracts, bases, distances, volume
                           stop.pickupCardboard && t('tourPlanning.pickupCardboard'),
                           stop.pickupContainers && t('tourPlanning.pickupContainers'),
                           stop.pickupReturns && t('tourPlanning.pickupReturns'),
+                          stop.pickupConsignment && 'Consignes',
                         ].filter(Boolean).join(', ')}
                       </td>
                       <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-muted)' }}>

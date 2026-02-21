@@ -172,6 +172,7 @@ export function TourWaybill({ tourId, onClose }: TourWaybillProps) {
                         stop.pickup_cardboard && t('tourPlanning.pickupCardboard'),
                         stop.pickup_containers && t('tourPlanning.pickupContainers'),
                         stop.pickup_returns && t('tourPlanning.pickupReturns'),
+                        stop.pickup_consignment && 'Consignes',
                       ].filter(Boolean).join(', ')}
                     </td>
                   </tr>

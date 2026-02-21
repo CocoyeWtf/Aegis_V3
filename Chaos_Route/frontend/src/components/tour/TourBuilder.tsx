@@ -255,6 +255,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
           pickup_cardboard: s.pickup_cardboard ?? false,
           pickup_containers: s.pickup_containers ?? false,
           pickup_returns: s.pickup_returns ?? false,
+          pickup_consignment: s.pickup_consignment ?? false,
         })) as TourStop[],
       })
       resetTour()

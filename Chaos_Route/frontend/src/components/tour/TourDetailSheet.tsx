@@ -15,6 +15,7 @@ interface TourStop {
   pickup_cardboard?: boolean
   pickup_containers?: boolean
   pickup_returns?: boolean
+  pickup_consignment?: boolean
 }
 
 interface CostBreakdown {
@@ -223,6 +224,7 @@ export function TourDetailSheet({ tour, onClose }: TourDetailSheetProps) {
                         stop.pickup_cardboard && 'C',
                         stop.pickup_containers && 'B',
                         stop.pickup_returns && 'R',
+                        stop.pickup_consignment && 'K',
                       ].filter(Boolean).join('/') || '—'}
                     </td>
                     <td className="py-1.5 text-right" style={{ color: 'var(--text-primary)' }}>

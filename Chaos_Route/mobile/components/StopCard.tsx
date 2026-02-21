@@ -32,6 +32,7 @@ export function StopCard({ stop, onScanPdv, onScanSupports, onScanPickups, onClo
     stop.pickup_cardboard && 'Cartons',
     stop.pickup_containers && 'Bacs',
     stop.pickup_returns && 'Retours',
+    stop.pickup_consignment && 'Consignes',
   ].filter(Boolean).join(', ')
 
   const hasSummary = stop.pickup_summary && stop.pickup_summary.length > 0

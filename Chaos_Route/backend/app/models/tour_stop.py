@@ -21,6 +21,7 @@ class TourStop(Base):
     pickup_cardboard: Mapped[bool] = mapped_column(Boolean, default=False)
     pickup_containers: Mapped[bool] = mapped_column(Boolean, default=False)
     pickup_returns: Mapped[bool] = mapped_column(Boolean, default=False)
+    pickup_consignment: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Champs suivi livraison mobile / Mobile delivery tracking fields
     delivery_status: Mapped[str | None] = mapped_column(String(20))  # PENDING | ARRIVED | DELIVERED | SKIPPED

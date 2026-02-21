@@ -11,11 +11,12 @@ interface DriverRouteSheetProps {
 }
 
 /* Construire libellé reprises / Build pickup label */
-function pickupLabel(stop: { pickup_cardboard?: boolean; pickup_containers?: boolean; pickup_returns?: boolean }): string {
+function pickupLabel(stop: { pickup_cardboard?: boolean; pickup_containers?: boolean; pickup_returns?: boolean; pickup_consignment?: boolean }): string {
   const parts: string[] = []
   if (stop.pickup_cardboard) parts.push('C')
   if (stop.pickup_containers) parts.push('B')
   if (stop.pickup_returns) parts.push('R')
+  if (stop.pickup_consignment) parts.push('K')
   return parts.join('+')
 }
 

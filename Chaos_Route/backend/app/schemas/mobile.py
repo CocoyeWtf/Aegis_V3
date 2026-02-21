@@ -153,6 +153,7 @@ class DriverTourStopRead(BaseModel):
     pickup_cardboard: bool = False
     pickup_containers: bool = False
     pickup_returns: bool = False
+    pickup_consignment: bool = False
     scanned_supports_count: int = 0
     pending_pickup_labels_count: int = 0
     pickup_summary: list[PickupSummaryItem] = []

@@ -13,6 +13,7 @@ class PickupType(str, enum.Enum):
     CONTAINER = "CONTAINER"
     MERCHANDISE = "MERCHANDISE"
     CARDBOARD = "CARDBOARD"
+    CONSIGNMENT = "CONSIGNMENT"  # Consignes bieres / Beer consignment
 
 
 class PickupStatus(str, enum.Enum):

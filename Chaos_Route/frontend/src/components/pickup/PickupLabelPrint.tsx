@@ -2,13 +2,21 @@
 
 import { useEffect, useRef } from 'react'
 import JsBarcode from 'jsbarcode'
-import type { PickupLabel } from '../../types'
+import type { PickupLabel, PickupTypeEnum } from '../../types'
+
+const PICKUP_LABEL_HEADERS: Record<string, string> = {
+  CONTAINER: 'REPRISE CONTENANTS',
+  CARDBOARD: 'REPRISE CARTONS',
+  MERCHANDISE: 'RETOUR MARCHANDISE',
+  CONSIGNMENT: 'REPRISE CONSIGNES',
+}
 
 interface PickupLabelPrintProps {
   labels: PickupLabel[]
   pdvCode: string
   pdvName: string
   supportTypeName: string
+  pickupType?: PickupTypeEnum
   onClose: () => void
 }
 
@@ -17,12 +25,14 @@ function BarcodeLabel({
   pdvCode,
   pdvName,
   supportTypeName,
+  pickupType,
   total,
 }: {
   label: PickupLabel
   pdvCode: string
   pdvName: string
   supportTypeName: string
+  pickupType?: PickupTypeEnum
   total: number
 }) {
   const svgRef = useRef<SVGSVGElement>(null)
@@ -51,7 +61,7 @@ function BarcodeLabel({
       gap: '4px',
     }}>
       <div style={{ fontWeight: 'bold', fontSize: '11px', textAlign: 'center' }}>
-        REPRISE CONTENANTS
+        {PICKUP_LABEL_HEADERS[pickupType || 'CONTAINER'] || 'REPRISE CONTENANTS'}
       </div>
       <svg ref={svgRef} />
       <div style={{ fontSize: '10px', fontFamily: 'monospace', textAlign: 'center' }}>
@@ -67,7 +77,7 @@ function BarcodeLabel({
   )
 }
 
-export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, onClose }: PickupLabelPrintProps) {
+export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pickupType, onClose }: PickupLabelPrintProps) {
   const handlePrint = () => {
     window.print()
   }
@@ -105,6 +115,7 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, on
             pdvCode={pdvCode}
             pdvName={pdvName}
             supportTypeName={supportTypeName}
+            pickupType={pickupType}
             total={labels.length}
           />
         ))}

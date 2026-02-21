@@ -25,6 +25,7 @@ export interface DriverTourStop {
   pickup_cardboard: boolean
   pickup_containers: boolean
   pickup_returns: boolean
+  pickup_consignment: boolean
   scanned_supports_count?: number
   pending_pickup_labels_count?: number
   pickup_summary?: PickupSummaryItem[]

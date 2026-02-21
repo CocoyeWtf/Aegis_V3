@@ -67,7 +67,15 @@ async def _migrate_missing_columns():
             for col in table.columns:
                 if col.name not in existing_cols:
                     col_type = col.type.compile(dialect=engine.dialect)
-                    default = "DEFAULT 0" if str(col_type) == "BOOLEAN" else ""
+                    col_type_str = str(col_type)
+                    if col_type_str == "BOOLEAN":
+                        default = "DEFAULT 0"
+                    elif col_type_str.startswith("VARCHAR") or col_type_str == "TEXT":
+                        default = "DEFAULT ''"
+                    elif col_type_str == "INTEGER":
+                        default = "DEFAULT 0"
+                    else:
+                        default = ""
                     await conn.execute(text(
                         f"ALTER TABLE {table.name} ADD COLUMN {col.name} {col_type} {default}"
                     ))

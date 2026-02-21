@@ -5,7 +5,21 @@ import { useApi } from '../hooks/useApi'
 import { useAuthStore } from '../stores/useAuthStore'
 import api from '../services/api'
 import { PickupLabelPrint } from '../components/pickup/PickupLabelPrint'
-import type { PickupRequest, SupportType, PDV } from '../types'
+import type { PickupRequest, PickupTypeEnum, SupportType, PDV } from '../types'
+
+const PICKUP_TYPE_OPTIONS: { value: PickupTypeEnum; label: string }[] = [
+  { value: 'CONTAINER', label: 'Contenants' },
+  { value: 'CARDBOARD', label: 'Balles carton' },
+  { value: 'MERCHANDISE', label: 'Retour marchandise' },
+  { value: 'CONSIGNMENT', label: 'Consignes bieres' },
+]
+
+const PICKUP_TYPE_LABELS: Record<string, string> = {
+  CONTAINER: 'Contenants',
+  CARDBOARD: 'Balles carton',
+  MERCHANDISE: 'Retour marchandise',
+  CONSIGNMENT: 'Consignes bieres',
+}
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   REQUESTED: { bg: '#6b7280', text: '#fff' },
@@ -40,6 +54,7 @@ export default function PdvPickupRequests() {
     d.setDate(d.getDate() + 1)
     return d.toISOString().split('T')[0]
   })
+  const [pickupType, setPickupType] = useState<PickupTypeEnum>('CONTAINER')
   const [notes, setNotes] = useState<string>('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -58,7 +73,7 @@ export default function PdvPickupRequests() {
         support_type_id: Number(supportTypeId),
         quantity,
         availability_date: availabilityDate,
-        pickup_type: 'CONTAINER',
+        pickup_type: pickupType,
         notes: notes || null,
       })
       setNotes('')
@@ -72,7 +87,7 @@ export default function PdvPickupRequests() {
     } finally {
       setSubmitting(false)
     }
-  }, [isPdvUser, user, pdvId, supportTypeId, quantity, availabilityDate, notes, refetch])
+  }, [isPdvUser, user, pdvId, supportTypeId, quantity, availabilityDate, pickupType, notes, refetch])
 
   const handlePrint = useCallback(async (req: PickupRequest) => {
     // Charger le detail avec labels
@@ -89,6 +104,7 @@ export default function PdvPickupRequests() {
           pdvCode={printRequest.pdv?.code || ''}
           pdvName={printRequest.pdv?.name || ''}
           supportTypeName={printRequest.support_type?.name || ''}
+          pickupType={printRequest.pickup_type}
           onClose={() => setPrintRequest(null)}
         />
       </div>
@@ -138,6 +154,27 @@ export default function PdvPickupRequests() {
               </select>
             </div>
           )}
+
+          {/* Type de reprise */}
+          <div>
+            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+              Type de reprise
+            </label>
+            <select
+              value={pickupType}
+              onChange={(e) => setPickupType(e.target.value as PickupTypeEnum)}
+              className="w-full px-3 py-2 rounded-lg border text-sm"
+              style={{
+                backgroundColor: 'var(--bg-tertiary)',
+                borderColor: 'var(--border-color)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              {PICKUP_TYPE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
 
           {/* Type de support */}
           <div>
@@ -244,7 +281,8 @@ export default function PdvPickupRequests() {
           <thead>
             <tr style={{ backgroundColor: 'var(--bg-tertiary)' }}>
               <th className="text-left px-4 py-3 font-medium" style={{ color: 'var(--text-muted)' }}>PDV</th>
-              <th className="text-left px-4 py-3 font-medium" style={{ color: 'var(--text-muted)' }}>Type</th>
+              <th className="text-left px-4 py-3 font-medium" style={{ color: 'var(--text-muted)' }}>Reprise</th>
+              <th className="text-left px-4 py-3 font-medium" style={{ color: 'var(--text-muted)' }}>Support</th>
               <th className="text-center px-4 py-3 font-medium" style={{ color: 'var(--text-muted)' }}>Qte</th>
               <th className="text-left px-4 py-3 font-medium" style={{ color: 'var(--text-muted)' }}>Date dispo</th>
               <th className="text-center px-4 py-3 font-medium" style={{ color: 'var(--text-muted)' }}>Statut</th>
@@ -255,7 +293,7 @@ export default function PdvPickupRequests() {
           <tbody>
             {requests.length === 0 && (
               <tr>
-                <td colSpan={7} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
+                <td colSpan={8} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
                   Aucune demande
                 </td>
               </tr>
@@ -270,6 +308,9 @@ export default function PdvPickupRequests() {
                 >
                   <td className="px-4 py-3" style={{ color: 'var(--text-primary)' }}>
                     {req.pdv ? `${req.pdv.code} - ${req.pdv.name}` : req.pdv_id}
+                  </td>
+                  <td className="px-4 py-3" style={{ color: 'var(--text-primary)' }}>
+                    {PICKUP_TYPE_LABELS[req.pickup_type] || req.pickup_type}
                   </td>
                   <td className="px-4 py-3" style={{ color: 'var(--text-primary)' }}>
                     {req.support_type?.name || req.support_type_id}

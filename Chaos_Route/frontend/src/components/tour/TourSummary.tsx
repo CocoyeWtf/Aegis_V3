@@ -149,6 +149,15 @@ function SortableStopRow({
             />
             {t('tourPlanning.pickupReturns')}
           </label>
+          <label className="flex items-center gap-1 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!!stop.pickup_consignment}
+              onChange={() => onUpdate(stop.pdv_id, { pickup_consignment: !stop.pickup_consignment })}
+              className="accent-[var(--color-primary)] w-3.5 h-3.5"
+            />
+            Consignes
+          </label>
         </div>
       )}
 

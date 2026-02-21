@@ -17,6 +17,7 @@ class TourStopBase(BaseModel):
     pickup_cardboard: bool = False
     pickup_containers: bool = False
     pickup_returns: bool = False
+    pickup_consignment: bool = False
 
 
 class TourStopCreate(TourStopBase):

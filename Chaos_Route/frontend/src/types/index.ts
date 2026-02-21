@@ -112,6 +112,7 @@ export interface TourStop {
   pickup_cardboard?: boolean
   pickup_containers?: boolean
   pickup_returns?: boolean
+  pickup_consignment?: boolean
   delivery_status?: string
   actual_arrival_time?: string
   actual_departure_time?: string
@@ -178,6 +179,7 @@ export interface WaybillStop {
   pickup_cardboard: boolean
   pickup_containers: boolean
   pickup_returns: boolean
+  pickup_consignment: boolean
 }
 
 export interface WaybillData {
@@ -415,7 +417,7 @@ export interface SupportType {
   is_active: boolean
 }
 
-export type PickupTypeEnum = 'CONTAINER' | 'MERCHANDISE' | 'CARDBOARD'
+export type PickupTypeEnum = 'CONTAINER' | 'MERCHANDISE' | 'CARDBOARD' | 'CONSIGNMENT'
 export type PickupStatusEnum = 'REQUESTED' | 'PLANNED' | 'PICKED_UP' | 'RECEIVED'
 export type LabelStatusEnum = 'PENDING' | 'PLANNED' | 'PICKED_UP' | 'RECEIVED'
 
