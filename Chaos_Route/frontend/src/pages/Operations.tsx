@@ -578,7 +578,16 @@ function TourRow({
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{isExpanded ? '▾' : '▸'}</span>
         <span className="font-bold" style={{ color: 'var(--color-primary)' }}>{tour.code}</span>
         {tour.device_assignment_id ? (
-          <span className="text-[9px] px-1 py-0.5 rounded font-bold" style={{ backgroundColor: '#3b82f622', color: '#3b82f6' }}>TEL</span>
+          (tour.status === 'DRAFT' || tour.status === 'VALIDATED') ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); onUnassignDevice() }}
+              className="text-[9px] px-1 py-0.5 rounded font-bold cursor-pointer border-0 transition-all hover:opacity-70"
+              style={{ backgroundColor: '#3b82f622', color: '#3b82f6' }}
+              title="Cliquer pour desaffecter le telephone"
+            >TEL ✕</button>
+          ) : (
+            <span className="text-[9px] px-1 py-0.5 rounded font-bold" style={{ backgroundColor: '#3b82f622', color: '#3b82f6' }}>TEL</span>
+          )
         ) : null}
       </span>
     ),

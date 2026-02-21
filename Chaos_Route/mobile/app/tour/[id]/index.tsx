@@ -3,11 +3,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native'
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router'
-import api from '../../services/api'
-import { StopCard } from '../../components/StopCard'
-import { COLORS, STATUS_COLORS } from '../../constants/config'
-import { startGPSTracking, stopGPSTracking } from '../../services/gps'
-import type { DriverTour } from '../../types'
+import api from '../../../services/api'
+import { StopCard } from '../../../components/StopCard'
+import { COLORS, STATUS_COLORS } from '../../../constants/config'
+import { startGPSTracking, stopGPSTracking } from '../../../services/gps'
+import type { DriverTour } from '../../../types'
 
 export default function TourDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
