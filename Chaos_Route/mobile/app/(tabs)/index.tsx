@@ -66,11 +66,14 @@ export default function TourListScreen() {
     if (assigning) return
     setAssigning(true)
     try {
-      await api.post('/driver/assign-tour', { tour_id: tourId })
+      const { data: assigned } = await api.post('/driver/assign-tour', { tour_id: tourId })
       await loadTours()
       await loadAvailable()
       setShowScanner(false)
       scannedRef.current = false
+      Alert.alert('Tour affecte', `${assigned.code} — ${assigned.stops?.length ?? 0} arrets`, [
+        { text: 'OK' },
+      ])
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur affectation'
       Alert.alert('Erreur', msg, [
@@ -99,16 +102,9 @@ export default function TourListScreen() {
     doAssign(Number(match[1]))
   }, [assigning, doAssign])
 
-  /* Affecter depuis la liste / Assign from available list */
+  /* Affecter depuis la liste (sans confirmation) / Assign from available list (no confirmation) */
   const handleTapAssign = useCallback((tour: AvailableTour) => {
-    Alert.alert(
-      'Affecter ce tour ?',
-      `${tour.code} — ${tour.stops_count} arrets${tour.departure_time ? ` · Depart ${tour.departure_time}` : ''}`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Affecter', onPress: () => doAssign(tour.id) },
-      ],
-    )
+    doAssign(tour.id)
   }, [doAssign])
 
   // Tours actifs (non termines) / Active (non-completed) tours

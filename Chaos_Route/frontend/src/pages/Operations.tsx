@@ -304,6 +304,18 @@ export default function Operations() {
     }
   }
 
+  /* Desaffecter un tour / Unassign a tour from device */
+  const handleUnassignDevice = async (tour: Tour) => {
+    if (!tour.device_assignment_id) return
+    if (!confirm(`Desaffecter le tour ${tour.code} du telephone ?`)) return
+    try {
+      await api.delete(`/assignments/${tour.device_assignment_id}`)
+      await loadTours()
+    } catch (e) {
+      console.error('Failed to unassign device', e)
+    }
+  }
+
   const getTourEqp = (tour: Tour) => tour.total_eqp ?? tour.stops.reduce((s, st) => s + st.eqp_count, 0)
   const toggleExpand = (id: number) => setExpandedId((prev) => (prev === id ? null : id))
 
@@ -485,6 +497,7 @@ export default function Operations() {
                           onRouteSheet={() => setRouteSheetTourId(tour.id)}
                           onWaybill={() => setWaybillTourId(tour.id)}
                           onAssignDevice={() => setAssignQrTour({ id: tour.id, code: tour.code, driver_name: tour.driver_name ?? undefined })}
+                          onUnassignDevice={() => handleUnassignDevice(tour)}
                           onSetNow={(field) => updateForm(tour.id, field, nowFormatted())}
                           onLoaderLookup={(code) => handleLoaderLookup(tour.id, code)}
                         />
@@ -544,6 +557,7 @@ interface TourRowProps {
   onRouteSheet: () => void
   onWaybill: () => void
   onAssignDevice: () => void
+  onUnassignDevice: () => void
   onSetNow: (field: string) => void
   onLoaderLookup: (code: string) => void
 }
@@ -551,7 +565,7 @@ interface TourRowProps {
 function TourRow({
   tour, contract, form, isExpanded, color, pdvMap, volumes, saving, eqc,
   visibleCols, colCount, t,
-  onToggle, onFormChange, onSave, onRouteSheet, onWaybill, onAssignDevice, onSetNow, onLoaderLookup,
+  onToggle, onFormChange, onSave, onRouteSheet, onWaybill, onAssignDevice, onUnassignDevice, onSetNow, onLoaderLookup,
 }: TourRowProps) {
   const vehicleLabel = contract?.vehicle_code
     ? `${contract.vehicle_code} — ${contract.vehicle_name ?? ''}`
@@ -796,13 +810,22 @@ function TourRow({
 
             {/* Actions */}
             <div className="flex gap-2 justify-end">
-              <button onClick={(e) => { e.stopPropagation(); onAssignDevice() }}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:opacity-80"
-                style={{
-                  borderColor: tour.device_assignment_id ? '#22c55e' : '#3b82f6',
-                  color: tour.device_assignment_id ? '#22c55e' : '#3b82f6',
-                  backgroundColor: tour.device_assignment_id ? '#22c55e11' : undefined,
-                }}>{tour.device_assignment_id ? 'Affecte' : 'Affecter tel.'}</button>
+              {tour.device_assignment_id ? (
+                <>
+                  <button onClick={(e) => { e.stopPropagation(); onAssignDevice() }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:opacity-80"
+                    style={{ borderColor: '#22c55e', color: '#22c55e', backgroundColor: '#22c55e11' }}>Affecte</button>
+                  {(tour.status === 'DRAFT' || tour.status === 'VALIDATED') && (
+                    <button onClick={(e) => { e.stopPropagation(); onUnassignDevice() }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:opacity-80"
+                      style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}>Desaffecter</button>
+                  )}
+                </>
+              ) : (
+                <button onClick={(e) => { e.stopPropagation(); onAssignDevice() }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:opacity-80"
+                  style={{ borderColor: '#3b82f6', color: '#3b82f6' }}>Affecter tel.</button>
+              )}
               <button onClick={(e) => { e.stopPropagation(); onRouteSheet() }}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:opacity-80"
                 style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}>{t('operations.driverRoute')}</button>
