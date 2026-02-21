@@ -11,9 +11,10 @@ interface StopCardProps {
   onScanSupports: () => void
   onScanPickups: () => void
   onClose: () => void
+  onRefusePickup?: () => void
 }
 
-export function StopCard({ stop, onScanPdv, onScanSupports, onScanPickups, onClose }: StopCardProps) {
+export function StopCard({ stop, onScanPdv, onScanSupports, onScanPickups, onClose, onRefusePickup }: StopCardProps) {
   const status = stop.delivery_status || 'PENDING'
   const color = STATUS_COLORS[status] || COLORS.textMuted
   const isPending = status === 'PENDING'
@@ -33,6 +34,8 @@ export function StopCard({ stop, onScanPdv, onScanSupports, onScanPickups, onClo
     stop.pickup_returns && 'Retours',
   ].filter(Boolean).join(', ')
 
+  const hasSummary = stop.pickup_summary && stop.pickup_summary.length > 0
+
   return (
     <View style={[styles.card, { borderLeftColor: color, borderLeftWidth: 3 }]}>
       <View style={styles.header}>
@@ -49,7 +52,19 @@ export function StopCard({ stop, onScanPdv, onScanSupports, onScanPickups, onClo
         </View>
       </View>
 
-      {pickups ? <Text style={styles.pickups}>Reprises: {pickups}</Text> : null}
+      {/* Banniere reprises / Pickup banner */}
+      {hasSummary ? (
+        <View style={styles.pickupBanner}>
+          <Text style={styles.pickupBannerTitle}>Reprises a effectuer</Text>
+          {stop.pickup_summary!.map((item) => (
+            <Text key={item.support_type_code} style={styles.pickupBannerLine}>
+              {item.support_type_name} : {item.pending_labels}/{item.total_labels} restante(s)
+            </Text>
+          ))}
+        </View>
+      ) : pickups ? (
+        <Text style={styles.pickups}>Reprises: {pickups}</Text>
+      ) : null}
 
       {/* Boutons actions / Action buttons */}
       <View style={styles.actions}>
@@ -73,11 +88,17 @@ export function StopCard({ stop, onScanPdv, onScanSupports, onScanPickups, onClo
           </TouchableOpacity>
         )}
 
-        {isArrived && stop.pickup_containers && (stop.pending_pickup_labels_count ?? 0) > 0 && (
+        {isArrived && (stop.pending_pickup_labels_count ?? 0) > 0 && (
           <TouchableOpacity onPress={onScanPickups} style={styles.pickupBtn}>
             <Text style={styles.pickupBtnText}>
               Scanner reprises ({stop.pending_pickup_labels_count})
             </Text>
+          </TouchableOpacity>
+        )}
+
+        {isArrived && (stop.pending_pickup_labels_count ?? 0) > 0 && onRefusePickup && (
+          <TouchableOpacity onPress={onRefusePickup} style={styles.refuseBtn}>
+            <Text style={styles.refuseBtnText}>Refuser</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -137,8 +158,27 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     marginTop: 6,
   },
+  pickupBanner: {
+    backgroundColor: '#f97316' + '22',
+    borderWidth: 1,
+    borderColor: '#f97316',
+    borderRadius: 8,
+    padding: 8,
+    marginTop: 8,
+  },
+  pickupBannerTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#f97316',
+    marginBottom: 4,
+  },
+  pickupBannerLine: {
+    fontSize: 11,
+    color: COLORS.textPrimary,
+  },
   actions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginTop: 10,
   },
@@ -189,6 +229,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pickupBtnText: {
+    fontSize: 12,
+    color: COLORS.white,
+    fontWeight: '700',
+  },
+  refuseBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#ef4444',
+    alignItems: 'center',
+  },
+  refuseBtnText: {
     fontSize: 12,
     color: COLORS.white,
     fontWeight: '700',

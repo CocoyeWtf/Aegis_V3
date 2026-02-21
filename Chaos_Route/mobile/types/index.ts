@@ -1,5 +1,12 @@
 /* Types TypeScript mobile (sous-ensemble du web) / Mobile TypeScript types */
 
+export interface PickupSummaryItem {
+  support_type_code: string
+  support_type_name: string
+  total_labels: number
+  pending_labels: number
+}
+
 export interface DriverTourStop {
   id: number
   sequence_order: number
@@ -20,6 +27,7 @@ export interface DriverTourStop {
   pickup_returns: boolean
   scanned_supports_count?: number
   pending_pickup_labels_count?: number
+  pickup_summary?: PickupSummaryItem[]
 }
 
 export interface PickupLabelMobile {

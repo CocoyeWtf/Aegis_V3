@@ -113,23 +113,49 @@ export default function SupportScanScreen() {
         { text: 'OK', onPress: () => router.back() },
       ])
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur'
-      Alert.alert('Erreur', msg, [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Forcer',
-          style: 'destructive',
-          onPress: async () => {
-            await api.post(`/driver/tour/${tourId}/stops/${tourStopId}/close`, {
-              timestamp: new Date().toISOString(),
-              force: true,
-            })
-            Alert.alert('Stop cloture (force)', 'Livraison enregistree.', [
-              { text: 'OK', onPress: () => router.back() },
-            ])
+      const err = e as { response?: { status?: number; data?: { detail?: string } } }
+      const msg = err?.response?.data?.detail || 'Erreur'
+      const status = err?.response?.status
+
+      // 422 reprises en attente → proposer Scanner reprises ou Forcer
+      if (status === 422 && msg.includes('Reprises en attente')) {
+        Alert.alert('Reprises en attente', msg, [
+          {
+            text: 'Scanner reprises',
+            onPress: () => router.replace(`/tour/${tourId}/stop/${tourStopId}/pickups`),
           },
-        },
-      ])
+          {
+            text: 'Forcer',
+            style: 'destructive',
+            onPress: async () => {
+              await api.post(`/driver/tour/${tourId}/stops/${tourStopId}/close`, {
+                timestamp: new Date().toISOString(),
+                force: true,
+              })
+              Alert.alert('Stop cloture (force)', 'Livraison enregistree.', [
+                { text: 'OK', onPress: () => router.back() },
+              ])
+            },
+          },
+        ])
+      } else {
+        Alert.alert('Erreur', msg, [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Forcer',
+            style: 'destructive',
+            onPress: async () => {
+              await api.post(`/driver/tour/${tourId}/stops/${tourStopId}/close`, {
+                timestamp: new Date().toISOString(),
+                force: true,
+              })
+              Alert.alert('Stop cloture (force)', 'Livraison enregistree.', [
+                { text: 'OK', onPress: () => router.back() },
+              ])
+            },
+          },
+        ])
+      }
     } finally {
       setClosing(false)
     }

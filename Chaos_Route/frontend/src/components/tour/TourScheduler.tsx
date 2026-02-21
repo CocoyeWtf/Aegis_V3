@@ -434,7 +434,7 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
       >
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-            {t('common.date')}
+            Date de répartition
           </label>
           <input
             type="date"
@@ -812,6 +812,7 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
         {/* Gantt / Gantt chart */}
         <TourGantt
           tours={timeline}
+          selectedDate={selectedDate}
           highlightedTourId={highlightedTourId}
           onTourClick={setHighlightedTourId}
           warningTourIds={new Set(deliveryWindowViolations.keys())}

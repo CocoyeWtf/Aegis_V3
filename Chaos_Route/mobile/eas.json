@@ -5,6 +5,7 @@
   },
   "build": {
     "preview": {
+      "channel": "preview",
       "distribution": "internal",
       "node": "22.14.0",
       "android": {
@@ -12,6 +13,7 @@
       }
     },
     "production": {
+      "channel": "production",
       "node": "22.14.0",
       "android": {
         "buildType": "app-bundle"

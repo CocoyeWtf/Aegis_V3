@@ -6,6 +6,8 @@ Seuls les utilisateurs avec un compte peuvent voir/modifier les reglages.
 
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native'
 import { useRouter } from 'expo-router'
+import * as Updates from 'expo-updates'
+import Constants from 'expo-constants'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useDeviceStore } from '../../stores/useDeviceStore'
 import { COLORS, API_BASE_URL } from '../../constants/config'
@@ -117,7 +119,10 @@ export default function SettingsScreen() {
         <Text style={styles.resetText}>Reinitialiser l'appareil</Text>
       </TouchableOpacity>
 
-      <Text style={styles.version}>CMRO Driver v1.0.0</Text>
+      <Text style={styles.version}>
+        CMRO Driver v{Constants.expoConfig?.version ?? '1.0.0'}
+        {Updates.updateId ? ` (update: ${Updates.updateId.substring(0, 8)})` : ''}
+      </Text>
     </View>
   )
 }

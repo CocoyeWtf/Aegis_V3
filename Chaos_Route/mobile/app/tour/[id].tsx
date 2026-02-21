@@ -65,22 +65,76 @@ export default function TourDetailScreen() {
               })
               loadTour()
             } catch (e: unknown) {
-              const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur'
-              // Proposer cloture forcee / Offer forced closure
-              Alert.alert('Erreur', msg, [
-                { text: 'Annuler', style: 'cancel' },
-                {
-                  text: 'Forcer',
-                  style: 'destructive',
-                  onPress: async () => {
-                    await api.post(`/driver/tour/${tourId}/stops/${stopId}/close`, {
-                      timestamp: new Date().toISOString(),
-                      force: true,
-                    })
-                    loadTour()
+              const err = e as { response?: { status?: number; data?: { detail?: string } } }
+              const msg = err?.response?.data?.detail || 'Erreur'
+              const status = err?.response?.status
+
+              // 422 reprises en attente → proposer Scanner / Refuser / Forcer
+              if (status === 422 && msg.includes('Reprises en attente')) {
+                Alert.alert('Reprises en attente', msg, [
+                  {
+                    text: 'Scanner',
+                    onPress: () => router.push(`/tour/${tourId}/stop/${stopId}/pickups`),
                   },
-                },
-              ])
+                  {
+                    text: 'Refuser',
+                    onPress: () => handleRefusePickup(stopId, pdvName),
+                  },
+                  {
+                    text: 'Forcer',
+                    style: 'destructive',
+                    onPress: async () => {
+                      await api.post(`/driver/tour/${tourId}/stops/${stopId}/close`, {
+                        timestamp: new Date().toISOString(),
+                        force: true,
+                      })
+                      loadTour()
+                    },
+                  },
+                ])
+              } else {
+                // Autre erreur → proposer cloture forcee / Other error → offer forced closure
+                Alert.alert('Erreur', msg, [
+                  { text: 'Annuler', style: 'cancel' },
+                  {
+                    text: 'Forcer',
+                    style: 'destructive',
+                    onPress: async () => {
+                      await api.post(`/driver/tour/${tourId}/stops/${stopId}/close`, {
+                        timestamp: new Date().toISOString(),
+                        force: true,
+                      })
+                      loadTour()
+                    },
+                  },
+                ])
+              }
+            }
+          },
+        },
+      ],
+    )
+  }
+
+  const handleRefusePickup = (stopId: number, pdvName: string) => {
+    Alert.alert(
+      'Refuser les reprises',
+      `Refuser toutes les reprises pour ${pdvName} ? Les etiquettes retourneront en pool non-assigne.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Refuser',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.post(`/driver/tour/${tourId}/stops/${stopId}/refuse-pickup`, {
+                reason: 'Refuse par le chauffeur',
+                timestamp: new Date().toISOString(),
+              })
+              loadTour()
+            } catch (e) {
+              console.error('Failed to refuse pickup', e)
+              Alert.alert('Erreur', 'Impossible de refuser les reprises')
             }
           },
         },
@@ -169,6 +223,7 @@ export default function TourDetailScreen() {
             onScanSupports={() => router.push(`/tour/${tourId}/stop/${item.id}/supports`)}
             onScanPickups={() => router.push(`/tour/${tourId}/stop/${item.id}/pickups`)}
             onClose={() => handleCloseStop(item.id, item.pdv_name || item.pdv_code || '—')}
+            onRefusePickup={() => handleRefusePickup(item.id, item.pdv_name || item.pdv_code || '—')}
           />
         )}
         contentContainerStyle={styles.list}
