@@ -184,11 +184,14 @@ async def my_tours(
     """Tours assignes a cet appareil / Tours assigned to this device."""
     target_date = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    # Chercher via DeviceAssignment.device_id
+    # Chercher via DeviceAssignment + filtre par date du TOUR (pas de l'assignment)
+    # pour cohérence avec available-tours qui cherche par Tour.delivery_date/date
     assignment_result = await db.execute(
-        select(DeviceAssignment.tour_id).where(
+        select(DeviceAssignment.tour_id)
+        .join(Tour, Tour.id == DeviceAssignment.tour_id)
+        .where(
             DeviceAssignment.device_id == device.id,
-            DeviceAssignment.date == target_date,
+            or_(Tour.delivery_date == target_date, Tour.date == target_date),
         )
     )
     tour_ids = [row[0] for row in assignment_result.all()]
@@ -218,9 +221,11 @@ async def available_tours(
     """
     target_date = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    # Tours deja affectes aujourd'hui / Already assigned tours today
+    # Tours deja affectes (filtre par date du TOUR, coherent avec my-tours)
     assigned_result = await db.execute(
-        select(DeviceAssignment.tour_id).where(DeviceAssignment.date == target_date)
+        select(DeviceAssignment.tour_id)
+        .join(Tour, Tour.id == DeviceAssignment.tour_id)
+        .where(or_(Tour.delivery_date == target_date, Tour.date == target_date))
     )
     assigned_tour_ids = {row[0] for row in assigned_result.all()}
 
