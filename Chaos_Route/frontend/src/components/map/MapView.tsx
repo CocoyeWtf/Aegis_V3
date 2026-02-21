@@ -9,7 +9,7 @@ import { PdvMarker, type PdvVolumeStatus } from './PdvMarker'
 import { BaseMarker } from './BaseMarker'
 import { SupplierMarker } from './SupplierMarker'
 import { MapFilters } from './MapFilters'
-import type { PDV, BaseLogistics, Supplier } from '../../types'
+import type { PDV, BaseLogistics, Supplier, PdvPickupSummary } from '../../types'
 import 'leaflet/dist/leaflet.css'
 
 /* Composant interne pour synchroniser le centre / Internal component to sync map center */
@@ -41,12 +41,13 @@ interface MapViewProps {
   onPdvClick?: (pdv: PDV) => void
   selectedPdvIds?: Set<number>
   pdvVolumeStatusMap?: Map<number, PdvVolumeStatus>
+  pickupByPdv?: Map<number, PdvPickupSummary>
   routeCoords?: [number, number][]
   height?: string
   resizeSignal?: number
 }
 
-export function MapView({ onPdvClick, selectedPdvIds, pdvVolumeStatusMap, routeCoords, height = '100%', resizeSignal = 0 }: MapViewProps) {
+export function MapView({ onPdvClick, selectedPdvIds, pdvVolumeStatusMap, pickupByPdv, routeCoords, height = '100%', resizeSignal = 0 }: MapViewProps) {
   const { center, zoom, showBases, showPdvs, showSuppliers } = useMapStore()
   const { selectedRegionId } = useAppStore()
 
@@ -88,6 +89,7 @@ export function MapView({ onPdvClick, selectedPdvIds, pdvVolumeStatusMap, routeC
               onClick={onPdvClick}
               selected={selectedPdvIds?.has(pdv.id)}
               volumeStatus={pdvVolumeStatusMap?.get(pdv.id)}
+              pickupSummary={pickupByPdv?.get(pdv.id)}
             />
           ) : null
         )}

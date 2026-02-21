@@ -63,6 +63,27 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   const { data: contracts } = useApi<Contract>('/contracts', regionParams)
   const { data: pickupSummaries } = useApi<PdvPickupSummary>('/pickup-requests/by-pdv/pending')
 
+  /* Index pickup par PDV / Pickup index by PDV */
+  const pickupByPdv = useMemo(() => {
+    const m = new Map<number, PdvPickupSummary>()
+    pickupSummaries.forEach((s) => m.set(s.pdv_id, s))
+    return m
+  }, [pickupSummaries])
+
+  /* Flags reprise auto-cochés / Auto-checked pickup flags per PDV */
+  const getPickupFlags = useCallback((pdvId: number) => {
+    const summary = pickupByPdv.get(pdvId)
+    if (!summary) return {}
+    const flags: Record<string, boolean> = {}
+    for (const req of summary.requests) {
+      if (req.pickup_type === 'CONTAINER') flags.pickup_containers = true
+      if (req.pickup_type === 'CARDBOARD') flags.pickup_cardboard = true
+      if (req.pickup_type === 'MERCHANDISE') flags.pickup_returns = true
+      if (req.pickup_type === 'CONSIGNMENT') flags.pickup_consignment = true
+    }
+    return flags
+  }, [pickupByPdv])
+
   /* Coût moyen/km par type de véhicule / Average cost/km for vehicle type */
   const avgCostPerKm = useMemo(() => {
     if (!selectedVehicleType || contracts.length === 0) return 0
@@ -202,6 +223,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         pdv_id: vol.pdv_id,
         sequence_order: currentStops.length + 1,
         eqp_count: vol.eqp_count,
+        ...getPickupFlags(vol.pdv_id),
       })
     } else {
       setSplitDialog({ volume: vol, maxEqp: remaining })
@@ -219,6 +241,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         pdv_id: splitDialog.volume.pdv_id,
         sequence_order: currentStops.length + 1,
         eqp_count: splitEqp,
+        ...getPickupFlags(splitDialog.volume.pdv_id),
       })
       refetchVolumes()
     } catch (e) {
@@ -390,6 +413,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                     onPdvClick={handlePdvClick}
                     selectedPdvIds={assignedPdvIds}
                     pdvVolumeStatusMap={pdvVolumeStatusMap}
+                    pickupByPdv={pickupByPdv}
                     routeCoords={routeCoords}
                     height="100%"
                     resizeSignal={mapResizeSignal}
@@ -470,6 +494,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                 onPdvClick={handlePdvClick}
                 selectedPdvIds={assignedPdvIds}
                 pdvVolumeStatusMap={pdvVolumeStatusMap}
+                pickupByPdv={pickupByPdv}
                 routeCoords={routeCoords}
                 height="400px"
               />

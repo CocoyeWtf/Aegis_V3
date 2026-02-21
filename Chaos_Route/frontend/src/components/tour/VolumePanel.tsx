@@ -4,6 +4,22 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Volume, PDV, DistanceEntry, PdvPickupSummary } from '../../types'
 
+/* Labels courts par type de reprise / Short labels per pickup type */
+const PICKUP_TYPE_SHORT: Record<string, string> = {
+  CONTAINER: 'Contenants',
+  CARDBOARD: 'Cartons',
+  MERCHANDISE: 'Marchandise',
+  CONSIGNMENT: 'Consignes',
+}
+
+/* Lettre badge par type / Badge letter per type */
+const PICKUP_TYPE_LETTER: Record<string, string> = {
+  CONTAINER: 'C',
+  CARDBOARD: 'B',
+  MERCHANDISE: 'M',
+  CONSIGNMENT: 'K',
+}
+
 interface VolumePanelProps {
   volumes: Volume[]
   pdvs: PDV[]
@@ -27,8 +43,8 @@ export function VolumePanel({
 
   const pdvMap = useMemo(() => new Map(pdvs.map((p) => [p.id, p])), [pdvs])
   const pickupMap = useMemo(() => {
-    const m = new Map<number, number>()
-    pickupSummaries?.forEach((s) => m.set(s.pdv_id, s.pending_count))
+    const m = new Map<number, PdvPickupSummary>()
+    pickupSummaries?.forEach((s) => m.set(s.pdv_id, s))
     return m
   }, [pickupSummaries])
   const remaining = vehicleCapacity - currentEqp
@@ -105,37 +121,13 @@ export function VolumePanel({
         />
       </div>
 
-      {/* Bandeau reprises en attente / Pending pickups banner */}
-      {pickupSummaries && pickupSummaries.length > 0 && (
-        <div
-          className="mx-2 mt-2 px-3 py-2 rounded-lg border text-xs"
-          style={{ backgroundColor: 'rgba(245,158,11,0.12)', borderColor: '#f59e0b' }}
-        >
-          <div className="font-bold mb-1" style={{ color: '#f59e0b' }}>
-            Reprises en attente ({pickupSummaries.reduce((s, p) => s + p.pending_count, 0)} etiquettes)
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {pickupSummaries.map((s) => (
-              <span
-                key={s.pdv_id}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium"
-                style={{ backgroundColor: 'rgba(245,158,11,0.2)', color: '#d97706' }}
-              >
-                {s.pdv_code} — {s.pdv_name}
-                <span className="font-bold" style={{ color: '#f59e0b' }}>{s.pending_count}</span>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div className="flex-1 overflow-y-auto p-2">
         {sortedVolumes.map((vol) => {
           const pdv = pdvMap.get(vol.pdv_id)
           const assigned = assignedPdvIds.has(vol.pdv_id)
           const overCapacity = vol.eqp_count > remaining
           const dist = !assigned ? getDisplayDistance(vol.pdv_id) : null
-          const pickupCount = pickupMap.get(vol.pdv_id) || 0
+          const pickup = pickupMap.get(vol.pdv_id)
 
           return (
             <div
@@ -150,13 +142,18 @@ export function VolumePanel({
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-medium" style={{ color: assigned ? 'var(--text-muted)' : 'var(--text-primary)' }}>
                   {pdv ? `${pdv.code} — ${pdv.name}` : `PDV #${vol.pdv_id}`}
-                  {pickupCount > 0 && (
-                    <span
-                      className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold"
-                      style={{ backgroundColor: '#f59e0b', color: '#000' }}
-                      title={`${pickupCount} reprise(s) en attente`}
-                    >
-                      {pickupCount} repr.
+                  {pickup && pickup.pending_count > 0 && (
+                    <span className="ml-2 inline-flex gap-0.5">
+                      {pickup.requests.map(r => (
+                        <span
+                          key={r.id}
+                          className="px-1 py-0.5 rounded text-[9px] font-bold"
+                          style={{ backgroundColor: '#f59e0b', color: '#000' }}
+                          title={`${PICKUP_TYPE_SHORT[r.pickup_type]}: ${r.quantity}`}
+                        >
+                          {PICKUP_TYPE_LETTER[r.pickup_type]}
+                        </span>
+                      ))}
                     </span>
                   )}
                 </span>

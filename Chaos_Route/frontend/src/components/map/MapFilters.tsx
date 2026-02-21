@@ -62,6 +62,7 @@ export function MapFilters() {
     { label: t('map.pdvUnassigned'), color: '#ef4444', shape: 'circle', size: 10 },
     { label: t('map.pdvAssigned'), color: '#22c55e', shape: 'circle', size: 10 },
     { label: t('map.pdvSelected'), color: '#f97316', shape: 'circle', size: 12 },
+    { label: 'Reprise en attente', color: '#f59e0b', shape: 'circle', size: 6 },
   ]
 
   return (
