@@ -5,12 +5,9 @@ import { QRCodeSVG } from 'qrcode.react'
 import api from '../services/api'
 import type { MobileDevice, BaseLogistics } from '../types'
 
-/** URL du backend accessible depuis le reseau local / Backend URL reachable from LAN */
+/** URL du backend accessible depuis le reseau / Backend URL reachable from network */
 function getServerBaseUrl(): string {
-  const host = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? window.location.hostname  // fallback, sera editable dans la modale
-    : window.location.hostname
-  return `${window.location.protocol}//${host}:8000`
+  return `${window.location.protocol}//${window.location.host}`
 }
 
 export default function DeviceManagement() {
