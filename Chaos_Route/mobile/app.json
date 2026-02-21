@@ -19,10 +19,13 @@
         "NSLocationWhenInUseUsageDescription": "Suivi de tournee en cours",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Suivi GPS en arriere-plan pendant la tournee",
         "NSCameraUsageDescription": "Scanner les QR codes des points de vente",
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
+      "package": "com.cmro.driver",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1a1a1a"
@@ -33,12 +36,24 @@
         "ACCESS_BACKGROUND_LOCATION",
         "CAMERA",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
+        "FOREGROUND_SERVICE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
       [
         "expo-location",
         {
@@ -51,6 +66,13 @@
           "cameraPermission": "Scanner les QR codes des points de vente"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "507e74dc-b8be-43cb-8ed9-22e4fa405a28"
+      }
+    },
+    "owner": "cocoye"
   }
 }

@@ -6,7 +6,7 @@ Auth par appareil (X-Device-ID header) — pas de JWT pour le chauffeur.
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -184,8 +184,9 @@ async def available_tours(
     assigned_tour_ids = {row[0] for row in assigned_result.all()}
 
     # Tours DRAFT ou VALIDATED pour cette date et cette base / DRAFT or VALIDATED tours for this date and base
+    # Chercher par delivery_date OU date (fallback si delivery_date NULL)
     query = select(Tour).where(
-        Tour.delivery_date == target_date,
+        or_(Tour.delivery_date == target_date, Tour.date == target_date),
         Tour.status.in_([TourStatus.DRAFT, TourStatus.VALIDATED]),
     )
     if device.base_id:
