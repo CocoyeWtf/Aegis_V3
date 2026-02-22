@@ -31,6 +31,7 @@ export default function TourHistory() {
     DRAFT: 'var(--text-muted)',
     VALIDATED: 'var(--color-primary)',
     IN_PROGRESS: 'var(--color-warning)',
+    RETURNING: 'var(--color-info, #3b82f6)',
     COMPLETED: 'var(--color-success)',
   }
 

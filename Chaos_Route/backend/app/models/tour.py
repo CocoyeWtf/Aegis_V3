@@ -14,6 +14,7 @@ class TourStatus(str, enum.Enum):
     DRAFT = "DRAFT"
     VALIDATED = "VALIDATED"
     IN_PROGRESS = "IN_PROGRESS"
+    RETURNING = "RETURNING"
     COMPLETED = "COMPLETED"
 
 

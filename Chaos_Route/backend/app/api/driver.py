@@ -570,7 +570,7 @@ async def return_to_base(
     if not tour:
         raise HTTPException(status_code=404, detail="Tour not found")
 
-    tour.status = TourStatus.COMPLETED
+    tour.status = TourStatus.RETURNING
     tour.actual_return_time = data.timestamp
 
     # 5A. Audit log — return to base
@@ -587,11 +587,11 @@ async def return_to_base(
         "type": "tour_status",
         "tour_id": tour_id,
         "tour_code": tour.code,
-        "status": "COMPLETED",
+        "status": "RETURNING",
         "actual_return_time": data.timestamp,
     })
 
-    return {"status": "ok", "tour_status": "COMPLETED"}
+    return {"status": "ok", "tour_status": "RETURNING"}
 
 
 @router.post("/tour/{tour_id}/stops/{stop_id}/scan-support", response_model=SupportScanRead)

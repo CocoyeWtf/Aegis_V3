@@ -454,6 +454,7 @@
       "DRAFT": "Brouillon",
       "VALIDATED": "Validé",
       "IN_PROGRESS": "En cours",
+      "RETURNING": "En retour",
       "COMPLETED": "Terminé"
     }
   },

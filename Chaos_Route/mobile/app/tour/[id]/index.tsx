@@ -37,6 +37,23 @@ export default function TourDetailScreen() {
     }, [loadTour])
   )
 
+  // Polling statut pendant RETURNING / Poll status during RETURNING
+  useEffect(() => {
+    if (!tour || tour.status !== 'RETURNING') return
+    const interval = setInterval(() => { loadTour() }, 30_000)
+    return () => clearInterval(interval)
+  }, [tour?.status, loadTour])
+
+  // Timeout securite 2h — stop GPS si postier n'a pas valide / Safety timeout 2h — stop GPS if gate not validated
+  useEffect(() => {
+    if (!tour || tour.status !== 'RETURNING') return
+    const timeout = setTimeout(async () => {
+      await stopGPSTracking()
+      setGpsActive(false)
+    }, 2 * 60 * 60 * 1000)
+    return () => clearTimeout(timeout)
+  }, [tour?.status])
+
   // Demarrer GPS auto / Auto-start GPS
   useEffect(() => {
     if (!tour || tour.status === 'COMPLETED') return
@@ -155,8 +172,6 @@ export default function TourDetailScreen() {
               await api.post(`/driver/tour/${tourId}/return`, {
                 timestamp: new Date().toISOString(),
               })
-              await stopGPSTracking()
-              setGpsActive(false)
               loadTour()
             } catch (e) {
               console.error('Failed to return to base', e)
@@ -212,6 +227,13 @@ export default function TourDetailScreen() {
         </View>
       </View>
 
+      {/* Bandeau retour / Returning banner */}
+      {tour.status === 'RETURNING' && (
+        <View style={styles.returningBanner}>
+          <Text style={styles.returningText}>En retour vers la base — GPS actif</Text>
+        </View>
+      )}
+
       {/* Liste stops / Stop list */}
       <FlatList
         data={tour.stops}
@@ -228,7 +250,7 @@ export default function TourDetailScreen() {
         )}
         contentContainerStyle={styles.list}
         ListFooterComponent={
-          tour.status !== 'COMPLETED' ? (
+          tour.status !== 'COMPLETED' && tour.status !== 'RETURNING' ? (
             <TouchableOpacity onPress={handleReturnBase} style={styles.returnBtn}>
               <Text style={styles.returnBtnText}>Retour base</Text>
             </TouchableOpacity>
@@ -328,6 +350,18 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 16,
+  },
+  returningBanner: {
+    backgroundColor: '#3b82f6' + '22',
+    borderLeftWidth: 3,
+    borderLeftColor: '#3b82f6',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  returningText: {
+    color: '#3b82f6',
+    fontSize: 13,
+    fontWeight: '600',
   },
   returnBtnText: {
     color: COLORS.white,

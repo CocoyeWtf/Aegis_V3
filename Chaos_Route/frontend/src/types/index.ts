@@ -97,7 +97,7 @@ export interface Volume {
   tour_id?: number | null
 }
 
-export type TourStatus = 'DRAFT' | 'VALIDATED' | 'IN_PROGRESS' | 'COMPLETED'
+export type TourStatus = 'DRAFT' | 'VALIDATED' | 'IN_PROGRESS' | 'RETURNING' | 'COMPLETED'
 
 export interface TourStop {
   id: number

@@ -1424,6 +1424,17 @@ async def update_tour_gate(
     changes = data.model_dump(exclude_unset=True)
     for key, value in changes.items():
         setattr(tour, key, value)
+    # Si barrier_entry_time renseigne et tour RETURNING → passer a COMPLETED / If barrier_entry_time set and tour RETURNING → transition to COMPLETED
+    if "barrier_entry_time" in changes and changes["barrier_entry_time"] and tour.status == TourStatus.RETURNING:
+        tour.status = TourStatus.COMPLETED
+        from app.api.ws_tracking import manager
+        await manager.broadcast({
+            "type": "tour_status",
+            "tour_id": tour_id,
+            "tour_code": tour.code,
+            "status": "COMPLETED",
+            "barrier_entry_time": changes["barrier_entry_time"],
+        })
     await _log_audit(db, "tour", tour.id, "UPDATE_GATE", user, changes)
     await db.flush()
     result = await db.execute(

@@ -37,6 +37,7 @@ const STATUS_COLORS: Record<string, string> = {
   DRAFT: 'rgba(249,115,22,0.6)',
   VALIDATED: 'rgba(34,197,94,0.6)',
   IN_PROGRESS: 'rgba(59,130,246,0.6)',
+  RETURNING: 'rgba(59,130,246,0.6)',
   COMPLETED: 'rgba(107,114,128,0.5)',
 }
 

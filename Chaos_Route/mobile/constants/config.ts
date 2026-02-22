@@ -27,6 +27,7 @@ export const STATUS_COLORS: Record<string, string> = {
   DRAFT: '#737373',
   VALIDATED: '#f97316',
   IN_PROGRESS: '#3b82f6',
+  RETURNING: '#3b82f6',
   COMPLETED: '#22c55e',
   PENDING: '#737373',
   ARRIVED: '#f97316',

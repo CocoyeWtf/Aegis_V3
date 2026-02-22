@@ -35,7 +35,7 @@ async def get_latest_positions(
     # Trouver les tours actifs / Find active tours
     query = select(Tour).where(
         Tour.delivery_date == target_date,
-        Tour.status.in_([TourStatus.IN_PROGRESS, TourStatus.VALIDATED]),
+        Tour.status.in_([TourStatus.IN_PROGRESS, TourStatus.VALIDATED, TourStatus.RETURNING]),
     )
     if base_id is not None:
         query = query.where(Tour.base_id == base_id)
@@ -192,7 +192,7 @@ async def get_active_stops(
         select(Tour)
         .where(
             Tour.delivery_date == target_date,
-            Tour.status.in_([TourStatus.IN_PROGRESS, TourStatus.VALIDATED]),
+            Tour.status.in_([TourStatus.IN_PROGRESS, TourStatus.VALIDATED, TourStatus.RETURNING]),
         )
         .options(selectinload(Tour.stops).selectinload(TourStop.pdv))
     )
@@ -263,7 +263,7 @@ async def get_dashboard(
     result = await db.execute(base_query)
     tours = result.scalars().all()
 
-    active = sum(1 for t in tours if t.status in (TourStatus.IN_PROGRESS, TourStatus.VALIDATED))
+    active = sum(1 for t in tours if t.status in (TourStatus.IN_PROGRESS, TourStatus.VALIDATED, TourStatus.RETURNING))
     completed = sum(1 for t in tours if t.status == TourStatus.COMPLETED)
 
     # Alertes actives non acquittees
