@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useApi } from '../hooks/useApi'
 import { useAppStore } from '../stores/useAppStore'
 import { KpiDashboard } from '../components/kpi/KpiDashboard'
-import type { Tour, Volume } from '../types'
+import type { Tour, Volume, PdvPickupSummary } from '../types'
 
 /** Lundi de la semaine courante (YYYY-MM-DD) / Monday of current week */
 function getWeekStart(today: string): string {
@@ -21,17 +21,19 @@ export default function Dashboard() {
   const { selectedRegionId } = useAppStore()
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const yearStart = useMemo(() => today.slice(0, 4) + '-01-01', [today])
   const monthStart = useMemo(() => today.slice(0, 8) + '01', [today])
   const weekStart = useMemo(() => getWeekStart(today), [today])
 
   const params = useMemo(() => {
-    const p: Record<string, unknown> = { date_from: monthStart, date_to: today }
+    const p: Record<string, unknown> = { date_from: yearStart, date_to: today }
     if (selectedRegionId) p.region_id = selectedRegionId
     return p
-  }, [monthStart, today, selectedRegionId])
+  }, [yearStart, today, selectedRegionId])
 
   const { data: tours, loading } = useApi<Tour>('/tours', params)
   const { data: volumes } = useApi<Volume>('/volumes', params)
+  const { data: pickupSummaries } = useApi<PdvPickupSummary>('/pickup-requests/by-pdv/pending')
 
   return (
     <div>
@@ -42,7 +44,7 @@ export default function Dashboard() {
       {loading ? (
         <p style={{ color: 'var(--text-muted)' }}>{t('common.loading')}</p>
       ) : tours.length > 0 ? (
-        <KpiDashboard tours={tours} volumes={volumes} today={today} weekStart={weekStart} />
+        <KpiDashboard tours={tours} volumes={volumes} pickupSummaries={pickupSummaries} today={today} weekStart={weekStart} monthStart={monthStart} />
       ) : (
         <div
           className="rounded-xl p-6 border"
