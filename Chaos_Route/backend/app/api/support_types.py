@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -49,7 +50,11 @@ async def create_support_type(
     """Créer un type de support / Create a support type."""
     st = SupportType(**data.model_dump())
     db.add(st)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail=f"Le code '{data.code}' existe deja")
     await db.refresh(st)
     return st
 
@@ -67,7 +72,11 @@ async def update_support_type(
         raise HTTPException(status_code=404, detail="Support type not found")
     for key, value in data.model_dump(exclude_unset=True).items():
         setattr(st, key, value)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail=f"Le code '{data.code}' existe deja")
     await db.refresh(st)
     return st
 

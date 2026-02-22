@@ -51,6 +51,7 @@ export function CrudPage<T extends { id: number }>({
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleCreate = () => {
     setEditItem(undefined)
@@ -75,6 +76,7 @@ export function CrudPage<T extends { id: number }>({
 
   const handleSave = useCallback(async (formData: Record<string, unknown>) => {
     setSaving(true)
+    setError(null)
     try {
       const payload = transformPayload ? transformPayload(formData) : formData
       if (editItem?.id) {
@@ -85,6 +87,10 @@ export function CrudPage<T extends { id: number }>({
       setFormOpen(false)
       setEditItem(undefined)
       refetch()
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        || (err instanceof Error ? err.message : 'Erreur lors de la sauvegarde')
+      setError(detail)
     } finally {
       setSaving(false)
     }
@@ -104,6 +110,15 @@ export function CrudPage<T extends { id: number }>({
 
   return (
     <div>
+      {error && (
+        <div
+          className="mb-4 p-3 rounded-lg border text-sm font-medium flex items-center justify-between"
+          style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: '#ef4444', color: '#ef4444' }}
+        >
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="ml-2 text-lg leading-none">&times;</button>
+        </div>
+      )}
       <DataTable<T>
         title={title}
         columns={columns}

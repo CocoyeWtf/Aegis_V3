@@ -13,6 +13,8 @@ export interface FieldDef {
   min?: number
   max?: number
   step?: number
+  /** Valeur par defaut pour la creation / Default value for creation */
+  defaultValue?: unknown
   /** Fonction dynamique pour filtrer les options selon les valeurs actuelles du formulaire */
   /** Dynamic function to filter options based on current form values */
   getOptions?: (formData: Record<string, unknown>) => { value: string; label: string }[]
@@ -38,9 +40,9 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
       const defaults: Record<string, unknown> = {}
       fields.forEach((f) => {
         if (f.type === 'multicheck') {
-          defaults[f.key] = initialData?.[f.key] ?? []
+          defaults[f.key] = initialData?.[f.key] ?? f.defaultValue ?? []
         } else {
-          defaults[f.key] = initialData?.[f.key] ?? (f.type === 'checkbox' ? false : f.type === 'number' ? '' : '')
+          defaults[f.key] = initialData?.[f.key] ?? f.defaultValue ?? (f.type === 'checkbox' ? false : f.type === 'number' ? '' : '')
         }
       })
       setForm(defaults)

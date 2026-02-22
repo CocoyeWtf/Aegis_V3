@@ -24,6 +24,7 @@ export default function SupportTypes() {
     { key: 'unit_label', label: 'Libellé unité (ex: pile de 15)', type: 'text' },
     {
       key: 'is_active', label: 'Actif', type: 'select',
+      defaultValue: 'true',
       options: [
         { value: 'true', label: 'Oui' },
         { value: 'false', label: 'Non' },
