@@ -1,25 +1,53 @@
-/* Ordonnancement des tours (Phase 2) / Tour scheduling with contract assignment + Gantt */
+/* Ordonnancement des tours — vue postier / Tour scheduling — postman-style view */
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useApi } from '../../hooks/useApi'
 import { useAppStore } from '../../stores/useAppStore'
 import { TourGantt, type GanttTour } from './TourGantt'
 import { TourPrintPlan } from './TourPrintPlan'
 import { formatDuration, parseTime, formatTime, formatDate, DEFAULT_DOCK_TIME, DEFAULT_UNLOAD_PER_EQP } from '../../utils/tourTimeUtils'
-import { VEHICLE_TYPE_DEFAULTS } from '../../types'
+import { VEHICLE_TYPE_DEFAULTS, TEMPERATURE_TYPE_LABELS } from '../../types'
 import api from '../../services/api'
 import { CostBreakdown } from './CostBreakdown'
-import type { Tour, BaseLogistics, Contract, DistanceEntry, PDV, VehicleType, Volume } from '../../types'
+import type { Tour, BaseLogistics, Contract, DistanceEntry, PDV, VehicleType, TemperatureType, Volume } from '../../types'
+
+/* Filtres activité / Activity filter options */
+const ACTIVITY_FILTERS: { key: string; label: string }[] = [
+  { key: 'ALL', label: 'Tous' },
+  { key: 'SEC', label: 'Sec' },
+  { key: 'FRAIS', label: 'Frais' },
+  { key: 'GEL', label: 'Gel' },
+  { key: 'BI_TEMP', label: 'Bi-temp' },
+  { key: 'TRI_TEMP', label: 'Tri-temp' },
+]
+
+/* --- Préférences persistées / Persisted preferences --- */
+
+const PREFS_KEY = 'scheduler-prefs'
+
+interface SchedulerPrefs { splitPct: number }
+
+function loadPrefs(): SchedulerPrefs {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch { /* ignore */ }
+  return { splitPct: 55 }
+}
+
+function savePrefs(p: SchedulerPrefs) {
+  localStorage.setItem(PREFS_KEY, JSON.stringify(p))
+}
+
+/* --- Composant principal / Main component --- */
 
 interface TourSchedulerProps {
   selectedDate: string
-  selectedBaseId: number | null
   onDateChange: (date: string) => void
-  onBaseChange: (baseId: number | null) => void
 }
 
-export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBaseChange }: TourSchedulerProps) {
+export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps) {
   const { t } = useTranslation()
   const { selectedRegionId } = useAppStore()
 
@@ -43,6 +71,21 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
   /* Contrats disponibles par tour (chargés selon vehicle_type) / Available contracts per tour */
   const [availableContractsMap, setAvailableContractsMap] = useState<Record<number, Contract[]>>({})
 
+  /* Filtre activité / Activity filter */
+  const [activityFilter, setActivityFilter] = useState('ALL')
+
+  /* Expansion boites / Box expansion */
+  const [expandedTourId, setExpandedTourId] = useState<number | null>(null)
+
+  /* Split prefs */
+  const [prefs, setPrefs] = useState<SchedulerPrefs>(loadPrefs)
+  const splitContainerRef = useRef<HTMLDivElement>(null)
+
+  /* Refs mesure hauteurs / Height measurement refs */
+  const boxContainerRef = useRef<HTMLDivElement>(null)
+  const [measuredRowHeights, setMeasuredRowHeights] = useState<number[]>([])
+  const [measuredHeaderHeight, setMeasuredHeaderHeight] = useState(0)
+
   /* Index des distances / Distance index */
   const distanceIndex = useMemo(() => {
     const idx = new Map<string, DistanceEntry>()
@@ -61,15 +104,15 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
 
   /* Charger les tours et la timeline / Load tours and timeline */
   const loadData = useCallback(async () => {
-    if (!selectedDate || !selectedBaseId) {
+    if (!selectedDate) {
       setTours([])
       setTimeline([])
       return
     }
     try {
       const [toursRes, timelineRes] = await Promise.all([
-        api.get<Tour[]>('/tours/', { params: { date: selectedDate, base_id: selectedBaseId } }),
-        api.get<GanttTour[]>('/tours/timeline', { params: { date: selectedDate, base_id: selectedBaseId } }),
+        api.get<Tour[]>('/tours/', { params: { date: selectedDate } }),
+        api.get<GanttTour[]>('/tours/timeline', { params: { date: selectedDate } }),
       ])
       setTours(toursRes.data)
       setTimeline(timelineRes.data)
@@ -77,7 +120,7 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
       setTours([])
       setTimeline([])
     }
-  }, [selectedDate, selectedBaseId])
+  }, [selectedDate])
 
   useEffect(() => {
     loadData()
@@ -85,12 +128,12 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
 
   /* Charger contrats disponibles pour chaque tour non planifié / Load available contracts per unscheduled tour */
   const loadContractsForTour = useCallback(async (tour: Tour) => {
-    if (!selectedBaseId || !selectedDate || !tour.vehicle_type) return
+    if (!tour.base_id || !selectedDate || !tour.vehicle_type) return
     try {
       const { data } = await api.get<Contract[]>('/tours/available-contracts', {
         params: {
           date: selectedDate,
-          base_id: selectedBaseId,
+          base_id: tour.base_id,
           vehicle_type: tour.vehicle_type,
           tour_id: tour.id,
         },
@@ -99,7 +142,7 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
     } catch {
       setAvailableContractsMap((prev) => ({ ...prev, [tour.id]: [] }))
     }
-  }, [selectedDate, selectedBaseId])
+  }, [selectedDate])
 
   /* Calculer la date de livraison par défaut (dispatch_date + 1 jour le plus fréquent) /
      Compute default delivery date (most frequent dispatch_date + 1 day) */
@@ -147,6 +190,22 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
   /* Séparer tours planifiés et non-planifiés / Split scheduled vs unscheduled */
   const unscheduledTours = useMemo(() => tours.filter((t) => !t.departure_time), [tours])
   const scheduledTours = useMemo(() => tours.filter((t) => t.departure_time), [tours])
+
+  /* Filtrer par activité / Filter by activity (temperature_type) */
+  const filteredTours = useMemo(() => {
+    if (activityFilter === 'ALL') return tours
+    return tours.filter(t => t.temperature_type === activityFilter)
+  }, [tours, activityFilter])
+
+  /* Liste unique triée: planifiés d'abord par heure départ, puis non-planifiés /
+     Unified sorted list: scheduled first by departure time, then unscheduled */
+  const sortedTours = useMemo(() => {
+    const scheduled = filteredTours.filter(t => t.departure_time)
+      .sort((a, b) => parseTime(a.departure_time!) - parseTime(b.departure_time!))
+    const unscheduled = filteredTours.filter(t => !t.departure_time)
+      .sort((a, b) => a.id - b.id)
+    return [...scheduled, ...unscheduled]
+  }, [filteredTours])
 
   /* Détecter les tours avec violation de fenêtre de livraison / Detect delivery window violations */
   const deliveryWindowViolations = useMemo(() => {
@@ -234,7 +293,6 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
       const err = e as { response?: { data?: { detail?: string }; status?: number } }
       const detail = err?.response?.data?.detail
       const status = err?.response?.status
-      // Dépassement 10h : demander confirmation / Over 10h: ask confirmation
       if (status === 422 && detail?.startsWith('OVER_10H:')) {
         const totalTime = detail.replace('OVER_10H:', '')
         const confirmed = window.confirm(
@@ -244,7 +302,6 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
           setScheduling(null)
           return handleSchedule(tourId, true)
         }
-      // Incompatibilité quai/hayon (blocage dur) / Dock/tailgate incompatibility (hard block)
       } else if (status === 422 && detail?.startsWith('DOCK_TAILGATE:')) {
         const violations = detail.replace('DOCK_TAILGATE:', '')
         alert(t('tourPlanning.dockTailgateError') + '\n\n' + violations.split(' | ').map((v: string) => {
@@ -252,7 +309,6 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
           if (v.startsWith('DOCK_NO_NICHE_FOLDABLE:')) return t('tourPlanning.noDockNicheNoFoldable', { pdv: v.replace('DOCK_NO_NICHE_FOLDABLE:', '') })
           return v
         }).join('\n'))
-      // Hors fenêtre livraison / Outside delivery window
       } else if (status === 422 && detail?.startsWith('DELIVERY_WINDOW:')) {
         const violations = detail.replace('DELIVERY_WINDOW:', '')
         const confirmed = window.confirm(
@@ -317,11 +373,11 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
   /* Valider tous les tours DRAFT / Validate all DRAFT tours */
   const [validatingBatch, setValidatingBatch] = useState(false)
   const handleValidateBatch = async () => {
-    if (!selectedDate || !selectedBaseId) return
+    if (!selectedDate) return
     setValidatingBatch(true)
     try {
       const { data } = await api.post<{ validated: number }>('/tours/validate-batch', null, {
-        params: { date: selectedDate, base_id: selectedBaseId },
+        params: { date: selectedDate },
       })
       await loadData()
       alert(`${data.validated} tour(s) valide(s)`)
@@ -340,11 +396,11 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
 
   /* Recalculer les coûts / Recalculate costs */
   const handleRecalculate = async () => {
-    if (!selectedDate || !selectedBaseId) return
+    if (!selectedDate) return
     setRecalculating(true)
     try {
       const { data } = await api.post<{ total: number; updated: number }>('/tours/recalculate', null, {
-        params: { date: selectedDate, base_id: selectedBaseId },
+        params: { date: selectedDate },
       })
       await loadData()
       alert(t('tourPlanning.recalculateResult', { total: data.total, updated: data.updated }))
@@ -391,6 +447,12 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
                 {pdv?.code ?? `#${stop.pdv_id}`}
               </span>
               <span className="truncate max-w-[120px]">— {pdv?.name ?? ''}</span>
+              {/* Heures arrivée → départ / Arrival → departure times */}
+              {stop.arrival_time && (
+                <span className="font-mono text-[10px] shrink-0" style={{ color: 'var(--color-primary)' }}>
+                  {stop.arrival_time}{stop.departure_time ? ` → ${stop.departure_time}` : ''}
+                </span>
+              )}
               <span className="font-bold shrink-0" style={{ color: 'var(--text-primary)' }}>
                 {stop.eqp_count} EQC
               </span>
@@ -430,9 +492,101 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
     )
   }
 
+  /* Gantt data triée dans le même ordre que sortedTours / Gantt data sorted same as sortedTours */
+  const ganttData = useMemo(() => {
+    const timelineMap = new Map(timeline.map(t => [t.tour_id, t]))
+    return sortedTours.map(tour =>
+      timelineMap.get(tour.id) ?? {
+        tour_id: tour.id,
+        code: tour.code,
+        contract_id: tour.contract_id ?? null,
+        vehicle_type: tour.vehicle_type ?? null,
+        capacity_eqp: tour.capacity_eqp ?? null,
+        contract_code: null,
+        vehicle_code: null,
+        vehicle_name: null,
+        transporter_name: null,
+        departure_time: tour.departure_time ?? null,
+        return_time: tour.return_time ?? null,
+        total_eqp: tour.total_eqp ?? null,
+        total_km: tour.total_km ?? null,
+        total_cost: tour.total_cost ?? null,
+        total_duration_minutes: tour.total_duration_minutes ?? null,
+        delivery_date: tour.delivery_date ?? null,
+        tour_date: selectedDate,
+        status: tour.status ?? 'DRAFT',
+        stops: tour.stops?.map(s => ({
+          id: s.id,
+          pdv_id: s.pdv_id,
+          pdv_code: pdvMap.get(s.pdv_id)?.code,
+          sequence_order: s.sequence_order,
+          eqp_count: s.eqp_count,
+          arrival_time: s.arrival_time ?? null,
+          departure_time: s.departure_time ?? null,
+        })) ?? [],
+      }
+    )
+  }, [sortedTours, timeline, selectedDate, pdvMap])
+
+  /* Redimensionnement split / Split resize */
+  const handleSplitResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const container = splitContainerRef.current
+    if (!container) return
+
+    const onMove = (ev: MouseEvent) => {
+      const rect = container.getBoundingClientRect()
+      const pct = Math.max(30, Math.min(75, ((ev.clientX - rect.left) / rect.width) * 100))
+      setPrefs((prev) => {
+        const next = { ...prev, splitPct: Math.round(pct) }
+        savePrefs(next)
+        return next
+      })
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [])
+
+  /* Mesurer les hauteurs de chaque boite / Measure each box height for Gantt alignment */
+  useLayoutEffect(() => {
+    const container = boxContainerRef.current
+    if (!container) return
+    const boxes = container.querySelectorAll<HTMLElement>('[data-tour-id]')
+    const heights: number[] = []
+    boxes.forEach(box => heights.push(box.getBoundingClientRect().height))
+    setMeasuredRowHeights(heights)
+    /* Mesurer header (espace avant la première boite) / Measure header offset */
+    const headerEl = container.querySelector<HTMLElement>('[data-gantt-header]')
+    setMeasuredHeaderHeight(headerEl ? headerEl.getBoundingClientRect().height : 0)
+  }, [sortedTours, expandedTourId, scheduleInputs])
+
+  /* Scroll-to-view quand highlight depuis Gantt / Scroll into view on Gantt click */
+  useEffect(() => {
+    if (highlightedTourId == null) return
+    const el = boxContainerRef.current?.querySelector<HTMLElement>(`[data-tour-id="${highlightedTourId}"]`)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [highlightedTourId])
+
+  /* Inline PDV summary for collapsed box */
+  const pdvSummary = (tour: Tour): string => {
+    const stops = [...(tour.stops ?? [])].sort((a, b) => a.sequence_order - b.sequence_order)
+    return stops.map(s => {
+      const pdv = pdvMap.get(s.pdv_id)
+      return `${pdv?.code ?? `#${s.pdv_id}`}(${s.eqp_count})`
+    }).join(' ')
+  }
+
   return (
     <div className="space-y-4">
-      {/* Barre supérieure: date + base / Top bar */}
+      {/* Barre supérieure: date + filtre activité / Top bar: date + activity filter */}
       <div
         className="rounded-xl border p-4 flex flex-wrap items-end gap-4"
         style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
@@ -450,23 +604,26 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
           />
         </div>
 
+        {/* Filtre activité / Activity filter */}
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-            {t('tourPlanning.dispatchBase')}
+            Activité
           </label>
-          <select
-            value={selectedBaseId ?? ''}
-            onChange={(e) => onBaseChange(e.target.value ? Number(e.target.value) : null)}
-            className="rounded-lg border px-3 py-2 text-sm"
-            style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-          >
-            <option value="">{t('tourPlanning.allBases')}</option>
-            {bases.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.code} — {b.name}
-              </option>
+          <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border-color)' }}>
+            {ACTIVITY_FILTERS.map((f) => (
+              <button
+                key={f.key}
+                className="px-3 py-2 text-xs font-medium transition-all"
+                style={{
+                  backgroundColor: activityFilter === f.key ? 'var(--color-primary)' : 'var(--bg-primary)',
+                  color: activityFilter === f.key ? '#fff' : 'var(--text-secondary)',
+                }}
+                onClick={() => setActivityFilter(f.key)}
+              >
+                {f.label}
+              </button>
             ))}
-          </select>
+          </div>
         </div>
 
         <div className="ml-auto flex items-center gap-4 text-right">
@@ -512,264 +669,230 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
         </div>
       </div>
 
-      {/* Layout split: liste tours (gauche) + Gantt (droite) / Split layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ minHeight: 'calc(100vh - 280px)' }}>
-        {/* Liste des tours / Tour list */}
-        <div className="space-y-3 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
-          {/* Tours non planifiés / Unscheduled tours */}
-          {unscheduledTours.length > 0 && (
-            <div>
-              <h4 className="text-xs font-semibold uppercase mb-2" style={{ color: 'var(--color-warning)' }}>
-                {t('tourPlanning.unscheduledTours')} ({unscheduledTours.length})
-              </h4>
-              {unscheduledTours.map((tour) => {
+      {/* Layout split redimensionnable / Resizable split layout */}
+      <div ref={splitContainerRef} className="flex" style={{ alignItems: 'flex-start', minHeight: 'calc(100vh - 280px)' }}>
+        {/* Panneau gauche — Boites collapsibles / Left panel — Collapsible boxes */}
+        <div className="min-w-0 overflow-y-auto" style={{ width: `${prefs.splitPct}%`, maxHeight: 'calc(100vh - 300px)' }}>
+          <div ref={boxContainerRef}>
+            {/* Header invisible pour alignement Gantt / Invisible header for Gantt alignment */}
+            <div data-gantt-header style={{ height: 0 }} />
+
+            {sortedTours.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                  {t('tourPlanning.noToursToday')}
+                </p>
+              </div>
+            ) : (
+              sortedTours.map((tour) => {
+                const isScheduled = !!tour.departure_time
+                const isExpanded = expandedTourId === tour.id
+                const isHighlighted = highlightedTourId === tour.id
+                const windowViolations = deliveryWindowViolations.get(tour.id)
+                const tourContract = tour.contract_id ? contractMap.get(tour.contract_id) : null
+
+                /* Inputs pour les non-planifiés / Inputs for unscheduled */
                 const input = scheduleInputs[tour.id] ?? { time: '', contractId: null, deliveryDate: '' }
-                const estReturn = input.time && input.contractId ? estimateReturn(tour, input.time) : null
-                const overlap = input.time && input.contractId ? detectOverlap(tour, input.time, input.contractId) : null
                 const contracts = availableContractsMap[tour.id] ?? []
                 const selectedContract = contracts.find((c) => c.id === input.contractId)
+                const estReturn = !isScheduled && input.time && input.contractId ? estimateReturn(tour, input.time) : null
+                const overlap = !isScheduled && input.time && input.contractId ? detectOverlap(tour, input.time, input.contractId) : null
 
                 return (
                   <div
                     key={tour.id}
-                    className="rounded-xl border p-4 mb-2 transition-all"
+                    data-tour-id={tour.id}
+                    className="rounded-lg border mb-1 transition-all"
                     style={{
-                      backgroundColor: highlightedTourId === tour.id ? 'rgba(249,115,22,0.05)' : 'var(--bg-secondary)',
-                      borderColor: highlightedTourId === tour.id ? 'var(--color-primary)' : 'var(--border-color)',
+                      backgroundColor: windowViolations
+                        ? 'rgba(239,68,68,0.05)'
+                        : isHighlighted
+                          ? 'rgba(249,115,22,0.05)'
+                          : 'var(--bg-secondary)',
+                      borderColor: windowViolations
+                        ? 'var(--color-danger)'
+                        : isHighlighted
+                          ? 'var(--color-primary)'
+                          : 'var(--border-color)',
                     }}
                     onClick={() => setHighlightedTourId(tour.id)}
                   >
-                    {/* En-tête tour / Tour header */}
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{tour.code}</span>
-                        <span className="text-xs ml-2" style={{ color: 'var(--text-muted)' }}>
-                          {tour.stops?.length ?? 0} {t('tourPlanning.stops')} | {tour.total_eqp ?? 0} EQC | {tour.total_km ?? 0} km
-                        </span>
-                      </div>
+                    {/* === Ligne 1 — Résumé compact / Line 1 — Compact summary === */}
+                    <div className="flex items-center gap-2 px-3 py-1.5">
+                      {/* Flèche expand */}
+                      <button
+                        className="text-xs shrink-0 w-4 text-center"
+                        style={{ color: 'var(--text-muted)' }}
+                        onClick={(e) => { e.stopPropagation(); setExpandedTourId(isExpanded ? null : tour.id) }}
+                      >
+                        {isExpanded ? '▾' : '▸'}
+                      </button>
+
+                      {/* Code tour */}
+                      <span className="text-sm font-bold shrink-0" style={{ color: 'var(--color-primary)' }}>
+                        {tour.code}
+                      </span>
+
+                      {/* Badge véhicule */}
                       <span
-                        className="text-xs font-bold px-2 py-0.5 rounded-full"
+                        className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
                         style={{ backgroundColor: 'rgba(249,115,22,0.15)', color: 'var(--color-primary)' }}
                       >
-                        {getVehicleLabel(tour)} ({tour.capacity_eqp ?? 0} EQC)
+                        {getVehicleLabel(tour)}({tour.capacity_eqp ?? 0})
                       </span>
-                    </div>
 
-                    {/* Liste des stops / Stop list */}
-                    {renderStopList(tour)}
-
-                    {/* Sélection contrat / Contract selection */}
-                    <div className="flex flex-col gap-1 mb-2">
-                      <label className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>
-                        {t('tourPlanning.assignContract')}
-                        <span className="ml-1" style={{ color: 'var(--color-primary)' }}>
-                          ({contracts.length} {t('tourPlanning.available')})
-                        </span>
-                      </label>
-                      <select
-                        value={input.contractId ?? ''}
-                        onChange={(e) => updateInput(tour.id, 'contractId', e.target.value ? Number(e.target.value) : null)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="rounded-lg border px-2 py-1.5 text-sm"
-                        style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-                      >
-                        <option value="">{t('tourPlanning.selectContract')}</option>
-                        {contracts.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.code} — {c.transporter_name} ({c.vehicle_code ?? c.vehicle_name ?? ''})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Heure de départ / Departure time */}
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>
-                        {t('tourPlanning.departureTime')}
-                      </label>
-                      <input
-                        type="time"
-                        value={input.time}
-                        onChange={(e) => updateInput(tour.id, 'time', e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="rounded-lg border px-2 py-1.5 text-sm w-40"
-                        style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-                      />
-                    </div>
-
-                    {/* Date de livraison / Delivery date */}
-                    <div className="flex flex-col gap-1 mt-2">
-                      <label className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>
-                        {t('tourPlanning.deliveryDate')}
-                      </label>
-                      <input
-                        type="date"
-                        value={input.deliveryDate}
-                        onChange={(e) => updateInput(tour.id, 'deliveryDate', e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="rounded-lg border px-2 py-1.5 text-sm w-40"
-                        style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-                      />
-                    </div>
-
-                    {/* Info contrat sélectionné / Selected contract info */}
-                    {selectedContract && (
-                      <div className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {selectedContract.transporter_name} — {selectedContract.vehicle_code ?? selectedContract.code}
-                        {selectedContract.fixed_daily_cost != null && ` | ${selectedContract.fixed_daily_cost}€/j`}
-                        {selectedContract.cost_per_km != null && ` + ${selectedContract.cost_per_km}€/km`}
-                      </div>
-                    )}
-
-                    {/* Retour estimé / Estimated return */}
-                    {estReturn && (
-                      <div className="mt-2 text-xs" style={{ color: estReturn > '22:00' ? 'var(--color-danger)' : 'var(--text-muted)' }}>
-                        {t('tourPlanning.estimatedReturn')}: <span className="font-bold">{estReturn}</span>
-                        {input.time && (
-                          <span className="ml-2">
-                            ({formatDuration(parseTime(estReturn) - parseTime(input.time) + (parseTime(estReturn) < parseTime(input.time) ? 24 * 60 : 0))})
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Avertissement chevauchement / Overlap warning */}
-                    {overlap && (
-                      <div
-                        className="mt-2 rounded-lg px-3 py-1.5 text-xs flex items-center gap-2"
-                        style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--color-danger)' }}
-                      >
-                        <span className="font-bold">⚠</span>
-                        {t('tourPlanning.overlapWarning', { code: overlap.code, from: overlap.departure_time, to: overlap.return_time })}
-                      </div>
-                    )}
-
-                    {/* Bouton planifier / Schedule button */}
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
-                        style={{
-                          backgroundColor: input.time && input.contractId && !overlap ? 'var(--color-primary)' : 'var(--bg-tertiary)',
-                          color: input.time && input.contractId && !overlap ? '#fff' : 'var(--text-muted)',
-                        }}
-                        disabled={!input.time || !input.contractId || !!overlap || scheduling === tour.id}
-                        onClick={(e) => { e.stopPropagation(); handleSchedule(tour.id) }}
-                      >
-                        {scheduling === tour.id ? '...' : t('tourPlanning.scheduleTour')}
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Tours planifiés / Scheduled tours */}
-          {scheduledTours.length > 0 && (
-            <div>
-              <h4 className="text-xs font-semibold uppercase mb-2" style={{ color: 'var(--color-success)' }}>
-                {t('tourPlanning.scheduledTours')} ({scheduledTours.length})
-              </h4>
-              {scheduledTours.map((tour) => {
-                const tourContract = tour.contract_id ? contractMap.get(tour.contract_id) : null
-                const windowViolations = deliveryWindowViolations.get(tour.id)
-                return (
-                <div
-                  key={tour.id}
-                  className="rounded-xl border p-4 mb-2 cursor-pointer transition-all"
-                  style={{
-                    backgroundColor: windowViolations ? 'rgba(239,68,68,0.05)' : highlightedTourId === tour.id ? 'rgba(34,197,94,0.05)' : 'var(--bg-secondary)',
-                    borderColor: windowViolations ? 'var(--color-danger)' : highlightedTourId === tour.id ? 'var(--color-success)' : 'var(--border-color)',
-                  }}
-                  onClick={() => setHighlightedTourId(tour.id)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{tour.code}</span>
-                      <span className="text-xs ml-2" style={{ color: 'var(--text-muted)' }}>
-                        {tour.stops?.length ?? 0} {t('tourPlanning.stops')} | {tour.total_eqp ?? 0} EQC | {tour.total_km ?? 0} km
-                      </span>
-                      <span className="text-xs ml-2 font-semibold" style={{ color: 'var(--color-primary)' }}>
-                        {getVehicleLabel(tour)}
-                      </span>
-                    </div>
-                    <div className="text-right text-xs">
-                      <span className="font-bold" style={{ color: 'var(--text-primary)' }}>
-                        {tour.departure_time} → {tour.return_time}
-                      </span>
-                      {tour.delivery_date && (
-                        <span className="block text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                          {t('tourPlanning.deliveryDate')}: {formatDate(tour.delivery_date)}
+                      {/* Badge activité / Activity badge */}
+                      {tour.temperature_type && (
+                        <span
+                          className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
+                          style={{
+                            backgroundColor: tour.temperature_type === 'GEL' ? 'rgba(30,64,175,0.15)'
+                              : tour.temperature_type === 'FRAIS' ? 'rgba(59,130,246,0.15)'
+                              : 'rgba(249,115,22,0.15)',
+                            color: tour.temperature_type === 'GEL' ? '#1e40af'
+                              : tour.temperature_type === 'FRAIS' ? '#3b82f6'
+                              : 'var(--color-primary)',
+                          }}
+                        >
+                          {TEMPERATURE_TYPE_LABELS[tour.temperature_type as TemperatureType] ?? tour.temperature_type}
                         </span>
                       )}
-                      {tour.total_duration_minutes != null && (
-                        <span className="block" style={{ color: 'var(--text-muted)' }}>
-                          {formatDuration(tour.total_duration_minutes)}
-                          {tour.total_cost != null && (
-                            <span
-                              className="ml-1 cursor-pointer underline decoration-dotted hover:opacity-80"
-                              style={{ color: 'var(--color-primary)' }}
-                              onClick={(e) => { e.stopPropagation(); setCostTourId(tour.id) }}
-                              title={t('costBreakdown.title')}
-                            >
-                              {tour.total_cost}€
+
+                      {/* PDVs inline (tronqué) */}
+                      <span className="text-[10px] truncate min-w-0" style={{ color: 'var(--text-muted)' }}>
+                        {pdvSummary(tour)}
+                      </span>
+
+                      {/* Total EQC + km */}
+                      <span className="ml-auto text-xs font-bold shrink-0" style={{ color: 'var(--text-primary)' }}>
+                        = {tour.total_eqp ?? 0} EQC
+                      </span>
+                      <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>
+                        {tour.total_km ?? 0} km
+                      </span>
+
+                      {/* Badge statut pour planifiés / Status badge for scheduled */}
+                      {isScheduled && (
+                        <span
+                          className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase shrink-0"
+                          style={{
+                            backgroundColor: tour.status === 'VALIDATED' ? 'rgba(34,197,94,0.15)' : 'rgba(249,115,22,0.15)',
+                            color: tour.status === 'VALIDATED' ? 'var(--color-success)' : 'var(--color-warning)',
+                          }}
+                        >
+                          {tour.status === 'VALIDATED' ? 'Valide' : 'Brouillon'}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* === Ligne 2 — Actions inline / Line 2 — Inline actions === */}
+                    <div className="flex items-center gap-2 px-3 pb-1.5 flex-wrap">
+                      {!isScheduled ? (
+                        /* --- Non planifié: contrat + date + heure + bouton planifier --- */
+                        <>
+                          <select
+                            value={input.contractId ?? ''}
+                            onChange={(e) => updateInput(tour.id, 'contractId', e.target.value ? Number(e.target.value) : null)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="rounded border px-1.5 py-1 text-[11px] min-w-0"
+                            style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', maxWidth: '200px' }}
+                          >
+                            <option value="">{t('tourPlanning.selectContract')}</option>
+                            {contracts.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.code} — {c.transporter_name}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="date"
+                            value={input.deliveryDate}
+                            onChange={(e) => updateInput(tour.id, 'deliveryDate', e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="rounded border px-1.5 py-1 text-[11px] w-[120px]"
+                            style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                          />
+                          <input
+                            type="time"
+                            value={input.time}
+                            onChange={(e) => updateInput(tour.id, 'time', e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="rounded border px-1.5 py-1 text-[11px] w-[90px]"
+                            style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                          />
+                          <button
+                            className="px-2 py-1 rounded text-[11px] font-semibold transition-all disabled:opacity-40"
+                            style={{
+                              backgroundColor: input.time && input.contractId && !overlap ? 'var(--color-primary)' : 'var(--bg-tertiary)',
+                              color: input.time && input.contractId && !overlap ? '#fff' : 'var(--text-muted)',
+                            }}
+                            disabled={!input.time || !input.contractId || !!overlap || scheduling === tour.id}
+                            onClick={(e) => { e.stopPropagation(); handleSchedule(tour.id) }}
+                          >
+                            {scheduling === tour.id ? '...' : 'Planifier'}
+                          </button>
+                          {/* Retour estimé inline / Inline estimated return */}
+                          {estReturn && (
+                            <span className="text-[10px]" style={{ color: estReturn > '22:00' ? 'var(--color-danger)' : 'var(--text-muted)' }}>
+                              Ret: <span className="font-bold">{estReturn}</span>
                             </span>
                           )}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Contrat assigné / Assigned contract */}
-                  {tourContract && (
-                    <div className="mt-2 text-xs flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
-                      <span className="font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--color-success)' }}>
-                        {tourContract.code}
-                      </span>
-                      <span>{tourContract.transporter_name}</span>
-                      {tourContract.vehicle_code && <span>— {tourContract.vehicle_code}</span>}
-                    </div>
-                  )}
-
-                  {/* Avertissement fenêtre de livraison / Delivery window warning */}
-                  {windowViolations && (
-                    <div
-                      className="mt-2 rounded-lg px-3 py-1.5 text-xs"
-                      style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--color-danger)' }}
-                    >
-                      <span className="font-bold">⚠</span>{' '}
-                      {windowViolations.map((v, i) => (
-                        <span key={i}>{i > 0 && ' | '}{v}</span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Liste des stops / Stop list */}
-                  {renderStopList(tour)}
-
-                  <div className="mt-2 flex items-center justify-between">
-                    {/* Badge statut / Status badge */}
-                    <span
-                      className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
-                      style={{
-                        backgroundColor: tour.status === 'VALIDATED' ? 'rgba(34,197,94,0.15)' : 'rgba(249,115,22,0.15)',
-                        color: tour.status === 'VALIDATED' ? 'var(--color-success)' : 'var(--color-warning)',
-                      }}
-                    >
-                      {tour.status === 'VALIDATED' ? 'Valide' : 'Brouillon'}
-                    </span>
-
-                    <div className="flex items-center gap-2">
-                      {tour.departure_signal_time ? (
-                        <span className="px-3 py-1 rounded-lg text-xs font-semibold" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}>
-                          🔒 Top départ validé
-                        </span>
-                      ) : (
+                          {overlap && (
+                            <span className="text-[10px] font-bold" style={{ color: 'var(--color-danger)' }}>
+                              Chevauche {overlap.code}
+                            </span>
+                          )}
+                        </>
+                      ) : tour.departure_signal_time ? (
+                        /* --- Verrouillé (top départ validé) --- */
                         <>
-                          {/* Bouton valider ou défaire / Validate or revert button */}
+                          {tourContract && (
+                            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--color-success)' }}>
+                              {tourContract.code}
+                            </span>
+                          )}
+                          <span className="text-[11px] font-mono" style={{ color: 'var(--text-primary)' }}>
+                            {tour.departure_time} → {tour.return_time}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)' }}>
+                            Top depart valide
+                          </span>
+                        </>
+                      ) : (
+                        /* --- Planifié DRAFT ou VALIDATED --- */
+                        <>
+                          {tourContract && (
+                            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--color-success)' }}>
+                              {tourContract.code}
+                            </span>
+                          )}
+                          <span className="text-[11px] font-mono" style={{ color: 'var(--text-primary)' }}>
+                            {tour.departure_time} → {tour.return_time}
+                          </span>
+                          {tour.total_duration_minutes != null && (
+                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                              {formatDuration(tour.total_duration_minutes)}
+                              {tour.total_cost != null && (
+                                <span
+                                  className="ml-1 cursor-pointer underline decoration-dotted hover:opacity-80"
+                                  style={{ color: 'var(--color-primary)' }}
+                                  onClick={(e) => { e.stopPropagation(); setCostTourId(tour.id) }}
+                                  title="Détail coûts"
+                                >
+                                  {tour.total_cost}€
+                                </span>
+                              )}
+                            </span>
+                          )}
+                          {tour.delivery_date && (
+                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                              Livr: {formatDate(tour.delivery_date)}
+                            </span>
+                          )}
+                          <span className="ml-auto" />
                           {tour.status === 'DRAFT' ? (
                             <button
-                              className="px-3 py-1 rounded-lg text-xs font-semibold border transition-all hover:opacity-80"
+                              className="px-2 py-0.5 rounded text-[11px] font-semibold border transition-all hover:opacity-80"
                               style={{ borderColor: 'var(--color-success)', color: 'var(--color-success)' }}
                               disabled={scheduling === tour.id}
                               onClick={(e) => { e.stopPropagation(); handleValidate(tour.id) }}
@@ -778,7 +901,7 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
                             </button>
                           ) : (
                             <button
-                              className="px-3 py-1 rounded-lg text-xs border transition-all hover:opacity-80"
+                              className="px-2 py-0.5 rounded text-[11px] border transition-all hover:opacity-80"
                               style={{ borderColor: 'var(--color-warning)', color: 'var(--color-warning)' }}
                               disabled={scheduling === tour.id}
                               onClick={(e) => { e.stopPropagation(); handleRevertDraft(tour.id) }}
@@ -787,41 +910,105 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
                             </button>
                           )}
                           <button
-                            className="px-3 py-1 rounded-lg text-xs border transition-all hover:opacity-80"
+                            className="px-2 py-0.5 rounded text-[11px] border transition-all hover:opacity-80"
                             style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
                             disabled={scheduling === tour.id}
                             onClick={(e) => { e.stopPropagation(); handleUnschedule(tour.id) }}
                           >
-                            {scheduling === tour.id ? '...' : t('tourPlanning.unscheduleTour')}
+                            {scheduling === tour.id ? '...' : 'Retirer'}
                           </button>
                         </>
                       )}
                     </div>
-                  </div>
-                </div>
-                )
-              })}
-            </div>
-          )}
 
-          {/* Aucun tour / No tours */}
-          {tours.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                {t('tourPlanning.noToursToday')}
-              </p>
-            </div>
-          )}
+                    {/* Avertissement fenêtre livraison (compact) / Delivery window warning (compact) */}
+                    {windowViolations && (
+                      <div className="px-3 pb-1.5">
+                        <span className="text-[10px] font-bold" style={{ color: 'var(--color-danger)' }}>
+                          {windowViolations.map((v, i) => (
+                            <span key={i}>{i > 0 && ' | '}{v}</span>
+                          ))}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* === Zone expanded / Expanded area === */}
+                    {isExpanded && (
+                      <div className="px-3 pb-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
+                        {/* Stops détaillés / Detailed stops */}
+                        {renderStopList(tour)}
+
+                        {/* Info contrat pour non-planifié / Contract info for unscheduled */}
+                        {!isScheduled && selectedContract && (
+                          <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                            {selectedContract.transporter_name} — {selectedContract.vehicle_code ?? selectedContract.code}
+                            {selectedContract.fixed_daily_cost != null && ` | ${selectedContract.fixed_daily_cost}€/j`}
+                            {selectedContract.cost_per_km != null && ` + ${selectedContract.cost_per_km}€/km`}
+                          </div>
+                        )}
+
+                        {/* Info contrat pour planifié / Contract info for scheduled */}
+                        {isScheduled && tourContract && (
+                          <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                            {tourContract.transporter_name} — {tourContract.vehicle_code ?? tourContract.code}
+                            {tourContract.vehicle_name && ` (${tourContract.vehicle_name})`}
+                          </div>
+                        )}
+
+                        {/* Retour estimé détaillé pour non-planifié / Detailed estimated return for unscheduled */}
+                        {!isScheduled && estReturn && (
+                          <div className="mt-1 text-xs" style={{ color: estReturn > '22:00' ? 'var(--color-danger)' : 'var(--text-muted)' }}>
+                            {t('tourPlanning.estimatedReturn')}: <span className="font-bold">{estReturn}</span>
+                            {input.time && (
+                              <span className="ml-2">
+                                ({formatDuration(parseTime(estReturn) - parseTime(input.time) + (parseTime(estReturn) < parseTime(input.time) ? 24 * 60 : 0))})
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Avertissement chevauchement détaillé / Detailed overlap warning */}
+                        {!isScheduled && overlap && (
+                          <div
+                            className="mt-1 rounded px-2 py-1 text-xs flex items-center gap-2"
+                            style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--color-danger)' }}
+                          >
+                            <span className="font-bold">!</span>
+                            {t('tourPlanning.overlapWarning', { code: overlap.code, from: overlap.departure_time, to: overlap.return_time })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            )}
+          </div>
         </div>
 
-        {/* Gantt / Gantt chart */}
-        <TourGantt
-          tours={timeline}
-          selectedDate={selectedDate}
-          highlightedTourId={highlightedTourId}
-          onTourClick={setHighlightedTourId}
-          warningTourIds={new Set(deliveryWindowViolations.keys())}
-        />
+        {/* Séparateur redimensionnable / Draggable split handle */}
+        <div
+          className="flex-shrink-0 cursor-col-resize flex items-center justify-center group"
+          style={{ width: '12px' }}
+          onMouseDown={handleSplitResize}
+        >
+          <div className="w-1 h-12 rounded-full transition-colors group-hover:bg-orange-500/50" style={{ backgroundColor: 'var(--border-color)' }} />
+        </div>
+
+        {/* Panneau droit — Gantt SVG / Right panel — SVG Gantt */}
+        <div className="min-w-[200px]" style={{ width: `${100 - prefs.splitPct}%` }}>
+          <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border-color)' }}>
+            <TourGantt
+              tours={ganttData}
+              highlightedTourId={highlightedTourId}
+              onTourClick={setHighlightedTourId}
+              warningTourIds={new Set(deliveryWindowViolations.keys())}
+              rowHeights={measuredRowHeights}
+              headerHeight={measuredHeaderHeight}
+              expandedTourId={expandedTourId}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Plan de tour imprimable / Printable tour plan */}

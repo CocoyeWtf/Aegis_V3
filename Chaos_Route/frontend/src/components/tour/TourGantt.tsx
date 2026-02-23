@@ -1,8 +1,7 @@
-/* Gantt interactif 3 jours par contrat / Interactive 3-day Gantt chart per contract */
+/* Gantt SVG aligné single-day / Aligned single-day SVG Gantt chart */
 
-import { useState, useEffect, useRef, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
-import { formatDate } from '../../utils/tourTimeUtils'
+import { useRef, useEffect, useState, useMemo } from 'react'
+import { parseTime } from '../../utils/tourTimeUtils'
 
 export interface GanttTour {
   tour_id: number
@@ -23,22 +22,29 @@ export interface GanttTour {
   delivery_date: string | null
   tour_date: string
   status: string
-  stops: { id: number; pdv_id: number; sequence_order: number; eqp_count: number; arrival_time: string | null; departure_time: string | null }[]
+  stops: { id: number; pdv_id: number; pdv_code?: string; sequence_order: number; eqp_count: number; arrival_time: string | null; departure_time: string | null }[]
 }
 
 interface TourGanttProps {
   tours: GanttTour[]
-  selectedDate: string
+  startHour?: number
+  endHour?: number
   highlightedTourId: number | null
   onTourClick: (tourId: number) => void
   warningTourIds?: Set<number>
+  rowHeights?: number[]
+  headerHeight?: number
+  expandedTourId?: number | null
 }
 
-const LABEL_WIDTH = 100
-const VISIBLE_HOURS = 12
-const TOTAL_DAYS = 3
-const TOTAL_HOURS = TOTAL_DAYS * 24
-const MAX_CONTRACT_DAILY_MINUTES = 600
+const ROW_HEIGHT = 40
+const DEFAULT_HEADER_HEIGHT = 26
+const LABEL_WIDTH = 80
+const PADDING_RIGHT = 16
+/* Mini-barres stops / Stop mini-bars */
+const STOP_BAR_H = 10
+const STOP_ROW_H = 16
+const STOP_AREA_TOP = 56  /* offset sous la barre principale (2 lignes compactes) / offset below main bar */
 
 const STATUS_COLORS: Record<string, string> = {
   DRAFT: 'rgba(249,115,22,0.7)',
@@ -48,282 +54,238 @@ const STATUS_COLORS: Record<string, string> = {
   COMPLETED: 'rgba(107,114,128,0.6)',
 }
 
-const WEEKDAY_FR = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
+export function TourGantt({
+  tours,
+  startHour = 4,
+  endHour = 22,
+  highlightedTourId,
+  onTourClick,
+  warningTourIds,
+  rowHeights,
+  headerHeight: headerHeightProp,
+  expandedTourId,
+}: TourGanttProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(400)
 
-function timeToMinutes(t: string): number {
-  const [h, m] = t.split(':').map(Number)
-  return h * 60 + m
-}
-
-export function TourGantt({ tours, selectedDate, highlightedTourId, onTourClick, warningTourIds }: TourGanttProps) {
-  const { t } = useTranslation()
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [containerWidth, setContainerWidth] = useState(0)
-
-  /* Mesurer la largeur du conteneur / Measure container width */
   useEffect(() => {
-    const el = scrollRef.current
+    const el = containerRef.current
     if (!el) return
-    setContainerWidth(el.clientWidth)
-    const obs = new ResizeObserver((entries) => setContainerWidth(entries[0].contentRect.width))
-    obs.observe(el)
-    return () => obs.disconnect()
+    setWidth(el.clientWidth)
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) setWidth(entry.contentRect.width)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [])
 
-  const pxPerHour = containerWidth > 0 ? Math.max(40, (containerWidth - LABEL_WIDTH) / VISIBLE_HOURS) : 60
-  const timelineWidth = pxPerHour * TOTAL_HOURS
-  const totalWidth = LABEL_WIDTH + timelineWidth
+  const headerH = headerHeightProp ?? DEFAULT_HEADER_HEIGHT
 
-  /* 3 jours: J, J+1, J+2 / 3 days from dispatch date */
-  const days = useMemo(() => {
-    const base = new Date(selectedDate + 'T00:00:00')
-    return Array.from({ length: TOTAL_DAYS }, (_, i) => {
-      const d = new Date(base)
-      d.setDate(d.getDate() + i)
-      return d.toISOString().slice(0, 10)
-    })
-  }, [selectedDate])
+  /* Axe temps / Time axis */
+  const startMin = startHour * 60
+  const endMin = endHour * 60
+  const totalMin = endMin - startMin
+  const chartWidth = width - LABEL_WIDTH - PADDING_RIGHT
+  const toX = (minutes: number) => LABEL_WIDTH + ((minutes - startMin) / totalMin) * chartWidth
 
-  /* Scroll initial à 05:00 du jour J / Auto-scroll to 05:00 of day J */
+  /* Heure actuelle / Current time */
+  const [nowMin, setNowMin] = useState(() => {
+    const d = new Date()
+    return d.getHours() * 60 + d.getMinutes()
+  })
   useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    const pxH = Math.max(40, (el.clientWidth - LABEL_WIDTH) / VISIBLE_HOURS)
-    el.scrollLeft = 5 * pxH
-  }, [selectedDate])
+    const id = setInterval(() => {
+      const d = new Date()
+      setNowMin(d.getHours() * 60 + d.getMinutes())
+    }, 60_000)
+    return () => clearInterval(id)
+  }, [])
 
-  /* Regrouper par contrat (tours planifiés) / Group by contract (scheduled only) */
-  const vehicleRows = useMemo(() => {
-    const map = new Map<number, { code: string; name: string; tours: GanttTour[]; dailyMinutes: Map<string, number> }>()
-    for (const tour of tours) {
-      if (!tour.departure_time || !tour.return_time || tour.contract_id == null) continue
-      let entry = map.get(tour.contract_id)
-      if (!entry) {
-        entry = {
-          code: tour.vehicle_code || tour.contract_code || `C${tour.contract_id}`,
-          name: tour.vehicle_name || tour.transporter_name || '',
-          tours: [],
-          dailyMinutes: new Map(),
-        }
-        map.set(tour.contract_id, entry)
-      }
-      entry.tours.push(tour)
-      const day = tour.tour_date ?? selectedDate
-      entry.dailyMinutes.set(day, (entry.dailyMinutes.get(day) ?? 0) + (tour.total_duration_minutes ?? 0))
+  /* Heures repères / Hour markers */
+  const hours = useMemo(() => {
+    const h: number[] = []
+    for (let i = startHour; i <= endHour; i++) h.push(i)
+    return h
+  }, [startHour, endHour])
+
+  /* Positions Y cumulées / Cumulative Y positions per row */
+  const { rowYs, totalBodyHeight } = useMemo(() => {
+    const ys: number[] = []
+    let cum = 0
+    for (let i = 0; i < tours.length; i++) {
+      ys.push(cum)
+      cum += (rowHeights?.[i] ?? ROW_HEIGHT)
     }
-    return Array.from(map.entries()).sort(([, a], [, b]) => a.code.localeCompare(b.code))
-  }, [tours, selectedDate])
+    return { rowYs: ys, totalBodyHeight: cum }
+  }, [tours.length, rowHeights])
 
-  /* Marqueurs d'heures (0..72) / Hour marks */
-  const hourMarks = useMemo(
-    () =>
-      Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => ({
-        totalHour: i,
-        hourInDay: i % 24,
-      })),
-    [],
-  )
+  const svgHeight = headerH + totalBodyHeight + 4
 
   return (
-    <div
-      className="rounded-xl border overflow-hidden h-full flex flex-col"
-      style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
-    >
-      {/* En-tête / Header */}
-      <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-color)' }}>
-        <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-          {t('tourPlanning.timeline')}
-        </h3>
-        <div className="flex items-center gap-3 text-[10px]" style={{ color: 'var(--text-muted)' }}>
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-3 h-3 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid var(--color-danger)' }} />
-            {t('tourPlanning.legendOver10h')}
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-3 h-3 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.8)', border: '1px dashed var(--color-danger)' }} />
-            {t('tourPlanning.legendWindowViolation')}
-          </span>
-        </div>
-      </div>
+    <div ref={containerRef} className="w-full overflow-hidden">
+      <svg width={width} height={Math.max(svgHeight, 60)} style={{ display: 'block' }}>
+        {/* Fond / Background */}
+        <rect width={width} height={Math.max(svgHeight, 60)} fill="var(--bg-secondary)" rx={8} />
 
-      {/* Zone scrollable horizontalement (12h visibles) / Horizontally scrollable area (12h viewport) */}
-      <div ref={scrollRef} className="flex-1 overflow-auto py-2">
-        {vehicleRows.length === 0 ? (
-          <p className="text-xs text-center py-8" style={{ color: 'var(--text-muted)' }}>
-            {t('tourPlanning.noToursToday')}
-          </p>
-        ) : (
-          <div style={{ width: totalWidth, minWidth: totalWidth }}>
-            {/* En-têtes des jours / Day headers */}
-            <div className="flex" style={{ height: 22 }}>
-              <div
-                style={{
-                  width: LABEL_WIDTH,
-                  flexShrink: 0,
-                  position: 'sticky',
-                  left: 0,
-                  zIndex: 20,
-                  background: 'var(--bg-secondary)',
-                }}
-              />
-              {days.map((day, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-center text-[11px] font-bold"
-                  style={{
-                    width: pxPerHour * 24,
-                    color: i === 0 ? 'var(--text-primary)' : 'var(--text-muted)',
-                    borderLeft: '2px solid var(--color-primary)',
-                    backgroundColor: i % 2 === 1 ? 'rgba(255,255,255,0.04)' : 'transparent',
-                  }}
-                >
-                  {WEEKDAY_FR[new Date(day + 'T00:00:00').getDay()]} {day.slice(8, 10)}/{day.slice(5, 7)} {i === 0 ? '(J)' : `(J+${i})`}
-                </div>
-              ))}
-            </div>
+        {/* Grille horaire / Hour grid */}
+        {hours.map((h) => {
+          const x = toX(h * 60)
+          return (
+            <g key={h}>
+              <line x1={x} y1={headerH} x2={x} y2={svgHeight} stroke="var(--border-color)" strokeWidth={0.5} />
+              <text x={x} y={headerH / 2 + 4} textAnchor="middle" fill="var(--text-muted)" fontSize={10} fontFamily="inherit">
+                {`${String(h).padStart(2, '0')}h`}
+              </text>
+            </g>
+          )
+        })}
 
-            {/* Axe des heures / Hour axis */}
-            <div className="flex mb-1" style={{ height: 16 }}>
-              <div
-                style={{
-                  width: LABEL_WIDTH,
-                  flexShrink: 0,
-                  position: 'sticky',
-                  left: 0,
-                  zIndex: 20,
-                  background: 'var(--bg-secondary)',
-                }}
-              />
-              <div className="relative" style={{ width: timelineWidth }}>
-                {hourMarks
-                  .filter((h) => h.totalHour < TOTAL_HOURS && h.hourInDay % 2 === 0)
-                  .map(({ totalHour, hourInDay }) => (
-                    <span
-                      key={totalHour}
-                      className="absolute text-[10px]"
-                      style={{ left: totalHour * pxPerHour, transform: 'translateX(-50%)', color: 'var(--text-muted)' }}
+        {/* Lignes tours / Tour rows */}
+        {tours.map((tour, i) => {
+          const y = headerH + rowYs[i]
+          const rowH = rowHeights?.[i] ?? ROW_HEIGHT
+          const isHighlighted = tour.tour_id === highlightedTourId
+          const isExpanded = tour.tour_id === expandedTourId
+          const hasWarning = warningTourIds?.has(tour.tour_id)
+          const color = STATUS_COLORS[tour.status] || STATUS_COLORS.DRAFT
+
+          const depMin = tour.departure_time ? parseTime(tour.departure_time) : null
+          const retMin = tour.return_time ? parseTime(tour.return_time) : null
+
+          /* Centrer la barre dans les premiers ROW_HEIGHT pixels / Center bar in top ROW_HEIGHT pixels */
+          const barH = Math.min(18, Math.min(rowH, ROW_HEIGHT) - 8)
+          const barCenterY = y + Math.min(rowH, ROW_HEIGHT) / 2
+          const barY = barCenterY - barH / 2
+
+          /* Stops triés / Sorted stops */
+          const sortedStops = [...tour.stops].sort((a, b) => a.sequence_order - b.sequence_order)
+          const hasStopTimes = sortedStops.some(s => s.arrival_time)
+
+          return (
+            <g key={tour.tour_id} className="cursor-pointer" onClick={() => onTourClick(tour.tour_id)}>
+              {/* Fond actif / Active row highlight */}
+              {isHighlighted && (
+                <rect x={0} y={y} width={width} height={rowH} fill="rgba(249,115,22,0.08)" />
+              )}
+
+              {/* Séparateur horizontal / Horizontal separator */}
+              {i > 0 && (
+                <line x1={0} y1={y} x2={width} y2={y} stroke="var(--border-color)" strokeWidth={0.5} opacity={0.3} />
+              )}
+
+              {/* Code tour / Tour code label */}
+              <text x={8} y={barCenterY + 4} fill={isHighlighted ? 'var(--color-primary)' : 'var(--text-primary)'} fontSize={11} fontWeight="bold" fontFamily="inherit">
+                {tour.code}
+              </text>
+
+              {/* Barre principale / Main bar */}
+              {depMin !== null && retMin !== null && (
+                <rect
+                  x={toX(depMin)} y={barY}
+                  width={Math.max(0, toX(retMin < depMin ? retMin + 24 * 60 : retMin) - toX(depMin))} height={barH}
+                  rx={3}
+                  fill={hasWarning ? 'rgba(239,68,68,0.8)' : color}
+                  opacity={isExpanded ? 0.35 : 0.75}
+                  stroke={isHighlighted ? 'var(--color-primary)' : hasWarning ? 'var(--color-danger)' : 'none'}
+                  strokeWidth={isHighlighted ? 2 : hasWarning ? 1.5 : 0}
+                  strokeDasharray={hasWarning && !isHighlighted ? '4 2' : undefined}
+                />
+              )}
+
+              {/* Marqueurs arrêts sur la barre (quand fermé) / Stop markers on bar (when collapsed) */}
+              {!isExpanded && tour.stops.map((stop, si) => {
+                const arrMin = stop.arrival_time ? parseTime(stop.arrival_time) : null
+                if (arrMin === null) return null
+                return (
+                  <circle
+                    key={si} cx={toX(arrMin)} cy={barCenterY}
+                    r={2.5} fill="#fff" stroke={color} strokeWidth={1.5}
+                  />
+                )
+              })}
+
+              {/* === Mini-barres stops (quand déplié) / Stop mini-bars (when expanded) === */}
+              {isExpanded && hasStopTimes && sortedStops.map((stop, si) => {
+                const arrMin = stop.arrival_time ? parseTime(stop.arrival_time) : null
+                if (arrMin === null) return null
+                const depStopMin = stop.departure_time ? parseTime(stop.departure_time) : null
+
+                const stopY = y + STOP_AREA_TOP + si * STOP_ROW_H
+                const stopBarCenterY = stopY + STOP_ROW_H / 2
+                const stopBarY = stopBarCenterY - STOP_BAR_H / 2
+
+                /* S'assurer qu'on reste dans la row / Stay within row bounds */
+                if (stopY + STOP_ROW_H > y + rowH) return null
+
+                const x1 = toX(arrMin)
+                const barWidth = depStopMin !== null
+                  ? Math.max(4, toX(depStopMin) - x1)
+                  : 4  /* pas de departure = petit trait / no departure = thin mark */
+
+                return (
+                  <g key={`stop-${si}`}>
+                    {/* Mini-barre arrivée → départ / Mini-bar arrival → departure */}
+                    <rect
+                      x={x1} y={stopBarY}
+                      width={barWidth} height={STOP_BAR_H}
+                      rx={2}
+                      fill={color} opacity={0.55}
+                    />
+                    {/* Marqueur arrivée / Arrival marker */}
+                    <circle
+                      cx={x1} cy={stopBarCenterY}
+                      r={2} fill="#fff" stroke={color} strokeWidth={1.2}
+                    />
+                    {/* Label PDV / PDV label */}
+                    <text
+                      x={x1 - 3} y={stopBarCenterY + 3}
+                      textAnchor="end"
+                      fill="var(--text-muted)" fontSize={8} fontFamily="inherit"
                     >
-                      {String(hourInDay).padStart(2, '0')}h
-                    </span>
-                  ))}
-              </div>
-            </div>
+                      {stop.pdv_code ?? `#${si + 1}`}
+                    </text>
+                  </g>
+                )
+              })}
 
-            {/* Lignes véhicules / Vehicle rows */}
-            {vehicleRows.map(([contractId, { code, name, tours: vTours, dailyMinutes }]) => {
-              const isOver10h = Array.from(dailyMinutes.values()).some((m) => m > MAX_CONTRACT_DAILY_MINUTES)
-              return (
-                <div key={contractId} className="flex items-center mb-1" style={{ minHeight: 32 }}>
-                  {/* Label contrat (sticky gauche) / Contract label (sticky left) */}
-                  <div
-                    className="shrink-0 text-xs font-medium truncate pr-2"
-                    style={{
-                      width: LABEL_WIDTH,
-                      position: 'sticky',
-                      left: 0,
-                      zIndex: 10,
-                      background: 'var(--bg-secondary)',
-                      color: isOver10h ? 'var(--color-danger)' : 'var(--text-primary)',
-                    }}
-                    title={`${code} — ${name}${isOver10h ? ' (>10h/jour)' : ''}`}
-                  >
-                    {code}
-                    {isOver10h ? ' !' : ''}
-                  </div>
+              {/* Ligne de liaison verticale entre stops (quand déplié) / Vertical connection line (when expanded) */}
+              {isExpanded && hasStopTimes && (() => {
+                const firstWithTime = sortedStops.findIndex(s => s.arrival_time)
+                const lastWithTime = sortedStops.reduce((last, s, idx) => s.arrival_time ? idx : last, -1)
+                if (firstWithTime < 0 || lastWithTime <= firstWithTime) return null
+                const lineY1 = y + STOP_AREA_TOP + firstWithTime * STOP_ROW_H + STOP_ROW_H / 2
+                const lineY2 = y + STOP_AREA_TOP + lastWithTime * STOP_ROW_H + STOP_ROW_H / 2
+                if (lineY2 > y + rowH) return null
+                /* Tracer une ligne verticale à la position du premier arrêt / Draw vertical line at first stop position */
+                const firstArr = parseTime(sortedStops[firstWithTime].arrival_time!)
+                return (
+                  <line
+                    x1={toX(firstArr) - 6} y1={lineY1}
+                    x2={toX(firstArr) - 6} y2={lineY2}
+                    stroke={color} strokeWidth={0.5} opacity={0.3}
+                    strokeDasharray="2 2"
+                  />
+                )
+              })()}
+            </g>
+          )
+        })}
 
-                  {/* Barre timeline / Timeline bar */}
-                  <div
-                    className="relative rounded overflow-hidden"
-                    style={{
-                      width: timelineWidth,
-                      height: 26,
-                      backgroundColor: isOver10h ? 'rgba(239,68,68,0.08)' : 'var(--bg-tertiary)',
-                    }}
-                  >
-                    {/* Bandes alternées par jour / Alternating day bands */}
-                    {days.map((_, di) => (
-                      di % 2 === 1 && (
-                        <div
-                          key={`band-${di}`}
-                          className="absolute top-0 bottom-0"
-                          style={{
-                            left: di * 24 * pxPerHour,
-                            width: 24 * pxPerHour,
-                            backgroundColor: 'rgba(255,255,255,0.04)',
-                          }}
-                        />
-                      )
-                    ))}
-
-                    {/* Gridlines — trait épais à minuit, fin chaque heure / Thick at midnight, thin every hour */}
-                    {hourMarks.map(({ totalHour, hourInDay }) => (
-                      <div
-                        key={totalHour}
-                        className="absolute top-0 bottom-0"
-                        style={{
-                          left: totalHour * pxPerHour,
-                          width: hourInDay === 0 ? 2 : 1,
-                          backgroundColor: hourInDay === 0 ? 'var(--color-primary)' : 'var(--border-color)',
-                          opacity: hourInDay === 0 ? 0.6 : 0.2,
-                        }}
-                      />
-                    ))}
-
-                    {/* Barres des tours / Tour bars */}
-                    {vTours.map((tour) => {
-                      if (!tour.departure_time || !tour.return_time) return null
-                      const dayIdx = days.indexOf(tour.tour_date)
-                      if (dayIdx < 0) return null
-
-                      const depMin = dayIdx * 24 * 60 + timeToMinutes(tour.departure_time)
-                      let retMin = dayIdx * 24 * 60 + timeToMinutes(tour.return_time)
-                      if (retMin <= depMin) retMin += 24 * 60 // tour passe minuit / crosses midnight
-
-                      const leftPx = (depMin / 60) * pxPerHour
-                      const widthPx = Math.max(((retMin - depMin) / 60) * pxPerHour, 8)
-                      const color = STATUS_COLORS[tour.status] || STATUS_COLORS.DRAFT
-                      const isHighlighted = tour.tour_id === highlightedTourId
-                      const hasWindowViolation = warningTourIds?.has(tour.tour_id)
-
-                      return (
-                        <div
-                          key={tour.tour_id}
-                          className="absolute top-0.5 bottom-0.5 rounded flex items-center justify-center text-[9px] font-semibold cursor-pointer transition-all"
-                          style={{
-                            left: leftPx,
-                            width: widthPx,
-                            backgroundColor: hasWindowViolation ? 'rgba(239,68,68,0.8)' : color,
-                            color: '#fff',
-                            overflow: 'hidden',
-                            whiteSpace: 'nowrap',
-                            outline: isHighlighted
-                              ? '2px solid var(--color-primary)'
-                              : hasWindowViolation
-                                ? '2px dashed var(--color-danger)'
-                                : 'none',
-                            outlineOffset: '1px',
-                            opacity: isHighlighted ? 1 : 0.85,
-                            zIndex: isHighlighted ? 10 : 1,
-                          }}
-                          title={`${tour.code}${tour.delivery_date ? ` | Livr: ${formatDate(tour.delivery_date)}` : ''} | ${tour.departure_time} → ${tour.return_time} | ${tour.total_eqp ?? 0} EQC${hasWindowViolation ? ' ⚠' : ''}`}
-                          onClick={() => onTourClick(tour.tour_id)}
-                        >
-                          {widthPx > 60 && (
-                            <span className="px-1 truncate">
-                              {hasWindowViolation && '⚠ '}
-                              {tour.code} {tour.departure_time}–{tour.return_time}
-                            </span>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+        {/* Ligne "maintenant" / "Now" line */}
+        {nowMin >= startMin && nowMin <= endMin && (
+          <>
+            <line
+              x1={toX(nowMin)} y1={headerH - 2}
+              x2={toX(nowMin)} y2={svgHeight}
+              stroke="var(--color-danger)" strokeWidth={1.5} strokeDasharray="4 3"
+            />
+            <polygon
+              points={`${toX(nowMin) - 4},${headerH - 2} ${toX(nowMin) + 4},${headerH - 2} ${toX(nowMin)},${headerH + 4}`}
+              fill="var(--color-danger)"
+            />
+          </>
         )}
-      </div>
+      </svg>
     </div>
   )
 }

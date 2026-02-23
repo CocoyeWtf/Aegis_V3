@@ -78,9 +78,7 @@ export default function TourPlanning() {
       ) : (
         <TourScheduler
           selectedDate={selectedDate}
-          selectedBaseId={selectedBaseId}
           onDateChange={setSelectedDate}
-          onBaseChange={setSelectedBaseId}
         />
       )}
     </div>

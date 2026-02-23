@@ -457,7 +457,7 @@ async def available_contracts_for_tours(
 @router.get("/timeline")
 async def tour_timeline(
     date: str = Query(...),
-    base_id: int = Query(...),
+    base_id: int | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("tour-planning", "read")),
 ):
@@ -466,12 +466,21 @@ async def tour_timeline(
     _base = _dt.strptime(date, "%Y-%m-%d")
     _dates = [(_base + _td(days=i)).strftime("%Y-%m-%d") for i in range(3)]
 
-    result = await db.execute(
+    query = (
         select(Tour)
-        .where(Tour.date.in_(_dates), Tour.base_id == base_id)
+        .where(Tour.date.in_(_dates))
         .options(selectinload(Tour.stops))
         .order_by(Tour.departure_time)
     )
+    if base_id is not None:
+        query = query.where(Tour.base_id == base_id)
+    # Scope région / Region scope
+    user_region_ids = get_user_region_ids(user)
+    if user_region_ids is not None:
+        query = query.join(BaseLogistics, Tour.base_id == BaseLogistics.id).where(
+            BaseLogistics.region_id.in_(user_region_ids)
+        )
+    result = await db.execute(query)
     tours = result.scalars().all()
 
     contract_ids = list({t.contract_id for t in tours if t.contract_id is not None})
@@ -1385,18 +1394,20 @@ async def revert_tour_draft(
 @router.post("/validate-batch")
 async def validate_batch(
     date: str = Query(...),
-    base_id: int = Query(...),
+    base_id: int | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("tour-planning", "update")),
 ):
     """Valider tous les tours DRAFT planifies pour une date/base / Validate all scheduled DRAFT tours for a date/base."""
+    filters = [
+        Tour.date == date,
+        Tour.status == TourStatus.DRAFT,
+        Tour.departure_time.isnot(None),
+    ]
+    if base_id is not None:
+        filters.append(Tour.base_id == base_id)
     result = await db.execute(
-        select(Tour).where(
-            Tour.date == date,
-            Tour.base_id == base_id,
-            Tour.status == TourStatus.DRAFT,
-            Tour.departure_time.isnot(None),
-        ).options(selectinload(Tour.stops))
+        select(Tour).where(*filters).options(selectinload(Tour.stops))
     )
     tours_to_validate = result.scalars().all()
     count = 0
