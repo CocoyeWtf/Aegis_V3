@@ -10,7 +10,7 @@ import { DriverRouteSheet } from '../components/tour/DriverRouteSheet'
 import { TourGantt } from '../components/operations/TourGantt'
 import { computeTourDelay, detectSecondTourImpacts, DELAY_COLORS } from '../utils/tourDelay'
 import type { TourWithDelay, TourImpact } from '../utils/tourDelay'
-import { parseTime, displayDateTime, nowDateTimeLocal } from '../utils/tourTimeUtils'
+import { parseTime, displayDateTime, nowDateTimeLocal, formatDate } from '../utils/tourTimeUtils'
 import { useAppStore } from '../stores/useAppStore'
 
 const REFRESH_INTERVAL = 30_000
@@ -628,12 +628,12 @@ function TourRow({
                 <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs px-1 py-1.5 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                   {dispatchVol && (
                     <span style={{ color: 'var(--text-muted)' }}>
-                      {t('tourPlanning.dispatchInfo')} <strong style={{ color: 'var(--text-primary)' }}>{dispatchVol.dispatch_date}{dispatchVol.dispatch_time ? ` ${dispatchVol.dispatch_time}` : ''}</strong>
+                      {t('tourPlanning.dispatchInfo')} <strong style={{ color: 'var(--text-primary)' }}>{formatDate(dispatchVol.dispatch_date)}{dispatchVol.dispatch_time ? ` ${dispatchVol.dispatch_time}` : ''}</strong>
                     </span>
                   )}
                   {tour.delivery_date && (
                     <span style={{ color: 'var(--text-muted)' }}>
-                      {t('tourPlanning.deliveryDate')}: <strong style={{ color: 'var(--text-primary)' }}>{tour.delivery_date}</strong>
+                      {t('tourPlanning.deliveryDate')}: <strong style={{ color: 'var(--text-primary)' }}>{formatDate(tour.delivery_date)}</strong>
                     </span>
                   )}
                   <span style={{ color: 'var(--text-muted)' }}>
@@ -676,7 +676,7 @@ function TourRow({
                             {pdv?.city && <span className="ml-1" style={{ color: 'var(--text-muted)' }}>({pdv.city})</span>}
                             {stopDispatch && (
                               <span className="ml-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                                {t('tourPlanning.dispatchInfo')} {stopDispatch.dispatch_date}{stopDispatch.dispatch_time ? ` ${stopDispatch.dispatch_time}` : ''}
+                                {t('tourPlanning.dispatchInfo')} {formatDate(stopDispatch.dispatch_date)}{stopDispatch.dispatch_time ? ` ${stopDispatch.dispatch_time}` : ''}
                               </span>
                             )}
                           </td>

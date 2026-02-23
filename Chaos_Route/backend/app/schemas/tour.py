@@ -57,6 +57,8 @@ class TourBase(BaseModel):
     loading_end_time: str | None = None
     barrier_exit_time: str | None = None
     barrier_entry_time: str | None = None
+    km_departure: int | None = None
+    km_return: int | None = None
     remarks: str | None = None
     loader_code: str | None = None
     loader_name: str | None = None
@@ -95,6 +97,8 @@ class TourUpdate(BaseModel):
     loading_end_time: str | None = None
     barrier_exit_time: str | None = None
     barrier_entry_time: str | None = None
+    km_departure: int | None = None
+    km_return: int | None = None
     remarks: str | None = None
     loader_code: str | None = None
     loader_name: str | None = None
@@ -125,9 +129,11 @@ class TourOperationsUpdate(BaseModel):
 
 
 class TourGateUpdate(BaseModel):
-    """Mise à jour poste de garde / Gate update (barrier times)."""
+    """Mise à jour poste de garde / Gate update (barrier times + km)."""
     barrier_exit_time: str | None = None
     barrier_entry_time: str | None = None
+    km_departure: int | None = None
+    km_return: int | None = None
 
 
 class TourSchedule(BaseModel):

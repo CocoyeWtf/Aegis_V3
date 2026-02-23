@@ -12,6 +12,7 @@ class SupportTypeCreate(BaseModel):
     unit_quantity: int = 1
     unit_label: str | None = None
     is_active: bool = True
+    image_path: str | None = None
 
 
 class SupportTypeUpdate(BaseModel):
@@ -20,6 +21,7 @@ class SupportTypeUpdate(BaseModel):
     unit_quantity: int | None = None
     unit_label: str | None = None
     is_active: bool | None = None
+    image_path: str | None = None
 
 
 class SupportTypeRead(BaseModel):
@@ -30,6 +32,7 @@ class SupportTypeRead(BaseModel):
     unit_quantity: int
     unit_label: str | None
     is_active: bool
+    image_path: str | None = None
 
 
 # --- PickupLabel ---

@@ -1,14 +1,17 @@
 /* Page Volumes / Volume management page */
 
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CrudPage } from '../components/data/CrudPage'
 import type { Column } from '../components/data/DataTable'
 import type { FieldDef } from '../components/data/FormDialog'
 import { useApi } from '../hooks/useApi'
 import type { Volume, PDV, BaseLogistics } from '../types'
+import { formatDate, displayDateTime } from '../utils/tourTimeUtils'
 
 export default function VolumeManagement() {
   const { t } = useTranslation()
+  const [hideAssigned, setHideAssigned] = useState(true)
   const { data: pdvs } = useApi<PDV>('/pdvs')
   const { data: bases } = useApi<BaseLogistics>('/bases')
 
@@ -19,7 +22,7 @@ export default function VolumeManagement() {
   ]
 
   const columns: Column<Volume>[] = [
-    { key: 'date', label: t('common.date'), width: '110px', filterable: true },
+    { key: 'date', label: t('common.date'), width: '110px', filterable: true, render: (row) => formatDate(row.date) },
     {
       key: 'pdv_id', label: t('volumes.pdv'), filterable: true,
       render: (row) => pdvs.find((p) => p.id === row.pdv_id)?.name || String(row.pdv_id),
@@ -33,8 +36,18 @@ export default function VolumeManagement() {
       render: (row) => bases.find((b) => b.id === row.base_origin_id)?.name || '—',
       filterValue: (row) => bases.find((b) => b.id === row.base_origin_id)?.name || '',
     },
-    { key: 'dispatch_date' as keyof Volume, label: t('volumes.dispatchDate'), width: '120px', filterable: true },
-    { key: 'dispatch_time' as keyof Volume, label: t('volumes.dispatchTime'), width: '100px' },
+    {
+      key: 'dispatch_date' as keyof Volume, label: t('volumes.dispatchDate'), width: '140px', filterable: true,
+      render: (row) => row.dispatch_date ? `${formatDate(row.dispatch_date)}${row.dispatch_time ? ` ${row.dispatch_time}` : ''}` : '—',
+    },
+    {
+      key: 'preparation_start' as keyof Volume, label: 'Début prépa', width: '130px',
+      render: (row) => displayDateTime(row.preparation_start),
+    },
+    {
+      key: 'preparation_end' as keyof Volume, label: 'Fin prépa', width: '130px',
+      render: (row) => displayDateTime(row.preparation_end),
+    },
     {
       key: 'tour_id' as keyof Volume, label: 'Tour', width: '100px', filterable: true,
       filterValue: (row) => row.tour_id ? t('tourPlanning.assigned') : '',
@@ -49,7 +62,7 @@ export default function VolumeManagement() {
   ]
 
   const fields: FieldDef[] = [
-    { key: 'date', label: t('common.date'), type: 'text', required: true, placeholder: 'YYYY-MM-DD' },
+    { key: 'date', label: t('common.date'), type: 'date', required: true },
     {
       key: 'pdv_id', label: t('volumes.pdv'), type: 'select', required: true,
       options: pdvs.map((p) => ({ value: String(p.id), label: `${p.code} — ${p.name}` })),
@@ -61,10 +74,9 @@ export default function VolumeManagement() {
       key: 'base_origin_id', label: t('volumes.baseOrigin'), type: 'select', required: true,
       options: bases.map((b) => ({ value: String(b.id), label: `${b.code} — ${b.name}` })),
     },
-    { key: 'preparation_start', label: t('volumes.prepStart'), type: 'time' },
-    { key: 'preparation_end', label: t('volumes.prepEnd'), type: 'time' },
-    { key: 'dispatch_date', label: t('volumes.dispatchDate'), type: 'date', required: true },
-    { key: 'dispatch_time', label: t('volumes.dispatchTime'), type: 'time' },
+    { key: 'dispatch_datetime', label: 'Date et heure de répartition', type: 'datetime-local', required: true },
+    { key: 'preparation_start', label: 'Date et heure début de préparation', type: 'datetime-local' },
+    { key: 'preparation_end', label: 'Date et heure fin de préparation', type: 'datetime-local' },
   ]
 
   return (
@@ -78,11 +90,48 @@ export default function VolumeManagement() {
       editTitle={t('volumes.edit')}
       importEntity="volumes"
       exportEntity="volumes"
-      transformPayload={(d) => ({
-        ...d,
-        pdv_id: Number(d.pdv_id),
-        base_origin_id: Number(d.base_origin_id),
+      transformInitialData={(data) => ({
+        ...data,
+        dispatch_datetime: data.dispatch_date
+          ? `${data.dispatch_date}${data.dispatch_time ? `T${data.dispatch_time}` : ''}`
+          : '',
       })}
+      transformPayload={(d) => {
+        const dt = d.dispatch_datetime as string | null
+        const dispatch_date = dt ? dt.split('T')[0] : null
+        const dispatch_time = dt && dt.includes('T') ? dt.split('T')[1] : null
+        const prep_start = d.preparation_start as string | null
+        const prep_end = d.preparation_end as string | null
+
+        if (prep_start && dt && prep_start < dt) {
+          throw new Error('La date/heure de début de préparation ne peut pas être avant la répartition')
+        }
+        if (prep_end && prep_start && prep_end < prep_start) {
+          throw new Error('La date/heure de fin de préparation ne peut pas être avant le début de préparation')
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { dispatch_datetime, ...rest } = d
+        return {
+          ...rest,
+          dispatch_date,
+          dispatch_time,
+          pdv_id: Number(d.pdv_id),
+          base_origin_id: Number(d.base_origin_id),
+        }
+      }}
+      filterData={(data) => hideAssigned ? data.filter(v => !v.tour_id) : data}
+      toolbarExtra={
+        <label className="flex items-center gap-2 mb-3 text-sm cursor-pointer select-none" style={{ color: 'var(--text-secondary)' }}>
+          <input
+            type="checkbox"
+            checked={hideAssigned}
+            onChange={(e) => setHideAssigned(e.target.checked)}
+            className="accent-orange-500 w-4 h-4"
+          />
+          Masquer les volumes assignés
+        </label>
+      }
     />
   )
 }

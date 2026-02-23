@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Volume, PDV, DistanceEntry, PdvPickupSummary } from '../../types'
+import { formatDate } from '../../utils/tourTimeUtils'
 
 /* Labels courts par type de reprise / Short labels per pickup type */
 const PICKUP_TYPE_SHORT: Record<string, string> = {
@@ -179,7 +180,7 @@ export function VolumePanel({
               </div>
               {vol.dispatch_date && (
                 <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                  {t('tourPlanning.dispatchInfo')} {vol.dispatch_date}{vol.dispatch_time ? ` ${vol.dispatch_time}` : ''}
+                  {t('tourPlanning.dispatchInfo')} {formatDate(vol.dispatch_date)}{vol.dispatch_time ? ` ${vol.dispatch_time}` : ''}
                 </div>
               )}
               {assigned && (

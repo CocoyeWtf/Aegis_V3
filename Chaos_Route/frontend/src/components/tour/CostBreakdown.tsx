@@ -46,6 +46,7 @@ interface CostBreakdownData {
     total: number
     segments: SegmentDetail[]
   }
+  warnings?: string[]
 }
 
 interface CostBreakdownProps {
@@ -115,6 +116,20 @@ export function CostBreakdown({ tourId, onClose }: CostBreakdownProps) {
           {data && !data.contract && (
             <div className="text-center py-8 text-sm" style={{ color: 'var(--text-muted)' }}>
               {t('costBreakdown.noContract')}
+            </div>
+          )}
+
+          {data?.warnings && data.warnings.length > 0 && (
+            <div
+              className="rounded-xl p-3 text-sm font-medium flex items-start gap-2"
+              style={{ backgroundColor: 'rgba(245,158,11,0.1)', borderLeft: '4px solid var(--color-warning)', color: 'var(--color-warning)' }}
+            >
+              <span>&#9888;</span>
+              <div>
+                {data.warnings.map((w, i) => (
+                  <div key={i}>{w}</div>
+                ))}
+              </div>
             </div>
           )}
 

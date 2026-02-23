@@ -1,7 +1,10 @@
 """Routes Tournées / Tour API routes."""
 
 import json
+import logging
 from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -190,11 +193,13 @@ async def _calculate_cost(
     tour_date: str,
     tour_base_id: int,
     stops: list[dict],
-) -> float:
+) -> tuple[float, list[str]]:
     """Calculer le coût du tour / Calculate tour cost.
     Formule : (fixed_daily_cost / nb_tours_jour) + (vacation / nb_tours_jour) + (km * fuel_price * consumption_coeff) + sum(km_tax par segment)
+    Retourne (cost, warnings) / Returns (cost, warnings)
     """
     cost = 0.0
+    warnings: list[str] = []
 
     # 1. Terme fixe + vacation / nombre de tours du contrat ce jour
     # Arrondir chaque composant à 2 décimales (cohérent avec cost-breakdown)
@@ -215,6 +220,9 @@ async def _calculate_cost(
         .order_by(FuelPrice.start_date.desc())
         .limit(1)
     )
+    if not fuel:
+        warnings.append(f"Aucun prix gasoil trouvé pour la date {tour_date}")
+        logger.warning("No fuel price found for date %s", tour_date)
     fuel_price = float(fuel) if fuel else 0.0
     consumption = float(contract.consumption_coefficient or 0)
     cost += round(total_km * fuel_price * consumption, 2)
@@ -234,7 +242,7 @@ async def _calculate_cost(
             km_tax_total += round(float(tax_entry), 2)
     cost += round(km_tax_total, 2)
 
-    return round(cost, 2)
+    return round(cost, 2), warnings
 
 
 async def _recalculate_sibling_tours(
@@ -265,7 +273,7 @@ async def _recalculate_sibling_tours(
             {"pdv_id": s.pdv_id, "sequence_order": s.sequence_order, "eqp_count": s.eqp_count}
             for s in sorted(tour.stops, key=lambda s: s.sequence_order)
         ]
-        new_cost = await _calculate_cost(
+        new_cost, _ = await _calculate_cost(
             db, float(tour.total_km or 0), contract, tour.date, tour.base_id, stops_data,
         )
         if tour.total_cost != new_cost:
@@ -591,6 +599,7 @@ async def transporter_summary(
     # Pré-charger prix carburant par date unique / Pre-load fuel price per unique date
     unique_dates = list({t.date for t in tours})
     fuel_map: dict[str, float] = {}
+    missing_fuel_dates: list[str] = []
     for d in unique_dates:
         fuel = await db.scalar(
             select(FuelPrice.price_per_liter)
@@ -598,6 +607,9 @@ async def transporter_summary(
             .order_by(FuelPrice.start_date.desc())
             .limit(1)
         )
+        if not fuel:
+            missing_fuel_dates.append(d)
+            logger.warning("No fuel price found for date %s in transporter summary", d)
         fuel_map[d] = float(fuel) if fuel else 0.0
 
     # 4. Construire les données par tour / Build per-tour data
@@ -796,10 +808,28 @@ async def transporter_summary(
             },
         })
 
+    warnings = [f"Aucun prix gasoil trouvé pour la date {d}" for d in sorted(missing_fuel_dates)]
     return {
         "period": {"date_from": date_from, "date_to": date_to},
         "transporters": transporters_result,
+        "warnings": warnings,
     }
+
+
+@router.get("/by-code/{code}", response_model=TourRead)
+async def get_tour_by_code(
+    code: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("guard-post", "read")),
+):
+    """Chercher un tour par son code (scan code-barre) / Lookup tour by code (barcode scan)."""
+    result = await db.execute(
+        select(Tour).where(Tour.code == code).options(selectinload(Tour.stops))
+    )
+    tour = result.scalar_one_or_none()
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found")
+    return tour
 
 
 @router.get("/{tour_id}/time-breakdown")
@@ -983,7 +1013,7 @@ async def create_tour(
 
     # Calculer le coût après flush (pour que nb_tours inclue le tour courant)
     if contract and data.departure_time:
-        tour.total_cost = await _calculate_cost(
+        tour.total_cost, _ = await _calculate_cost(
             db, total_km, contract, data.date, data.base_id, stops_input,
         )
 
@@ -1169,9 +1199,9 @@ async def schedule_tour(
 
     # Flush d'abord pour que nb_tours soit correct / Flush first so nb_tours count is correct
     await db.flush()
-    total_cost = await _calculate_cost(
+    total_cost, _ = await _calculate_cost(
         db, total_km, contract, tour.date, tour.base_id, stops_data,
-    ) if contract else 0
+    ) if contract else (0, [])
     tour.total_cost = total_cost
 
     for stop in tour.stops:
@@ -1527,6 +1557,7 @@ async def get_tour_waybill(
         "departure_time": tour.departure_time,
         "return_time": tour.return_time,
         "driver_name": tour.driver_name,
+        "dock_door_number": tour.dock_door_number,
         "remarks": tour.remarks,
         "base": {
             "code": base.code if base else "",
@@ -1587,12 +1618,15 @@ async def get_tour_cost_breakdown(
     vacation_share = round(vacation_daily / nb_tours, 2)
 
     # 2. Coût carburant / Fuel cost
+    breakdown_warnings: list[str] = []
     fuel = await db.scalar(
         select(FuelPrice.price_per_liter)
         .where(FuelPrice.start_date <= tour.date, FuelPrice.end_date >= tour.date)
         .order_by(FuelPrice.start_date.desc())
         .limit(1)
     )
+    if not fuel:
+        breakdown_warnings.append(f"Aucun prix gasoil trouvé pour la date {tour.date}")
     fuel_price = float(fuel) if fuel else 0.0
     consumption = float(contract.consumption_coefficient or 0)
     fuel_cost = round(total_km * fuel_price * consumption, 2)
@@ -1653,6 +1687,7 @@ async def get_tour_cost_breakdown(
         "total_km": total_km,
         "total_cost_stored": float(tour.total_cost) if tour.total_cost else 0,
         "total_cost_calculated": total_calculated,
+        "warnings": breakdown_warnings,
         "contract": {
             "code": contract.code,
             "transporter_name": contract.transporter_name,
@@ -1727,7 +1762,7 @@ async def recalculate_tour_costs(
             for s in sorted(tour.stops, key=lambda s: s.sequence_order)
         ]
         old_cost = float(tour.total_cost) if tour.total_cost else 0
-        new_cost = await _calculate_cost(
+        new_cost, _ = await _calculate_cost(
             db, float(tour.total_km or 0), contract, tour.date, tour.base_id, stops_data,
         )
         if old_cost != new_cost:

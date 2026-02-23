@@ -26,6 +26,14 @@ interface CrudPageProps<T extends { id: number }> {
   duplicateExcludeKeys?: string[]
   /** Transformer les données du formulaire avant envoi / Transform form data before submit */
   transformPayload?: (data: Record<string, unknown>) => Record<string, unknown>
+  /** Filtrer les données avant affichage / Filter data before display */
+  filterData?: (data: T[]) => T[]
+  /** Contenu supplémentaire au-dessus du tableau / Extra content above the table */
+  toolbarExtra?: React.ReactNode
+  /** Transformer les données initiales avant le formulaire / Transform initial data before form */
+  transformInitialData?: (data: Record<string, unknown>) => Record<string, unknown>
+  /** Contenu supplémentaire dans le formulaire / Extra content inside the form dialog */
+  formExtra?: (formData: Record<string, unknown>, initialData?: Record<string, unknown>) => React.ReactNode
 }
 
 export function CrudPage<T extends { id: number }>({
@@ -42,6 +50,10 @@ export function CrudPage<T extends { id: number }>({
   allowDuplicate,
   duplicateExcludeKeys = ['id', 'schedules'],
   transformPayload,
+  filterData,
+  toolbarExtra,
+  transformInitialData,
+  formExtra,
 }: CrudPageProps<T>) {
   const { t } = useTranslation()
   const { data, loading, refetch } = useApi<T>(endpoint, apiParams)
@@ -59,7 +71,8 @@ export function CrudPage<T extends { id: number }>({
   }
 
   const handleEdit = (row: T) => {
-    setEditItem(row as unknown as Record<string, unknown>)
+    const raw = row as unknown as Record<string, unknown>
+    setEditItem(transformInitialData ? transformInitialData(raw) : raw)
     setFormOpen(true)
   }
 
@@ -70,7 +83,7 @@ export function CrudPage<T extends { id: number }>({
     }
     // Vider le code pour forcer un nouveau code / Clear code to force a new one
     if ('code' in copy) copy.code = ''
-    setEditItem(copy)
+    setEditItem(transformInitialData ? transformInitialData(copy) : copy)
     setFormOpen(true)
   }
 
@@ -119,10 +132,11 @@ export function CrudPage<T extends { id: number }>({
           <button onClick={() => setError(null)} className="ml-2 text-lg leading-none">&times;</button>
         </div>
       )}
+      {toolbarExtra}
       <DataTable<T>
         title={title}
         columns={columns}
-        data={data}
+        data={filterData ? filterData(data) : data}
         loading={loading}
         searchable
         searchKeys={searchKeys}
@@ -136,12 +150,14 @@ export function CrudPage<T extends { id: number }>({
 
       <FormDialog
         open={formOpen}
-        onClose={() => { setFormOpen(false); setEditItem(undefined) }}
+        onClose={() => { setFormOpen(false); setEditItem(undefined); setError(null) }}
         onSubmit={handleSave}
         title={editItem?.id ? editTitle : createTitle}
         fields={fields}
         initialData={editItem}
         loading={saving}
+        error={formOpen ? error : null}
+        renderExtra={formExtra}
       />
 
       <ConfirmDialog

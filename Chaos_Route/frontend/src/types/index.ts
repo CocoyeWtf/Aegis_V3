@@ -144,6 +144,8 @@ export interface Tour {
   loading_end_time?: string
   barrier_exit_time?: string
   barrier_entry_time?: string
+  km_departure?: number | null
+  km_return?: number | null
   remarks?: string
   loader_code?: string
   loader_name?: string
@@ -192,6 +194,7 @@ export interface WaybillData {
   departure_time?: string
   return_time?: string
   driver_name?: string
+  dock_door_number?: string | null
   remarks?: string
   base: {
     code: string
@@ -415,6 +418,7 @@ export interface SupportType {
   unit_quantity: number
   unit_label?: string | null
   is_active: boolean
+  image_path?: string | null
 }
 
 export type PickupTypeEnum = 'CONTAINER' | 'MERCHANDISE' | 'CARDBOARD' | 'CONSIGNMENT'

@@ -15,6 +15,14 @@ export interface StopTimeline {
   distance_km: number
 }
 
+/* Formater une date YYYY-MM-DD en DD/MM/YYYY / Format date string to DD/MM/YYYY */
+export function formatDate(d: string | undefined | null): string {
+  if (!d) return '—'
+  const parts = d.split('-')
+  if (parts.length !== 3) return d
+  return `${parts[2]}/${parts[1]}/${parts[0]}`
+}
+
 /* Convertir HH:MM ou YYYY-MM-DDTHH:MM en minutes / Convert HH:MM or datetime to minutes */
 export function parseTime(t: string): number {
   const timePart = t.includes('T') ? t.split('T')[1] : t

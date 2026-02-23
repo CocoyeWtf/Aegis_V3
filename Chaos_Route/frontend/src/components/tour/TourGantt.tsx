@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { formatDate } from '../../utils/tourTimeUtils'
 
 export interface GanttTour {
   tour_id: number
@@ -46,6 +47,8 @@ const STATUS_COLORS: Record<string, string> = {
   RETURNING: 'rgba(59,130,246,0.7)',
   COMPLETED: 'rgba(107,114,128,0.6)',
 }
+
+const WEEKDAY_FR = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
 
 function timeToMinutes(t: string): number {
   const [h, m] = t.split(':').map(Number)
@@ -170,10 +173,11 @@ export function TourGantt({ tours, selectedDate, highlightedTourId, onTourClick,
                   style={{
                     width: pxPerHour * 24,
                     color: i === 0 ? 'var(--text-primary)' : 'var(--text-muted)',
-                    borderLeft: '2px solid var(--border-color)',
+                    borderLeft: '2px solid var(--color-primary)',
+                    backgroundColor: i % 2 === 1 ? 'rgba(255,255,255,0.04)' : 'transparent',
                   }}
                 >
-                  {day.slice(8, 10)}/{day.slice(5, 7)} {i === 0 ? '(J)' : `(J+${i})`}
+                  {WEEKDAY_FR[new Date(day + 'T00:00:00').getDay()]} {day.slice(8, 10)}/{day.slice(5, 7)} {i === 0 ? '(J)' : `(J+${i})`}
                 </div>
               ))}
             </div>
@@ -229,13 +233,28 @@ export function TourGantt({ tours, selectedDate, highlightedTourId, onTourClick,
 
                   {/* Barre timeline / Timeline bar */}
                   <div
-                    className="relative rounded"
+                    className="relative rounded overflow-hidden"
                     style={{
                       width: timelineWidth,
                       height: 26,
                       backgroundColor: isOver10h ? 'rgba(239,68,68,0.08)' : 'var(--bg-tertiary)',
                     }}
                   >
+                    {/* Bandes alternées par jour / Alternating day bands */}
+                    {days.map((_, di) => (
+                      di % 2 === 1 && (
+                        <div
+                          key={`band-${di}`}
+                          className="absolute top-0 bottom-0"
+                          style={{
+                            left: di * 24 * pxPerHour,
+                            width: 24 * pxPerHour,
+                            backgroundColor: 'rgba(255,255,255,0.04)',
+                          }}
+                        />
+                      )
+                    ))}
+
                     {/* Gridlines — trait épais à minuit, fin chaque heure / Thick at midnight, thin every hour */}
                     {hourMarks.map(({ totalHour, hourInDay }) => (
                       <div
@@ -244,8 +263,8 @@ export function TourGantt({ tours, selectedDate, highlightedTourId, onTourClick,
                         style={{
                           left: totalHour * pxPerHour,
                           width: hourInDay === 0 ? 2 : 1,
-                          backgroundColor: hourInDay === 0 ? 'var(--text-muted)' : 'var(--border-color)',
-                          opacity: hourInDay === 0 ? 0.5 : 0.2,
+                          backgroundColor: hourInDay === 0 ? 'var(--color-primary)' : 'var(--border-color)',
+                          opacity: hourInDay === 0 ? 0.6 : 0.2,
                         }}
                       />
                     ))}
@@ -286,7 +305,7 @@ export function TourGantt({ tours, selectedDate, highlightedTourId, onTourClick,
                             opacity: isHighlighted ? 1 : 0.85,
                             zIndex: isHighlighted ? 10 : 1,
                           }}
-                          title={`${tour.code}${tour.delivery_date ? ` | Livr: ${tour.delivery_date}` : ''} | ${tour.departure_time} → ${tour.return_time} | ${tour.total_eqp ?? 0} EQC${hasWindowViolation ? ' ⚠' : ''}`}
+                          title={`${tour.code}${tour.delivery_date ? ` | Livr: ${formatDate(tour.delivery_date)}` : ''} | ${tour.departure_time} → ${tour.return_time} | ${tour.total_eqp ?? 0} EQC${hasWindowViolation ? ' ⚠' : ''}`}
                           onClick={() => onTourClick(tour.tour_id)}
                         >
                           {widthPx > 60 && (

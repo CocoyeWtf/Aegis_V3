@@ -1,7 +1,7 @@
 /* Fiche détaillée d'un tour (overlay imprimable) / Printable tour detail sheet */
 
 import { useTranslation } from 'react-i18next'
-import { displayDateTime } from '../../utils/tourTimeUtils'
+import { displayDateTime, formatDate } from '../../utils/tourTimeUtils'
 
 interface TourStop {
   sequence_order: number
@@ -113,7 +113,7 @@ export function TourDetailSheet({ tour, onClose }: TourDetailSheetProps) {
           </h3>
           <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
             <InfoRow label={t('transporterSummary.tourCode')} value={tour.tour_code} />
-            <InfoRow label={t('transporterSummary.date')} value={tour.date} />
+            <InfoRow label={t('transporterSummary.date')} value={formatDate(tour.date)} />
             <InfoRow label={t('transporterSummary.base')} value={`${tour.base_code} — ${tour.base_name}`} />
             <InfoRow label={t('common.status')} value={tour.status} />
             {tour.contract_code && (

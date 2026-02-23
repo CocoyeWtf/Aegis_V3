@@ -247,7 +247,7 @@ export function KpiDashboard({ tours, volumes, pickupSummaries, today, weekStart
     return Object.entries(byDate)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, vals]) => ({
-        date: date.slice(5),
+        date: date.slice(8) + '/' + date.slice(5, 7),
         ...vals,
         avgKmPerTour: vals.tours > 0 ? Math.round(vals.km / vals.tours) : 0,
         avgEqcPerTour: vals.tours > 0 ? Math.round((vals.eqp / vals.tours) * 10) / 10 : 0,

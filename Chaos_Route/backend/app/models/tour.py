@@ -45,6 +45,8 @@ class Tour(Base):
     loading_end_time: Mapped[str | None] = mapped_column(String(16))
     barrier_exit_time: Mapped[str | None] = mapped_column(String(16))
     barrier_entry_time: Mapped[str | None] = mapped_column(String(16))
+    km_departure: Mapped[int | None] = mapped_column(Integer)  # km compteur départ / odometer at departure
+    km_return: Mapped[int | None] = mapped_column(Integer)  # km compteur retour / odometer at return
     remarks: Mapped[str | None] = mapped_column(Text)
 
     # Champs opérationnels postier / Dispatcher operational fields

@@ -17,6 +17,7 @@ interface PickupLabelPrintProps {
   pdvName: string
   supportTypeName: string
   pickupType?: PickupTypeEnum
+  supportTypeImageUrl?: string | null
   onClose: () => void
 }
 
@@ -26,6 +27,7 @@ function BarcodeLabel({
   pdvName,
   supportTypeName,
   pickupType,
+  supportTypeImageUrl,
   total,
 }: {
   label: PickupLabel
@@ -33,6 +35,7 @@ function BarcodeLabel({
   pdvName: string
   supportTypeName: string
   pickupType?: PickupTypeEnum
+  supportTypeImageUrl?: string | null
   total: number
 }) {
   const svgRef = useRef<SVGSVGElement>(null)
@@ -70,6 +73,14 @@ function BarcodeLabel({
       <div style={{ fontSize: '10px', textAlign: 'center' }}>
         <strong>{pdvCode}</strong> - {pdvName}
       </div>
+      {supportTypeImageUrl && (
+        <img
+          src={supportTypeImageUrl}
+          alt={supportTypeName}
+          className="label-img"
+          style={{ width: 60, height: 60, objectFit: 'contain' }}
+        />
+      )}
       <div style={{ fontSize: '10px', textAlign: 'center' }}>
         {supportTypeName} &mdash; {label.sequence_number}/{total}
       </div>
@@ -77,7 +88,7 @@ function BarcodeLabel({
   )
 }
 
-export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pickupType, onClose }: PickupLabelPrintProps) {
+export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pickupType, supportTypeImageUrl, onClose }: PickupLabelPrintProps) {
   const handlePrint = () => {
     window.print()
   }
@@ -116,6 +127,7 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
             pdvName={pdvName}
             supportTypeName={supportTypeName}
             pickupType={pickupType}
+            supportTypeImageUrl={supportTypeImageUrl}
             total={labels.length}
           />
         ))}
@@ -139,6 +151,10 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
           }
           .label-card {
             page-break-inside: avoid;
+          }
+          .label-img {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
         }
       `}</style>

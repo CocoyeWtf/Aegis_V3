@@ -16,3 +16,4 @@ class SupportType(Base):
     unit_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # ex: 15 palettes par pile
     unit_label: Mapped[str | None] = mapped_column(String(100))  # ex: "pile de 15"
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    image_path: Mapped[str | None] = mapped_column(String(255))

@@ -8,6 +8,7 @@ import { useApi } from '../hooks/useApi'
 import { TourDetailSheet } from '../components/tour/TourDetailSheet'
 import type { TourDetailData } from '../components/tour/TourDetailSheet'
 import type { BaseLogistics } from '../types'
+import { formatDate } from '../utils/tourTimeUtils'
 
 /* ---- Types réponse API / API response types ---- */
 
@@ -94,6 +95,7 @@ interface TransporterGroup {
 interface SummaryResponse {
   period: { date_from: string; date_to: string }
   transporters: TransporterGroup[]
+  warnings?: string[]
 }
 
 /* ---- Helpers ---- */
@@ -197,7 +199,7 @@ export default function TransporterSummary() {
             [t('transporterSummary.transporter')]: tr.transporter_name,
             [t('transporterSummary.contract')]: cg.contract_code,
             [t('transporterSummary.vehicle')]: cg.vehicle_code || '',
-            [t('transporterSummary.date')]: tour.date,
+            [t('transporterSummary.date')]: formatDate(tour.date),
             [t('transporterSummary.tourCode')]: tour.tour_code,
             [t('transporterSummary.base')]: `${tour.base_code} ${tour.base_name}`,
             [t('transporterSummary.departure')]: tour.departure_time || '',
@@ -366,6 +368,16 @@ export default function TransporterSummary() {
         </div>
       )}
 
+      {data?.warnings && data.warnings.length > 0 && (
+        <div
+          className="text-sm p-3 rounded-lg mb-4 flex items-start gap-2 print:hidden"
+          style={{ color: 'var(--color-warning)', backgroundColor: 'rgba(245,158,11,0.1)' }}
+        >
+          <span>&#9888;</span>
+          <div>{data.warnings.map((w, i) => <div key={i}>{w}</div>)}</div>
+        </div>
+      )}
+
       {data && data.transporters.length === 0 && (
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{t('transporterSummary.noData')}</p>
       )}
@@ -446,7 +458,7 @@ export default function TransporterSummary() {
                                   style={{ borderColor: 'var(--border-color)' }}
                                   onClick={() => openDetail(tour, cg, tr.transporter_name)}
                                 >
-                                  <td className="px-3 py-1.5" style={{ color: 'var(--text-primary)' }}>{tour.date}</td>
+                                  <td className="px-3 py-1.5" style={{ color: 'var(--text-primary)' }}>{formatDate(tour.date)}</td>
                                   <td className="px-2 py-1.5 font-mono" style={{ color: 'var(--text-primary)' }}>{tour.tour_code}</td>
                                   <td className="px-2 py-1.5" style={{ color: 'var(--text-muted)' }}>{tour.base_code}</td>
                                   <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-primary)' }}>{tour.departure_time || '—'}</td>

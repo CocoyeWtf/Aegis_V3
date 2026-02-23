@@ -26,8 +26,8 @@ class Volume(Base):
     weight_kg: Mapped[float | None] = mapped_column(Numeric(10, 2))
     temperature_class: Mapped[TemperatureClass] = mapped_column(Enum(TemperatureClass), nullable=False)
     base_origin_id: Mapped[int] = mapped_column(ForeignKey("bases_logistics.id"), nullable=False)
-    preparation_start: Mapped[str | None] = mapped_column(String(5))  # HH:MM
-    preparation_end: Mapped[str | None] = mapped_column(String(5))  # HH:MM
+    preparation_start: Mapped[str | None] = mapped_column(String(16))  # YYYY-MM-DDTHH:MM
+    preparation_end: Mapped[str | None] = mapped_column(String(16))  # YYYY-MM-DDTHH:MM
     dispatch_date: Mapped[str | None] = mapped_column(String(10))   # YYYY-MM-DD — date de répartition
     dispatch_time: Mapped[str | None] = mapped_column(String(5))    # HH:MM — heure de répartition
     tour_id: Mapped[int | None] = mapped_column(ForeignKey("tours.id", ondelete="SET NULL"), nullable=True)

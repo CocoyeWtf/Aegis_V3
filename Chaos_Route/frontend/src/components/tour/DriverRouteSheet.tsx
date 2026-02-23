@@ -1,6 +1,7 @@
 /* Feuille de route chauffeur / Driver route sheet (printable overlay) */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import JsBarcode from 'jsbarcode'
 import { useTranslation } from 'react-i18next'
 import api from '../../services/api'
 import type { WaybillData } from '../../types'
@@ -24,6 +25,7 @@ export function DriverRouteSheet({ tourId, onClose }: DriverRouteSheetProps) {
   const { t } = useTranslation()
   const [data, setData] = useState<WaybillData | null>(null)
   const [loading, setLoading] = useState(true)
+  const barcodeRef = useRef<SVGSVGElement>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -32,6 +34,19 @@ export function DriverRouteSheet({ tourId, onClose }: DriverRouteSheetProps) {
       .catch((e) => console.error('Failed to load route sheet data', e))
       .finally(() => setLoading(false))
   }, [tourId])
+
+  /* Générer code-barre tour / Generate tour barcode */
+  useEffect(() => {
+    if (barcodeRef.current && data?.tour_code) {
+      JsBarcode(barcodeRef.current, data.tour_code, {
+        format: 'CODE128',
+        width: 1.5,
+        height: 40,
+        displayValue: false,
+        margin: 4,
+      })
+    }
+  }, [data?.tour_code])
 
   const formatDate = (iso: string) => {
     const d = new Date(iso + 'T00:00:00')
@@ -161,6 +176,14 @@ export function DriverRouteSheet({ tourId, onClose }: DriverRouteSheetProps) {
                   </div>
                 </div>
 
+                {/* Code-barre tour / Tour barcode */}
+                {data.tour_code && (
+                  <div style={{ textAlign: 'center', marginBottom: '8px', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' } as React.CSSProperties}>
+                    <svg ref={barcodeRef} />
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px' }}>{data.tour_code}</div>
+                  </div>
+                )}
+
                 {/* Infos tour / Tour info */}
                 <table style={{ ...tblStyle, marginBottom: '8px' }}>
                   <tbody>
@@ -187,9 +210,19 @@ export function DriverRouteSheet({ tourId, onClose }: DriverRouteSheetProps) {
                       <td style={valCell}>{data.contract?.transporter_name ?? ''}</td>
                     </tr>
                     <tr>
+                      <td style={labelCell}>Contrat</td>
+                      <td style={valCell}>{data.contract?.code ?? ''}</td>
+                    </tr>
+                    <tr>
                       <td style={labelCell}>{t('driverRoute.vehicle')}</td>
                       <td style={valCell}>{data.contract?.vehicle_name ?? data.contract?.vehicle_code ?? ''}</td>
                     </tr>
+                    {data.dock_door_number && (
+                      <tr>
+                        <td style={labelCell}>Quai</td>
+                        <td style={valCell}>{data.dock_door_number}</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
 
@@ -214,20 +247,6 @@ export function DriverRouteSheet({ tourId, onClose }: DriverRouteSheetProps) {
                     </tr>
                     <tr>
                       <td style={labelCell}>{t('driverRoute.kmTotal')}</td>
-                      <td style={valCell}>___________</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                {/* Palettes & poids / Pallets & weight */}
-                <table style={{ ...tblStyle, marginBottom: '8px' }}>
-                  <tbody>
-                    <tr>
-                      <td style={labelCell}>{t('driverRoute.palletsToCollect')}</td>
-                      <td style={valCell}>___________</td>
-                    </tr>
-                    <tr>
-                      <td style={labelCell}>{t('driverRoute.weightToCollect')}</td>
                       <td style={valCell}>___________</td>
                     </tr>
                   </tbody>

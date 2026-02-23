@@ -6,6 +6,7 @@ import type { Column } from '../components/data/DataTable'
 import type { FieldDef } from '../components/data/FormDialog'
 import { useApi } from '../hooks/useApi'
 import type { Parameter, Region } from '../types'
+import { formatDate } from '../utils/tourTimeUtils'
 
 export default function ParameterSettings() {
   const { t } = useTranslation()
@@ -26,8 +27,8 @@ export default function ParameterSettings() {
       key: 'region_id', label: t('common.region'), width: '120px',
       render: (row) => row.region_id ? regions.find((r) => r.id === row.region_id)?.name || '—' : t('parameters.global'),
     },
-    { key: 'effective_date', label: t('parameters.effectiveDate'), width: '110px' },
-    { key: 'end_date', label: t('parameters.endDate'), width: '110px' },
+    { key: 'effective_date', label: t('parameters.effectiveDate'), width: '110px', render: (row) => formatDate(row.effective_date) },
+    { key: 'end_date', label: t('parameters.endDate'), width: '110px', render: (row) => formatDate(row.end_date) },
   ]
 
   const fields: FieldDef[] = [
@@ -41,8 +42,8 @@ export default function ParameterSettings() {
         ...regions.map((r) => ({ value: String(r.id), label: r.name })),
       ],
     },
-    { key: 'effective_date', label: t('parameters.effectiveDate'), type: 'text', placeholder: 'YYYY-MM-DD' },
-    { key: 'end_date', label: t('parameters.endDate'), type: 'text', placeholder: 'YYYY-MM-DD' },
+    { key: 'effective_date', label: t('parameters.effectiveDate'), type: 'date' },
+    { key: 'end_date', label: t('parameters.endDate'), type: 'date' },
   ]
 
   return (

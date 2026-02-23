@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 export interface FieldDef {
   key: string
   label: string
-  type: 'text' | 'number' | 'select' | 'checkbox' | 'textarea' | 'time' | 'date' | 'multicheck' | 'password'
+  type: 'text' | 'number' | 'select' | 'checkbox' | 'textarea' | 'time' | 'date' | 'datetime-local' | 'multicheck' | 'password'
   required?: boolean
   options?: { value: string; label: string }[]
   placeholder?: string
@@ -29,9 +29,13 @@ interface FormDialogProps {
   fields: FieldDef[]
   initialData?: Record<string, unknown>
   loading?: boolean
+  /** Erreur à afficher dans le formulaire / Error to display inside the form */
+  error?: string | null
+  /** Contenu supplémentaire dans le formulaire / Extra content rendered inside the form */
+  renderExtra?: (formData: Record<string, unknown>, initialData?: Record<string, unknown>) => React.ReactNode
 }
 
-export function FormDialog({ open, onClose, onSubmit, title, fields, initialData, loading }: FormDialogProps) {
+export function FormDialog({ open, onClose, onSubmit, title, fields, initialData, loading, error, renderExtra }: FormDialogProps) {
   const { t } = useTranslation()
   const [form, setForm] = useState<Record<string, unknown>>({})
 
@@ -106,6 +110,14 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div
+              className="p-3 rounded-lg border text-sm font-medium"
+              style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: '#ef4444', color: '#ef4444' }}
+            >
+              {error}
+            </div>
+          )}
           {fields.map((field) => {
             if (field.hidden?.(form)) return null
 
@@ -194,6 +206,8 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
               </div>
             )
           })}
+
+          {renderExtra?.(form, initialData)}
 
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-4">

@@ -1,6 +1,9 @@
 """Routes Types de support / Support Type API routes."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +13,10 @@ from app.models.support_type import SupportType
 from app.models.user import User
 from app.schemas.pickup import SupportTypeCreate, SupportTypeRead, SupportTypeUpdate
 from app.api.deps import require_permission
+
+UPLOAD_DIR = Path("data/uploads/support-types")
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+MAX_FILE_SIZE = 2 * 1024 * 1024  # 2 MB
 
 router = APIRouter()
 
@@ -92,3 +99,60 @@ async def delete_support_type(
     if not st:
         raise HTTPException(status_code=404, detail="Support type not found")
     await db.delete(st)
+
+
+@router.post("/{support_type_id}/image", response_model=SupportTypeRead)
+async def upload_support_type_image(
+    support_type_id: int,
+    file: UploadFile,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("support-types", "update")),
+):
+    """Upload une image pour un type de support / Upload image for a support type."""
+    st = await db.get(SupportType, support_type_id)
+    if not st:
+        raise HTTPException(status_code=404, detail="Support type not found")
+
+    # Valider extension / Validate extension
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Format non autorise. Formats acceptes: {', '.join(ALLOWED_EXTENSIONS)}")
+
+    # Lire et valider taille / Read and validate size
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="Fichier trop volumineux (max 2 Mo)")
+
+    # Supprimer ancienne image / Delete old image
+    if st.image_path:
+        old_path = Path(st.image_path)
+        if old_path.exists():
+            old_path.unlink()
+
+    # Sauvegarder / Save
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    safe_name = f"{support_type_id}{ext}"
+    file_path = UPLOAD_DIR / safe_name
+    file_path.write_bytes(content)
+
+    st.image_path = str(file_path)
+    await db.flush()
+    await db.refresh(st)
+    return st
+
+
+@router.get("/{support_type_id}/image")
+async def get_support_type_image(
+    support_type_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Telecharger l'image d'un type de support (public) / Download support type image (public, used by <img> tags)."""
+    st = await db.get(SupportType, support_type_id)
+    if not st or not st.image_path:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    file_path = Path(st.image_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Image file not found on disk")
+
+    return FileResponse(file_path)

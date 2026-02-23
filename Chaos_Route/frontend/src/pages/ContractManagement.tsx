@@ -9,6 +9,7 @@ import type { FieldDef } from '../components/data/FormDialog'
 import { useApi } from '../hooks/useApi'
 import api from '../services/api'
 import type { Contract, Region } from '../types'
+import { formatDate } from '../utils/tourTimeUtils'
 
 export default function ContractManagement() {
   const { t } = useTranslation()
@@ -67,8 +68,8 @@ export default function ContractManagement() {
       key: 'consumption_coefficient' as keyof Contract, label: t('contracts.consumptionCoefficient'), width: '100px',
       render: (row) => row.consumption_coefficient != null ? String(row.consumption_coefficient) : '—',
     },
-    { key: 'start_date', label: t('common.startDate'), width: '100px' },
-    { key: 'end_date', label: t('common.endDate'), width: '100px' },
+    { key: 'start_date', label: t('common.startDate'), width: '100px', render: (row) => formatDate(row.start_date) },
+    { key: 'end_date', label: t('common.endDate'), width: '100px', render: (row) => formatDate(row.end_date) },
     {
       key: 'region_id', label: t('common.region'), width: '100px', filterable: true,
       render: (row) => regions.find((r) => r.id === row.region_id)?.name || '—',
@@ -111,8 +112,8 @@ export default function ContractManagement() {
     { key: 'min_hours_per_day', label: t('contracts.minHoursPerDay'), type: 'number', step: 0.5 },
     { key: 'min_km_per_day', label: t('contracts.minKmPerDay'), type: 'number' },
     { key: 'consumption_coefficient', label: t('contracts.consumptionCoefficient'), type: 'number', step: 0.0001 },
-    { key: 'start_date', label: t('common.startDate'), type: 'text', placeholder: 'YYYY-MM-DD' },
-    { key: 'end_date', label: t('common.endDate'), type: 'text', placeholder: 'YYYY-MM-DD' },
+    { key: 'start_date', label: t('common.startDate'), type: 'date' },
+    { key: 'end_date', label: t('common.endDate'), type: 'date' },
     {
       key: 'region_id', label: t('common.region'), type: 'select', required: true,
       options: regions.map((r) => ({ value: String(r.id), label: r.name })),

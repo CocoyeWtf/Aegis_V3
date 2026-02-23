@@ -10,7 +10,7 @@ import type { Column } from '../components/data/DataTable'
 import { DataTable } from '../components/data/DataTable'
 import { CostBreakdown } from '../components/tour/CostBreakdown'
 import { GPSTrailModal } from '../components/tour/GPSTrailModal'
-import { displayDateTime } from '../utils/tourTimeUtils'
+import { displayDateTime, formatDate } from '../utils/tourTimeUtils'
 
 export default function TourHistory() {
   const { t } = useTranslation()
@@ -50,7 +50,7 @@ export default function TourHistory() {
 
   const columns: Column<Tour>[] = [
     { key: 'code', label: t('common.code'), width: '120px', filterable: true },
-    { key: 'date', label: t('common.date'), width: '110px', filterable: true },
+    { key: 'date', label: t('common.date'), width: '110px', filterable: true, render: (row) => formatDate(row.date) },
     {
       key: 'base_id',
       label: t('tourHistory.base'),

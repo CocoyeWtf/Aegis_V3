@@ -1,6 +1,7 @@
 /* Page demandes de reprise PDV / PDV pickup requests page */
 
 import { useState, useCallback } from 'react'
+import { formatDate } from '../utils/tourTimeUtils'
 import { useApi } from '../hooks/useApi'
 import { useAuthStore } from '../stores/useAuthStore'
 import api from '../services/api'
@@ -105,6 +106,11 @@ export default function PdvPickupRequests() {
           pdvName={printRequest.pdv?.name || ''}
           supportTypeName={printRequest.support_type?.name || ''}
           pickupType={printRequest.pickup_type}
+          supportTypeImageUrl={
+            printRequest.support_type?.image_path
+              ? `/api/support-types/${printRequest.support_type.id}/image`
+              : null
+          }
           onClose={() => setPrintRequest(null)}
         />
       </div>
@@ -319,7 +325,7 @@ export default function PdvPickupRequests() {
                     {req.quantity}
                   </td>
                   <td className="px-4 py-3" style={{ color: 'var(--text-primary)' }}>
-                    {req.availability_date}
+                    {formatDate(req.availability_date)}
                   </td>
                   <td className="text-center px-4 py-3">
                     <span

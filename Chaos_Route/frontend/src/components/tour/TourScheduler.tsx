@@ -6,7 +6,7 @@ import { useApi } from '../../hooks/useApi'
 import { useAppStore } from '../../stores/useAppStore'
 import { TourGantt, type GanttTour } from './TourGantt'
 import { TourPrintPlan } from './TourPrintPlan'
-import { formatDuration, parseTime, formatTime, DEFAULT_DOCK_TIME, DEFAULT_UNLOAD_PER_EQP } from '../../utils/tourTimeUtils'
+import { formatDuration, parseTime, formatTime, formatDate, DEFAULT_DOCK_TIME, DEFAULT_UNLOAD_PER_EQP } from '../../utils/tourTimeUtils'
 import { VEHICLE_TYPE_DEFAULTS } from '../../types'
 import api from '../../services/api'
 import { CostBreakdown } from './CostBreakdown'
@@ -396,7 +396,7 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
               </span>
               {dispatchInfo && (
                 <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>
-                  {t('tourPlanning.dispatchInfo')} {dispatchInfo.dispatch_date}{dispatchInfo.dispatch_time ? ` ${dispatchInfo.dispatch_time}` : ''}
+                  {t('tourPlanning.dispatchInfo')} {formatDate(dispatchInfo.dispatch_date)}{dispatchInfo.dispatch_time ? ` ${dispatchInfo.dispatch_time}` : ''}
                 </span>
               )}
               {hasPickup && (
@@ -699,7 +699,7 @@ export function TourScheduler({ selectedDate, selectedBaseId, onDateChange, onBa
                       </span>
                       {tour.delivery_date && (
                         <span className="block text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                          {t('tourPlanning.deliveryDate')}: {tour.delivery_date}
+                          {t('tourPlanning.deliveryDate')}: {formatDate(tour.delivery_date)}
                         </span>
                       )}
                       {tour.total_duration_minutes != null && (

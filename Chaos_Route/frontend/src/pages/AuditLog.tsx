@@ -141,7 +141,11 @@ export default function AuditLog() {
                   style={{ borderColor: 'var(--border-color)' }}
                 >
                   <td className="px-4 py-2 text-xs whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
-                    {log.timestamp.replace('T', ' ').slice(0, 19)}
+                    {(() => {
+                      const [d, rest] = log.timestamp.split('T')
+                      const [y, m, day] = d.split('-')
+                      return `${day}/${m}/${y} ${rest?.slice(0, 8) ?? ''}`
+                    })()}
                   </td>
                   <td className="px-4 py-2 text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
                     {log.user ?? '—'}
