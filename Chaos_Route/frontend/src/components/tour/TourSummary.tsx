@@ -19,10 +19,16 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { TourStop, PDV, VehicleType } from '../../types'
-import { VEHICLE_TYPE_DEFAULTS } from '../../types'
+import type { TourStop, PDV, VehicleType, TemperatureType, TemperatureClass } from '../../types'
+import { VEHICLE_TYPE_DEFAULTS, TEMPERATURE_COLORS, TEMPERATURE_TYPE_LABELS } from '../../types'
 import type { StopTimeline } from '../../utils/tourTimeUtils'
 import { formatDuration } from '../../utils/tourTimeUtils'
+
+/* Couleurs pour BI_TEMP et TRI_TEMP / Colors for multi-temp types */
+const MULTI_TEMP_COLORS: Record<string, string> = {
+  BI_TEMP: '#8b5cf6',
+  TRI_TEMP: '#d946ef',
+}
 
 interface TourSummaryProps {
   stops: TourStop[]
@@ -39,6 +45,8 @@ interface TourSummaryProps {
   returnTime?: string
   departureTime?: string
   totalDurationMinutes?: number
+  temperatureType?: TemperatureType | null
+  tourTemperatures?: Set<TemperatureClass>
 }
 
 /* Ligne d'arrêt glissable / Sortable stop row */
@@ -187,16 +195,18 @@ function SortableStopRow({
 export function TourSummary({
   stops, pdvs, vehicleType, capacityEqp, totalEqp, totalKm, totalCost, onRemoveStop, onReorderStops,
   onUpdateStop, stopTimelines = [], returnTime, departureTime, totalDurationMinutes = 0,
+  temperatureType, tourTemperatures,
 }: TourSummaryProps) {
   const { t } = useTranslation()
   const pdvMap = new Map(pdvs.map((p) => [p.id, p]))
   const timelineMap = new Map(stopTimelines.map((st) => [st.pdv_id, st]))
 
-  const capacityPct = capacityEqp > 0 ? Math.round((totalEqp / capacityEqp) * 100) : 0
+  const hasVehicle = !!vehicleType
+  const capacityPct = hasVehicle && capacityEqp > 0 ? Math.round((totalEqp / capacityEqp) * 100) : 0
   const capacityColor =
     capacityPct > 100 ? 'var(--color-danger)' : capacityPct > 80 ? 'var(--color-warning)' : 'var(--color-success)'
 
-  const vehicleLabel = vehicleType ? VEHICLE_TYPE_DEFAULTS[vehicleType]?.label ?? vehicleType : '—'
+  const vehicleLabel = vehicleType ? VEHICLE_TYPE_DEFAULTS[vehicleType]?.label ?? vehicleType : null
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -230,23 +240,59 @@ export function TourSummary({
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
             {t('tourPlanning.currentTour')}
-            {vehicleType && (
+            {vehicleLabel && (
               <span className="ml-2 text-xs font-normal" style={{ color: 'var(--color-primary)' }}>
                 {vehicleLabel}
               </span>
             )}
+            {/* Badges température / Temperature badges */}
+            {tourTemperatures && tourTemperatures.size > 0 && (
+              <span className="ml-2 inline-flex gap-1">
+                {[...tourTemperatures].map((tc) => (
+                  <span
+                    key={tc}
+                    className="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                    style={{
+                      backgroundColor: `${TEMPERATURE_COLORS[tc]}20`,
+                      color: TEMPERATURE_COLORS[tc],
+                    }}
+                  >
+                    {tc}
+                  </span>
+                ))}
+              </span>
+            )}
+            {temperatureType && (temperatureType === 'BI_TEMP' || temperatureType === 'TRI_TEMP') && (
+              <span
+                className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold"
+                style={{
+                  backgroundColor: `${MULTI_TEMP_COLORS[temperatureType]}20`,
+                  color: MULTI_TEMP_COLORS[temperatureType],
+                }}
+              >
+                {TEMPERATURE_TYPE_LABELS[temperatureType]}
+              </span>
+            )}
           </h3>
-          <span className="text-xs font-bold" style={{ color: capacityColor }}>
-            {totalEqp} / {capacityEqp > 0 ? capacityEqp : '—'} EQC ({capacityPct}%)
-          </span>
+          {hasVehicle ? (
+            <span className="text-xs font-bold" style={{ color: capacityColor }}>
+              {totalEqp} / {capacityEqp > 0 ? capacityEqp : '—'} EQC ({capacityPct}%)
+            </span>
+          ) : (
+            <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+              Véhicule non sélectionné
+            </span>
+          )}
         </div>
         {/* Barre de progression / Progress bar */}
-        <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-          <div
-            className="h-full rounded-full transition-all duration-300"
-            style={{ width: `${Math.min(capacityPct, 100)}%`, backgroundColor: capacityColor }}
-          />
-        </div>
+        {hasVehicle && (
+          <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+            <div
+              className="h-full rounded-full transition-all duration-300"
+              style={{ width: `${Math.min(capacityPct, 100)}%`, backgroundColor: capacityColor }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Heure de départ / Departure time */}
@@ -323,7 +369,7 @@ export function TourSummary({
           </div>
           <div>
             <span className="block font-semibold" style={{ color: 'var(--text-primary)' }}>
-              {capacityEqp > 0 ? `${Math.round((totalEqp / capacityEqp) * 100)}%` : '—'}
+              {hasVehicle && capacityEqp > 0 ? `${Math.round((totalEqp / capacityEqp) * 100)}%` : '—'}
             </span>
             {t('tourPlanning.fillRate')}
           </div>

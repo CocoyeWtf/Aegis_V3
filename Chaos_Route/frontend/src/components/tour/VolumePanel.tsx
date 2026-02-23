@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Volume, PDV, DistanceEntry, PdvPickupSummary } from '../../types'
+import type { Volume, PDV, DistanceEntry, PdvPickupSummary, TemperatureClass } from '../../types'
+import { TEMPERATURE_COLORS } from '../../types'
 import { formatDate } from '../../utils/tourTimeUtils'
 
 /* Labels courts par type de reprise / Short labels per pickup type */
@@ -20,6 +21,12 @@ const PICKUP_TYPE_LETTER: Record<string, string> = {
   MERCHANDISE: 'M',
   CONSIGNMENT: 'K',
 }
+
+const TEMP_CHIPS: { key: TemperatureClass; label: string }[] = [
+  { key: 'SEC', label: 'Sec' },
+  { key: 'FRAIS', label: 'Frais' },
+  { key: 'GEL', label: 'Gel' },
+]
 
 interface VolumePanelProps {
   volumes: Volume[]
@@ -41,6 +48,7 @@ export function VolumePanel({
 }: VolumePanelProps) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
+  const [tempFilters, setTempFilters] = useState<Set<TemperatureClass>>(new Set())
 
   const pdvMap = useMemo(() => new Map(pdvs.map((p) => [p.id, p])), [pdvs])
   const pickupMap = useMemo(() => {
@@ -48,7 +56,16 @@ export function VolumePanel({
     pickupSummaries?.forEach((s) => m.set(s.pdv_id, s))
     return m
   }, [pickupSummaries])
-  const remaining = vehicleCapacity - currentEqp
+  const remaining = vehicleCapacity > 0 ? vehicleCapacity - currentEqp : Infinity
+
+  const toggleTempFilter = (cls: TemperatureClass) => {
+    setTempFilters((prev) => {
+      const next = new Set(prev)
+      if (next.has(cls)) next.delete(cls)
+      else next.add(cls)
+      return next
+    })
+  }
 
   /* Fonction lookup distance bidirectionnelle / Bidirectional distance lookup */
   const getDistanceKm = (fromType: string, fromId: number, toType: string, toId: number): number | null => {
@@ -57,13 +74,13 @@ export function VolumePanel({
     return d ? d.distance_km : null
   }
 
-  /* Volumes triés par proximité au dernier stop + filtrés par recherche /
-     Volumes sorted by proximity to last stop + filtered by search */
+  /* Volumes triés par proximité au dernier stop + filtrés par recherche + filtrés par température /
+     Volumes sorted by proximity to last stop + filtered by search + filtered by temperature */
   const sortedVolumes = useMemo(() => {
     const needle = search.trim().toLowerCase()
 
     /* Filtrer par recherche / Filter by search */
-    const filtered = needle
+    let filtered = needle
       ? volumes.filter((v) => {
           const pdv = pdvMap.get(v.pdv_id)
           if (!pdv) return false
@@ -72,6 +89,11 @@ export function VolumePanel({
             || (pdv.city?.toLowerCase().includes(needle) ?? false)
         })
       : volumes
+
+    /* Filtrer par température / Filter by temperature */
+    if (tempFilters.size > 0) {
+      filtered = filtered.filter((v) => tempFilters.has(v.temperature_class))
+    }
 
     const unassigned = filtered.filter((v) => !assignedPdvIds.has(v.pdv_id))
     const assigned = filtered.filter((v) => assignedPdvIds.has(v.pdv_id))
@@ -88,7 +110,7 @@ export function VolumePanel({
     withDist.sort((a, b) => a.km - b.km)
 
     return [...withDist.map((w) => w.vol), ...assigned]
-  }, [volumes, assignedPdvIds, lastStopPdvId, baseId, distanceIndex, search, pdvMap])
+  }, [volumes, assignedPdvIds, lastStopPdvId, baseId, distanceIndex, search, pdvMap, tempFilters])
 
   /* Distance affichée par volume / Displayed distance per volume */
   const getDisplayDistance = (pdvId: number): number | null => {
@@ -120,13 +142,33 @@ export function VolumePanel({
           className="w-full rounded-lg border px-3 py-1.5 text-xs"
           style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
         />
+        {/* Chips filtre température / Temperature filter chips */}
+        <div className="flex gap-1.5 mt-2">
+          {TEMP_CHIPS.map(({ key, label }) => {
+            const active = tempFilters.has(key)
+            return (
+              <button
+                key={key}
+                className="px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all border"
+                style={{
+                  backgroundColor: active ? TEMPERATURE_COLORS[key] : 'transparent',
+                  borderColor: TEMPERATURE_COLORS[key],
+                  color: active ? '#fff' : TEMPERATURE_COLORS[key],
+                }}
+                onClick={() => toggleTempFilter(key)}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
         {sortedVolumes.map((vol) => {
           const pdv = pdvMap.get(vol.pdv_id)
           const assigned = assignedPdvIds.has(vol.pdv_id)
-          const overCapacity = vol.eqp_count > remaining
+          const overCapacity = remaining !== Infinity && vol.eqp_count > remaining
           const dist = !assigned ? getDisplayDistance(vol.pdv_id) : null
           const pickup = pickupMap.get(vol.pdv_id)
 
@@ -137,6 +179,8 @@ export function VolumePanel({
               style={{
                 borderColor: assigned ? 'var(--border-color)' : overCapacity ? 'var(--color-danger)' : 'var(--border-color)',
                 backgroundColor: assigned ? 'var(--bg-tertiary)' : 'var(--bg-primary)',
+                borderLeftWidth: '4px',
+                borderLeftColor: TEMPERATURE_COLORS[vol.temperature_class],
               }}
               onClick={() => !assigned && onAddVolume(vol)}
             >
@@ -170,7 +214,16 @@ export function VolumePanel({
               </div>
               <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
                 {pdv?.city && <span>{pdv.city}</span>}
-                <span>{vol.temperature_class}</span>
+                {/* Badge température coloré / Colored temperature badge */}
+                <span
+                  className="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                  style={{
+                    backgroundColor: `${TEMPERATURE_COLORS[vol.temperature_class]}20`,
+                    color: TEMPERATURE_COLORS[vol.temperature_class],
+                  }}
+                >
+                  {vol.temperature_class}
+                </span>
                 {vol.weight_kg && <span>{vol.weight_kg} kg</span>}
                 {dist != null && (
                   <span className="ml-auto font-semibold" style={{ color: 'var(--color-primary)' }}>

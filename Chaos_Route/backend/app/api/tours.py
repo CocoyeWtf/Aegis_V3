@@ -1007,6 +1007,7 @@ async def create_tour(
         total_cost=total_cost,
         status=data.status,
         base_id=data.base_id,
+        temperature_type=data.temperature_type,
     )
     db.add(tour)
     await db.flush()

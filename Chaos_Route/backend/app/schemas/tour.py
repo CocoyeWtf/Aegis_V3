@@ -52,6 +52,7 @@ class TourBase(BaseModel):
     status: TourStatus = TourStatus.DRAFT
     base_id: int
     delivery_date: str | None = None
+    temperature_type: str | None = None
     driver_name: str | None = None
     driver_arrival_time: str | None = None
     loading_end_time: str | None = None
@@ -92,6 +93,7 @@ class TourUpdate(BaseModel):
     status: TourStatus | None = None
     base_id: int | None = None
     delivery_date: str | None = None
+    temperature_type: str | None = None
     driver_name: str | None = None
     driver_arrival_time: str | None = None
     loading_end_time: str | None = None

@@ -1,7 +1,8 @@
 /* Validation du tour (phase construction) / Tour validation rules (construction phase) */
 
 import { useTranslation } from 'react-i18next'
-import type { TourStop, VehicleType } from '../../types'
+import type { TourStop, VehicleType, TemperatureType } from '../../types'
+import { TEMPERATURE_TYPE_LABELS } from '../../types'
 
 interface TourValidationProps {
   stops: TourStop[]
@@ -10,6 +11,7 @@ interface TourValidationProps {
   totalEqp: number
   onValidate: () => void
   onReset: () => void
+  temperatureType?: TemperatureType | null
 }
 
 interface ValidationMessage {
@@ -17,7 +19,7 @@ interface ValidationMessage {
   message: string
 }
 
-export function TourValidation({ stops, vehicleType, capacityEqp, totalEqp, onValidate, onReset }: TourValidationProps) {
+export function TourValidation({ stops, vehicleType, capacityEqp, totalEqp, onValidate, onReset, temperatureType }: TourValidationProps) {
   const { t } = useTranslation()
 
   const messages: ValidationMessage[] = []
@@ -46,6 +48,14 @@ export function TourValidation({ stops, vehicleType, capacityEqp, totalEqp, onVa
         pct: Math.round((totalEqp / capacityEqp) * 100),
       }),
     })
+  }
+
+  if (vehicleType && !temperatureType) {
+    messages.push({ type: 'warning', message: 'Température non sélectionnée' })
+  }
+
+  if (temperatureType) {
+    messages.push({ type: 'info', message: `Température: ${TEMPERATURE_TYPE_LABELS[temperatureType]}` })
   }
 
   if (vehicleType && stops.length > 0 && totalEqp <= capacityEqp) {

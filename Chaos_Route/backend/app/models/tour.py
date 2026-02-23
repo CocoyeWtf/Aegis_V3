@@ -38,6 +38,7 @@ class Tour(Base):
     status: Mapped[TourStatus] = mapped_column(Enum(TourStatus), default=TourStatus.DRAFT)
     base_id: Mapped[int] = mapped_column(ForeignKey("bases_logistics.id"), nullable=False)
     delivery_date: Mapped[str | None] = mapped_column(String(10))  # YYYY-MM-DD — date de livraison
+    temperature_type: Mapped[str | None] = mapped_column(String(10))  # SEC|FRAIS|GEL|BI_TEMP|TRI_TEMP
 
     # Champs opérationnels / Operational fields — datetime-local YYYY-MM-DDTHH:MM
     driver_name: Mapped[str | None] = mapped_column(String(100))

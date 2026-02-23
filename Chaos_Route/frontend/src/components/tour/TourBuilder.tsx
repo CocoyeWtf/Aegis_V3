@@ -1,4 +1,4 @@
-/* Constructeur de tour (Phase Construction) / Tour builder (Construction phase - vehicle type first, no contract) */
+/* Constructeur de tour (Phase Construction) / Tour builder (Construction phase — PDV first, vehicle after) */
 
 import { useState, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,9 +15,10 @@ import { MapView } from '../map/MapView'
 import { useDetachedMap } from '../../hooks/useDetachedMap'
 import { create } from '../../services/api'
 import api from '../../services/api'
-import type { VehicleType, Volume, PDV, BaseLogistics, Tour, TourStop, DistanceEntry, Contract, PdvPickupSummary } from '../../types'
+import type { VehicleType, TemperatureType, TemperatureClass, Volume, PDV, BaseLogistics, Tour, TourStop, DistanceEntry, Contract, PdvPickupSummary } from '../../types'
 import type { PdvVolumeStatus } from '../map/PdvMarker'
-import { VEHICLE_TYPE_DEFAULTS } from '../../types'
+import { VEHICLE_TYPE_DEFAULTS, TEMPERATURE_TYPE_LABELS } from '../../types'
+import { getRequiredTemperatureType, checkTemperatureCompatibility } from '../../utils/temperatureUtils'
 
 interface TourBuilderProps {
   selectedDate: string
@@ -47,6 +48,10 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   const [splitEqp, setSplitEqp] = useState(0)
   const [mapResizeSignal, setMapResizeSignal] = useState(0)
   const handlePanelLayout = useCallback(() => setMapResizeSignal((n) => n + 1), [])
+
+  /* Température / Temperature state */
+  const [selectedTemperatureType, setSelectedTemperatureType] = useState<TemperatureType | null>(null)
+  const [tempUpgradeDialog, setTempUpgradeDialog] = useState<{ volume: Volume; upgradeTo: TemperatureType } | null>(null)
 
   /* Persistence localStorage des tailles / localStorage persistence for panel sizes */
   const outerLayout = useDefaultLayout({ id: 'tour-h' })
@@ -121,32 +126,52 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
 
   const assignedPdvIds = useMemo(() => new Set(currentStops.map((s) => s.pdv_id)), [currentStops])
 
-  const filteredVolumes = useMemo(() => {
-    if (!selectedBaseId) return volumes
-    return volumes.filter((v) => v.base_origin_id === selectedBaseId)
-  }, [volumes, selectedBaseId])
+  /* Pas de filtrage par base — tous les volumes du jour / No base filtering — all volumes for the day */
+  const filteredVolumes = volumes
 
-  /* Tous les volumes du jour (avec et sans tour_id) filtrés par base / All day's volumes (assigned+unassigned) filtered by base */
+  /* Tous les volumes du jour (avec et sans tour_id) / All day's volumes (assigned+unassigned) */
   const allDayVolumes = useMemo(() => {
-    const dateFiltered = selectedDate
+    return selectedDate
       ? allVolumes.filter((v) => v.dispatch_date === selectedDate)
       : allVolumes
-    if (!selectedBaseId) return dateFiltered
-    return dateFiltered.filter((v) => v.base_origin_id === selectedBaseId)
-  }, [allVolumes, selectedDate, selectedBaseId])
+  }, [allVolumes, selectedDate])
+
+  /* Base auto-détectée depuis les volumes ajoutés / Auto-detected base from added volumes */
+  const autoBaseId = useMemo(() => {
+    if (currentStops.length === 0) return null
+    const firstStopPdvId = currentStops[0].pdv_id
+    const vol = volumes.find((v) => v.pdv_id === firstStopPdvId) || allVolumes.find((v) => v.pdv_id === firstStopPdvId)
+    return vol?.base_origin_id ?? null
+  }, [currentStops, volumes, allVolumes])
+
+  /* Utiliser autoBaseId comme base effective / Use autoBaseId as effective base */
+  const effectiveBaseId = autoBaseId ?? selectedBaseId
+
+  /* Températures des volumes dans le tour / Temperature classes of volumes in tour */
+  const tourTemperatures = useMemo(() => {
+    const temps = new Set<TemperatureClass>()
+    for (const stop of currentStops) {
+      const vol = volumes.find((v) => v.pdv_id === stop.pdv_id) || allVolumes.find((v) => v.pdv_id === stop.pdv_id)
+      if (vol) temps.add(vol.temperature_class)
+    }
+    return temps
+  }, [currentStops, volumes, allVolumes])
+
+  /* Température suggérée / Suggested temperature */
+  const suggestedTemperature = useMemo(
+    () => getRequiredTemperatureType(tourTemperatures),
+    [tourTemperatures],
+  )
 
   /* Statut volume par PDV pour la carte / Volume status per PDV for map coloring */
   const pdvVolumeStatusMap = useMemo(() => {
     const m = new Map<number, PdvVolumeStatus>()
-    /* D'abord marquer les non-affectés en rouge / First mark unassigned as red */
     for (const v of allDayVolumes) {
       if (!v.tour_id) m.set(v.pdv_id, 'unassigned')
     }
-    /* Puis écraser avec vert si affecté à un tour / Then override with green if assigned to a tour */
     for (const v of allDayVolumes) {
       if (v.tour_id) m.set(v.pdv_id, 'assigned')
     }
-    /* PDV dans le tour en cours = vert aussi / PDV in current tour = green too */
     for (const id of assignedPdvIds) {
       m.set(id, 'assigned')
     }
@@ -172,7 +197,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
 
   /* Calcul km estimé (sans temps) / Estimated km (no time) */
   const { totalKm, routeCoords } = useMemo(() => {
-    const selectedBase = bases.find((b) => b.id === selectedBaseId)
+    const selectedBase = bases.find((b) => b.id === effectiveBaseId)
     let km = 0
     const coords: [number, number][] = []
 
@@ -181,7 +206,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     }
 
     let prevType = 'BASE'
-    let prevId = selectedBaseId ?? 0
+    let prevId = effectiveBaseId ?? 0
     for (const stop of currentStops) {
       const dist = getDistance(prevType, prevId, 'PDV', stop.pdv_id)
       km += dist?.distance_km ?? 0
@@ -194,9 +219,9 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     }
 
     /* Retour base / Return to base */
-    if (currentStops.length > 0 && selectedBaseId) {
+    if (currentStops.length > 0 && effectiveBaseId) {
       const lastStop = currentStops[currentStops.length - 1]
-      const distReturn = getDistance('PDV', lastStop.pdv_id, 'BASE', selectedBaseId)
+      const distReturn = getDistance('PDV', lastStop.pdv_id, 'BASE', effectiveBaseId)
       if (distReturn) km += distReturn.distance_km
       if (selectedBase?.latitude && selectedBase?.longitude) {
         coords.push([selectedBase.latitude, selectedBase.longitude])
@@ -204,7 +229,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     }
 
     return { totalKm: Math.round(km * 10) / 10, routeCoords: coords }
-  }, [currentStops, bases, selectedBaseId, distanceIndex, pdvMap])
+  }, [currentStops, bases, effectiveBaseId, distanceIndex, pdvMap])
 
   /* Coût estimé en temps réel / Real-time estimated cost */
   const estimatedCost = useMemo(() => {
@@ -212,21 +237,83 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     return Math.round((avgFixedCost + totalKm * avgCostPerKm) * 100) / 100
   }, [totalKm, avgCostPerKm, avgFixedCost])
 
-  const remaining = capacityEqp - totalEqp
+  const remaining = selectedVehicleType ? (capacityEqp - totalEqp) : Infinity
+
+  /* Nom de la base auto-détectée / Auto-detected base name */
+  const autoBaseName = useMemo(() => {
+    if (!effectiveBaseId) return null
+    const b = bases.find((b) => b.id === effectiveBaseId)
+    return b ? `${b.code} — ${b.name}` : null
+  }, [effectiveBaseId, bases])
 
   const handleSelectVehicleType = (vt: VehicleType, defaultCapacity: number) => {
     setSelectedVehicleType(vt)
     setCapacityEqp(defaultCapacity)
-    setCurrentTour({ vehicle_type: vt, date: selectedDate, base_id: selectedBaseId ?? 0, status: 'DRAFT' as const })
+    setCurrentTour({ vehicle_type: vt, date: selectedDate, base_id: effectiveBaseId ?? 0, status: 'DRAFT' as const })
+    /* Auto-set température si pas encore choisie / Auto-set temperature if not chosen yet */
+    if (!selectedTemperatureType) {
+      setSelectedTemperatureType(suggestedTemperature)
+    }
   }
 
+  /* Ajouter un volume — phase A (sans véhicule) ou C (avec véhicule) /
+     Add volume — phase A (no vehicle) or phase C (with vehicle) */
   const handleAddVolume = (vol: Volume) => {
     if (assignedPdvIds.has(vol.pdv_id)) return
-    if (!selectedBaseId) return
-    if (!selectedVehicleType) return
+
+    /* Phase A : pas de véhicule → ajout libre / Phase A: no vehicle → free add */
+    if (!selectedVehicleType) {
+      addStop({
+        id: 0,
+        tour_id: 0,
+        pdv_id: vol.pdv_id,
+        sequence_order: currentStops.length + 1,
+        eqp_count: vol.eqp_count,
+        ...getPickupFlags(vol.pdv_id),
+      })
+      /* Auto-set base depuis le volume / Auto-set base from volume */
+      if (!autoBaseId) {
+        onBaseChange(vol.base_origin_id)
+      }
+      return
+    }
+
+    /* Phase C : véhicule sélectionné → check température + capacité /
+       Phase C: vehicle selected → check temperature + capacity */
+    if (selectedTemperatureType) {
+      const compat = checkTemperatureCompatibility(vol.temperature_class, selectedTemperatureType, tourTemperatures)
+      if (!compat.compatible) {
+        setTempUpgradeDialog({ volume: vol, upgradeTo: compat.upgradeTo })
+        return
+      }
+    }
+
     if (remaining <= 0) return
 
     if (vol.eqp_count <= remaining) {
+      addStop({
+        id: 0,
+        tour_id: 0,
+        pdv_id: vol.pdv_id,
+        sequence_order: currentStops.length + 1,
+        eqp_count: vol.eqp_count,
+        ...getPickupFlags(vol.pdv_id),
+      })
+    } else {
+      setSplitDialog({ volume: vol, maxEqp: remaining })
+      setSplitEqp(remaining)
+    }
+  }
+
+  /* Confirmer upgrade température / Confirm temperature upgrade */
+  const handleConfirmTempUpgrade = () => {
+    if (!tempUpgradeDialog) return
+    setSelectedTemperatureType(tempUpgradeDialog.upgradeTo)
+    const vol = tempUpgradeDialog.volume
+    setTempUpgradeDialog(null)
+    /* Re-add le volume maintenant compatible / Re-add the now-compatible volume */
+    if (remaining <= 0 && selectedVehicleType) return
+    if (!selectedVehicleType || vol.eqp_count <= remaining) {
       addStop({
         id: 0,
         tour_id: 0,
@@ -289,10 +376,11 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         code: `T-${Date.now()}`,
         vehicle_type: selectedVehicleType,
         capacity_eqp: capacityEqp,
-        base_id: selectedBaseId ?? 0,
+        base_id: effectiveBaseId ?? 0,
         status: 'DRAFT',
         total_eqp: totalEqp,
         total_km: totalKm,
+        temperature_type: selectedTemperatureType,
         stops: currentStops.map((s, i) => ({
           pdv_id: s.pdv_id,
           sequence_order: i + 1,
@@ -306,6 +394,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
       resetTour()
       setSelectedVehicleType(null)
       setCapacityEqp(0)
+      setSelectedTemperatureType(null)
       refetchVolumes()
     } catch (e) {
       console.error('Failed to save tour', e)
@@ -318,11 +407,37 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     resetTour()
     setSelectedVehicleType(null)
     setCapacityEqp(0)
+    setSelectedTemperatureType(null)
   }
+
+  /* Bandeau véhicule inline / Inline vehicle banner — shown after first stop, before vehicle selection */
+  const vehicleBanner = currentStops.length > 0 && !selectedVehicleType ? (
+    <div
+      className="rounded-xl border-2 p-4"
+      style={{ borderColor: 'var(--color-primary)', backgroundColor: 'rgba(249,115,22,0.05)' }}
+    >
+      <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+        Sélectionnez la température puis le véhicule
+      </h3>
+      {autoBaseName && (
+        <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
+          Base détectée: <span className="font-semibold" style={{ color: 'var(--color-primary)' }}>{autoBaseName}</span>
+        </p>
+      )}
+      <VehicleSelector
+        selectedType={null}
+        onSelect={handleSelectVehicleType}
+        selectedTemperature={selectedTemperatureType}
+        onTemperatureSelect={setSelectedTemperatureType}
+        suggestedTemperature={suggestedTemperature}
+        tourTemperatures={tourTemperatures}
+      />
+    </div>
+  ) : null
 
   return (
     <div className="space-y-4">
-      {/* Barre supérieure: date, base, type véhicule / Top bar */}
+      {/* Barre supérieure: date + info véhicule/température / Top bar */}
       <div
         className="rounded-xl border p-4 flex flex-wrap items-end gap-4"
         style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
@@ -345,33 +460,17 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
           />
         </div>
 
-        {/* Base d'expédition / Dispatch base */}
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-            {t('tourPlanning.dispatchBase')}
-          </label>
-          <select
-            value={selectedBaseId ?? ''}
-            onChange={(e) => {
-              onBaseChange(e.target.value ? Number(e.target.value) : null)
-              setSelectedVehicleType(null)
-              setCapacityEqp(0)
-            }}
-            className="rounded-lg border px-3 py-2 text-sm"
-            style={{
-              backgroundColor: 'var(--bg-primary)',
-              borderColor: 'var(--border-color)',
-              color: 'var(--text-primary)',
-            }}
-          >
-            <option value="">{t('tourPlanning.allBases')}</option>
-            {bases.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.code} — {b.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Base auto-détectée / Auto-detected base */}
+        {autoBaseName && (
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+              Base (auto)
+            </label>
+            <span className="text-sm font-semibold px-3 py-2" style={{ color: 'var(--color-primary)' }}>
+              {autoBaseName}
+            </span>
+          </div>
+        )}
 
         {/* Type de véhicule sélectionné / Selected vehicle type */}
         <div className="flex flex-col gap-1">
@@ -385,279 +484,291 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
           </span>
         </div>
 
-        {/* Indicateur volumes / Volumes indicator */}
-        <div className="ml-auto text-right">
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            {t('tourPlanning.availableVolumes')}
-          </span>
-          <p className="text-lg font-bold" style={{ color: 'var(--color-primary)' }}>
-            {filteredVolumes.filter((v) => !assignedPdvIds.has(v.pdv_id)).length}
-          </p>
+        {/* Badge température / Temperature badge */}
+        {selectedTemperatureType && (
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+              Température
+            </label>
+            <span className="text-sm font-semibold px-3 py-2" style={{ color: 'var(--text-primary)' }}>
+              {TEMPERATURE_TYPE_LABELS[selectedTemperatureType]}
+            </span>
+          </div>
+        )}
+
+        {/* Indicateur volumes + reset / Volumes indicator + reset */}
+        <div className="ml-auto flex items-end gap-3">
+          {(currentStops.length > 0 || selectedVehicleType || selectedTemperatureType) && (
+            <button
+              className="px-3 py-2 rounded-lg text-xs font-medium border transition-all hover:opacity-80"
+              style={{
+                borderColor: 'var(--color-danger)',
+                color: 'var(--color-danger)',
+                backgroundColor: 'rgba(239,68,68,0.08)',
+              }}
+              onClick={handleReset}
+            >
+              {t('tourPlanning.resetTour')}
+            </button>
+          )}
+          <div className="text-right">
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {t('tourPlanning.availableVolumes')}
+            </span>
+            <p className="text-lg font-bold" style={{ color: 'var(--color-primary)' }}>
+              {filteredVolumes.filter((v) => !assignedPdvIds.has(v.pdv_id)).length}
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Avertissement: base manquante / Warning: missing base */}
-      {!selectedBaseId && (
-        <div
-          className="rounded-lg px-4 py-2 text-xs"
-          style={{ backgroundColor: 'rgba(234,179,8,0.1)', color: 'var(--color-warning)' }}
-        >
-          {t('tourPlanning.baseRequired')}
-        </div>
-      )}
+      {/* Layout principal — toujours visible dès que la date est sélectionnée /
+          Main layout — always visible once date is selected */}
+      <>
+        {/* Desktop: panneaux redimensionnables / Desktop: resizable panels */}
+        <div className="hidden lg:block" style={{ height: 'calc(100vh - 320px)' }}>
+          {isDetached ? (
+            /* Carte détachée → panneaux data pleine largeur / Map detached → full-width data panels */
+            <div className="flex flex-col h-full gap-2">
+              <div className="flex justify-start py-1">
+                <button
+                  onClick={attach}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium border transition-all hover:opacity-80"
+                  style={{
+                    backgroundColor: 'rgba(234,179,8,0.15)',
+                    borderColor: 'var(--color-warning)',
+                    color: 'var(--color-warning)',
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+                  </svg>
+                  Rattacher la carte
+                </button>
+              </div>
+              <div className="flex-1 min-h-0">
+                <Group orientation="horizontal" defaultLayout={innerLayout.defaultLayout} onLayoutChanged={innerLayout.onLayoutChanged}>
+                  <Panel defaultSize={50} minSize={25}>
+                    <div className="h-full overflow-y-auto">
+                      <VolumePanel
+                        volumes={filteredVolumes}
+                        pdvs={pdvs}
+                        assignedPdvIds={assignedPdvIds}
+                        onAddVolume={handleAddVolume}
+                        vehicleCapacity={capacityEqp}
+                        currentEqp={totalEqp}
+                        lastStopPdvId={lastStopPdvId}
+                        baseId={effectiveBaseId}
+                        distanceIndex={distanceIndex}
+                        pickupSummaries={pickupSummaries}
+                      />
+                    </div>
+                  </Panel>
 
-      {/* Sélection type de véhicule / Vehicle type selection */}
-      {selectedBaseId && !selectedVehicleType && (
-        <div
-          className="rounded-xl border p-4"
-          style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
-        >
-          <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
-            {t('tourPlanning.selectVehicleType')}
-          </h3>
-          <VehicleSelector
-            selectedType={null}
-            onSelect={handleSelectVehicleType}
-          />
-        </div>
-      )}
+                  <ResizeHandle id="handle-inner" />
 
-      {/* Layout principal redimensionnable / Main resizable layout: map | volumes | tour+validation */}
-      {selectedVehicleType && (
-        <>
-          {/* Desktop: panneaux redimensionnables / Desktop: resizable panels */}
-          <div className="hidden lg:block" style={{ height: 'calc(100vh - 320px)' }}>
-            {isDetached ? (
-              /* Carte détachée → panneaux data pleine largeur / Map detached → full-width data panels */
-              <div className="flex flex-col h-full gap-2">
-                <div className="flex justify-start py-1">
-                  <button
-                    onClick={attach}
-                    className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium border transition-all hover:opacity-80"
-                    style={{
-                      backgroundColor: 'rgba(234,179,8,0.15)',
-                      borderColor: 'var(--color-warning)',
-                      color: 'var(--color-warning)',
-                    }}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
-                    </svg>
-                    Rattacher la carte
-                  </button>
-                </div>
-                <div className="flex-1 min-h-0">
-                  <Group orientation="horizontal" defaultLayout={innerLayout.defaultLayout} onLayoutChanged={innerLayout.onLayoutChanged}>
-                    <Panel defaultSize={50} minSize={25}>
-                      <div className="h-full overflow-y-auto">
-                        <VolumePanel
-                          volumes={filteredVolumes}
-                          pdvs={pdvs}
-                          assignedPdvIds={assignedPdvIds}
-                          onAddVolume={handleAddVolume}
-                          vehicleCapacity={capacityEqp}
-                          currentEqp={totalEqp}
-                          lastStopPdvId={lastStopPdvId}
-                          baseId={selectedBaseId}
-                          distanceIndex={distanceIndex}
-                          pickupSummaries={pickupSummaries}
-                        />
-                      </div>
-                    </Panel>
-
-                    <ResizeHandle id="handle-inner" />
-
-                    <Panel defaultSize={50} minSize={25}>
-                      <div className="flex flex-col h-full gap-2">
-                        <div className="flex-1 min-h-0 overflow-y-auto">
-                          <TourSummary
-                            stops={currentStops}
-                            pdvs={pdvs}
-                            vehicleType={selectedVehicleType}
-                            capacityEqp={capacityEqp}
-                            totalEqp={totalEqp}
-                            totalKm={totalKm}
-                            totalCost={estimatedCost}
-                            onRemoveStop={removeStop}
-                            onReorderStops={reorderStops}
-                            onUpdateStop={updateStop}
-                          />
-                        </div>
-                        <TourValidation
+                  <Panel defaultSize={50} minSize={25}>
+                    <div className="flex flex-col h-full gap-2 overflow-y-auto">
+                      {vehicleBanner}
+                      <div className="flex-1 min-h-0 overflow-y-auto">
+                        <TourSummary
                           stops={currentStops}
+                          pdvs={pdvs}
                           vehicleType={selectedVehicleType}
                           capacityEqp={capacityEqp}
                           totalEqp={totalEqp}
-                          onValidate={handleValidate}
-                          onReset={handleReset}
+                          totalKm={totalKm}
+                          totalCost={estimatedCost}
+                          onRemoveStop={removeStop}
+                          onReorderStops={reorderStops}
+                          onUpdateStop={updateStop}
+                          temperatureType={selectedTemperatureType}
+                          tourTemperatures={tourTemperatures}
                         />
-                        {saving && (
-                          <p className="text-xs text-center" style={{ color: 'var(--color-primary)' }}>
-                            {t('common.loading')}
-                          </p>
-                        )}
                       </div>
-                    </Panel>
-                  </Group>
-                </div>
+                      <TourValidation
+                        stops={currentStops}
+                        vehicleType={selectedVehicleType}
+                        capacityEqp={capacityEqp}
+                        totalEqp={totalEqp}
+                        onValidate={handleValidate}
+                        onReset={handleReset}
+                        temperatureType={selectedTemperatureType}
+                      />
+                      {saving && (
+                        <p className="text-xs text-center" style={{ color: 'var(--color-primary)' }}>
+                          {t('common.loading')}
+                        </p>
+                      )}
+                    </div>
+                  </Panel>
+                </Group>
               </div>
-            ) : (
-              /* Carte inline → layout normal / Map inline → normal layout */
-              <Group orientation="horizontal" defaultLayout={outerLayout.defaultLayout} onLayoutChange={(...args) => { outerLayout.onLayoutChange(...args); handlePanelLayout() }} onLayoutChanged={outerLayout.onLayoutChanged}>
-                {/* Carte / Map */}
-                <Panel defaultSize={40} minSize={25}>
-                  <div className="h-full flex flex-col">
-                    <div className="flex justify-end py-1 px-1">
-                      <button
-                        onClick={detach}
-                        className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium border transition-all hover:opacity-80"
-                        style={{
-                          backgroundColor: 'var(--bg-secondary)',
-                          borderColor: 'var(--border-color)',
-                          color: 'var(--text-secondary)',
-                        }}
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-                        </svg>
-                        Détacher la carte
-                      </button>
-                    </div>
-                    <div className="flex-1 min-h-0">
-                    <MapView
-                      onPdvClick={handlePdvClick}
-                      selectedPdvIds={assignedPdvIds}
-                      pdvVolumeStatusMap={pdvVolumeStatusMap}
-                      pdvEqpMap={pdvEqpMap}
-                      pickupByPdv={pickupByPdv}
-                      routeCoords={routeCoords}
-                      height="100%"
-                      resizeSignal={mapResizeSignal}
-                    />
-                    </div>
+            </div>
+          ) : (
+            /* Carte inline → layout normal / Map inline → normal layout */
+            <Group orientation="horizontal" defaultLayout={outerLayout.defaultLayout} onLayoutChange={(...args) => { outerLayout.onLayoutChange(...args); handlePanelLayout() }} onLayoutChanged={outerLayout.onLayoutChanged}>
+              {/* Carte / Map */}
+              <Panel defaultSize={40} minSize={25}>
+                <div className="h-full flex flex-col">
+                  <div className="flex justify-end py-1 px-1">
+                    <button
+                      onClick={detach}
+                      className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium border transition-all hover:opacity-80"
+                      style={{
+                        backgroundColor: 'var(--bg-secondary)',
+                        borderColor: 'var(--border-color)',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                      </svg>
+                      Détacher la carte
+                    </button>
                   </div>
-                </Panel>
+                  <div className="flex-1 min-h-0">
+                  <MapView
+                    onPdvClick={handlePdvClick}
+                    selectedPdvIds={assignedPdvIds}
+                    pdvVolumeStatusMap={pdvVolumeStatusMap}
+                    pdvEqpMap={pdvEqpMap}
+                    pickupByPdv={pickupByPdv}
+                    routeCoords={routeCoords}
+                    height="100%"
+                    resizeSignal={mapResizeSignal}
+                  />
+                  </div>
+                </div>
+              </Panel>
 
-                <ResizeHandle id="handle-map" />
+              <ResizeHandle id="handle-map" />
 
-                {/* Panneaux droits / Right panels */}
-                <Panel defaultSize={60} minSize={30}>
-                  <div className="flex flex-col h-full gap-2">
-                    <div className="flex-1 min-h-0">
-                      <Group orientation="horizontal" defaultLayout={innerLayout.defaultLayout} onLayoutChanged={innerLayout.onLayoutChanged}>
-                        {/* Volumes disponibles / Available volumes */}
-                        <Panel defaultSize={50} minSize={25}>
-                          <div className="h-full overflow-y-auto">
-                            <VolumePanel
-                              volumes={filteredVolumes}
-                              pdvs={pdvs}
-                              assignedPdvIds={assignedPdvIds}
-                              onAddVolume={handleAddVolume}
-                              vehicleCapacity={capacityEqp}
-                              currentEqp={totalEqp}
-                              lastStopPdvId={lastStopPdvId}
-                              baseId={selectedBaseId}
-                              distanceIndex={distanceIndex}
-                              pickupSummaries={pickupSummaries}
-                            />
-                          </div>
-                        </Panel>
+              {/* Panneaux droits / Right panels */}
+              <Panel defaultSize={60} minSize={30}>
+                <div className="flex flex-col h-full gap-2">
+                  <div className="flex-1 min-h-0">
+                    <Group orientation="horizontal" defaultLayout={innerLayout.defaultLayout} onLayoutChanged={innerLayout.onLayoutChanged}>
+                      {/* Volumes disponibles / Available volumes */}
+                      <Panel defaultSize={50} minSize={25}>
+                        <div className="h-full overflow-y-auto">
+                          <VolumePanel
+                            volumes={filteredVolumes}
+                            pdvs={pdvs}
+                            assignedPdvIds={assignedPdvIds}
+                            onAddVolume={handleAddVolume}
+                            vehicleCapacity={capacityEqp}
+                            currentEqp={totalEqp}
+                            lastStopPdvId={lastStopPdvId}
+                            baseId={effectiveBaseId}
+                            distanceIndex={distanceIndex}
+                            pickupSummaries={pickupSummaries}
+                          />
+                        </div>
+                      </Panel>
 
-                        <ResizeHandle id="handle-inner" />
+                      <ResizeHandle id="handle-inner" />
 
-                        {/* Résumé + validation / Tour summary + validation */}
-                        <Panel defaultSize={50} minSize={25}>
-                          <div className="flex flex-col h-full gap-2">
-                            <div className="flex-1 min-h-0 overflow-y-auto">
-                              <TourSummary
-                                stops={currentStops}
-                                pdvs={pdvs}
-                                vehicleType={selectedVehicleType}
-                                capacityEqp={capacityEqp}
-                                totalEqp={totalEqp}
-                                totalKm={totalKm}
-                                totalCost={estimatedCost}
-                                onRemoveStop={removeStop}
-                                onReorderStops={reorderStops}
-                                onUpdateStop={updateStop}
-                              />
-                            </div>
-                            <TourValidation
+                      {/* Résumé + validation / Tour summary + validation */}
+                      <Panel defaultSize={50} minSize={25}>
+                        <div className="flex flex-col h-full gap-2 overflow-y-auto">
+                          {vehicleBanner}
+                          <div className="flex-1 min-h-0 overflow-y-auto">
+                            <TourSummary
                               stops={currentStops}
+                              pdvs={pdvs}
                               vehicleType={selectedVehicleType}
                               capacityEqp={capacityEqp}
                               totalEqp={totalEqp}
-                              onValidate={handleValidate}
-                              onReset={handleReset}
+                              totalKm={totalKm}
+                              totalCost={estimatedCost}
+                              onRemoveStop={removeStop}
+                              onReorderStops={reorderStops}
+                              onUpdateStop={updateStop}
+                              temperatureType={selectedTemperatureType}
+                              tourTemperatures={tourTemperatures}
                             />
-                            {saving && (
-                              <p className="text-xs text-center" style={{ color: 'var(--color-primary)' }}>
-                                {t('common.loading')}
-                              </p>
-                            )}
                           </div>
-                        </Panel>
-                      </Group>
-                    </div>
+                          <TourValidation
+                            stops={currentStops}
+                            vehicleType={selectedVehicleType}
+                            capacityEqp={capacityEqp}
+                            totalEqp={totalEqp}
+                            onValidate={handleValidate}
+                            onReset={handleReset}
+                            temperatureType={selectedTemperatureType}
+                          />
+                          {saving && (
+                            <p className="text-xs text-center" style={{ color: 'var(--color-primary)' }}>
+                              {t('common.loading')}
+                            </p>
+                          )}
+                        </div>
+                      </Panel>
+                    </Group>
                   </div>
-                </Panel>
-              </Group>
-            )}
-          </div>
+                </div>
+              </Panel>
+            </Group>
+          )}
+        </div>
 
-          {/* Mobile: layout empilé classique / Mobile: stacked fallback */}
-          <div className="lg:hidden space-y-4">
-            <div className="min-h-[400px]">
-              <MapView
-                onPdvClick={handlePdvClick}
-                selectedPdvIds={assignedPdvIds}
-                pdvVolumeStatusMap={pdvVolumeStatusMap}
-                pdvEqpMap={pdvEqpMap}
-                pickupByPdv={pickupByPdv}
-                routeCoords={routeCoords}
-                height="400px"
-              />
-            </div>
-            <VolumePanel
-              volumes={filteredVolumes}
-              pdvs={pdvs}
-              assignedPdvIds={assignedPdvIds}
-              onAddVolume={handleAddVolume}
-              vehicleCapacity={capacityEqp}
-              currentEqp={totalEqp}
-              lastStopPdvId={lastStopPdvId}
-              baseId={selectedBaseId}
-              distanceIndex={distanceIndex}
-              pickupSummaries={pickupSummaries}
+        {/* Mobile: layout empilé classique / Mobile: stacked fallback */}
+        <div className="lg:hidden space-y-4">
+          <div className="min-h-[400px]">
+            <MapView
+              onPdvClick={handlePdvClick}
+              selectedPdvIds={assignedPdvIds}
+              pdvVolumeStatusMap={pdvVolumeStatusMap}
+              pdvEqpMap={pdvEqpMap}
+              pickupByPdv={pickupByPdv}
+              routeCoords={routeCoords}
+              height="400px"
             />
-            <TourSummary
-              stops={currentStops}
-              pdvs={pdvs}
-              vehicleType={selectedVehicleType}
-              capacityEqp={capacityEqp}
-              totalEqp={totalEqp}
-              totalKm={totalKm}
-              totalCost={estimatedCost}
-              onRemoveStop={removeStop}
-              onReorderStops={reorderStops}
-              onUpdateStop={updateStop}
-            />
-            <TourValidation
-              stops={currentStops}
-              vehicleType={selectedVehicleType}
-              capacityEqp={capacityEqp}
-              totalEqp={totalEqp}
-              onValidate={handleValidate}
-              onReset={handleReset}
-            />
-            {saving && (
-              <p className="text-xs text-center" style={{ color: 'var(--color-primary)' }}>
-                {t('common.loading')}
-              </p>
-            )}
           </div>
-        </>
-      )}
+          <VolumePanel
+            volumes={filteredVolumes}
+            pdvs={pdvs}
+            assignedPdvIds={assignedPdvIds}
+            onAddVolume={handleAddVolume}
+            vehicleCapacity={capacityEqp}
+            currentEqp={totalEqp}
+            lastStopPdvId={lastStopPdvId}
+            baseId={effectiveBaseId}
+            distanceIndex={distanceIndex}
+            pickupSummaries={pickupSummaries}
+          />
+          {vehicleBanner}
+          <TourSummary
+            stops={currentStops}
+            pdvs={pdvs}
+            vehicleType={selectedVehicleType}
+            capacityEqp={capacityEqp}
+            totalEqp={totalEqp}
+            totalKm={totalKm}
+            totalCost={estimatedCost}
+            onRemoveStop={removeStop}
+            onReorderStops={reorderStops}
+            onUpdateStop={updateStop}
+            temperatureType={selectedTemperatureType}
+            tourTemperatures={tourTemperatures}
+          />
+          <TourValidation
+            stops={currentStops}
+            vehicleType={selectedVehicleType}
+            capacityEqp={capacityEqp}
+            totalEqp={totalEqp}
+            onValidate={handleValidate}
+            onReset={handleReset}
+            temperatureType={selectedTemperatureType}
+          />
+          {saving && (
+            <p className="text-xs text-center" style={{ color: 'var(--color-primary)' }}>
+              {t('common.loading')}
+            </p>
+          )}
+        </div>
+      </>
 
       {/* Dialog de fractionnement / Split volume dialog */}
       {splitDialog && (
@@ -703,6 +814,43 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                 className="px-4 py-2 rounded-lg text-sm border transition-all hover:opacity-80"
                 style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}
                 onClick={() => setSplitDialog(null)}
+              >
+                {t('common.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog upgrade température / Temperature upgrade dialog */}
+      {tempUpgradeDialog && (
+        <div className="fixed inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999 }}>
+          <div
+            className="rounded-xl border shadow-2xl p-6 w-[380px] space-y-4"
+            style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
+          >
+            <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+              Changement de température
+            </h3>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Ce volume est <strong>{tempUpgradeDialog.volume.temperature_class}</strong>, le tour est <strong>{selectedTemperatureType && TEMPERATURE_TYPE_LABELS[selectedTemperatureType]}</strong>.
+            </p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Passer en <strong>{TEMPERATURE_TYPE_LABELS[tempUpgradeDialog.upgradeTo]}</strong> ?
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                style={{ backgroundColor: 'var(--color-primary)', color: '#fff' }}
+                onClick={handleConfirmTempUpgrade}
+              >
+                {t('common.confirm')}
+              </button>
+              <button
+                className="px-4 py-2 rounded-lg text-sm border transition-all hover:opacity-80"
+                style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}
+                onClick={() => setTempUpgradeDialog(null)}
               >
                 {t('common.cancel')}
               </button>

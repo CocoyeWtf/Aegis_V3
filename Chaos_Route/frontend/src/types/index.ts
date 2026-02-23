@@ -138,6 +138,7 @@ export interface Tour {
   status: TourStatus
   base_id: number
   delivery_date?: string | null
+  temperature_type?: TemperatureType
   stops: TourStop[]
   driver_name?: string
   driver_arrival_time?: string
@@ -224,6 +225,22 @@ export const VEHICLE_TYPE_DEFAULTS: Record<VehicleType, { label: string; capacit
   PORTEUR_REMORQUE: { label: 'Porteur + Remorque', capacity_eqp: 43 },
   CITY: { label: 'City', capacity_eqp: 16 },
   VL: { label: 'VL', capacity_eqp: 8 },
+}
+
+/* Couleurs température / Temperature colors */
+export const TEMPERATURE_COLORS: Record<TemperatureClass, string> = {
+  GEL: '#1e40af',
+  FRAIS: '#3b82f6',
+  SEC: '#f97316',
+}
+
+/* Labels type température / Temperature type labels */
+export const TEMPERATURE_TYPE_LABELS: Record<TemperatureType, string> = {
+  SEC: 'Sec',
+  FRAIS: 'Frais',
+  GEL: 'Gel',
+  BI_TEMP: 'Bi-temp',
+  TRI_TEMP: 'Tri-temp',
 }
 
 export interface ContractSchedule {
