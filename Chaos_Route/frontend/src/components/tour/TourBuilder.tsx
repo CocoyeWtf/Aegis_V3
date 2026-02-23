@@ -12,6 +12,7 @@ import { TourSummary } from './TourSummary'
 import { TourValidation } from './TourValidation'
 import { ResizeHandle } from './ResizeHandle'
 import { MapView } from '../map/MapView'
+import { useDetachedMap } from '../../hooks/useDetachedMap'
 import { create } from '../../services/api'
 import api from '../../services/api'
 import type { VehicleType, Volume, PDV, BaseLogistics, Tour, TourStop, DistanceEntry, Contract, PdvPickupSummary } from '../../types'
@@ -27,7 +28,7 @@ interface TourBuilderProps {
 
 export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBaseChange }: TourBuilderProps) {
   const { t } = useTranslation()
-  const { selectedRegionId } = useAppStore()
+  const { selectedRegionId, theme } = useAppStore()
   const {
     currentStops,
     setCurrentTour,
@@ -257,6 +258,17 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     handleAddVolume(vol)
   }
 
+  /* Carte détachable / Detachable map */
+  const { isDetached, detach, attach } = useDetachedMap({
+    selectedPdvIds: assignedPdvIds,
+    pdvVolumeStatusMap,
+    routeCoords,
+    pickupByPdv,
+    theme,
+    regionId: selectedRegionId,
+    onPdvClick: handlePdvClick,
+  })
+
   /* Sauvegarder comme brouillon (sans contrat) / Save as draft (no contract) */
   const handleValidate = async () => {
     if (!selectedVehicleType || currentStops.length === 0) return
@@ -403,88 +415,178 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
       {/* Layout principal redimensionnable / Main resizable layout: map | volumes | tour+validation */}
       {selectedVehicleType && (
         <>
+          {/* Bouton détacher/rattacher carte (desktop) / Detach/attach map button (desktop) */}
+          <div className="hidden lg:flex justify-end mb-1">
+            <button
+              onClick={isDetached ? attach : detach}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all hover:opacity-80"
+              style={{
+                backgroundColor: isDetached ? 'rgba(234,179,8,0.15)' : 'var(--bg-secondary)',
+                borderColor: isDetached ? 'var(--color-warning)' : 'var(--border-color)',
+                color: isDetached ? 'var(--color-warning)' : 'var(--text-secondary)',
+              }}
+            >
+              {isDetached ? (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+                  </svg>
+                  Rattacher la carte
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                  Détacher la carte
+                </>
+              )}
+            </button>
+          </div>
+
           {/* Desktop: panneaux redimensionnables / Desktop: resizable panels */}
-          <div className="hidden lg:block" style={{ height: 'calc(100vh - 320px)' }}>
-            <Group orientation="horizontal" defaultLayout={outerLayout.defaultLayout} onLayoutChange={(...args) => { outerLayout.onLayoutChange(...args); handlePanelLayout() }} onLayoutChanged={outerLayout.onLayoutChanged}>
-              {/* Carte / Map */}
-              <Panel defaultSize={40} minSize={25}>
-                <div className="h-full">
-                  <MapView
-                    onPdvClick={handlePdvClick}
-                    selectedPdvIds={assignedPdvIds}
-                    pdvVolumeStatusMap={pdvVolumeStatusMap}
-                    pickupByPdv={pickupByPdv}
-                    routeCoords={routeCoords}
-                    height="100%"
-                    resizeSignal={mapResizeSignal}
-                  />
-                </div>
-              </Panel>
+          <div className="hidden lg:block" style={{ height: 'calc(100vh - 350px)' }}>
+            {isDetached ? (
+              /* Carte détachée → panneaux data pleine largeur / Map detached → full-width data panels */
+              <div className="flex flex-col h-full gap-2">
+                <div className="flex-1 min-h-0">
+                  <Group orientation="horizontal" defaultLayout={innerLayout.defaultLayout} onLayoutChanged={innerLayout.onLayoutChanged}>
+                    <Panel defaultSize={50} minSize={25}>
+                      <div className="h-full overflow-y-auto">
+                        <VolumePanel
+                          volumes={filteredVolumes}
+                          pdvs={pdvs}
+                          assignedPdvIds={assignedPdvIds}
+                          onAddVolume={handleAddVolume}
+                          vehicleCapacity={capacityEqp}
+                          currentEqp={totalEqp}
+                          lastStopPdvId={lastStopPdvId}
+                          baseId={selectedBaseId}
+                          distanceIndex={distanceIndex}
+                          pickupSummaries={pickupSummaries}
+                        />
+                      </div>
+                    </Panel>
 
-              <ResizeHandle id="handle-map" />
+                    <ResizeHandle id="handle-inner" />
 
-              {/* Panneaux droits / Right panels */}
-              <Panel defaultSize={60} minSize={30}>
-                <div className="flex flex-col h-full gap-2">
-                  <div className="flex-1 min-h-0">
-                    <Group orientation="horizontal" defaultLayout={innerLayout.defaultLayout} onLayoutChanged={innerLayout.onLayoutChanged}>
-                      {/* Volumes disponibles / Available volumes */}
-                      <Panel defaultSize={50} minSize={25}>
-                        <div className="h-full overflow-y-auto">
-                          <VolumePanel
-                            volumes={filteredVolumes}
-                            pdvs={pdvs}
-                            assignedPdvIds={assignedPdvIds}
-                            onAddVolume={handleAddVolume}
-                            vehicleCapacity={capacityEqp}
-                            currentEqp={totalEqp}
-                            lastStopPdvId={lastStopPdvId}
-                            baseId={selectedBaseId}
-                            distanceIndex={distanceIndex}
-                            pickupSummaries={pickupSummaries}
-                          />
-                        </div>
-                      </Panel>
-
-                      <ResizeHandle id="handle-inner" />
-
-                      {/* Résumé + validation / Tour summary + validation */}
-                      <Panel defaultSize={50} minSize={25}>
-                        <div className="flex flex-col h-full gap-2">
-                          <div className="flex-1 min-h-0 overflow-y-auto">
-                            <TourSummary
-                              stops={currentStops}
-                              pdvs={pdvs}
-                              vehicleType={selectedVehicleType}
-                              capacityEqp={capacityEqp}
-                              totalEqp={totalEqp}
-                              totalKm={totalKm}
-                              totalCost={estimatedCost}
-                              onRemoveStop={removeStop}
-                              onReorderStops={reorderStops}
-                              onUpdateStop={updateStop}
-                            />
-                          </div>
-                          <TourValidation
+                    <Panel defaultSize={50} minSize={25}>
+                      <div className="flex flex-col h-full gap-2">
+                        <div className="flex-1 min-h-0 overflow-y-auto">
+                          <TourSummary
                             stops={currentStops}
+                            pdvs={pdvs}
                             vehicleType={selectedVehicleType}
                             capacityEqp={capacityEqp}
                             totalEqp={totalEqp}
-                            onValidate={handleValidate}
-                            onReset={handleReset}
+                            totalKm={totalKm}
+                            totalCost={estimatedCost}
+                            onRemoveStop={removeStop}
+                            onReorderStops={reorderStops}
+                            onUpdateStop={updateStop}
                           />
-                          {saving && (
-                            <p className="text-xs text-center" style={{ color: 'var(--color-primary)' }}>
-                              {t('common.loading')}
-                            </p>
-                          )}
                         </div>
-                      </Panel>
-                    </Group>
-                  </div>
+                        <TourValidation
+                          stops={currentStops}
+                          vehicleType={selectedVehicleType}
+                          capacityEqp={capacityEqp}
+                          totalEqp={totalEqp}
+                          onValidate={handleValidate}
+                          onReset={handleReset}
+                        />
+                        {saving && (
+                          <p className="text-xs text-center" style={{ color: 'var(--color-primary)' }}>
+                            {t('common.loading')}
+                          </p>
+                        )}
+                      </div>
+                    </Panel>
+                  </Group>
                 </div>
-              </Panel>
-            </Group>
+              </div>
+            ) : (
+              /* Carte inline → layout normal / Map inline → normal layout */
+              <Group orientation="horizontal" defaultLayout={outerLayout.defaultLayout} onLayoutChange={(...args) => { outerLayout.onLayoutChange(...args); handlePanelLayout() }} onLayoutChanged={outerLayout.onLayoutChanged}>
+                {/* Carte / Map */}
+                <Panel defaultSize={40} minSize={25}>
+                  <div className="h-full">
+                    <MapView
+                      onPdvClick={handlePdvClick}
+                      selectedPdvIds={assignedPdvIds}
+                      pdvVolumeStatusMap={pdvVolumeStatusMap}
+                      pickupByPdv={pickupByPdv}
+                      routeCoords={routeCoords}
+                      height="100%"
+                      resizeSignal={mapResizeSignal}
+                    />
+                  </div>
+                </Panel>
+
+                <ResizeHandle id="handle-map" />
+
+                {/* Panneaux droits / Right panels */}
+                <Panel defaultSize={60} minSize={30}>
+                  <div className="flex flex-col h-full gap-2">
+                    <div className="flex-1 min-h-0">
+                      <Group orientation="horizontal" defaultLayout={innerLayout.defaultLayout} onLayoutChanged={innerLayout.onLayoutChanged}>
+                        {/* Volumes disponibles / Available volumes */}
+                        <Panel defaultSize={50} minSize={25}>
+                          <div className="h-full overflow-y-auto">
+                            <VolumePanel
+                              volumes={filteredVolumes}
+                              pdvs={pdvs}
+                              assignedPdvIds={assignedPdvIds}
+                              onAddVolume={handleAddVolume}
+                              vehicleCapacity={capacityEqp}
+                              currentEqp={totalEqp}
+                              lastStopPdvId={lastStopPdvId}
+                              baseId={selectedBaseId}
+                              distanceIndex={distanceIndex}
+                              pickupSummaries={pickupSummaries}
+                            />
+                          </div>
+                        </Panel>
+
+                        <ResizeHandle id="handle-inner" />
+
+                        {/* Résumé + validation / Tour summary + validation */}
+                        <Panel defaultSize={50} minSize={25}>
+                          <div className="flex flex-col h-full gap-2">
+                            <div className="flex-1 min-h-0 overflow-y-auto">
+                              <TourSummary
+                                stops={currentStops}
+                                pdvs={pdvs}
+                                vehicleType={selectedVehicleType}
+                                capacityEqp={capacityEqp}
+                                totalEqp={totalEqp}
+                                totalKm={totalKm}
+                                totalCost={estimatedCost}
+                                onRemoveStop={removeStop}
+                                onReorderStops={reorderStops}
+                                onUpdateStop={updateStop}
+                              />
+                            </div>
+                            <TourValidation
+                              stops={currentStops}
+                              vehicleType={selectedVehicleType}
+                              capacityEqp={capacityEqp}
+                              totalEqp={totalEqp}
+                              onValidate={handleValidate}
+                              onReset={handleReset}
+                            />
+                            {saving && (
+                              <p className="text-xs text-center" style={{ color: 'var(--color-primary)' }}>
+                                {t('common.loading')}
+                              </p>
+                            )}
+                          </div>
+                        </Panel>
+                      </Group>
+                    </div>
+                  </div>
+                </Panel>
+              </Group>
+            )}
           </div>
 
           {/* Mobile: layout empilé classique / Mobile: stacked fallback */}

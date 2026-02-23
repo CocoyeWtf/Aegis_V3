@@ -35,6 +35,7 @@ const SupportTypes = lazy(() => import('./pages/SupportTypes'))
 const PdvPickupRequests = lazy(() => import('./pages/PdvPickupRequests'))
 const BaseReception = lazy(() => import('./pages/BaseReception'))
 const PdvDeliverySchedule = lazy(() => import('./pages/PdvDeliverySchedule'))
+const DetachedMap = lazy(() => import('./pages/DetachedMap'))
 
 function Loading() {
   return (
@@ -50,6 +51,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route element={<ProtectedRoute />}>
+          <Route path="/map-detached" element={<DetachedMap />} />
           <Route element={<MainLayout />}>
             <Route path="/" element={<DefaultRedirect><Dashboard /></DefaultRedirect>} />
             <Route path="/countries" element={<CountryRegion />} />
