@@ -26,14 +26,17 @@ const ACTIVITY_FILTERS: { key: string; label: string }[] = [
 
 const PREFS_KEY = 'scheduler-prefs'
 
-interface SchedulerPrefs { splitPct: number }
+interface SchedulerPrefs { leftWidth: number }
 
 function loadPrefs(): SchedulerPrefs {
   try {
     const raw = localStorage.getItem(PREFS_KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed.leftWidth) return parsed
+    }
   } catch { /* ignore */ }
-  return { splitPct: 55 }
+  return { leftWidth: 440 }
 }
 
 function savePrefs(p: SchedulerPrefs) {
@@ -528,7 +531,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
     )
   }, [sortedTours, timeline, selectedDate, pdvMap])
 
-  /* Redimensionnement split / Split resize */
+  /* Redimensionnement split par pixels / Split resize in pixels */
   const handleSplitResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     const container = splitContainerRef.current
@@ -536,9 +539,9 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
 
     const onMove = (ev: MouseEvent) => {
       const rect = container.getBoundingClientRect()
-      const pct = Math.max(30, Math.min(75, ((ev.clientX - rect.left) / rect.width) * 100))
+      const px = Math.max(320, Math.min(rect.width * 0.6, ev.clientX - rect.left))
       setPrefs((prev) => {
-        const next = { ...prev, splitPct: Math.round(pct) }
+        const next = { ...prev, leftWidth: Math.round(px) }
         savePrefs(next)
         return next
       })
@@ -672,7 +675,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
       {/* Layout split redimensionnable / Resizable split layout */}
       <div ref={splitContainerRef} className="flex" style={{ alignItems: 'flex-start', minHeight: 'calc(100vh - 280px)' }}>
         {/* Panneau gauche — Boites collapsibles / Left panel — Collapsible boxes */}
-        <div className="min-w-0 overflow-y-auto" style={{ width: `${prefs.splitPct}%`, maxHeight: 'calc(100vh - 300px)' }}>
+        <div className="overflow-y-auto flex-shrink-0" style={{ width: `${prefs.leftWidth}px`, maxHeight: 'calc(100vh - 300px)' }}>
           <div ref={boxContainerRef}>
             {/* Header invisible pour alignement Gantt / Invisible header for Gantt alignment */}
             <div data-gantt-header style={{ height: 0 }} />
@@ -759,7 +762,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                       )}
 
                       {/* PDVs inline (tronqué) */}
-                      <span className="text-[10px] truncate min-w-0" style={{ color: 'var(--text-muted)' }}>
+                      <span className="text-[10px] truncate min-w-0" style={{ color: 'var(--text-muted)', maxWidth: '120px' }}>
                         {pdvSummary(tour)}
                       </span>
 
@@ -783,10 +786,19 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                           {tour.status === 'VALIDATED' ? 'Valide' : 'Brouillon'}
                         </span>
                       )}
+
+                      {/* Indicateur violation fenêtre / Delivery window violation dot */}
+                      {windowViolations && (
+                        <span
+                          className="shrink-0 w-2.5 h-2.5 rounded-full"
+                          style={{ backgroundColor: 'var(--color-danger)' }}
+                          title={windowViolations.join(' | ')}
+                        />
+                      )}
                     </div>
 
-                    {/* === Ligne 2 — Actions inline / Line 2 — Inline actions === */}
-                    <div className="flex items-center gap-2 px-3 pb-1.5 flex-wrap">
+                    {/* === Ligne 2 — Actions inline (no wrap) / Line 2 — Inline actions (no wrap) === */}
+                    <div className="flex items-center gap-2 px-3 pb-1.5 overflow-hidden">
                       {!isScheduled ? (
                         /* --- Non planifié: contrat + date + heure + bouton planifier --- */
                         <>
@@ -795,7 +807,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                             onChange={(e) => updateInput(tour.id, 'contractId', e.target.value ? Number(e.target.value) : null)}
                             onClick={(e) => e.stopPropagation()}
                             className="rounded border px-1.5 py-1 text-[11px] min-w-0"
-                            style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', maxWidth: '200px' }}
+                            style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', maxWidth: '150px' }}
                           >
                             <option value="">{t('tourPlanning.selectContract')}</option>
                             {contracts.map((c) => (
@@ -921,20 +933,18 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                       )}
                     </div>
 
-                    {/* Avertissement fenêtre livraison (compact) / Delivery window warning (compact) */}
-                    {windowViolations && (
-                      <div className="px-3 pb-1.5">
-                        <span className="text-[10px] font-bold" style={{ color: 'var(--color-danger)' }}>
-                          {windowViolations.map((v, i) => (
-                            <span key={i}>{i > 0 && ' | '}{v}</span>
-                          ))}
-                        </span>
-                      </div>
-                    )}
-
                     {/* === Zone expanded / Expanded area === */}
                     {isExpanded && (
                       <div className="px-3 pb-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
+                        {/* Avertissement fenêtre livraison / Delivery window warning */}
+                        {windowViolations && (
+                          <div className="mt-1 mb-1 text-[10px] font-bold" style={{ color: 'var(--color-danger)' }}>
+                            {windowViolations.map((v, i) => (
+                              <span key={i}>{i > 0 && ' | '}{v}</span>
+                            ))}
+                          </div>
+                        )}
+
                         {/* Stops détaillés / Detailed stops */}
                         {renderStopList(tour)}
 
@@ -996,7 +1006,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
         </div>
 
         {/* Panneau droit — Gantt SVG / Right panel — SVG Gantt */}
-        <div className="min-w-[200px]" style={{ width: `${100 - prefs.splitPct}%` }}>
+        <div className="min-w-[200px] flex-1">
           <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border-color)' }}>
             <TourGantt
               tours={ganttData}
