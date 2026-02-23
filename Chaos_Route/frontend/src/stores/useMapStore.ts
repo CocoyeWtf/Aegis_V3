@@ -9,9 +9,10 @@ interface MapState {
   showPdvs: boolean
   showSuppliers: boolean
   showRoutes: boolean
+  showPdvLabels: boolean
   setCenter: (center: [number, number]) => void
   setZoom: (zoom: number) => void
-  toggleLayer: (layer: 'showBases' | 'showPdvs' | 'showSuppliers' | 'showRoutes') => void
+  toggleLayer: (layer: 'showBases' | 'showPdvs' | 'showSuppliers' | 'showRoutes' | 'showPdvLabels') => void
 }
 
 export const useMapStore = create<MapState>((set) => ({
@@ -21,6 +22,7 @@ export const useMapStore = create<MapState>((set) => ({
   showPdvs: true,
   showSuppliers: true,
   showRoutes: true,
+  showPdvLabels: false,
 
   setCenter: (center) => set({ center }),
   setZoom: (zoom) => set({ zoom }),

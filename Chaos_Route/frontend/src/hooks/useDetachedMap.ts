@@ -19,6 +19,7 @@ interface MapInitPayload {
   regionId: number | null
   selectedPdvIds: number[]
   pdvVolumeStatusMap: [number, PdvVolumeStatus][]
+  pdvEqpMap: [number, number][]
   routeCoords: [number, number][]
   pickupByPdv: [number, PdvPickupSummary][]
 }
@@ -26,6 +27,7 @@ interface MapInitPayload {
 interface MapStateSyncPayload {
   selectedPdvIds: number[]
   pdvVolumeStatusMap: [number, PdvVolumeStatus][]
+  pdvEqpMap: [number, number][]
   routeCoords: [number, number][]
   pickupByPdv: [number, PdvPickupSummary][]
 }
@@ -33,6 +35,7 @@ interface MapStateSyncPayload {
 interface UseDetachedMapOptions {
   selectedPdvIds: Set<number>
   pdvVolumeStatusMap: Map<number, PdvVolumeStatus>
+  pdvEqpMap: Map<number, number>
   routeCoords: [number, number][]
   pickupByPdv: Map<number, PdvPickupSummary>
   theme: 'dark' | 'light'
@@ -43,6 +46,7 @@ interface UseDetachedMapOptions {
 export function useDetachedMap({
   selectedPdvIds,
   pdvVolumeStatusMap,
+  pdvEqpMap,
   routeCoords,
   pickupByPdv,
   theme,
@@ -66,9 +70,10 @@ export function useDetachedMap({
   const serializeState = useCallback((): MapStateSyncPayload => ({
     selectedPdvIds: Array.from(selectedPdvIds),
     pdvVolumeStatusMap: Array.from(pdvVolumeStatusMap.entries()),
+    pdvEqpMap: Array.from(pdvEqpMap.entries()),
     routeCoords,
     pickupByPdv: Array.from(pickupByPdv.entries()),
-  }), [selectedPdvIds, pdvVolumeStatusMap, routeCoords, pickupByPdv])
+  }), [selectedPdvIds, pdvVolumeStatusMap, pdvEqpMap, routeCoords, pickupByPdv])
 
   const serializeRef = useRef(serializeState)
   serializeRef.current = serializeState

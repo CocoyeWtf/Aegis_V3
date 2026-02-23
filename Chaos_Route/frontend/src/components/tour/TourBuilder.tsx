@@ -153,6 +153,15 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     return m
   }, [allDayVolumes, assignedPdvIds])
 
+  /* EQC par PDV pour labels carte / EQC per PDV for map labels */
+  const pdvEqpMap = useMemo(() => {
+    const m = new Map<number, number>()
+    for (const v of allDayVolumes) {
+      m.set(v.pdv_id, (m.get(v.pdv_id) || 0) + v.eqp_count)
+    }
+    return m
+  }, [allDayVolumes])
+
   const pdvMap = useMemo(() => new Map(pdvs.map((p) => [p.id, p])), [pdvs])
 
   /* Dernier stop pour tri par proximité / Last stop for proximity sorting */
@@ -262,6 +271,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   const { isDetached, detach, attach } = useDetachedMap({
     selectedPdvIds: assignedPdvIds,
     pdvVolumeStatusMap,
+    pdvEqpMap,
     routeCoords,
     pickupByPdv,
     theme,
@@ -415,40 +425,27 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
       {/* Layout principal redimensionnable / Main resizable layout: map | volumes | tour+validation */}
       {selectedVehicleType && (
         <>
-          {/* Bouton détacher/rattacher carte (desktop) / Detach/attach map button (desktop) */}
-          <div className="hidden lg:flex justify-end mb-1">
-            <button
-              onClick={isDetached ? attach : detach}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all hover:opacity-80"
-              style={{
-                backgroundColor: isDetached ? 'rgba(234,179,8,0.15)' : 'var(--bg-secondary)',
-                borderColor: isDetached ? 'var(--color-warning)' : 'var(--border-color)',
-                color: isDetached ? 'var(--color-warning)' : 'var(--text-secondary)',
-              }}
-            >
-              {isDetached ? (
-                <>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
-                  </svg>
-                  Rattacher la carte
-                </>
-              ) : (
-                <>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-                  </svg>
-                  Détacher la carte
-                </>
-              )}
-            </button>
-          </div>
-
           {/* Desktop: panneaux redimensionnables / Desktop: resizable panels */}
-          <div className="hidden lg:block" style={{ height: 'calc(100vh - 350px)' }}>
+          <div className="hidden lg:block" style={{ height: 'calc(100vh - 320px)' }}>
             {isDetached ? (
               /* Carte détachée → panneaux data pleine largeur / Map detached → full-width data panels */
               <div className="flex flex-col h-full gap-2">
+                <div className="flex justify-start py-1">
+                  <button
+                    onClick={attach}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium border transition-all hover:opacity-80"
+                    style={{
+                      backgroundColor: 'rgba(234,179,8,0.15)',
+                      borderColor: 'var(--color-warning)',
+                      color: 'var(--color-warning)',
+                    }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+                    </svg>
+                    Rattacher la carte
+                  </button>
+                </div>
                 <div className="flex-1 min-h-0">
                   <Group orientation="horizontal" defaultLayout={innerLayout.defaultLayout} onLayoutChanged={innerLayout.onLayoutChanged}>
                     <Panel defaultSize={50} minSize={25}>
@@ -509,16 +506,35 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
               <Group orientation="horizontal" defaultLayout={outerLayout.defaultLayout} onLayoutChange={(...args) => { outerLayout.onLayoutChange(...args); handlePanelLayout() }} onLayoutChanged={outerLayout.onLayoutChanged}>
                 {/* Carte / Map */}
                 <Panel defaultSize={40} minSize={25}>
-                  <div className="h-full">
+                  <div className="h-full flex flex-col">
+                    <div className="flex justify-end py-1 px-1">
+                      <button
+                        onClick={detach}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium border transition-all hover:opacity-80"
+                        style={{
+                          backgroundColor: 'var(--bg-secondary)',
+                          borderColor: 'var(--border-color)',
+                          color: 'var(--text-secondary)',
+                        }}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                        </svg>
+                        Détacher la carte
+                      </button>
+                    </div>
+                    <div className="flex-1 min-h-0">
                     <MapView
                       onPdvClick={handlePdvClick}
                       selectedPdvIds={assignedPdvIds}
                       pdvVolumeStatusMap={pdvVolumeStatusMap}
+                      pdvEqpMap={pdvEqpMap}
                       pickupByPdv={pickupByPdv}
                       routeCoords={routeCoords}
                       height="100%"
                       resizeSignal={mapResizeSignal}
                     />
+                    </div>
                   </div>
                 </Panel>
 
@@ -596,6 +612,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                 onPdvClick={handlePdvClick}
                 selectedPdvIds={assignedPdvIds}
                 pdvVolumeStatusMap={pdvVolumeStatusMap}
+                pdvEqpMap={pdvEqpMap}
                 pickupByPdv={pickupByPdv}
                 routeCoords={routeCoords}
                 height="400px"

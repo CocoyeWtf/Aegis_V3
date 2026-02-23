@@ -47,7 +47,7 @@ function Swatch({ color, shape, size = 10 }: { color: string; shape: string; siz
 
 export function MapFilters() {
   const { t } = useTranslation()
-  const { showBases, showPdvs, showSuppliers, showRoutes, toggleLayer } = useMapStore()
+  const { showBases, showPdvs, showSuppliers, showRoutes, showPdvLabels, toggleLayer } = useMapStore()
 
   const layers: LayerEntry[] = [
     { key: 'showBases', label: t('nav.bases'), checked: showBases, color: '#f97316', shape: 'square' },
@@ -100,6 +100,15 @@ export function MapFilters() {
               <span className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>{entry.label}</span>
             </div>
           ))}
+          <label className="flex items-center gap-2 cursor-pointer mt-1.5 pl-5">
+            <input
+              type="checkbox"
+              checked={showPdvLabels}
+              onChange={() => toggleLayer('showPdvLabels')}
+              className="w-3 h-3 rounded accent-orange-500"
+            />
+            <span className="text-[10px] font-medium" style={{ color: 'var(--text-secondary)' }}>Labels EQC</span>
+          </label>
         </>
       )}
     </div>

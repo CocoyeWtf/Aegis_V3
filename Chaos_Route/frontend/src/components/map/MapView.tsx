@@ -41,14 +41,15 @@ interface MapViewProps {
   onPdvClick?: (pdv: PDV) => void
   selectedPdvIds?: Set<number>
   pdvVolumeStatusMap?: Map<number, PdvVolumeStatus>
+  pdvEqpMap?: Map<number, number>
   pickupByPdv?: Map<number, PdvPickupSummary>
   routeCoords?: [number, number][]
   height?: string
   resizeSignal?: number
 }
 
-export function MapView({ onPdvClick, selectedPdvIds, pdvVolumeStatusMap, pickupByPdv, routeCoords, height = '100%', resizeSignal = 0 }: MapViewProps) {
-  const { center, zoom, showBases, showPdvs, showSuppliers } = useMapStore()
+export function MapView({ onPdvClick, selectedPdvIds, pdvVolumeStatusMap, pdvEqpMap, pickupByPdv, routeCoords, height = '100%', resizeSignal = 0 }: MapViewProps) {
+  const { center, zoom, showBases, showPdvs, showSuppliers, showPdvLabels } = useMapStore()
   const { selectedRegionId } = useAppStore()
 
   const pdvParams = selectedRegionId ? { region_id: selectedRegionId } : undefined
@@ -90,6 +91,8 @@ export function MapView({ onPdvClick, selectedPdvIds, pdvVolumeStatusMap, pickup
               selected={selectedPdvIds?.has(pdv.id)}
               volumeStatus={pdvVolumeStatusMap?.get(pdv.id)}
               pickupSummary={pickupByPdv?.get(pdv.id)}
+              showLabel={showPdvLabels}
+              eqpCount={pdvEqpMap?.get(pdv.id)}
             />
           ) : null
         )}

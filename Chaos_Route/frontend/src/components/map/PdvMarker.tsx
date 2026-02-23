@@ -16,7 +16,7 @@ const PICKUP_TYPE_SHORT: Record<string, string> = {
   CONSIGNMENT: 'Consignes',
 }
 
-/* Cache global d'icônes / Global icon cache */
+/* Cache global d'icônes pastille / Global dot icon cache */
 const iconCache = new Map<string, L.DivIcon>()
 
 function makeIcon(color: string, size: number, borderWidth: number, hasPickup: boolean = false): L.DivIcon {
@@ -39,25 +39,61 @@ function makeIcon(color: string, size: number, borderWidth: number, hasPickup: b
   return icon
 }
 
+/* Cache d'icônes label / Label icon cache */
+const labelIconCache = new Map<string, L.DivIcon>()
+
+function makeLabelIcon(color: string, code: string, eqp: number, hasPickup: boolean = false): L.DivIcon {
+  const key = `label-${color}-${code}-${eqp}-${hasPickup}`
+  const cached = labelIconCache.get(key)
+  if (cached) return cached
+
+  const badge = hasPickup
+    ? '<div style="position:absolute;top:-4px;right:-4px;background:#f59e0b;width:8px;height:8px;border-radius:50%;border:1.5px solid #fff"></div>'
+    : ''
+
+  const icon = L.divIcon({
+    className: '',
+    html: `<div style="position:relative;transform:translate(-50%,-50%);display:inline-block;">
+      <div style="background:${color};color:#fff;padding:2px 5px;border-radius:4px;font-family:system-ui,sans-serif;text-align:center;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.5);line-height:1.2;border:1.5px solid rgba(255,255,255,.6);">
+        <div style="font-size:10px;font-weight:700;">${code}</div>
+        <div style="font-size:9px;opacity:.9;">${eqp} eqc</div>
+      </div>${badge}
+    </div>`,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  })
+
+  labelIconCache.set(key, icon)
+  return icon
+}
+
 interface PdvMarkerProps {
   pdv: PDV
   onClick?: (pdv: PDV) => void
   selected?: boolean
   volumeStatus?: PdvVolumeStatus
   pickupSummary?: PdvPickupSummary
+  showLabel?: boolean
+  eqpCount?: number
 }
 
-export function PdvMarker({ pdv, onClick, selected, volumeStatus = 'none', pickupSummary }: PdvMarkerProps) {
+export function PdvMarker({ pdv, onClick, selected, volumeStatus = 'none', pickupSummary, showLabel, eqpCount }: PdvMarkerProps) {
   if (!pdv.latitude || !pdv.longitude) return null
 
   const hasPickup = !!(pickupSummary && pickupSummary.pending_count > 0)
 
   const icon = useMemo(() => {
+    /* Mode label : pill colorée avec code + EQC / Label mode: colored pill with code + EQC */
+    if (showLabel && eqpCount != null && eqpCount > 0 && volumeStatus !== 'none') {
+      const color = selected ? '#f97316' : volumeStatus === 'unassigned' ? '#ef4444' : '#22c55e'
+      return makeLabelIcon(color, pdv.code, eqpCount, hasPickup)
+    }
+    /* Mode pastille classique / Classic dot mode */
     if (selected) return makeIcon('#f97316', 24, 3, hasPickup)
     if (volumeStatus === 'unassigned') return makeIcon('#ef4444', 18, 2, hasPickup)
     if (volumeStatus === 'assigned') return makeIcon('#22c55e', 18, 2, hasPickup)
     return makeIcon('#9ca3af', 14, 2, hasPickup)
-  }, [selected, volumeStatus, hasPickup])
+  }, [selected, volumeStatus, hasPickup, showLabel, eqpCount, pdv.code])
 
   return (
     <Marker
@@ -71,6 +107,11 @@ export function PdvMarker({ pdv, onClick, selected, volumeStatus = 'none', picku
           {pdv.city && <span>{pdv.city}<br /></span>}
           <span style={{ color: '#888' }}>{pdv.type}</span>
           {pdv.has_sas && <span> | SAS: {pdv.sas_capacity} EQC</span>}
+          {eqpCount != null && eqpCount > 0 && (
+            <div style={{ marginTop: 2, fontWeight: 600, color: volumeStatus === 'assigned' ? '#22c55e' : '#ef4444' }}>
+              {eqpCount} EQC à livrer
+            </div>
+          )}
           {hasPickup && (
             <div style={{ marginTop: 4, color: '#f59e0b', fontWeight: 600 }}>
               Reprises: {pickupSummary!.requests.map(r => PICKUP_TYPE_SHORT[r.pickup_type]).filter(Boolean).join(', ')}
