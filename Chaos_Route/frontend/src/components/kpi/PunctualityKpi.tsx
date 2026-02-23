@@ -170,7 +170,7 @@ export function PunctualityKpi({ dateFrom, dateTo, regionId }: PunctualityKpiPro
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
                 <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 9 }} />
                 <YAxis domain={[0, 100]} tick={{ fill: 'var(--text-muted)', fontSize: 9 }} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => `${value}%`} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(value) => `${value}%`} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
                 <Line type="monotone" dataKey="planned_pct" stroke="var(--color-primary)" strokeWidth={2} dot={{ r: 2 }} name="Planifié" />
                 <Line type="monotone" dataKey="actual_pct" stroke="var(--color-success)" strokeWidth={2} dot={{ r: 2 }} name="Réel" />

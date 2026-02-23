@@ -429,7 +429,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         status: 'DRAFT',
         total_eqp: totalEqp,
         total_km: totalKm,
-        temperature_type: selectedTemperatureType,
+        temperature_type: selectedTemperatureType ?? undefined,
         stops: currentStops.map((s, i) => ({
           pdv_id: s.pdv_id,
           sequence_order: i + 1,
