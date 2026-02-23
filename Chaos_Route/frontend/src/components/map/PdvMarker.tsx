@@ -106,7 +106,9 @@ export function PdvMarker({ pdv, onClick, selected, volumeStatus = 'none', picku
           <strong>{pdv.code}</strong> — {pdv.name}<br />
           {pdv.city && <span>{pdv.city}<br /></span>}
           <span style={{ color: '#888' }}>{pdv.type}</span>
-          {pdv.has_sas && <span> | SAS: {pdv.sas_capacity} EQC</span>}
+          {pdv.has_sas_sec && <span> | SAS Sec: {pdv.sas_sec_capacity_eqc ?? '—'} EQC</span>}
+          {pdv.has_sas_frais && <span> | SAS Frais: {pdv.sas_frais_capacity_eqc ?? '—'} EQC</span>}
+          {pdv.has_sas_gel && <span> | SAS Gel: {pdv.sas_gel_capacity_eqc ?? '—'} EQC</span>}
           {eqpCount != null && eqpCount > 0 && (
             <div style={{ marginTop: 2, fontWeight: 600, color: volumeStatus === 'assigned' ? '#22c55e' : '#ef4444' }}>
               {eqpCount} EQC à livrer

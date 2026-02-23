@@ -92,7 +92,9 @@ def _coerce_value(val, field_name: str):
 
     int_fields = {"country_id", "region_id", "pdv_id", "base_origin_id", "contract_id",
                   "capacity_eqp", "capacity_weight_kg", "eqp_count", "nb_colis", "dock_time_minutes",
-                  "unload_time_per_eqp_minutes", "sas_capacity", "origin_id", "destination_id",
+                  "unload_time_per_eqp_minutes",
+                  "sas_sec_capacity_eqc", "sas_frais_capacity_eqc", "sas_gel_capacity_eqc",
+                  "origin_id", "destination_id",
                   "duration_minutes", "sequence_order"}
     if field_name in int_fields:
         try:
@@ -102,7 +104,8 @@ def _coerce_value(val, field_name: str):
 
     float_fields = {"latitude", "longitude", "fixed_cost", "cost_per_km", "cost_per_hour",
                     "fixed_daily_cost", "min_hours_per_day", "min_km_per_day", "consumption_coefficient",
-                    "weight_kg", "distance_km", "total_km", "total_cost", "tax_per_km"}
+                    "weight_kg", "distance_km", "total_km", "total_cost", "tax_per_km",
+                    "sas_sec_surface_m2", "sas_frais_surface_m2", "sas_gel_surface_m2"}
     if field_name in float_fields:
         try:
             return float(s.replace(",", "."))

@@ -16,8 +16,15 @@ class PDVBase(BaseModel):
     longitude: float | None = None
     latitude: float | None = None
     type: PDVType
-    has_sas: bool = False
-    sas_capacity: int | None = None
+    has_sas_sec: bool = False
+    sas_sec_surface_m2: float | None = None
+    sas_sec_capacity_eqc: int | None = None
+    has_sas_frais: bool = False
+    sas_frais_surface_m2: float | None = None
+    sas_frais_capacity_eqc: int | None = None
+    has_sas_gel: bool = False
+    sas_gel_surface_m2: float | None = None
+    sas_gel_capacity_eqc: int | None = None
     has_dock: bool = False
     dock_has_niche: bool = False
     dock_time_minutes: int | None = None
@@ -43,8 +50,15 @@ class PDVUpdate(BaseModel):
     longitude: float | None = None
     latitude: float | None = None
     type: PDVType | None = None
-    has_sas: bool | None = None
-    sas_capacity: int | None = None
+    has_sas_sec: bool | None = None
+    sas_sec_surface_m2: float | None = None
+    sas_sec_capacity_eqc: int | None = None
+    has_sas_frais: bool | None = None
+    sas_frais_surface_m2: float | None = None
+    sas_frais_capacity_eqc: int | None = None
+    has_sas_gel: bool | None = None
+    sas_gel_surface_m2: float | None = None
+    sas_gel_capacity_eqc: int | None = None
     has_dock: bool | None = None
     dock_has_niche: bool | None = None
     dock_time_minutes: int | None = None

@@ -49,8 +49,15 @@ export interface PDV {
   longitude?: number
   latitude?: number
   type: PDVType
-  has_sas: boolean
-  sas_capacity?: number
+  has_sas_sec: boolean
+  sas_sec_surface_m2?: number
+  sas_sec_capacity_eqc?: number
+  has_sas_frais: boolean
+  sas_frais_surface_m2?: number
+  sas_frais_capacity_eqc?: number
+  has_sas_gel: boolean
+  sas_gel_surface_m2?: number
+  sas_gel_capacity_eqc?: number
   has_dock: boolean
   dock_has_niche: boolean
   dock_time_minutes?: number

@@ -35,9 +35,18 @@ class PDV(Base):
     latitude: Mapped[float | None] = mapped_column(Float)
     type: Mapped[PDVType] = mapped_column(Enum(PDVType), nullable=False)
 
-    # SAS (zone tampon de réception / reception airlock)
-    has_sas: Mapped[bool] = mapped_column(Boolean, default=False)
-    sas_capacity: Mapped[int | None] = mapped_column(Integer)  # capacité en EQC (colonne DB héritée)
+    # SAS par température / SAS per temperature class
+    has_sas_sec: Mapped[bool] = mapped_column(Boolean, default=False)
+    sas_sec_surface_m2: Mapped[float | None] = mapped_column(Float)
+    sas_sec_capacity_eqc: Mapped[int | None] = mapped_column(Integer)
+
+    has_sas_frais: Mapped[bool] = mapped_column(Boolean, default=False)
+    sas_frais_surface_m2: Mapped[float | None] = mapped_column(Float)
+    sas_frais_capacity_eqc: Mapped[int | None] = mapped_column(Integer)
+
+    has_sas_gel: Mapped[bool] = mapped_column(Boolean, default=False)
+    sas_gel_surface_m2: Mapped[float | None] = mapped_column(Float)
+    sas_gel_capacity_eqc: Mapped[int | None] = mapped_column(Integer)
 
     # Quai de déchargement / Unloading dock
     has_dock: Mapped[bool] = mapped_column(Boolean, default=False)
