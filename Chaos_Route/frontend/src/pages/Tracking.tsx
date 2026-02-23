@@ -57,8 +57,31 @@ function FitBounds({ points }: { points: [number, number][] }) {
     if (points.length >= 2) {
       const bounds = L.latLngBounds(points)
       map.fitBounds(bounds, { padding: [60, 60], maxZoom: 14 })
+    } else if (points.length === 1) {
+      map.setView(points[0], 12)
     }
   }, [points, map])
+  return null
+}
+
+/* Auto-centrage initial sur les bases / Initial auto-center on bases */
+function InitialFitBounds({ bases }: { bases: BaseLogistics[] }) {
+  const map = useMap()
+  const hasFit = useRef(false)
+  useEffect(() => {
+    if (hasFit.current || bases.length === 0) return
+    const points: [number, number][] = []
+    for (const b of bases) {
+      if (b.latitude && b.longitude) points.push([b.latitude, b.longitude])
+    }
+    if (points.length === 0) return
+    hasFit.current = true
+    if (points.length === 1) {
+      map.setView(points[0], 10)
+    } else {
+      map.fitBounds(L.latLngBounds(points), { padding: [60, 60], maxZoom: 12 })
+    }
+  }, [bases, map])
   return null
 }
 
@@ -217,6 +240,7 @@ export default function Tracking() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             />
+            <InitialFitBounds bases={bases} />
             {positions.map((p) => (
               <DriverMarker
                 key={p.tour_id}

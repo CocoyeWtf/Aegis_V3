@@ -1,7 +1,8 @@
 /* Carte Leaflet principale / Main Leaflet map component */
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { MapContainer, TileLayer, Polyline, useMap } from 'react-leaflet'
+import L from 'leaflet'
 import { useMapStore } from '../../stores/useMapStore'
 import { useApi } from '../../hooks/useApi'
 import { useAppStore } from '../../stores/useAppStore'
@@ -20,6 +21,47 @@ function MapSync() {
   useEffect(() => {
     map.setView(center, zoom)
   }, [map, center, zoom])
+
+  return null
+}
+
+/* Auto-centrage sur les entités de la région / Auto-fit to region entities */
+function RegionFitBounds({ pdvs, bases }: { pdvs: PDV[]; bases: BaseLogistics[] }) {
+  const map = useMap()
+  const { setCenter, setZoom } = useMapStore()
+  const lastFitKey = useRef('')
+
+  useEffect(() => {
+    const points: [number, number][] = []
+    for (const b of bases) {
+      if (b.latitude && b.longitude) points.push([b.latitude, b.longitude])
+    }
+    for (const p of pdvs) {
+      if (p.latitude && p.longitude) points.push([p.latitude, p.longitude])
+    }
+    if (points.length === 0) return
+
+    /* Clé unique pour éviter les re-fit inutiles / Unique key to avoid unnecessary re-fits */
+    const key = `${points.length}-${points[0][0].toFixed(3)}-${points[points.length - 1][0].toFixed(3)}`
+    if (key === lastFitKey.current) return
+    lastFitKey.current = key
+
+    if (points.length === 1) {
+      map.setView(points[0], 12)
+      setCenter(points[0])
+      setZoom(12)
+    } else {
+      const bounds = L.latLngBounds(points)
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 })
+      /* Sync store avec le nouveau centre/zoom pour que MapSync ne combat pas /
+         Sync store with new center/zoom so MapSync doesn't fight back */
+      requestAnimationFrame(() => {
+        const c = map.getCenter()
+        setCenter([c.lat, c.lng])
+        setZoom(map.getZoom())
+      })
+    }
+  }, [pdvs, bases, map, setCenter, setZoom])
 
   return null
 }
@@ -75,6 +117,7 @@ export function MapView({ onPdvClick, selectedPdvIds, pdvVolumeStatusMap, pdvEqp
         />
         <MapSync />
         <MapResizeHandler resizeSignal={resizeSignal} />
+        <RegionFitBounds pdvs={pdvs} bases={bases} />
 
         {showBases && bases.map((base) =>
           base.latitude && base.longitude ? (
