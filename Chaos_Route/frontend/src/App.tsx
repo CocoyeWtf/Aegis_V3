@@ -34,6 +34,7 @@ const Tracking = lazy(() => import('./pages/Tracking'))
 const SupportTypes = lazy(() => import('./pages/SupportTypes'))
 const PdvPickupRequests = lazy(() => import('./pages/PdvPickupRequests'))
 const BaseReception = lazy(() => import('./pages/BaseReception'))
+const PdvDeliverySchedule = lazy(() => import('./pages/PdvDeliverySchedule'))
 
 function Loading() {
   return (
@@ -76,6 +77,7 @@ export default function App() {
             <Route path="/support-types" element={<SupportTypes />} />
             <Route path="/pickup-requests" element={<PdvPickupRequests />} />
             <Route path="/base-reception" element={<BaseReception />} />
+            <Route path="/pdv-deliveries" element={<PdvDeliverySchedule />} />
             <Route path="/help" element={<Help />} />
           </Route>
         </Route>

@@ -453,6 +453,22 @@ export interface PickupRequest {
   labels?: PickupLabel[]
 }
 
+export interface PdvDeliveryEntry {
+  pdv_id: number
+  pdv_code: string
+  pdv_name: string
+  delivery_date: string
+  tour_code: string
+  tour_id: number
+  departure_time: string
+  arrival_time: string
+  eqp_count: number
+  temperature_classes: TemperatureClass[]
+  tour_status: TourStatus
+  base_code: string
+  base_name: string
+}
+
 export interface PdvPickupSummary {
   pdv_id: number
   pdv_code: string
