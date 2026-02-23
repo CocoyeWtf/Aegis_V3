@@ -32,6 +32,13 @@ class Volume(Base):
     dispatch_time: Mapped[str | None] = mapped_column(String(5))    # HH:MM — heure de répartition
     tour_id: Mapped[int | None] = mapped_column(ForeignKey("tours.id", ondelete="SET NULL"), nullable=True)
 
+    # Activité : suivi (fond de rayon) ou mise en avant (promo) / Activity type
+    activity_type: Mapped[str | None] = mapped_column(String(10))  # 'SUIVI' | 'MEAV'
+    # Date début promo (MEAV uniquement) / Promo start date (MEAV only)
+    promo_start_date: Mapped[str | None] = mapped_column(String(10))  # YYYY-MM-DD
+    # Groupe de split — volumes issus du même original / Split group — volumes from same original
+    split_group_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     # Relations
     pdv: Mapped["PDV"] = relationship(back_populates="volumes")
     base_origin: Mapped["BaseLogistics"] = relationship()

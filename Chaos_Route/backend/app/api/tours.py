@@ -1051,6 +1051,12 @@ async def create_tour(
         pdv_ids.append(stop_data["pdv_id"])
 
     if pdv_ids:
+        # Calculer EQP cible par PDV (somme des stops) / Compute target EQP per PDV
+        stop_eqp_by_pdv: dict[int, int] = {}
+        for stop_data in enriched_stops:
+            pid = stop_data["pdv_id"]
+            stop_eqp_by_pdv[pid] = stop_eqp_by_pdv.get(pid, 0) + stop_data["eqp_count"]
+
         vol_result = await db.execute(
             select(Volume).where(
                 Volume.pdv_id.in_(pdv_ids),
@@ -1058,8 +1064,26 @@ async def create_tour(
                 Volume.tour_id.is_(None),
             )
         )
-        for vol in vol_result.scalars().all():
-            vol.tour_id = tour.id
+        all_unassigned = list(vol_result.scalars().all())
+
+        # Grouper par pdv_id et assigner selon EQP cible (plus grands d'abord)
+        # Group by pdv_id and assign up to target EQP (largest first)
+        by_pdv: dict[int, list[Volume]] = {}
+        for vol in all_unassigned:
+            by_pdv.setdefault(vol.pdv_id, []).append(vol)
+
+        for pid, vols in by_pdv.items():
+            target = stop_eqp_by_pdv.get(pid, 0)
+            if target <= 0:
+                continue
+            vols.sort(key=lambda v: v.eqp_count, reverse=True)
+            remaining = target
+            for vol in vols:
+                if remaining <= 0:
+                    break
+                if vol.eqp_count <= remaining:
+                    vol.tour_id = tour.id
+                    remaining -= vol.eqp_count
 
     # Recalculer les tours frères (terme fixe réparti) / Recalculate sibling tours (shared fixed cost)
     if data.contract_id:
@@ -1810,8 +1834,29 @@ async def delete_tour(
     old_code = tour.code
 
     vol_result = await db.execute(select(Volume).where(Volume.tour_id == tour_id))
-    for vol in vol_result.scalars().all():
+    freed_volumes = list(vol_result.scalars().all())
+    for vol in freed_volumes:
         vol.tour_id = None
+
+    # Reconstituer les volumes splittés si tous les fragments sont libres /
+    # Merge split volumes back if all fragments are unassigned
+    group_ids = {v.split_group_id for v in freed_volumes if v.split_group_id}
+    for gid in group_ids:
+        grp_result = await db.execute(
+            select(Volume).where(Volume.split_group_id == gid)
+        )
+        frags = list(grp_result.scalars().all())
+        if all(f.tour_id is None for f in frags):
+            frags.sort(key=lambda f: f.id)
+            keeper = frags[0]
+            keeper.eqp_count = sum(f.eqp_count for f in frags)
+            total_weight = sum(float(f.weight_kg or 0) for f in frags)
+            total_colis = sum(f.nb_colis or 0 for f in frags)
+            keeper.weight_kg = round(total_weight, 2) if total_weight else None
+            keeper.nb_colis = total_colis if total_colis else None
+            keeper.split_group_id = None
+            for f in frags[1:]:
+                await db.delete(f)
 
     # Audit log (avant suppression / before delete)
     await _log_audit(db, "tour", tour_id, "DELETE", user, {

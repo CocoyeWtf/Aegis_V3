@@ -404,6 +404,8 @@ async def import_data(
     mode: str = Query("check", description="check (default) = warn on duplicates, replace = delete existing, append = skip check"),
     dispatch_date: str | None = Query(None, description="Date de répartition (YYYY-MM-DD) — volumes only"),
     dispatch_time: str | None = Query(None, description="Heure de répartition (HH:MM) — volumes only"),
+    activity_type: str | None = Query(None, description="Activité : SUIVI ou MEAV — volumes only"),
+    promo_start_date: str | None = Query(None, description="Date début promo (YYYY-MM-DD) — MEAV only"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("imports-exports", "create")),
 ):
@@ -649,6 +651,10 @@ async def import_data(
                     data["dispatch_date"] = dispatch_date
                 if dispatch_time:
                     data["dispatch_time"] = dispatch_time
+                if activity_type:
+                    data["activity_type"] = activity_type
+                if promo_start_date:
+                    data["promo_start_date"] = promo_start_date
 
             missing = [f for f in required if f not in data or data[f] is None]
             if missing:

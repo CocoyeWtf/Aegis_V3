@@ -1,7 +1,7 @@
 /* Carte Leaflet principale / Main Leaflet map component */
 
-import { useEffect, useRef } from 'react'
-import { MapContainer, TileLayer, Polyline, useMap } from 'react-leaflet'
+import { useEffect, useRef, useState } from 'react'
+import { MapContainer, TileLayer, Polyline, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import { useMapStore } from '../../stores/useMapStore'
 import { useApi } from '../../hooks/useApi'
@@ -66,6 +66,14 @@ function RegionFitBounds({ pdvs, bases }: { pdvs: PDV[]; bases: BaseLogistics[] 
   return null
 }
 
+/* Suivi du zoom courant pour adapter la taille des marqueurs / Track current zoom for marker scaling */
+function ZoomTracker({ onZoomChange }: { onZoomChange: (z: number) => void }) {
+  const map = useMap()
+  useEffect(() => { onZoomChange(map.getZoom()) }, [map]) // eslint-disable-line react-hooks/exhaustive-deps
+  useMapEvents({ zoomend: () => onZoomChange(map.getZoom()) })
+  return null
+}
+
 /* Invalide la taille de la carte quand le panneau est redimensionné / Invalidate map size on panel resize */
 function MapResizeHandler({ resizeSignal }: { resizeSignal: number }) {
   const map = useMap()
@@ -93,6 +101,7 @@ interface MapViewProps {
 export function MapView({ onPdvClick, selectedPdvIds, pdvVolumeStatusMap, pdvEqpMap, pickupByPdv, routeCoords, height = '100%', resizeSignal = 0 }: MapViewProps) {
   const { center, zoom, showBases, showPdvs, showSuppliers, showPdvLabels } = useMapStore()
   const { selectedRegionId } = useAppStore()
+  const [currentZoom, setCurrentZoom] = useState(zoom)
 
   const pdvParams = selectedRegionId ? { region_id: selectedRegionId } : undefined
   const baseParams = selectedRegionId ? { region_id: selectedRegionId } : undefined
@@ -116,6 +125,7 @@ export function MapView({ onPdvClick, selectedPdvIds, pdvVolumeStatusMap, pdvEqp
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <MapSync />
+        <ZoomTracker onZoomChange={setCurrentZoom} />
         <MapResizeHandler resizeSignal={resizeSignal} />
         <RegionFitBounds pdvs={pdvs} bases={bases} />
 
@@ -136,6 +146,7 @@ export function MapView({ onPdvClick, selectedPdvIds, pdvVolumeStatusMap, pdvEqp
               pickupSummary={pickupByPdv?.get(pdv.id)}
               showLabel={showPdvLabels}
               eqpCount={pdvEqpMap?.get(pdv.id)}
+              zoomLevel={currentZoom}
             />
           ) : null
         )}

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useApi } from '../hooks/useApi'
 import { useAppStore } from '../stores/useAppStore'
 import { KpiDashboard } from '../components/kpi/KpiDashboard'
+import { PunctualityKpi } from '../components/kpi/PunctualityKpi'
 import type { Tour, Volume, PdvPickupSummary } from '../types'
 
 /** Lundi de la semaine courante (YYYY-MM-DD) / Monday of current week */
@@ -44,7 +45,13 @@ export default function Dashboard() {
       {loading ? (
         <p style={{ color: 'var(--text-muted)' }}>{t('common.loading')}</p>
       ) : tours.length > 0 ? (
-        <KpiDashboard tours={tours} volumes={volumes} pickupSummaries={pickupSummaries} today={today} weekStart={weekStart} monthStart={monthStart} />
+        <>
+          <KpiDashboard tours={tours} volumes={volumes} pickupSummaries={pickupSummaries} today={today} weekStart={weekStart} monthStart={monthStart} />
+          {/* Taux de ponctualité / Punctuality KPI */}
+          <div className="mt-3">
+            <PunctualityKpi dateFrom={yearStart} dateTo={today} regionId={selectedRegionId} />
+          </div>
+        </>
       ) : (
         <div
           className="rounded-xl p-6 border"

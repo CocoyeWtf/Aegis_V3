@@ -31,12 +31,15 @@ const navGroups: NavGroup[] = [
     icon: '🗄️',
     children: [
       { path: '/countries', label: 'nav.countries', icon: '🌍', resource: 'countries' },
-      { path: '/bases', label: 'nav.bases', icon: '🏭', resource: 'bases' },
       { path: '/pdvs', label: 'nav.pdvs', icon: '🏪', resource: 'pdvs' },
-      { path: '/suppliers', label: 'nav.suppliers', icon: '📦', resource: 'suppliers' },
       { path: '/base-activities', label: 'nav.baseActivities', icon: '🏷️', resource: 'base-activities' },
+      { path: '/bases', label: 'nav.bases', icon: '🏭', resource: 'bases' },
       { path: '/loaders', label: 'Chargeurs', icon: '🧑‍🔧', resource: 'loaders' },
       { path: '/support-types', label: 'Types de support', icon: '📦', resource: 'support-types' },
+      { path: '/distances', label: 'nav.distances', icon: '📏', resource: 'distances' },
+      { path: '/km-tax', label: 'nav.kmTax', icon: '💰', resource: 'distances' },
+      { path: '/devices', label: 'Appareils', icon: '📱', resource: 'devices' },
+      { path: '/suppliers', label: 'nav.suppliers', icon: '📦', resource: 'suppliers' },
     ],
   },
   {
@@ -45,10 +48,8 @@ const navGroups: NavGroup[] = [
     icon: '🚛',
     children: [
       { path: '/contracts', label: 'nav.contracts', icon: '📝', resource: 'contracts' },
-      { path: '/distances', label: 'nav.distances', icon: '📏', resource: 'distances' },
       { path: '/volumes', label: 'nav.volumes', icon: '📋', resource: 'volumes' },
       { path: '/fuel-prices', label: 'nav.fuelPrices', icon: '⛽', resource: 'parameters' },
-      { path: '/km-tax', label: 'nav.kmTax', icon: '💰', resource: 'distances' },
       { path: '/tour-planning', label: 'nav.tourPlanning', icon: '🗺️', resource: 'tour-planning' },
       { path: '/tour-history', label: 'nav.tourHistory', icon: '📜', resource: 'tour-history' },
       { path: '/transporter-summary', label: 'nav.transporterSummary', icon: '🧾', resource: 'tour-history' },
@@ -60,7 +61,6 @@ const navGroups: NavGroup[] = [
     icon: '🏭',
     children: [
       { path: '/operations', label: 'nav.postier', icon: '📮', resource: 'operations' },
-      { path: '/devices', label: 'Appareils', icon: '📱', resource: 'devices' },
       { path: '/tracking', label: 'Suivi chauffeurs', icon: '📡', resource: 'tracking' },
       { path: '/base-reception', label: 'Reception reprises', icon: '📥', resource: 'pickup-requests' },
     ],

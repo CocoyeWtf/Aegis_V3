@@ -17,6 +17,8 @@ class VolumeBase(BaseModel):
     preparation_end: str | None = None
     dispatch_date: str | None = None
     dispatch_time: str | None = None
+    activity_type: str | None = None      # 'SUIVI' | 'MEAV'
+    promo_start_date: str | None = None   # YYYY-MM-DD
 
 
 class VolumeCreate(VolumeBase):
@@ -35,12 +37,15 @@ class VolumeUpdate(BaseModel):
     preparation_end: str | None = None
     dispatch_date: str | None = None
     dispatch_time: str | None = None
+    activity_type: str | None = None
+    promo_start_date: str | None = None
 
 
 class VolumeRead(VolumeBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
     tour_id: int | None = None
+    split_group_id: int | None = None
 
 
 class VolumeSplit(BaseModel):

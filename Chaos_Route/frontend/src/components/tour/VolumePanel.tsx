@@ -32,6 +32,7 @@ interface VolumePanelProps {
   volumes: Volume[]
   pdvs: PDV[]
   assignedPdvIds: Set<number>
+  consumedVolumeIds: Set<number>
   onAddVolume: (volume: Volume) => void
   vehicleCapacity: number
   currentEqp: number
@@ -43,7 +44,7 @@ interface VolumePanelProps {
 }
 
 export function VolumePanel({
-  volumes, pdvs, assignedPdvIds, onAddVolume, vehicleCapacity, currentEqp,
+  volumes, pdvs, assignedPdvIds, consumedVolumeIds, onAddVolume, vehicleCapacity, currentEqp,
   lastStopPdvId, baseId, distanceIndex, pickupSummaries,
 }: VolumePanelProps) {
   const { t } = useTranslation()
@@ -95,22 +96,22 @@ export function VolumePanel({
       filtered = filtered.filter((v) => tempFilters.has(v.temperature_class))
     }
 
-    const unassigned = filtered.filter((v) => !assignedPdvIds.has(v.pdv_id))
-    const assigned = filtered.filter((v) => assignedPdvIds.has(v.pdv_id))
+    const consumed = filtered.filter((v) => consumedVolumeIds.has(v.id))
+    const available = filtered.filter((v) => !consumedVolumeIds.has(v.id))
 
-    if (!lastStopPdvId && !baseId) return [...unassigned, ...assigned]
+    if (!lastStopPdvId && !baseId) return [...available, ...consumed]
 
     const refType = lastStopPdvId ? 'PDV' : 'BASE'
     const refId = lastStopPdvId ?? baseId!
 
-    const withDist = unassigned.map((v) => {
+    const withDist = available.map((v) => {
       const km = getDistanceKm(refType, refId, 'PDV', v.pdv_id)
       return { vol: v, km: km ?? 999999 }
     })
     withDist.sort((a, b) => a.km - b.km)
 
-    return [...withDist.map((w) => w.vol), ...assigned]
-  }, [volumes, assignedPdvIds, lastStopPdvId, baseId, distanceIndex, search, pdvMap, tempFilters])
+    return [...withDist.map((w) => w.vol), ...consumed]
+  }, [volumes, consumedVolumeIds, lastStopPdvId, baseId, distanceIndex, search, pdvMap, tempFilters])
 
   /* Distance affichée par volume / Displayed distance per volume */
   const getDisplayDistance = (pdvId: number): number | null => {
@@ -131,7 +132,7 @@ export function VolumePanel({
             {t('tourPlanning.availableVolumes')}
           </h3>
           <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
-            {volumes.filter((v) => !assignedPdvIds.has(v.pdv_id)).length}
+            {volumes.filter((v) => !consumedVolumeIds.has(v.id)).length}
           </span>
         </div>
         <input
@@ -167,25 +168,27 @@ export function VolumePanel({
       <div className="flex-1 overflow-y-auto p-2">
         {sortedVolumes.map((vol) => {
           const pdv = pdvMap.get(vol.pdv_id)
-          const assigned = assignedPdvIds.has(vol.pdv_id)
+          const consumed = consumedVolumeIds.has(vol.id)
+          const pdvInTour = assignedPdvIds.has(vol.pdv_id)
+          const clickable = !consumed && !pdvInTour
           const overCapacity = remaining !== Infinity && vol.eqp_count > remaining
-          const dist = !assigned ? getDisplayDistance(vol.pdv_id) : null
+          const dist = clickable ? getDisplayDistance(vol.pdv_id) : null
           const pickup = pickupMap.get(vol.pdv_id)
 
           return (
             <div
               key={vol.id}
-              className={`rounded-lg p-3 mb-2 border transition-all ${assigned ? 'opacity-40' : 'cursor-pointer hover:scale-[1.01]'}`}
+              className={`rounded-lg p-3 mb-2 border transition-all ${consumed ? 'opacity-40' : clickable ? 'cursor-pointer hover:scale-[1.01]' : ''}`}
               style={{
-                borderColor: assigned ? 'var(--border-color)' : overCapacity ? 'var(--color-danger)' : 'var(--border-color)',
-                backgroundColor: assigned ? 'var(--bg-tertiary)' : 'var(--bg-primary)',
+                borderColor: consumed ? 'var(--border-color)' : overCapacity && clickable ? 'var(--color-danger)' : 'var(--border-color)',
+                backgroundColor: consumed ? 'var(--bg-tertiary)' : 'var(--bg-primary)',
                 borderLeftWidth: '4px',
                 borderLeftColor: TEMPERATURE_COLORS[vol.temperature_class],
               }}
-              onClick={() => !assigned && onAddVolume(vol)}
+              onClick={() => clickable && onAddVolume(vol)}
             >
               <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-medium" style={{ color: assigned ? 'var(--text-muted)' : 'var(--text-primary)' }}>
+                <span className="text-sm font-medium" style={{ color: consumed ? 'var(--text-muted)' : 'var(--text-primary)' }}>
                   {pdv ? `${pdv.code} — ${pdv.name}` : `PDV #${vol.pdv_id}`}
                   {pickup && pickup.pending_count > 0 && (
                     <span className="ml-2 inline-flex gap-0.5">
@@ -205,8 +208,8 @@ export function VolumePanel({
                 <span
                   className="text-xs font-bold px-2 py-0.5 rounded-full"
                   style={{
-                    backgroundColor: overCapacity && !assigned ? 'rgba(239,68,68,0.15)' : 'rgba(249,115,22,0.15)',
-                    color: overCapacity && !assigned ? 'var(--color-danger)' : 'var(--color-primary)',
+                    backgroundColor: overCapacity && clickable ? 'rgba(239,68,68,0.15)' : 'rgba(249,115,22,0.15)',
+                    color: overCapacity && clickable ? 'var(--color-danger)' : 'var(--color-primary)',
                   }}
                 >
                   {vol.eqp_count} EQC
@@ -236,8 +239,11 @@ export function VolumePanel({
                   {t('tourPlanning.dispatchInfo')} {formatDate(vol.dispatch_date)}{vol.dispatch_time ? ` ${vol.dispatch_time}` : ''}
                 </div>
               )}
-              {assigned && (
+              {consumed && (
                 <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>✓ {t('tourPlanning.assigned')}</div>
+              )}
+              {!consumed && pdvInTour && (
+                <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Reste dispo pour un autre tour</div>
               )}
             </div>
           )

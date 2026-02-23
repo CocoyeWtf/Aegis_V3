@@ -44,7 +44,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   const [selectedVehicleType, setSelectedVehicleType] = useState<VehicleType | null>(null)
   const [capacityEqp, setCapacityEqp] = useState(0)
   const [saving, setSaving] = useState(false)
-  const [splitDialog, setSplitDialog] = useState<{ volume: Volume; maxEqp: number } | null>(null)
+  const [splitDialog, setSplitDialog] = useState<{ volume: Volume; maxEqp: number; existingStop?: boolean } | null>(null)
   const [splitEqp, setSplitEqp] = useState(0)
   const [mapResizeSignal, setMapResizeSignal] = useState(0)
   const handlePanelLayout = useCallback(() => setMapResizeSignal((n) => n + 1), [])
@@ -125,6 +125,31 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   }
 
   const assignedPdvIds = useMemo(() => new Set(currentStops.map((s) => s.pdv_id)), [currentStops])
+
+  /* IDs des volumes consommés par les stops du tour en construction /
+     Volume IDs consumed by stops of the tour being built */
+  const consumedVolumeIds = useMemo(() => {
+    const ids = new Set<number>()
+    for (const stop of currentStops) {
+      let remaining = stop.eqp_count
+      const pdvVols = volumes
+        .filter(v => v.pdv_id === stop.pdv_id)
+        .sort((a, b) => {
+          /* Préférer le match exact / Prefer exact match */
+          if (a.eqp_count === remaining && b.eqp_count !== remaining) return -1
+          if (b.eqp_count === remaining && a.eqp_count !== remaining) return 1
+          return b.eqp_count - a.eqp_count
+        })
+      for (const vol of pdvVols) {
+        if (remaining <= 0) break
+        if (vol.eqp_count <= remaining) {
+          ids.add(vol.id)
+          remaining -= vol.eqp_count
+        }
+      }
+    }
+    return ids
+  }, [currentStops, volumes])
 
   /* Pas de filtrage par base — tous les volumes du jour / No base filtering — all volumes for the day */
   const filteredVolumes = volumes
@@ -254,6 +279,24 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     if (!selectedTemperatureType) {
       setSelectedTemperatureType(suggestedTemperature)
     }
+
+    /* Détecter dépassement capacité sur les stops existants → proposer split /
+       Detect capacity overage on existing stops → offer split */
+    if (totalEqp > defaultCapacity) {
+      const otherStopsEqp = (pid: number) => currentStops.reduce((s, st) => s + (st.pdv_id === pid ? 0 : st.eqp_count), 0)
+      const sorted = [...currentStops].sort((a, b) => b.eqp_count - a.eqp_count)
+      for (const stop of sorted) {
+        const maxKeep = defaultCapacity - otherStopsEqp(stop.pdv_id)
+        if (maxKeep > 0 && stop.eqp_count > maxKeep) {
+          const vol = allVolumes.find(v => v.pdv_id === stop.pdv_id && v.dispatch_date === selectedDate && !v.tour_id)
+          if (vol) {
+            setSplitDialog({ volume: vol, maxEqp: maxKeep, existingStop: true })
+            setSplitEqp(maxKeep)
+            break
+          }
+        }
+      }
+    }
   }
 
   /* Ajouter un volume — phase A (sans véhicule) ou C (avec véhicule) /
@@ -332,14 +375,20 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     if (!splitDialog || splitEqp <= 0) return
     try {
       await api.post(`/volumes/${splitDialog.volume.id}/split`, { eqp_count: splitEqp })
-      addStop({
-        id: 0,
-        tour_id: 0,
-        pdv_id: splitDialog.volume.pdv_id,
-        sequence_order: currentStops.length + 1,
-        eqp_count: splitEqp,
-        ...getPickupFlags(splitDialog.volume.pdv_id),
-      })
+      if (splitDialog.existingStop) {
+        /* Stop déjà dans le tour → mettre à jour son EQP / Existing stop → update its EQP */
+        updateStop(splitDialog.volume.pdv_id, { eqp_count: splitEqp })
+      } else {
+        /* Nouveau stop / New stop */
+        addStop({
+          id: 0,
+          tour_id: 0,
+          pdv_id: splitDialog.volume.pdv_id,
+          sequence_order: currentStops.length + 1,
+          eqp_count: splitEqp,
+          ...getPickupFlags(splitDialog.volume.pdv_id),
+        })
+      }
       refetchVolumes()
     } catch (e) {
       console.error('Failed to split volume', e)
@@ -516,7 +565,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
               {t('tourPlanning.availableVolumes')}
             </span>
             <p className="text-lg font-bold" style={{ color: 'var(--color-primary)' }}>
-              {filteredVolumes.filter((v) => !assignedPdvIds.has(v.pdv_id)).length}
+              {filteredVolumes.filter((v) => !consumedVolumeIds.has(v.id)).length}
             </p>
           </div>
         </div>
@@ -554,6 +603,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                         volumes={filteredVolumes}
                         pdvs={pdvs}
                         assignedPdvIds={assignedPdvIds}
+                        consumedVolumeIds={consumedVolumeIds}
                         onAddVolume={handleAddVolume}
                         vehicleCapacity={capacityEqp}
                         currentEqp={totalEqp}
@@ -656,6 +706,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                             volumes={filteredVolumes}
                             pdvs={pdvs}
                             assignedPdvIds={assignedPdvIds}
+                            consumedVolumeIds={consumedVolumeIds}
                             onAddVolume={handleAddVolume}
                             vehicleCapacity={capacityEqp}
                             currentEqp={totalEqp}
@@ -730,6 +781,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
             volumes={filteredVolumes}
             pdvs={pdvs}
             assignedPdvIds={assignedPdvIds}
+            consumedVolumeIds={consumedVolumeIds}
             onAddVolume={handleAddVolume}
             vehicleCapacity={capacityEqp}
             currentEqp={totalEqp}
@@ -781,7 +833,9 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
               {t('tourPlanning.splitVolume')}
             </h3>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              {t('tourPlanning.splitHint', { total: splitDialog.volume.eqp_count, remaining: splitDialog.maxEqp })}
+              {splitDialog.existingStop
+                ? `Ce volume fait ${splitDialog.volume.eqp_count} EQC mais la capacité restante est ${splitDialog.maxEqp} EQC. Choisissez combien garder dans ce tour.`
+                : t('tourPlanning.splitHint', { total: splitDialog.volume.eqp_count, remaining: splitDialog.maxEqp })}
             </p>
 
             <div className="flex flex-col gap-1">

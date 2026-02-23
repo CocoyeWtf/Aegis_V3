@@ -27,6 +27,8 @@ export function ImportDialog({ open, onClose, entityType, onSuccess }: ImportDia
   const [duplicateWarning, setDuplicateWarning] = useState<DuplicateInfo | null>(null)
   const [dispatchDate, setDispatchDate] = useState('')
   const [dispatchTime, setDispatchTime] = useState('')
+  const [activityType, setActivityType] = useState('')
+  const [promoStartDate, setPromoStartDate] = useState('')
 
   if (!open) return null
 
@@ -47,6 +49,10 @@ export function ImportDialog({ open, onClose, entityType, onSuccess }: ImportDia
       if (isVolumes && dispatchDate) {
         url += `&dispatch_date=${encodeURIComponent(dispatchDate)}`
         if (dispatchTime) url += `&dispatch_time=${encodeURIComponent(dispatchTime)}`
+      }
+      if (isVolumes && activityType) {
+        url += `&activity_type=${encodeURIComponent(activityType)}`
+        if (activityType === 'MEAV' && promoStartDate) url += `&promo_start_date=${encodeURIComponent(promoStartDate)}`
       }
       const resp = await api.post(url, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -79,6 +85,8 @@ export function ImportDialog({ open, onClose, entityType, onSuccess }: ImportDia
     setResult(null)
     setDispatchDate('')
     setDispatchTime('')
+    setActivityType('')
+    setPromoStartDate('')
   }
 
   return (
@@ -146,6 +154,41 @@ export function ImportDialog({ open, onClose, entityType, onSuccess }: ImportDia
                 <p className="col-span-2 text-xs" style={{ color: 'var(--color-warning)' }}>
                   {t('import.dispatchDateRequired')}
                 </p>
+              )}
+            </div>
+          )}
+
+          {/* Activité et date promo / Activity type and promo date */}
+          {isVolumes && file && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+                  Activité
+                </label>
+                <select
+                  value={activityType}
+                  onChange={(e) => { setActivityType(e.target.value); if (e.target.value !== 'MEAV') setPromoStartDate('') }}
+                  className="w-full px-3 py-1.5 rounded-lg border text-sm"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                >
+                  <option value="">— (optionnel)</option>
+                  <option value="SUIVI">Suivi (fond de rayon)</option>
+                  <option value="MEAV">Mise en avant (promo)</option>
+                </select>
+              </div>
+              {activityType === 'MEAV' && (
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+                    Date début promo
+                  </label>
+                  <input
+                    type="date"
+                    value={promoStartDate}
+                    onChange={(e) => setPromoStartDate(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-lg border text-sm"
+                    style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  />
+                </div>
               )}
             </div>
           )}

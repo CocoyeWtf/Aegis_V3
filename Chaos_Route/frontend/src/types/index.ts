@@ -102,6 +102,9 @@ export interface Volume {
   dispatch_date?: string | null
   dispatch_time?: string | null
   tour_id?: number | null
+  activity_type?: string | null      // 'SUIVI' | 'MEAV'
+  promo_start_date?: string | null   // YYYY-MM-DD
+  split_group_id?: number | null
 }
 
 export type TourStatus = 'DRAFT' | 'VALIDATED' | 'IN_PROGRESS' | 'RETURNING' | 'COMPLETED'
@@ -499,4 +502,33 @@ export interface PdvPickupSummary {
   pdv_name: string
   pending_count: number
   requests: PickupRequest[]
+}
+
+/* ─── KPI Ponctualité / Punctuality KPI types ─── */
+
+export interface PunctualityMetrics {
+  on_time: number
+  late: number
+  pct: number
+}
+
+export interface PunctualityActualMetrics extends PunctualityMetrics {
+  no_scan: number
+}
+
+export interface PunctualityKpiResponse {
+  summary: {
+    total_stops: number
+    with_deadline: number
+    planned: PunctualityMetrics
+    actual: PunctualityActualMetrics
+  }
+  by_activity: Record<string, {
+    total: number
+    planned: PunctualityMetrics
+    actual: PunctualityActualMetrics
+  }>
+  by_date: { date: string; total: number; planned_pct: number; actual_pct: number }[]
+  by_pdv: { pdv_id: number; pdv_code: string; pdv_name: string; total: number;
+            planned_pct: number; actual_pct: number }[]
 }

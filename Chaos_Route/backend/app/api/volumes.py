@@ -105,6 +105,10 @@ async def split_volume(
     original_colis = volume.nb_colis or 0
     ratio = data.eqp_count / volume.eqp_count
 
+    # Groupe de split — tous les fragments partagent le même ID / Split group tracking
+    group_id = volume.split_group_id or volume.id
+    volume.split_group_id = group_id
+
     volume.eqp_count = data.eqp_count
     volume.weight_kg = round(original_weight * ratio, 2) if original_weight else None
     volume.nb_colis = round(original_colis * ratio) if original_colis else None
@@ -122,6 +126,7 @@ async def split_volume(
         dispatch_date=volume.dispatch_date,
         dispatch_time=volume.dispatch_time,
         tour_id=None,
+        split_group_id=group_id,
     )
     db.add(new_vol)
     await db.flush()
