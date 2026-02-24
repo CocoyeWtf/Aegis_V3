@@ -384,12 +384,14 @@ async def available_contracts_for_tours(
     base_id: int = Query(...),
     after_time: str = Query(default="00:00"),
     vehicle_type: str | None = Query(default=None),
+    temperature_type: str | None = Query(default=None),
     tour_id: int | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("tour-planning", "read")),
 ):
     """Contrats disponibles à une date/heure / Available contracts at a date/time."""
     from app.models.contract_schedule import ContractSchedule
+    from app.models.contract import TemperatureType
 
     base_result = await db.execute(select(BaseLogistics).where(BaseLogistics.id == base_id))
     base = base_result.scalar_one_or_none()
@@ -412,6 +414,16 @@ async def available_contracts_for_tours(
 
     if vehicle_type:
         available = [c for c in available if not c.vehicle_type or c.vehicle_type.value == vehicle_type]
+
+    # Filtre temperature : FRAIS match FRAIS+BI_TEMP+TRI_TEMP, GEL match GEL+BI_TEMP+TRI_TEMP, etc.
+    # Temperature filter: bitemp/tritemp contracts are compatible with any single temperature type
+    if temperature_type:
+        compatible = {temperature_type, "BI_TEMP", "TRI_TEMP"}
+        available = [
+            c for c in available
+            if not c.temperature_type
+            or (c.temperature_type.value if hasattr(c.temperature_type, 'value') else c.temperature_type) in compatible
+        ]
 
     # Filtrer les contrats incompatibles quai/hayon / Filter dock/tailgate incompatible contracts
     if tour_id is not None:

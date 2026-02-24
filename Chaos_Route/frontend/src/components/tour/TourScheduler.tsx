@@ -140,6 +140,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
           date: checkDate,
           base_id: tour.base_id,
           vehicle_type: tour.vehicle_type,
+          temperature_type: tour.temperature_type || undefined,
           tour_id: tour.id,
         },
       })
