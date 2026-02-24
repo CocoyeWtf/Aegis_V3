@@ -3,7 +3,7 @@
 from datetime import time as dt_time
 
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
-from sqlalchemy import select, inspect, func, delete as sa_delete
+from sqlalchemy import select, inspect, func, delete as sa_delete, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -530,31 +530,39 @@ async def import_manifest(
             await db.rollback()
             raise HTTPException(status_code=400, detail=f"Database error: {e}")
 
-        # Mettre à jour eqp_loaded du tour + eqp_count par stop avec EQC manifeste
-        # Update tour eqp_loaded + per-stop eqp_count with manifest EQC
+        # Mettre à jour eqp_loaded + total_eqp du tour avec EQC manifeste
+        # Update tour eqp_loaded + total_eqp with manifest EQC
         total_eqc = (await db.execute(
             select(func.sum(TourManifestLine.eqc)).where(TourManifestLine.tour_id == tour_id)
         )).scalar() or 0
-        tour.eqp_loaded = int(round(total_eqc))
+        eqc_rounded = int(round(total_eqc))
+        await db.execute(
+            sa_update(Tour).where(Tour.id == tour_id).values(
+                eqp_loaded=eqc_rounded, total_eqp=eqc_rounded
+            )
+        )
 
-        # Somme EQC manifeste par pdv_code → mettre à jour eqp_count des stops
-        # Sum manifest EQC per pdv_code → update stop eqp_count
+        # Somme EQC manifeste par pdv_code → UPDATE direct eqp_count des stops
+        # Sum manifest EQC per pdv_code → direct SQL UPDATE stop eqp_count
         eqc_by_pdv = (await db.execute(
             select(TourManifestLine.pdv_code, func.sum(TourManifestLine.eqc))
             .where(TourManifestLine.tour_id == tour_id)
             .group_by(TourManifestLine.pdv_code)
         )).all()
-        eqc_map = {code: float(total) for code, total in eqc_by_pdv}
 
-        stops = (await db.execute(
-            select(TourStop).where(TourStop.tour_id == tour_id)
-        )).scalars().all()
-        for stop in stops:
-            pdv_code = (await db.execute(
-                select(PDV.code).where(PDV.id == stop.pdv_id)
-            )).scalar_one_or_none()
-            if pdv_code and str(pdv_code).strip() in eqc_map:
-                stop.eqp_count = int(round(eqc_map[str(pdv_code).strip()]))
+        for manifest_pdv_code, eqc_total in eqc_by_pdv:
+            pdv_ids = (await db.execute(
+                select(PDV.id).where(func.trim(PDV.code) == manifest_pdv_code.strip())
+            )).scalars().all()
+            if pdv_ids:
+                await db.execute(
+                    sa_update(TourStop).where(
+                        TourStop.tour_id == tour_id,
+                        TourStop.pdv_id.in_(pdv_ids),
+                    ).values(eqp_count=int(round(float(eqc_total))))
+                )
+
+        await db.flush()
 
     return {"created": created, "skipped": skipped, "total_rows": ws.nrows - 5, "errors": errors[:20]}
 

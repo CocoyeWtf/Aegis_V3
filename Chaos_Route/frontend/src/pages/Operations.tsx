@@ -319,6 +319,29 @@ export default function Operations() {
   const getTourEqp = (tour: Tour) => tour.total_eqp ?? tour.stops.reduce((s, st) => s + st.eqp_count, 0)
   const toggleExpand = (id: number) => setExpandedId((prev) => (prev === id ? null : id))
 
+  /* Mise à jour directe EQC stops après import manifeste / Direct stop EQC update after manifest import */
+  const patchTourStopsEqc = useCallback((tourId: number, eqcByPdv: Record<string, number>) => {
+    setTours((prev) =>
+      prev.map((t) => {
+        if (t.id !== tourId) return t
+        const totalEqc = Object.values(eqcByPdv).reduce((s, v) => s + v, 0)
+        return {
+          ...t,
+          total_eqp: totalEqc,
+          eqp_loaded: totalEqc,
+          stops: t.stops.map((stop) => {
+            const pdv = pdvs.find((p) => p.id === stop.pdv_id)
+            const pdvCode = pdv?.code?.trim()
+            if (pdvCode && pdvCode in eqcByPdv) {
+              return { ...stop, eqp_count: eqcByPdv[pdvCode] }
+            }
+            return stop
+          }),
+        }
+      }),
+    )
+  }, [pdvs])
+
   const nowFormatted = () => nowDateTimeLocal()
 
   const colCount = visibleCols.length
@@ -501,6 +524,7 @@ export default function Operations() {
                           onSetNow={(field) => updateForm(tour.id, field, nowFormatted())}
                           onLoaderLookup={(code) => handleLoaderLookup(tour.id, code)}
                           onRefresh={() => loadTours(true)}
+                          onPatchStopsEqc={(eqcByPdv) => patchTourStopsEqc(tour.id, eqcByPdv)}
                         />
                       </tbody>
                     )
@@ -561,13 +585,14 @@ interface TourRowProps {
   onUnassignDevice: () => void
   onSetNow: (field: string) => void
   onLoaderLookup: (code: string) => void
-  onRefresh: () => void
+  onRefresh: () => Promise<void>
+  onPatchStopsEqc: (eqcByPdv: Record<string, number>) => void
 }
 
 function TourRow({
   tour, contract, form, isExpanded, color, pdvMap, volumes, saving, eqc,
   visibleCols, colCount, t,
-  onToggle, onFormChange, onSave, onRouteSheet, onWaybill, onAssignDevice, onUnassignDevice, onSetNow, onLoaderLookup, onRefresh,
+  onToggle, onFormChange, onSave, onRouteSheet, onWaybill, onAssignDevice, onUnassignDevice, onSetNow, onLoaderLookup, onRefresh, onPatchStopsEqc,
 }: TourRowProps) {
   const vehicleLabel = contract?.vehicle_code
     ? `${contract.vehicle_code} — ${contract.vehicle_name ?? ''}`
@@ -765,9 +790,9 @@ function TourRow({
               </div>
               <div className="min-w-0">
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>EQC</label>
-                <input type="number" min="0" value={form.eqp_loaded} onChange={(e) => onFormChange('eqp_loaded', e.target.value)}
+                <input type="number" value={form.eqp_loaded} readOnly
                   className="w-full min-w-0 px-1.5 py-1.5 rounded border text-xs"
-                  style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-muted)' }}
                   onClick={(e) => e.stopPropagation()} />
               </div>
             </div>
@@ -849,7 +874,7 @@ function TourRow({
             </div>
 
             {/* Manifeste WMS / WMS Manifest */}
-            <ManifestSection tourId={tour.id} wmsTourCode={tour.wms_tour_code} stops={tour.stops} pdvMap={pdvMap} onImported={(eqcLoaded) => { onFormChange('eqp_loaded', String(eqcLoaded)); onRefresh() }} />
+            <ManifestSection tourId={tour.id} wmsTourCode={tour.wms_tour_code} stops={tour.stops} pdvMap={pdvMap} onImported={(eqcLoaded, eqcByPdv) => { onFormChange('eqp_loaded', String(eqcLoaded)); onPatchStopsEqc(eqcByPdv) }} />
           </td>
         </tr>
       )}
@@ -869,7 +894,7 @@ interface ManifestSummaryRow {
 }
 
 function ManifestSection({ tourId, wmsTourCode, stops, pdvMap, onImported }: {
-  tourId: number; wmsTourCode?: string; stops: Tour['stops']; pdvMap: Map<number, PDV>; onImported: (eqcLoaded: number) => void
+  tourId: number; wmsTourCode?: string; stops: Tour['stops']; pdvMap: Map<number, PDV>; onImported: (eqcLoaded: number, eqcByPdv: Record<string, number>) => void
 }) {
   const [manifest, setManifest] = useState<ManifestLine[]>([])
   const [importing, setImporting] = useState(false)
@@ -901,11 +926,17 @@ function ManifestSection({ tourId, wmsTourCode, stops, pdvMap, onImported }: {
       })
       const d = res.data
       setImportMsg(`${d.created} supports importes${d.skipped ? `, ${d.skipped} ignores (hors tour)` : ''} — ${d.total_rows} lignes${d.errors.length ? ` — ${d.errors.length} erreurs` : ''}`)
-      await loadManifest()
-      // Calculer EQC total chargé pour mettre à jour le formulaire
-      const newManifest = (await api.get<ManifestLine[]>(`/tours/${tourId}/manifest`)).data
-      const totalEqc = newManifest.reduce((s, l) => s + l.eqc, 0)
-      onImported(Math.round(totalEqc))
+      // Recharger manifeste / Reload manifest
+      const freshManifest = (await api.get<ManifestLine[]>(`/tours/${tourId}/manifest`)).data
+      setManifest(freshManifest)
+      // Construire EQC par PDV (arrondi) / Build EQC per PDV (rounded)
+      const eqcByPdv: Record<string, number> = {}
+      for (const ml of freshManifest) {
+        const code = ml.pdv_code.trim()
+        eqcByPdv[code] = Math.round((eqcByPdv[code] ?? 0) + ml.eqc)
+      }
+      const totalEqc = Object.values(eqcByPdv).reduce((s, v) => s + v, 0)
+      onImported(totalEqc, eqcByPdv)
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Erreur import'
       setImportMsg(msg)
