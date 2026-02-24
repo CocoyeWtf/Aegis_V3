@@ -203,14 +203,21 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     return m
   }, [allDayVolumes, assignedPdvIds])
 
-  /* EQC par PDV pour labels carte / EQC per PDV for map labels */
+  /* EQC par PDV ventilé par température, filtré selon le type sélectionné /
+     EQC per PDV broken down by temperature class, filtered by selected type */
   const pdvEqpMap = useMemo(() => {
-    const m = new Map<number, number>()
+    const m = new Map<number, Record<string, number>>()
     for (const v of allDayVolumes) {
-      m.set(v.pdv_id, (m.get(v.pdv_id) || 0) + v.eqp_count)
+      // Mono-temp : ne garder que la classe correspondante / Mono: keep only matching class
+      if (selectedTemperatureType === 'FRAIS' && v.temperature_class !== 'FRAIS') continue
+      if (selectedTemperatureType === 'GEL' && v.temperature_class !== 'GEL') continue
+      if (selectedTemperatureType === 'SEC' && v.temperature_class !== 'SEC') continue
+      const existing = m.get(v.pdv_id) || {}
+      existing[v.temperature_class] = (existing[v.temperature_class] || 0) + v.eqp_count
+      m.set(v.pdv_id, existing)
     }
     return m
-  }, [allDayVolumes])
+  }, [allDayVolumes, selectedTemperatureType])
 
   const pdvMap = useMemo(() => new Map(pdvs.map((p) => [p.id, p])), [pdvs])
 

@@ -3,7 +3,8 @@
 import { useMemo } from 'react'
 import { Marker, Tooltip, Popup } from 'react-leaflet'
 import L from 'leaflet'
-import type { PDV, PdvPickupSummary } from '../../types'
+import type { PDV, PdvPickupSummary, TemperatureClass } from '../../types'
+import { TEMPERATURE_COLORS } from '../../types'
 
 /* Statut volume du PDV / PDV volume status */
 export type PdvVolumeStatus = 'none' | 'unassigned' | 'assigned'
@@ -86,11 +87,12 @@ interface PdvMarkerProps {
   volumeStatus?: PdvVolumeStatus
   pickupSummary?: PdvPickupSummary
   showLabel?: boolean
-  eqpCount?: number
+  eqpByTemp?: Record<string, number>
   zoomLevel?: number
 }
 
-export function PdvMarker({ pdv, onClick, selected, volumeStatus = 'none', pickupSummary, showLabel, eqpCount, zoomLevel = 10 }: PdvMarkerProps) {
+export function PdvMarker({ pdv, onClick, selected, volumeStatus = 'none', pickupSummary, showLabel, eqpByTemp, zoomLevel = 10 }: PdvMarkerProps) {
+  const eqpCount = eqpByTemp ? Object.values(eqpByTemp).reduce((a, b) => a + b, 0) : undefined
   if (!pdv.latitude || !pdv.longitude) return null
 
   const hasPickup = !!(pickupSummary && pickupSummary.pending_count > 0)
@@ -123,9 +125,15 @@ export function PdvMarker({ pdv, onClick, selected, volumeStatus = 'none', picku
           {pdv.has_sas_sec && <span> | SAS Sec: {pdv.sas_sec_capacity_eqc ?? '—'} EQC</span>}
           {pdv.has_sas_frais && <span> | SAS Frais: {pdv.sas_frais_capacity_eqc ?? '—'} EQC</span>}
           {pdv.has_sas_gel && <span> | SAS Gel: {pdv.sas_gel_capacity_eqc ?? '—'} EQC</span>}
-          {eqpCount != null && eqpCount > 0 && (
-            <div style={{ marginTop: 2, fontWeight: 600, color: volumeStatus === 'assigned' ? '#22c55e' : '#ef4444' }}>
-              {eqpCount} EQC à livrer
+          {eqpByTemp && Object.keys(eqpByTemp).length > 0 && (
+            <div style={{ marginTop: 2 }}>
+              {(['FRAIS', 'GEL', 'SEC'] as TemperatureClass[])
+                .filter((tc) => eqpByTemp[tc])
+                .map((tc) => (
+                  <div key={tc} style={{ fontWeight: 600, color: TEMPERATURE_COLORS[tc] }}>
+                    {eqpByTemp[tc]} EQC {tc === 'FRAIS' ? 'Frais' : tc === 'GEL' ? 'Gel' : 'Sec'}
+                  </div>
+                ))}
             </div>
           )}
           {hasPickup && (

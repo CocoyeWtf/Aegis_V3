@@ -19,7 +19,7 @@ interface MapInitPayload {
   regionId: number | null
   selectedPdvIds: number[]
   pdvVolumeStatusMap: [number, PdvVolumeStatus][]
-  pdvEqpMap: [number, number][]
+  pdvEqpMap: [number, Record<string, number>][]
   routeCoords: [number, number][]
   pickupByPdv: [number, PdvPickupSummary][]
 }
@@ -27,7 +27,7 @@ interface MapInitPayload {
 interface MapStateSyncPayload {
   selectedPdvIds: number[]
   pdvVolumeStatusMap: [number, PdvVolumeStatus][]
-  pdvEqpMap: [number, number][]
+  pdvEqpMap: [number, Record<string, number>][]
   routeCoords: [number, number][]
   pickupByPdv: [number, PdvPickupSummary][]
 }
@@ -35,7 +35,7 @@ interface MapStateSyncPayload {
 interface UseDetachedMapOptions {
   selectedPdvIds: Set<number>
   pdvVolumeStatusMap: Map<number, PdvVolumeStatus>
-  pdvEqpMap: Map<number, number>
+  pdvEqpMap: Map<number, Record<string, number>>
   routeCoords: [number, number][]
   pickupByPdv: Map<number, PdvPickupSummary>
   theme: 'dark' | 'light'

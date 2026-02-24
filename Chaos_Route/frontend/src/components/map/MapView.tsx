@@ -91,7 +91,7 @@ interface MapViewProps {
   onPdvClick?: (pdv: PDV) => void
   selectedPdvIds?: Set<number>
   pdvVolumeStatusMap?: Map<number, PdvVolumeStatus>
-  pdvEqpMap?: Map<number, number>
+  pdvEqpMap?: Map<number, Record<string, number>>
   pickupByPdv?: Map<number, PdvPickupSummary>
   routeCoords?: [number, number][]
   height?: string
@@ -145,7 +145,7 @@ export function MapView({ onPdvClick, selectedPdvIds, pdvVolumeStatusMap, pdvEqp
               volumeStatus={pdvVolumeStatusMap?.get(pdv.id)}
               pickupSummary={pickupByPdv?.get(pdv.id)}
               showLabel={showPdvLabels}
-              eqpCount={pdvEqpMap?.get(pdv.id)}
+              eqpByTemp={pdvEqpMap?.get(pdv.id)}
               zoomLevel={currentZoom}
             />
           ) : null

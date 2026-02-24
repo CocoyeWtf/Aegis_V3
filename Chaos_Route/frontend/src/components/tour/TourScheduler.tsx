@@ -367,6 +367,22 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
     }
   }
 
+  /* Annuler un tour (supprimer + libérer volumes) / Cancel a tour (delete + release volumes) */
+  const handleCancel = async (tourId: number) => {
+    if (!confirm('Annuler ce tour ? Les volumes seront libérés et le tour supprimé.')) return
+    setScheduling(tourId)
+    try {
+      await api.delete(`/tours/${tourId}`)
+      await loadData()
+    } catch (e: unknown) {
+      const resp = (e as { response?: { status?: number; data?: { detail?: string } } })?.response
+      if (resp?.status === 409) alert(resp.data?.detail || 'Tour verrouillé (top départ validé)')
+      else console.error('Failed to cancel tour', e)
+    } finally {
+      setScheduling(null)
+    }
+  }
+
   /* Remettre en DRAFT / Revert to DRAFT */
   const handleRevertDraft = async (tourId: number) => {
     setScheduling(tourId)
@@ -942,6 +958,14 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                             onClick={(e) => { e.stopPropagation(); handleUnschedule(tour.id) }}
                           >
                             {scheduling === tour.id ? '...' : 'Retirer'}
+                          </button>
+                          <button
+                            className="px-2 py-0.5 rounded text-[11px] font-semibold border transition-all hover:opacity-80"
+                            style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)', backgroundColor: 'rgba(239,68,68,0.1)' }}
+                            disabled={scheduling === tour.id}
+                            onClick={(e) => { e.stopPropagation(); handleCancel(tour.id) }}
+                          >
+                            {scheduling === tour.id ? '...' : 'Annuler'}
                           </button>
                         </>
                       )}
