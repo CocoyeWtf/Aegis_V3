@@ -48,7 +48,7 @@ export function PunctualityKpi({ dateFrom, dateTo, regionId }: PunctualityKpiPro
   useEffect(() => { load() }, [load])
 
   const chartData = useMemo(() => {
-    if (!data) return []
+    if (!data?.by_date) return []
     return data.by_date.map(d => ({
       date: d.date.slice(8) + '/' + d.date.slice(5, 7),
       planned_pct: d.planned_pct,
@@ -57,7 +57,7 @@ export function PunctualityKpi({ dateFrom, dateTo, regionId }: PunctualityKpiPro
   }, [data])
 
   const sortedPdvs = useMemo(() => {
-    if (!data) return []
+    if (!data?.by_pdv) return []
     return [...data.by_pdv].sort((a, b) => {
       const aVal = a[sortKey]
       const bVal = b[sortKey]
@@ -91,7 +91,7 @@ export function PunctualityKpi({ dateFrom, dateTo, regionId }: PunctualityKpiPro
     )
   }
 
-  if (!data || data.summary.with_deadline === 0) {
+  if (!data || !data.summary || data.summary.with_deadline === 0) {
     return (
       <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}>
         <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Taux de ponctualité</h3>
