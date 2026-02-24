@@ -1206,6 +1206,22 @@ async def schedule_tour(
 
     contract = await db.get(Contract, data.contract_id)
 
+    # Vérification disponibilité contrat à la date de livraison / Check contract availability on delivery date
+    from app.models.contract_schedule import ContractSchedule
+    check_date = data.delivery_date or tour.delivery_date or tour.date
+    sched_check = await db.execute(
+        select(ContractSchedule).where(
+            ContractSchedule.contract_id == data.contract_id,
+            ContractSchedule.date == check_date,
+            ContractSchedule.is_available == False,
+        )
+    )
+    if sched_check.scalar_one_or_none():
+        raise HTTPException(
+            status_code=422,
+            detail=f"CONTRACT_UNAVAILABLE:{check_date}",
+        )
+
     # Vérification compatibilité quai/hayon (blocage dur) / Dock/tailgate compatibility (hard block)
     if contract and stops_data:
         dock_violations = await _check_dock_tailgate_compatibility(db, stops_data, contract)

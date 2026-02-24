@@ -130,12 +130,14 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
   }, [loadData])
 
   /* Charger contrats disponibles pour chaque tour non planifié / Load available contracts per unscheduled tour */
-  const loadContractsForTour = useCallback(async (tour: Tour) => {
-    if (!tour.base_id || !selectedDate || !tour.vehicle_type) return
+  const loadContractsForTour = useCallback(async (tour: Tour, deliveryDate?: string) => {
+    if (!tour.base_id || !tour.vehicle_type) return
+    const checkDate = deliveryDate || tour.delivery_date || selectedDate
+    if (!checkDate) return
     try {
       const { data } = await api.get<Contract[]>('/tours/available-contracts', {
         params: {
-          date: selectedDate,
+          date: checkDate,
           base_id: tour.base_id,
           vehicle_type: tour.vehicle_type,
           tour_id: tour.id,
@@ -169,7 +171,10 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
   /* Charger contrats pour tous les tours non planifiés / Load contracts for all unscheduled tours */
   useEffect(() => {
     const unscheduled = tours.filter((t) => !t.departure_time && !t.contract_id)
-    unscheduled.forEach((tour) => loadContractsForTour(tour))
+    unscheduled.forEach((tour) => {
+      const dd = scheduleInputs[tour.id]?.deliveryDate || computeDefaultDeliveryDate(tour)
+      loadContractsForTour(tour, dd)
+    })
   }, [tours, loadContractsForTour])
 
   /* Auto-init deliveryDate pour les tours non-planifiés / Auto-init deliveryDate for unscheduled tours */
@@ -321,6 +326,9 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
           setScheduling(null)
           return handleSchedule(tourId, true)
         }
+      } else if (status === 422 && detail?.startsWith('CONTRACT_UNAVAILABLE:')) {
+        const unavailDate = detail.replace('CONTRACT_UNAVAILABLE:', '')
+        alert(`Contrat indisponible le ${unavailDate}`)
       } else if (detail) {
         alert(detail)
       } else {
@@ -419,10 +427,15 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
       ...prev,
       [tourId]: {
         time: field === 'time' ? (value as string) : (prev[tourId]?.time ?? ''),
-        contractId: field === 'contractId' ? (value as number | null) : (prev[tourId]?.contractId ?? null),
+        contractId: field === 'deliveryDate' ? null : (field === 'contractId' ? (value as number | null) : (prev[tourId]?.contractId ?? null)),
         deliveryDate: field === 'deliveryDate' ? (value as string) : (prev[tourId]?.deliveryDate ?? ''),
       },
     }))
+    // Recharger contrats si la date de livraison change / Reload contracts when delivery date changes
+    if (field === 'deliveryDate' && value) {
+      const tour = tours.find(t => t.id === tourId)
+      if (tour) loadContractsForTour(tour, value as string)
+    }
   }
 
   const getVehicleLabel = (tour: Tour): string => {
