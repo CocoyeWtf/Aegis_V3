@@ -2,7 +2,7 @@
    GPS trail modal with active/inactive color coding and position log */
 
 import { useState, useEffect, useMemo } from 'react'
-import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import api from '../../services/api'
@@ -38,6 +38,14 @@ const startIcon = new L.Icon({
 
 const endIcon = new L.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  shadowSize: [41, 41],
+})
+
+const selectedIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-orange.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41],
@@ -91,11 +99,23 @@ function FitBounds({ positions }: { positions: [number, number][] }) {
   return null
 }
 
+/* Pan/zoom vers la position sélectionnée / Fly to selected position */
+function FlyToPosition({ position }: { position: [number, number] | null }) {
+  const map = useMap()
+  useEffect(() => {
+    if (position) {
+      map.flyTo(position, Math.max(map.getZoom(), 15), { duration: 0.5 })
+    }
+  }, [position, map])
+  return null
+}
+
 export function GPSTrailModal({ tourId, tourCode, onClose }: GPSTrailModalProps) {
   const [positions, setPositions] = useState<GPSPosition[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showLog, setShowLog] = useState(false)
+  const [selectedLogIndex, setSelectedLogIndex] = useState<number | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -295,6 +315,23 @@ export function GPSTrailModal({ tourId, tourCode, onClose }: GPSTrailModalProps)
                   ))}
                   <Marker position={allCoords[0]} icon={startIcon} />
                   <Marker position={allCoords[allCoords.length - 1]} icon={endIcon} />
+                  {selectedLogIndex != null && (
+                    <Marker
+                      position={[logEntries[selectedLogIndex].lat, logEntries[selectedLogIndex].lng]}
+                      icon={selectedIcon}
+                    >
+                      <Popup>
+                        <div className="text-xs">
+                          <strong>{logEntries[selectedLogIndex].time}</strong><br />
+                          {logEntries[selectedLogIndex].speed != null && `${(logEntries[selectedLogIndex].speed! * 3.6).toFixed(0)} km/h`}
+                          {logEntries[selectedLogIndex].accuracy != null && ` — ±${logEntries[selectedLogIndex].accuracy!.toFixed(0)}m`}
+                        </div>
+                      </Popup>
+                    </Marker>
+                  )}
+                  <FlyToPosition
+                    position={selectedLogIndex != null ? [logEntries[selectedLogIndex].lat, logEntries[selectedLogIndex].lng] : null}
+                  />
                 </>
               )}
             </MapContainer>
@@ -312,8 +349,12 @@ export function GPSTrailModal({ tourId, tourCode, onClose }: GPSTrailModalProps)
               {logEntries.map((entry) => (
                 <div
                   key={entry.index}
-                  className="px-3 py-1.5 border-b text-[11px] flex items-start gap-2"
-                  style={{ borderColor: 'var(--border-color)' }}
+                  className="px-3 py-1.5 border-b text-[11px] flex items-start gap-2 cursor-pointer hover:opacity-80"
+                  style={{
+                    borderColor: 'var(--border-color)',
+                    backgroundColor: selectedLogIndex === entry.index ? 'rgba(249,115,22,0.12)' : 'transparent',
+                  }}
+                  onClick={() => setSelectedLogIndex(entry.index)}
                 >
                   {/* Indicateur couleur / Color indicator */}
                   <span
