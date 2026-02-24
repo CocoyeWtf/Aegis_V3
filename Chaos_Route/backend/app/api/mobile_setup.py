@@ -9,6 +9,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, FileResponse
 from pathlib import Path
 
+from app.config import settings
+
 router = APIRouter()
 
 # Dossier pour stocker l'APK / Directory for APK storage
@@ -18,10 +20,9 @@ APK_DIR = Path(__file__).resolve().parent.parent.parent / "apk"
 @router.get("/app/setup/{registration_code}", response_class=HTMLResponse)
 async def mobile_setup_page(registration_code: str, request: Request):
     """Page d'installation et enregistrement / Install and registration page."""
-    # Utiliser le scheme du header X-Forwarded-Proto (Caddy) sinon request.url.scheme
-    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
-    host = request.headers.get("host", request.base_url.hostname or "")
-    base_url = f"{scheme}://{host}"
+    # Toujours utiliser PUBLIC_URL (HTTPS) pour le telechargement APK
+    # Always use PUBLIC_URL (HTTPS) for APK download
+    base_url = settings.PUBLIC_URL.rstrip("/")
     apk_exists = (APK_DIR / "cmro-driver.apk").is_file()
     apk_url = f"{base_url}/app/download/cmro-driver.apk" if apk_exists else ""
 

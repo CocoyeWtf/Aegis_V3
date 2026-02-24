@@ -5,9 +5,14 @@ import { QRCodeSVG } from 'qrcode.react'
 import api from '../services/api'
 import type { MobileDevice, BaseLogistics } from '../types'
 
-/** URL du backend accessible depuis le reseau / Backend URL reachable from network */
+/** URL publique HTTPS du backend / Public HTTPS backend URL.
+ *  Utilise le domaine HTTPS pour que le telechargement APK fonctionne sur Android */
 function getServerBaseUrl(): string {
-  return `${window.location.protocol}//${window.location.host}`
+  // En production (HTTPS), utiliser l'URL courante ; sinon fallback sur le domaine
+  if (window.location.protocol === 'https:') {
+    return `${window.location.protocol}//${window.location.host}`
+  }
+  return 'https://chaosroute.chaosmanager.tech'
 }
 
 export default function DeviceManagement() {

@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     # Database - SQLite by default for development
     DATABASE_URL: str = "sqlite+aiosqlite:///./chaos_route.db"
 
+    # URL publique HTTPS (pour QR code, telechargement APK, etc.)
+    # Public HTTPS URL (for QR code, APK download, etc.)
+    PUBLIC_URL: str = "https://chaosroute.chaosmanager.tech"
+
     # CORS - origines autorisées / allowed origins
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000", "http://localhost:8081", "http://localhost:19006"]
 
