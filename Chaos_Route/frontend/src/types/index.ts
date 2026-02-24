@@ -406,6 +406,8 @@ export interface ActiveTourStop {
   delivery_status: string
   arrival_time?: string
   eqp_count: number
+  actual_arrival_time?: string
+  actual_departure_time?: string
   pdv_code?: string
   pdv_name?: string
   pdv_city?: string

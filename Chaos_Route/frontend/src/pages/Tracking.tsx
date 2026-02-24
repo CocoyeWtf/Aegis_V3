@@ -1,7 +1,7 @@
 /* Page suivi temps reel chauffeurs / Real-time driver tracking page */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import api from '../services/api'
@@ -64,6 +64,35 @@ function FitBounds({ points }: { points: [number, number][] }) {
   return null
 }
 
+/* Couleurs par statut de livraison / Colors per delivery status */
+const STOP_COLORS: Record<string, string> = {
+  DELIVERED: '#22c55e',
+  ARRIVED: '#3b82f6',
+  PENDING: '#9ca3af',
+  SKIPPED: '#ef4444',
+}
+
+function getStopIcon(order: number, status: string): L.DivIcon {
+  const color = STOP_COLORS[status] || '#9ca3af'
+  return L.divIcon({
+    html: `<div style="background:${color};width:28px;height:28px;border-radius:50%;
+      border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);
+      display:flex;align-items:center;justify-content:center;
+      font-size:11px;font-weight:bold;color:white;">L${order}</div>`,
+    className: '',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  })
+}
+
+function formatDelta(planned: string, actual: string): { text: string; color: string } {
+  const [ph, pm] = planned.split(':').map(Number)
+  const ad = new Date(actual)
+  const deltaMn = (ad.getHours() * 60 + ad.getMinutes()) - (ph * 60 + pm)
+  if (deltaMn <= 0) return { text: `${Math.abs(deltaMn)}min avance`, color: '#22c55e' }
+  return { text: `+${deltaMn}min retard`, color: '#ef4444' }
+}
+
 /* Auto-centrage initial sur les bases / Initial auto-center on bases */
 function InitialFitBounds({ bases }: { bases: BaseLogistics[] }) {
   const map = useMap()
@@ -95,6 +124,9 @@ export default function Tracking() {
   const [dashboard, setDashboard] = useState({ active_tours: 0, completed_tours: 0, delayed_tours: 0, active_alerts: 0 })
   const [activeTours, setActiveTours] = useState<ActiveTour[]>([])
   const [selectedResult, setSelectedResult] = useState<{ tour: ActiveTour; stop: ActiveTourStop } | null>(null)
+  const [selectedTourId, setSelectedTourId] = useState<number | null>(null)
+  const [trailPositions, setTrailPositions] = useState<[number, number][]>([])
+  const selectedTourIdRef = useRef<number | null>(null)
   const [wsConnected, setWsConnected] = useState(false)
   const [lastRefresh, setLastRefresh] = useState('')
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -159,6 +191,10 @@ export default function Tracking() {
         }
         return [...prev, updated]
       })
+      // Append au trace GPS si c'est le tour selectionne / Append to GPS trail if selected tour
+      if (data.tour_id === selectedTourIdRef.current) {
+        setTrailPositions(prev => [...prev, [data.latitude as number, data.longitude as number]])
+      }
     })
     const unsubAlert = trackingWS.subscribe('alert', () => {
       loadData()
@@ -174,6 +210,26 @@ export default function Tracking() {
       trackingWS.disconnect()
     }
   }, [loadData])
+
+  // Fetch GPS trail quand un tour est selectionne / Fetch GPS trail when a tour is selected
+  useEffect(() => {
+    selectedTourIdRef.current = selectedTourId
+    if (!selectedTourId) { setTrailPositions([]); return }
+    api.get(`/tracking/tour/${selectedTourId}/trail`).then(({ data }) => {
+      setTrailPositions(data.map((p: { latitude: number; longitude: number }) => [p.latitude, p.longitude] as [number, number]))
+    })
+  }, [selectedTourId])
+
+  // Exclusion mutuelle : selection tour vs recherche PDV / Mutual exclusion: tour selection vs PDV search
+  const handleSelectTour = (tourId: number) => {
+    setSelectedTourId(prev => prev === tourId ? null : tourId)
+    setSelectedResult(null)
+  }
+  const handleSelectPdv = (result: { tour: ActiveTour; stop: ActiveTourStop } | null) => {
+    setSelectedResult(result)
+    setSelectedTourId(null)
+    setTrailPositions([])
+  }
 
   const handleAcknowledge = async (alertId: number) => {
     await api.put(`/tracking/alerts/${alertId}/acknowledge`)
@@ -245,7 +301,7 @@ export default function Tracking() {
               <DriverMarker
                 key={p.tour_id}
                 position={p}
-                highlighted={selectedResult ? p.tour_id === selectedResult.tour.tour_id : false}
+                highlighted={selectedResult ? p.tour_id === selectedResult.tour.tour_id : selectedTourId === p.tour_id}
               />
             ))}
 
@@ -296,6 +352,65 @@ export default function Tracking() {
                 </>
               )
             })()}
+
+            {/* Overlays quand un tour est selectionne / Overlays when a tour is selected */}
+            {selectedTourId && (() => {
+              const tour = activeTours.find(t => t.tour_id === selectedTourId)
+              if (!tour) return null
+              const driverPos = positions.find(p => p.tour_id === selectedTourId)
+              const stopsWithCoords = tour.stops.filter(s => s.pdv_latitude != null && s.pdv_longitude != null)
+
+              // Points pour FitBounds : tous les stops + position chauffeur
+              const fitPoints: [number, number][] = stopsWithCoords.map(s => [s.pdv_latitude!, s.pdv_longitude!])
+              if (driverPos) fitPoints.push([driverPos.latitude, driverPos.longitude])
+
+              return (
+                <>
+                  {fitPoints.length >= 2 && <FitBounds points={fitPoints} />}
+
+                  {/* Marqueurs PDV avec labels L1, L2... / PDV markers with L1, L2... labels */}
+                  {stopsWithCoords.map(s => (
+                    <Marker
+                      key={s.stop_id}
+                      position={[s.pdv_latitude!, s.pdv_longitude!]}
+                      icon={getStopIcon(s.sequence_order, s.delivery_status)}
+                    >
+                      <Popup>
+                        <div style={{ minWidth: 180, fontFamily: 'system-ui', fontSize: 12 }}>
+                          <div style={{ fontWeight: 'bold', marginBottom: 4 }}>L{s.sequence_order} — {s.pdv_name || s.pdv_code}</div>
+                          {s.pdv_code && <div style={{ color: '#666' }}>{s.pdv_code} · {s.pdv_city || ''}</div>}
+                          <div style={{ marginTop: 4 }}>EQP: <b>{s.eqp_count}</b></div>
+                          {(s.pdv_delivery_window_start || s.pdv_delivery_window_end) && (
+                            <div>Fenetre: {s.pdv_delivery_window_start || '?'} — {s.pdv_delivery_window_end || '?'}</div>
+                          )}
+                          {s.arrival_time && <div>Prevu: <b>{s.arrival_time}</b></div>}
+                          {s.actual_arrival_time && s.arrival_time && (() => {
+                            const delta = formatDelta(s.arrival_time, s.actual_arrival_time)
+                            return (
+                              <div>
+                                Reel: <b>{new Date(s.actual_arrival_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</b>
+                                {' '}<span style={{ color: delta.color, fontWeight: 'bold' }}>({delta.text})</span>
+                              </div>
+                            )
+                          })()}
+                          <div style={{ marginTop: 4, fontWeight: 'bold', color: STOP_COLORS[s.delivery_status] || '#9ca3af' }}>
+                            {s.delivery_status}
+                          </div>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  ))}
+
+                  {/* Trace GPS / GPS trail */}
+                  {trailPositions.length >= 2 && (
+                    <Polyline
+                      positions={trailPositions}
+                      pathOptions={{ color: '#3b82f6', weight: 4, opacity: 0.7 }}
+                    />
+                  )}
+                </>
+              )
+            })()}
           </MapContainer>
         </div>
 
@@ -305,7 +420,7 @@ export default function Tracking() {
           <PdvSearch
             activeTours={activeTours}
             selectedResult={selectedResult}
-            onSelect={setSelectedResult}
+            onSelect={handleSelectPdv}
           />
 
           {/* Liste tours actifs / Active tours list */}
@@ -318,9 +433,16 @@ export default function Tracking() {
               <div className="p-3 text-xs text-center" style={{ color: 'var(--text-muted)' }}>Aucun chauffeur en tournee</div>
             ) : (
               positions.map((p) => (
-                <div key={p.tour_id} className="px-3 py-2 border-b" style={{ borderColor: 'var(--border-color)' }}>
+                <div key={p.tour_id}
+                  className="px-3 py-2 border-b cursor-pointer transition-colors"
+                  style={{
+                    borderColor: 'var(--border-color)',
+                    backgroundColor: selectedTourId === p.tour_id ? 'rgba(249, 115, 22, 0.15)' : undefined,
+                  }}
+                  onClick={() => handleSelectTour(p.tour_id)}
+                >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm" style={{ color: 'var(--color-primary)' }}>{p.tour_code}</span>
+                    <span className="font-bold text-sm" style={{ color: selectedTourId === p.tour_id ? '#f97316' : 'var(--color-primary)' }}>{p.tour_code}</span>
                     <span className="text-xs font-semibold" style={{ color: '#22c55e' }}>{p.stops_delivered}/{p.stops_total}</span>
                   </div>
                   <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>{p.driver_name || '—'}</div>

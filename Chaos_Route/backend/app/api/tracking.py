@@ -220,6 +220,8 @@ async def get_active_stops(
                 "delivery_status": stop.delivery_status or "PENDING",
                 "arrival_time": stop.arrival_time,
                 "eqp_count": stop.eqp_count,
+                "actual_arrival_time": stop.actual_arrival_time,
+                "actual_departure_time": stop.actual_departure_time,
                 "pdv_code": pdv.code if pdv else None,
                 "pdv_name": pdv.name if pdv else None,
                 "pdv_city": pdv.city if pdv else None,
