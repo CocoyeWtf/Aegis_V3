@@ -9,6 +9,7 @@ import {
   Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Vibration,
 } from 'react-native'
 import { CameraView, useCameraPermissions } from 'expo-camera'
+import * as Location from 'expo-location'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import api from '../../../../../services/api'
 import { COLORS } from '../../../../../constants/config'
@@ -45,7 +46,7 @@ export default function SupportScanScreen() {
   }, [tourId, tourStopId])
 
   /* Scanner un code barre support / Scan a support barcode */
-  const handleBarCodeScanned = useCallback(({ data, type }: { data: string; type: string }) => {
+  const handleBarCodeScanned = useCallback(async ({ data, type }: { data: string; type: string }) => {
     if (!scanning) return
 
     // Anti-doublon : ignorer si meme code dans les 3 dernieres secondes
@@ -60,12 +61,28 @@ export default function SupportScanScreen() {
     setLastScanned(`${data} (${type})`)
     setTimeout(() => setLastScanned(''), 2000)
 
+    // Obtenir la position GPS (quasi-instantane) / Get GPS position (near-instant)
+    let lat: number | undefined
+    let lon: number | undefined
+    try {
+      const loc = await Location.getLastKnownPositionAsync()
+      if (loc) { lat = loc.coords.latitude; lon = loc.coords.longitude }
+    } catch {}
+
     // Envoyer au serveur en arriere-plan
     api.post<SupportScan>(
       `/driver/tour/${tourId}/stops/${tourStopId}/scan-support`,
-      { barcode: data, timestamp: new Date().toISOString() },
+      { barcode: data, latitude: lat, longitude: lon, timestamp: new Date().toISOString() },
     ).then(({ data: scan }) => {
       setScans((prev) => [scan, ...prev])
+      if (!scan.expected_at_stop) {
+        Vibration.vibrate([0, 300, 100, 300])  // double vibration longue
+        Alert.alert(
+          'Mauvais PDV',
+          `Ce support est destine au PDV ${scan.expected_pdv_code || 'inconnu'}`,
+          [{ text: 'Compris' }],
+        )
+      }
     }).catch((err) => {
       // Ajouter quand meme en local pour le feedback
       console.warn('Support scan API error:', err?.response?.data?.detail || err.message)
@@ -81,8 +98,8 @@ export default function SupportScanScreen() {
     }
     setScanning(false)
 
-    // TODO: quand import supports sera fait, comparer scans vs attendus
     const count = scans.length
+    const wrongCount = scans.filter(s => !s.expected_at_stop).length
     if (count === 0) {
       Alert.alert(
         'Aucun support scanne',
@@ -93,9 +110,12 @@ export default function SupportScanScreen() {
         ],
       )
     } else {
+      const msg = wrongCount > 0
+        ? `${count} support(s) scanne(s) dont ${wrongCount} mauvais PDV !`
+        : `${count} support(s) scanne(s).`
       Alert.alert(
         'Scan termine',
-        `${count} support(s) scanne(s).`,
+        msg,
         [{ text: 'OK', onPress: () => setShowClose(true) }],
       )
     }
@@ -254,9 +274,17 @@ export default function SupportScanScreen() {
           data={scans}
           keyExtractor={(s) => String(s.id)}
           renderItem={({ item, index }) => (
-            <View style={styles.scanRow}>
+            <View style={[styles.scanRow, {
+              borderLeftWidth: 4,
+              borderLeftColor: item.expected_at_stop ? COLORS.success : COLORS.danger,
+            }]}>
               <Text style={styles.scanIndex}>{scans.length - index}</Text>
               <Text style={styles.scanBarcode}>{item.barcode}</Text>
+              {!item.expected_at_stop && (
+                <Text style={{ color: COLORS.danger, fontSize: 10, fontWeight: '700', marginRight: 6 }}>
+                  {'\u2260'} {item.expected_pdv_code || '?'}
+                </Text>
+              )}
               <Text style={styles.scanTime}>
                 {new Date(item.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </Text>

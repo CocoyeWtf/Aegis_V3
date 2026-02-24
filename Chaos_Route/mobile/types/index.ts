@@ -49,6 +49,9 @@ export interface SupportScan {
   barcode: string
   timestamp: string
   expected_at_stop: boolean
+  expected_pdv_code?: string
+  latitude?: number
+  longitude?: number
 }
 
 export interface DriverTour {

@@ -623,7 +623,16 @@ async def scan_support(
                 SupportScan.barcode == data.barcode,
             )
         )).scalar_one()
-        return dup
+        # Chercher le pdv_code attendu dans le manifeste / Lookup expected pdv from manifest
+        dup_manifest = (await db.execute(
+            select(TourManifestLine).where(
+                TourManifestLine.tour_id == tour_id,
+                TourManifestLine.support_number == data.barcode,
+            )
+        )).scalar_one_or_none()
+        dup_result = SupportScanRead.model_validate(dup)
+        dup_result.expected_pdv_code = dup_manifest.pdv_code if dup_manifest else None
+        return dup_result
 
     # Vérifier le manifeste WMS / Check WMS manifest
     manifest_line = (await db.execute(
@@ -690,7 +699,11 @@ async def scan_support(
         "expected_at_stop": expected,
     })
 
-    return scan
+    # Ajouter le pdv_code attendu pour la réponse mobile / Add expected pdv code for mobile response
+    expected_pdv = manifest_line.pdv_code if manifest_line else None
+    result = SupportScanRead.model_validate(scan)
+    result.expected_pdv_code = expected_pdv
+    return result
 
 
 @router.get("/tour/{tour_id}/stops/{stop_id}/supports", response_model=list[SupportScanRead])
@@ -710,7 +723,20 @@ async def list_stop_supports(
         .where(SupportScan.tour_stop_id == stop_id)
         .order_by(SupportScan.id)
     )
-    return result.scalars().all()
+    scans = result.scalars().all()
+
+    # Charger les manifest lines pour enrichir expected_pdv_code / Load manifest lines for expected pdv
+    manifest_result = await db.execute(
+        select(TourManifestLine).where(TourManifestLine.tour_id == tour_id)
+    )
+    manifest_map = {m.support_number: m.pdv_code for m in manifest_result.scalars().all()}
+
+    enriched = []
+    for s in scans:
+        r = SupportScanRead.model_validate(s)
+        r.expected_pdv_code = manifest_map.get(s.barcode)
+        enriched.append(r)
+    return enriched
 
 
 @router.get("/tour/{tour_id}/pickups", response_model=list[PickupLabelRead])

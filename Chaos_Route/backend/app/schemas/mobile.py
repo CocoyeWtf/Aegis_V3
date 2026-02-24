@@ -114,6 +114,9 @@ class SupportScanRead(BaseModel):
     barcode: str
     timestamp: str
     expected_at_stop: bool = True
+    expected_pdv_code: str | None = None   # PDV attendu selon manifeste / Expected PDV from manifest
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 # ─── Pickup Summary ───
