@@ -724,6 +724,8 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                             baseId={effectiveBaseId}
                             distanceIndex={distanceIndex}
                             pickupSummaries={pickupSummaries}
+                            tempFilters={tempFilters}
+                            onTempFiltersChange={setTempFilters}
                           />
                         </div>
                       </Panel>
