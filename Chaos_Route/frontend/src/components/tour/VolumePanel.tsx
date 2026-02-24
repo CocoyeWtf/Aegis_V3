@@ -41,15 +41,17 @@ interface VolumePanelProps {
   baseId: number | null
   distanceIndex: Map<string, DistanceEntry>
   pickupSummaries?: PdvPickupSummary[]
+  /* Filtre température contrôlé par le parent / Temperature filter controlled by parent */
+  tempFilters: Set<TemperatureClass>
+  onTempFiltersChange: (filters: Set<TemperatureClass>) => void
 }
 
 export function VolumePanel({
   volumes, pdvs, assignedPdvIds, consumedVolumeIds, onAddVolume, vehicleCapacity, currentEqp,
-  lastStopPdvId, baseId, distanceIndex, pickupSummaries,
+  lastStopPdvId, baseId, distanceIndex, pickupSummaries, tempFilters, onTempFiltersChange,
 }: VolumePanelProps) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
-  const [tempFilters, setTempFilters] = useState<Set<TemperatureClass>>(new Set())
 
   const pdvMap = useMemo(() => new Map(pdvs.map((p) => [p.id, p])), [pdvs])
   const pickupMap = useMemo(() => {
@@ -60,12 +62,10 @@ export function VolumePanel({
   const remaining = vehicleCapacity > 0 ? vehicleCapacity - currentEqp : Infinity
 
   const toggleTempFilter = (cls: TemperatureClass) => {
-    setTempFilters((prev) => {
-      const next = new Set(prev)
-      if (next.has(cls)) next.delete(cls)
-      else next.add(cls)
-      return next
-    })
+    const next = new Set(tempFilters)
+    if (next.has(cls)) next.delete(cls)
+    else next.add(cls)
+    onTempFiltersChange(next)
   }
 
   /* Fonction lookup distance bidirectionnelle / Bidirectional distance lookup */

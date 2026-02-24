@@ -97,19 +97,26 @@ export function PdvMarker({ pdv, onClick, selected, volumeStatus = 'none', picku
 
   const hasPickup = !!(pickupSummary && pickupSummary.pending_count > 0)
 
+  /* Couleur label selon température unique / Label color based on single temperature */
+  const tempKeys = eqpByTemp ? Object.keys(eqpByTemp) as TemperatureClass[] : []
+  const labelColor = selected
+    ? '#f97316'
+    : tempKeys.length === 1
+      ? TEMPERATURE_COLORS[tempKeys[0]]
+      : volumeStatus === 'unassigned' ? '#ef4444' : '#22c55e'
+
   const icon = useMemo(() => {
     const s = zoomScale(zoomLevel)
     /* Mode label : pill colorée avec code + EQC / Label mode: colored pill with code + EQC */
     if (showLabel && eqpCount != null && eqpCount > 0 && volumeStatus !== 'none') {
-      const color = selected ? '#f97316' : volumeStatus === 'unassigned' ? '#ef4444' : '#22c55e'
-      return makeLabelIcon(color, pdv.code, eqpCount, hasPickup, s)
+      return makeLabelIcon(labelColor, pdv.code, eqpCount, hasPickup, s)
     }
     /* Mode pastille classique — taille scalée / Classic dot mode — scaled size */
     if (selected) return makeIcon('#f97316', Math.round(24 * s), Math.round(3 * s), hasPickup)
     if (volumeStatus === 'unassigned') return makeIcon('#ef4444', Math.round(18 * s), Math.round(2 * s), hasPickup)
     if (volumeStatus === 'assigned') return makeIcon('#22c55e', Math.round(18 * s), Math.round(2 * s), hasPickup)
     return makeIcon('#9ca3af', Math.round(14 * s), Math.round(2 * s), hasPickup)
-  }, [selected, volumeStatus, hasPickup, showLabel, eqpCount, pdv.code, zoomLevel])
+  }, [selected, volumeStatus, hasPickup, showLabel, eqpCount, pdv.code, zoomLevel, labelColor])
 
   return (
     <Marker

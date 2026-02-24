@@ -52,6 +52,8 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   /* Température / Temperature state */
   const [selectedTemperatureType, setSelectedTemperatureType] = useState<TemperatureType | null>(null)
   const [tempUpgradeDialog, setTempUpgradeDialog] = useState<{ volume: Volume; upgradeTo: TemperatureType } | null>(null)
+  /* Filtre température pour carte + liste volumes / Temperature filter for map + volume list */
+  const [tempFilters, setTempFilters] = useState<Set<TemperatureClass>>(new Set())
 
   /* Persistence localStorage des tailles / localStorage persistence for panel sizes */
   const outerLayout = useDefaultLayout({ id: 'tour-h' })
@@ -188,36 +190,35 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     [tourTemperatures],
   )
 
-  /* Statut volume par PDV pour la carte / Volume status per PDV for map coloring */
+  /* Statut volume par PDV pour la carte, filtré par température / Volume status per PDV for map, filtered by temperature */
   const pdvVolumeStatusMap = useMemo(() => {
     const m = new Map<number, PdvVolumeStatus>()
     for (const v of allDayVolumes) {
+      if (tempFilters.size > 0 && !tempFilters.has(v.temperature_class)) continue
       if (!v.tour_id) m.set(v.pdv_id, 'unassigned')
     }
     for (const v of allDayVolumes) {
+      if (tempFilters.size > 0 && !tempFilters.has(v.temperature_class)) continue
       if (v.tour_id) m.set(v.pdv_id, 'assigned')
     }
     for (const id of assignedPdvIds) {
       m.set(id, 'assigned')
     }
     return m
-  }, [allDayVolumes, assignedPdvIds])
+  }, [allDayVolumes, assignedPdvIds, tempFilters])
 
-  /* EQC par PDV ventilé par température, filtré selon le type sélectionné /
-     EQC per PDV broken down by temperature class, filtered by selected type */
+  /* EQC par PDV ventilé par température, filtré par chips température /
+     EQC per PDV broken down by temperature class, filtered by temperature chips */
   const pdvEqpMap = useMemo(() => {
     const m = new Map<number, Record<string, number>>()
     for (const v of allDayVolumes) {
-      // Mono-temp : ne garder que la classe correspondante / Mono: keep only matching class
-      if (selectedTemperatureType === 'FRAIS' && v.temperature_class !== 'FRAIS') continue
-      if (selectedTemperatureType === 'GEL' && v.temperature_class !== 'GEL') continue
-      if (selectedTemperatureType === 'SEC' && v.temperature_class !== 'SEC') continue
+      if (tempFilters.size > 0 && !tempFilters.has(v.temperature_class)) continue
       const existing = m.get(v.pdv_id) || {}
       existing[v.temperature_class] = (existing[v.temperature_class] || 0) + v.eqp_count
       m.set(v.pdv_id, existing)
     }
     return m
-  }, [allDayVolumes, selectedTemperatureType])
+  }, [allDayVolumes, tempFilters])
 
   const pdvMap = useMemo(() => new Map(pdvs.map((p) => [p.id, p])), [pdvs])
 
@@ -618,6 +619,8 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                         baseId={effectiveBaseId}
                         distanceIndex={distanceIndex}
                         pickupSummaries={pickupSummaries}
+                        tempFilters={tempFilters}
+                        onTempFiltersChange={setTempFilters}
                       />
                     </div>
                   </Panel>
@@ -796,6 +799,8 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
             baseId={effectiveBaseId}
             distanceIndex={distanceIndex}
             pickupSummaries={pickupSummaries}
+            tempFilters={tempFilters}
+            onTempFiltersChange={setTempFilters}
           />
           {vehicleBanner}
           <TourSummary
