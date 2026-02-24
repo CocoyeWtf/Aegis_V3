@@ -592,7 +592,7 @@ interface TourRowProps {
 function TourRow({
   tour, contract, form, isExpanded, color, pdvMap, volumes, saving, eqc,
   visibleCols, colCount, t,
-  onToggle, onFormChange, onSave, onRouteSheet, onWaybill, onAssignDevice, onUnassignDevice, onSetNow, onLoaderLookup, onRefresh, onPatchStopsEqc,
+  onToggle, onFormChange, onSave, onRouteSheet, onWaybill, onAssignDevice, onUnassignDevice, onSetNow, onLoaderLookup, onPatchStopsEqc,
 }: TourRowProps) {
   const vehicleLabel = contract?.vehicle_code
     ? `${contract.vehicle_code} — ${contract.vehicle_name ?? ''}`
