@@ -24,6 +24,7 @@ from app.models.stop_event import StopEvent, StopEventType
 from app.models.support_scan import SupportScan
 from app.models.tour import Tour, TourStatus
 from app.models.tour_stop import TourStop
+from app.models.tour_manifest_line import TourManifestLine
 from app.models.base_logistics import BaseLogistics
 from app.models.contract import Contract
 from app.models.pickup_request import PickupLabel, PickupRequest, LabelStatus
@@ -624,6 +625,49 @@ async def scan_support(
         )).scalar_one()
         return dup
 
+    # Vérifier le manifeste WMS / Check WMS manifest
+    manifest_line = (await db.execute(
+        select(TourManifestLine).where(
+            TourManifestLine.tour_id == tour_id,
+            TourManifestLine.support_number == data.barcode,
+        )
+    )).scalar_one_or_none()
+
+    expected = True  # Par défaut si pas de manifeste / Default if no manifest
+    if manifest_line:
+        # Le support existe dans le manifeste — vérifier s'il est pour ce stop
+        stop_pdv_code = (await db.execute(
+            select(PDV.code).where(PDV.id == stop.pdv_id)
+        )).scalar_one()
+        expected = (manifest_line.pdv_code.strip() == str(stop_pdv_code).strip())
+        # Marquer le support comme scanné / Mark support as scanned
+        manifest_line.scanned = True
+        manifest_line.scanned_at_stop_id = stop_id
+        manifest_line.scanned_at = data.timestamp
+        if not expected:
+            alert = DeliveryAlert(
+                tour_id=tour_id, tour_stop_id=stop_id,
+                alert_type=AlertType.WRONG_PDV,
+                severity=AlertSeverity.WARNING,
+                message=f"Support {data.barcode} attendu au PDV {manifest_line.pdv_code}, scanné au PDV {stop_pdv_code}",
+                created_at=data.timestamp, device_id=device.id,
+            )
+            db.add(alert)
+            await manager.broadcast({
+                "type": "wrong_pdv_scan",
+                "tour_id": tour_id, "stop_id": stop_id,
+                "barcode": data.barcode,
+                "expected_pdv": manifest_line.pdv_code,
+                "scanned_pdv": str(stop_pdv_code),
+            })
+    else:
+        # Support pas dans le manifeste — vérifier s'il y a un manifeste chargé
+        has_manifest = (await db.execute(
+            select(TourManifestLine.id).where(TourManifestLine.tour_id == tour_id).limit(1)
+        )).scalar_one_or_none()
+        if has_manifest:
+            expected = False  # Support inconnu alors qu'un manifeste existe
+
     scan = SupportScan(
         tour_stop_id=stop_id,
         device_id=device.id,
@@ -631,7 +675,7 @@ async def scan_support(
         latitude=data.latitude,
         longitude=data.longitude,
         timestamp=data.timestamp,
-        expected_at_stop=True,  # TODO: verifier vs liste attendue quand import supports sera fait
+        expected_at_stop=expected,
     )
     db.add(scan)
     await db.flush()
@@ -643,6 +687,7 @@ async def scan_support(
         "stop_id": stop_id,
         "barcode": data.barcode,
         "timestamp": data.timestamp,
+        "expected_at_stop": expected,
     })
 
     return scan

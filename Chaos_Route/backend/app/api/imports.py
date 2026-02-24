@@ -16,6 +16,8 @@ from app.models.volume import Volume
 from app.models.contract import Contract
 from app.models.distance_matrix import DistanceMatrix
 from app.models.km_tax import KmTax
+from app.models.tour import Tour
+from app.models.tour_manifest_line import TourManifestLine
 from app.models.user import User
 from app.services.import_service import ImportService
 from app.api.deps import require_permission
@@ -395,6 +397,166 @@ async def import_time_matrix(
         "errors": errors[:20],
         "message": f"{created} created, {updated} updated, {skipped} skipped",
     }
+
+
+@router.post("/manifest/{tour_id}")
+async def import_manifest(
+    tour_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("imports-exports", "create")),
+):
+    """Importer manifeste WMS (.xls) pour un tour / Import WMS manifest (.xls) for a tour."""
+    from app.models.tour_stop import TourStop
+
+    tour = await db.get(Tour, tour_id)
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found")
+
+    if not file.filename or not file.filename.lower().endswith(".xls"):
+        raise HTTPException(status_code=400, detail="Only .xls files are supported")
+
+    content = await file.read()
+
+    import xlrd
+
+    try:
+        wb = xlrd.open_workbook(file_contents=content)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error reading .xls file: {e}")
+
+    ws = wb.sheet_by_index(0)
+
+    # Extraire le n° tournée WMS depuis la ligne 2, col 0 / Extract WMS tour code from row 2
+    import re
+    wms_tour_code = None
+    if ws.nrows > 2:
+        header_text = str(ws.cell_value(2, 0)).strip()
+        m = re.search(r"[Tt]ourn[ée]e\s*:\s*(\d+)", header_text)
+        if m:
+            wms_tour_code = m.group(1)
+    if wms_tour_code:
+        tour.wms_tour_code = wms_tour_code
+
+    # Construire lookup codes PDV du tour (normalisé sans zéros) → code DB réel
+    # Build lookup of tour PDV codes (zero-stripped) → actual DB code
+    stop_rows = (await db.execute(
+        select(TourStop.pdv_id).where(TourStop.tour_id == tour_id)
+    )).scalars().all()
+    pdv_rows = (await db.execute(
+        select(PDV.id, PDV.code).where(PDV.id.in_(stop_rows))
+    )).all() if stop_rows else []
+
+    # Map : code normalisé (sans zéros) → code DB réel / Normalized code → real DB code
+    pdv_code_map: dict[str, str] = {}
+    for _, code in pdv_rows:
+        clean = str(code).strip()
+        pdv_code_map[clean] = clean
+        stripped = clean.lstrip("0")
+        if stripped:
+            pdv_code_map[stripped] = clean
+
+    # Supprimer les anciennes lignes manifeste / Delete old manifest lines
+    await db.execute(
+        sa_delete(TourManifestLine).where(TourManifestLine.tour_id == tour_id)
+    )
+
+    created = 0
+    skipped = 0
+    errors: list[str] = []
+
+    # Lignes 5+ = données (0-indexed → row 5 = index 5) / Data rows start at row 5
+    for row_idx in range(5, ws.nrows):
+        try:
+            pdv_code_raw = ws.cell_value(row_idx, 0)
+            support_raw = ws.cell_value(row_idx, 4)
+            support_label_raw = ws.cell_value(row_idx, 5)
+            eqc_raw = ws.cell_value(row_idx, 12)
+            nb_colis_raw = ws.cell_value(row_idx, 13)
+
+            # Nettoyer code PDV Excel / Clean Excel PDV code
+            pdv_code_excel = str(pdv_code_raw).strip()
+            if not pdv_code_excel:
+                continue
+            # Normaliser : si c'est un nombre, enlever zéros / Normalize: strip leading zeros
+            try:
+                pdv_code_normalized = str(int(float(pdv_code_excel)))
+            except (ValueError, TypeError):
+                pdv_code_normalized = pdv_code_excel
+
+            # Résoudre vers le vrai code DB / Resolve to real DB code
+            resolved_code = pdv_code_map.get(pdv_code_normalized) or pdv_code_map.get(pdv_code_excel)
+            if not resolved_code:
+                skipped += 1
+                errors.append(f"Ligne {row_idx + 1}: PDV {pdv_code_excel} pas dans ce tour")
+                continue
+
+            # Support number : convertir float Excel → str entier / Convert Excel float → int str
+            if isinstance(support_raw, float):
+                support_number = str(int(support_raw))
+            else:
+                support_number = str(support_raw).strip()
+            if not support_number:
+                continue
+
+            # EQC et nb_colis
+            try:
+                eqc = float(eqc_raw) if eqc_raw != "" else 0.0
+            except (ValueError, TypeError):
+                eqc = 0.0
+            try:
+                nb_colis = int(float(nb_colis_raw)) if nb_colis_raw != "" else 0
+            except (ValueError, TypeError):
+                nb_colis = 0
+
+            support_label = str(support_label_raw).strip() if support_label_raw else None
+
+            db.add(TourManifestLine(
+                tour_id=tour_id,
+                pdv_code=resolved_code,
+                support_number=support_number,
+                support_label=support_label,
+                eqc=eqc,
+                nb_colis=nb_colis,
+            ))
+            created += 1
+        except Exception as e:
+            errors.append(f"Row {row_idx + 1}: {e}")
+
+    if created > 0:
+        try:
+            await db.flush()
+        except Exception as e:
+            await db.rollback()
+            raise HTTPException(status_code=400, detail=f"Database error: {e}")
+
+        # Mettre à jour eqp_loaded du tour + eqp_count par stop avec EQC manifeste
+        # Update tour eqp_loaded + per-stop eqp_count with manifest EQC
+        total_eqc = (await db.execute(
+            select(func.sum(TourManifestLine.eqc)).where(TourManifestLine.tour_id == tour_id)
+        )).scalar() or 0
+        tour.eqp_loaded = int(round(total_eqc))
+
+        # Somme EQC manifeste par pdv_code → mettre à jour eqp_count des stops
+        # Sum manifest EQC per pdv_code → update stop eqp_count
+        eqc_by_pdv = (await db.execute(
+            select(TourManifestLine.pdv_code, func.sum(TourManifestLine.eqc))
+            .where(TourManifestLine.tour_id == tour_id)
+            .group_by(TourManifestLine.pdv_code)
+        )).all()
+        eqc_map = {code: float(total) for code, total in eqc_by_pdv}
+
+        stops = (await db.execute(
+            select(TourStop).where(TourStop.tour_id == tour_id)
+        )).scalars().all()
+        for stop in stops:
+            pdv_code = (await db.execute(
+                select(PDV.code).where(PDV.id == stop.pdv_id)
+            )).scalar_one_or_none()
+            if pdv_code and str(pdv_code).strip() in eqc_map:
+                stop.eqp_count = int(round(eqc_map[str(pdv_code).strip()]))
+
+    return {"created": created, "skipped": skipped, "total_rows": ws.nrows - 5, "errors": errors[:20]}
 
 
 @router.post("/{entity_type}")

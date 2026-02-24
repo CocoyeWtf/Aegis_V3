@@ -25,7 +25,8 @@ from app.models.volume import Volume
 from app.models.base_logistics import BaseLogistics
 from app.models.user import User
 from app.models.pickup_request import PickupRequest, PickupLabel, PickupStatus, PickupType, LabelStatus
-from app.schemas.tour import TourCreate, TourGateUpdate, TourOperationsUpdate, TourRead, TourSchedule, TourUpdate
+from app.models.tour_manifest_line import TourManifestLine
+from app.schemas.tour import ManifestLineRead, TourCreate, TourGateUpdate, TourOperationsUpdate, TourRead, TourSchedule, TourUpdate
 from app.api.deps import require_permission, get_user_region_ids
 
 router = APIRouter()
@@ -1885,3 +1886,22 @@ async def delete_tour(
     # Recalculer les tours frères restants / Recalculate remaining sibling tours
     if old_contract_id:
         await _recalculate_sibling_tours(db, old_contract_id, old_date)
+
+
+@router.get("/{tour_id}/manifest", response_model=list[ManifestLineRead])
+async def get_tour_manifest(
+    tour_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("tours", "read")),
+):
+    """Lire le manifeste WMS d'un tour / Read WMS manifest for a tour."""
+    tour = await db.get(Tour, tour_id)
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found")
+
+    result = await db.execute(
+        select(TourManifestLine)
+        .where(TourManifestLine.tour_id == tour_id)
+        .order_by(TourManifestLine.pdv_code, TourManifestLine.id)
+    )
+    return result.scalars().all()

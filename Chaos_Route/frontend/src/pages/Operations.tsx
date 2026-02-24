@@ -1,10 +1,10 @@
 /* Page Exploitant v2 — Vue split tableau/Gantt / Warehouse Operations page v2 — Split table/Gantt view */
 
-import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import { QRCodeSVG } from 'qrcode.react'
 import api from '../services/api'
-import type { Tour, BaseLogistics, Contract, PDV, Volume } from '../types'
+import type { Tour, BaseLogistics, Contract, PDV, Volume, ManifestLine, ManifestImportResult } from '../types'
 import { TourWaybill } from '../components/tour/TourWaybill'
 import { DriverRouteSheet } from '../components/tour/DriverRouteSheet'
 import { TourGantt } from '../components/operations/TourGantt'
@@ -500,6 +500,7 @@ export default function Operations() {
                           onUnassignDevice={() => handleUnassignDevice(tour)}
                           onSetNow={(field) => updateForm(tour.id, field, nowFormatted())}
                           onLoaderLookup={(code) => handleLoaderLookup(tour.id, code)}
+                          onRefresh={() => loadTours(true)}
                         />
                       </tbody>
                     )
@@ -560,12 +561,13 @@ interface TourRowProps {
   onUnassignDevice: () => void
   onSetNow: (field: string) => void
   onLoaderLookup: (code: string) => void
+  onRefresh: () => void
 }
 
 function TourRow({
   tour, contract, form, isExpanded, color, pdvMap, volumes, saving, eqc,
   visibleCols, colCount, t,
-  onToggle, onFormChange, onSave, onRouteSheet, onWaybill, onAssignDevice, onUnassignDevice, onSetNow, onLoaderLookup,
+  onToggle, onFormChange, onSave, onRouteSheet, onWaybill, onAssignDevice, onUnassignDevice, onSetNow, onLoaderLookup, onRefresh,
 }: TourRowProps) {
   const vehicleLabel = contract?.vehicle_code
     ? `${contract.vehicle_code} — ${contract.vehicle_name ?? ''}`
@@ -705,113 +707,113 @@ function TourRow({
             </div>
 
             {/* Ligne 1 — Prépa semi / Trailer preparation */}
-            <div className="grid grid-cols-3 gap-3 mb-2">
-              <div>
+            <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: '2fr 1fr 1fr' }}>
+              <div className="min-w-0">
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Dispo semi</label>
                 <div className="flex gap-1">
                   <input type="datetime-local" value={form.trailer_ready_time} onChange={(e) => onFormChange('trailer_ready_time', e.target.value)}
-                    className="flex-1 px-2 py-1.5 rounded border text-xs"
+                    className="flex-1 min-w-0 px-1.5 py-1.5 rounded border text-xs"
                     style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                     onClick={(e) => e.stopPropagation()} />
                   <button onClick={(e) => { e.stopPropagation(); onSetNow('trailer_ready_time') }}
-                    className="px-1.5 rounded text-xs font-bold" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-primary)' }} title="Maintenant">&#9201;</button>
+                    className="px-1.5 rounded text-xs font-bold shrink-0" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-primary)' }} title="Maintenant">&#9201;</button>
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>N° semi</label>
                 <input type="text" value={form.trailer_number} onChange={(e) => onFormChange('trailer_number', e.target.value)}
-                  className="w-full px-2 py-1.5 rounded border text-xs"
+                  className="w-full min-w-0 px-1.5 py-1.5 rounded border text-xs"
                   style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                   onClick={(e) => e.stopPropagation()} />
               </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Porte de quai</label>
+              <div className="min-w-0">
+                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Porte quai</label>
                 <input type="text" value={form.dock_door_number} onChange={(e) => onFormChange('dock_door_number', e.target.value)}
-                  className="w-full px-2 py-1.5 rounded border text-xs"
+                  className="w-full min-w-0 px-1.5 py-1.5 rounded border text-xs"
                   style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                   onClick={(e) => e.stopPropagation()} />
               </div>
             </div>
 
             {/* Ligne 2 — Chargement / Loading */}
-            <div className="grid grid-cols-4 gap-3 mb-2">
-              <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Code chargeur</label>
+            <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: '1fr 1.5fr 2fr 0.8fr' }}>
+              <div className="min-w-0">
+                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Code charg.</label>
                 <input type="text" value={form.loader_code} onChange={(e) => onFormChange('loader_code', e.target.value)}
                   onBlur={(e) => onLoaderLookup(e.target.value)}
-                  className="w-full px-2 py-1.5 rounded border text-xs"
+                  className="w-full min-w-0 px-1.5 py-1.5 rounded border text-xs"
                   style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                   onClick={(e) => e.stopPropagation()} />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Chargeur</label>
                 <input type="text" value={form.loader_name} readOnly
-                  className="w-full px-2 py-1.5 rounded border text-xs"
+                  className="w-full min-w-0 px-1.5 py-1.5 rounded border text-xs"
                   style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-muted)' }}
                   onClick={(e) => e.stopPropagation()} />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>{t('operations.loadingEnd')}</label>
                 <div className="flex gap-1">
                   <input type="datetime-local" value={form.loading_end_time} onChange={(e) => onFormChange('loading_end_time', e.target.value)}
-                    className="flex-1 px-2 py-1.5 rounded border text-xs"
+                    className="flex-1 min-w-0 px-1.5 py-1.5 rounded border text-xs"
                     style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                     onClick={(e) => e.stopPropagation()} />
                   <button onClick={(e) => { e.stopPropagation(); onSetNow('loading_end_time') }}
-                    className="px-1.5 rounded text-xs font-bold" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-primary)' }} title="Maintenant">&#9201;</button>
+                    className="px-1.5 rounded text-xs font-bold shrink-0" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-primary)' }} title="Maintenant">&#9201;</button>
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>EQC chargés</label>
+              <div className="min-w-0">
+                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>EQC</label>
                 <input type="number" min="0" value={form.eqp_loaded} onChange={(e) => onFormChange('eqp_loaded', e.target.value)}
-                  className="w-full px-2 py-1.5 rounded border text-xs"
+                  className="w-full min-w-0 px-1.5 py-1.5 rounded border text-xs"
                   style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                   onClick={(e) => e.stopPropagation()} />
               </div>
             </div>
 
             {/* Ligne 3 — Départ / Departure */}
-            <div className="grid grid-cols-5 gap-3 mb-3">
-              <div>
+            <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: '1.2fr 2fr 0.8fr 2fr 1.5fr' }}>
+              <div className="min-w-0">
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>{t('operations.driverName')}</label>
                 <input type="text" value={form.driver_name} onChange={(e) => onFormChange('driver_name', e.target.value)}
-                  className="w-full px-2 py-1.5 rounded border text-xs"
+                  className="w-full min-w-0 px-1.5 py-1.5 rounded border text-xs"
                   style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                   onClick={(e) => e.stopPropagation()} />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>{t('operations.driverArrival')}</label>
                 <div className="flex gap-1">
                   <input type="datetime-local" value={form.driver_arrival_time} onChange={(e) => onFormChange('driver_arrival_time', e.target.value)}
-                    className="flex-1 px-2 py-1.5 rounded border text-xs"
+                    className="flex-1 min-w-0 px-1.5 py-1.5 rounded border text-xs"
                     style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                     onClick={(e) => e.stopPropagation()} />
                   <button onClick={(e) => { e.stopPropagation(); onSetNow('driver_arrival_time') }}
-                    className="px-1.5 rounded text-xs font-bold" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-primary)' }} title="Maintenant">&#9201;</button>
+                    className="px-1.5 rounded text-xs font-bold shrink-0" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-primary)' }} title="Maintenant">&#9201;</button>
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>{t('operations.totalWeightKg')}</label>
+              <div className="min-w-0">
+                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Poids</label>
                 <input type="number" step="0.01" min="0" value={form.total_weight_kg} onChange={(e) => onFormChange('total_weight_kg', e.target.value)}
-                  className="w-full px-2 py-1.5 rounded border text-xs"
+                  className="w-full min-w-0 px-1.5 py-1.5 rounded border text-xs"
                   style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                   placeholder="kg" onClick={(e) => e.stopPropagation()} />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Top départ</label>
                 <div className="flex gap-1">
                   <input type="datetime-local" value={form.departure_signal_time} onChange={(e) => onFormChange('departure_signal_time', e.target.value)}
-                    className="flex-1 px-2 py-1.5 rounded border text-xs"
+                    className="flex-1 min-w-0 px-1.5 py-1.5 rounded border text-xs"
                     style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                     onClick={(e) => e.stopPropagation()} />
                   <button onClick={(e) => { e.stopPropagation(); onSetNow('departure_signal_time') }}
-                    className="px-1.5 rounded text-xs font-bold" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-primary)' }} title="Maintenant">&#9201;</button>
+                    className="px-1.5 rounded text-xs font-bold shrink-0" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-primary)' }} title="Maintenant">&#9201;</button>
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>{t('operations.remarks')}</label>
                 <input type="text" value={form.remarks} onChange={(e) => onFormChange('remarks', e.target.value)}
-                  className="w-full px-2 py-1.5 rounded border text-xs"
+                  className="w-full min-w-0 px-1.5 py-1.5 rounded border text-xs"
                   style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                   onClick={(e) => e.stopPropagation()} />
               </div>
@@ -845,10 +847,220 @@ function TourRow({
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80"
                 style={{ backgroundColor: 'var(--color-primary)', color: '#fff', opacity: saving ? 0.5 : 1 }}>{saving ? '...' : t('common.save')}</button>
             </div>
+
+            {/* Manifeste WMS / WMS Manifest */}
+            <ManifestSection tourId={tour.id} wmsTourCode={tour.wms_tour_code} stops={tour.stops} pdvMap={pdvMap} onImported={(eqcLoaded) => { onFormChange('eqp_loaded', String(eqcLoaded)); onRefresh() }} />
           </td>
         </tr>
       )}
     </>
+  )
+}
+
+/* ─── Section Manifeste WMS / WMS Manifest section ─── */
+
+interface ManifestSummaryRow {
+  pdv_code: string
+  eqc_announced: number
+  eqc_loaded: number
+  supports_total: number
+  supports_scanned: number
+  lines: ManifestLine[]
+}
+
+function ManifestSection({ tourId, wmsTourCode, stops, pdvMap, onImported }: {
+  tourId: number; wmsTourCode?: string; stops: Tour['stops']; pdvMap: Map<number, PDV>; onImported: (eqcLoaded: number) => void
+}) {
+  const [manifest, setManifest] = useState<ManifestLine[]>([])
+  const [importing, setImporting] = useState(false)
+  const [importMsg, setImportMsg] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const [expandedPdv, setExpandedPdv] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const loadManifest = useCallback(async () => {
+    try {
+      const res = await api.get<ManifestLine[]>(`/tours/${tourId}/manifest`)
+      setManifest(res.data)
+      setLoaded(true)
+    } catch { /* no manifest */ setLoaded(true) }
+  }, [tourId])
+
+  useEffect(() => { loadManifest() }, [loadManifest])
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+    setImportMsg('')
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await api.post<ManifestImportResult>(`/imports/manifest/${tourId}`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      const d = res.data
+      setImportMsg(`${d.created} supports importes${d.skipped ? `, ${d.skipped} ignores (hors tour)` : ''} — ${d.total_rows} lignes${d.errors.length ? ` — ${d.errors.length} erreurs` : ''}`)
+      await loadManifest()
+      // Calculer EQC total chargé pour mettre à jour le formulaire
+      const newManifest = (await api.get<ManifestLine[]>(`/tours/${tourId}/manifest`)).data
+      const totalEqc = newManifest.reduce((s, l) => s + l.eqc, 0)
+      onImported(Math.round(totalEqc))
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Erreur import'
+      setImportMsg(msg)
+    } finally {
+      setImporting(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  // Construire le tableau comparaison par PDV / Build comparison table per PDV
+  const summaryRows = useMemo<ManifestSummaryRow[]>(() => {
+    if (!manifest.length) return []
+
+    const announcedMap = new Map<string, number>()
+    for (const stop of stops) {
+      const pdv = pdvMap.get(stop.pdv_id)
+      if (pdv) {
+        const code = pdv.code.trim()
+        announcedMap.set(code, (announcedMap.get(code) ?? 0) + stop.eqp_count)
+      }
+    }
+
+    const grouped = new Map<string, ManifestLine[]>()
+    for (const ml of manifest) {
+      const code = ml.pdv_code.trim()
+      const arr = grouped.get(code) ?? []
+      arr.push(ml)
+      grouped.set(code, arr)
+    }
+
+    const rows: ManifestSummaryRow[] = []
+    const allCodes = new Set([...announcedMap.keys(), ...grouped.keys()])
+    for (const code of [...allCodes].sort()) {
+      const lines = grouped.get(code) ?? []
+      rows.push({
+        pdv_code: code,
+        eqc_announced: announcedMap.get(code) ?? 0,
+        eqc_loaded: lines.reduce((s, l) => s + l.eqc, 0),
+        supports_total: lines.length,
+        supports_scanned: lines.filter((l) => l.scanned).length,
+        lines,
+      })
+    }
+    return rows
+  }, [manifest, stops, pdvMap])
+
+  if (!loaded) return null
+
+  return (
+    <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--border-color)' }}>
+      <div className="flex items-center gap-3 mb-2">
+        <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>Manifeste WMS</span>
+        {wmsTourCode && (
+          <span className="text-xs px-1.5 py-0.5 rounded font-mono font-semibold" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-primary)' }}>
+            WMS {wmsTourCode}
+          </span>
+        )}
+        <label
+          className="px-3 py-1 rounded-lg text-xs font-semibold border cursor-pointer transition-all hover:opacity-80"
+          style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {importing ? '...' : manifest.length ? 'Reimporter .xls' : 'Importer .xls'}
+          <input ref={fileRef} type="file" accept=".xls" className="hidden" onChange={handleImport} onClick={(e) => e.stopPropagation()} />
+        </label>
+        {importMsg && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{importMsg}</span>}
+        {manifest.length > 0 && (
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            {manifest.length} supports — {manifest.filter((m) => m.scanned).length} scannes
+          </span>
+        )}
+      </div>
+
+      {summaryRows.length > 0 && (
+        <table className="w-full text-xs mb-1" style={{ tableLayout: 'auto' }}>
+          <thead>
+            <tr>
+              <th className="px-2 py-1 text-left font-semibold" style={{ color: 'var(--text-muted)' }}>PDV</th>
+              <th className="px-2 py-1 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>EQC annonce</th>
+              <th className="px-2 py-1 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>EQC charge</th>
+              <th className="px-2 py-1 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>Supports</th>
+              <th className="px-2 py-1 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>Scannes</th>
+              <th className="px-2 py-1 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>Statut</th>
+            </tr>
+          </thead>
+          <tbody>
+            {summaryRows.map((row) => {
+              const noManifest = row.supports_total === 0 && row.eqc_announced > 0
+              const allScanned = row.supports_total > 0 && row.supports_scanned === row.supports_total
+              const someScanned = row.supports_scanned > 0 && row.supports_scanned < row.supports_total
+              const statusColor = noManifest ? '#ef4444' : allScanned ? '#22c55e' : someScanned ? '#f59e0b' : '#3b82f6'
+              const statusLabel = noManifest ? 'Manquant' : allScanned ? 'Livre' : someScanned ? 'En cours' : 'Charge'
+              const isOpen = expandedPdv === row.pdv_code
+              return (
+                <Fragment key={row.pdv_code}>
+                  <tr
+                    className="border-t cursor-pointer transition-colors hover:opacity-80"
+                    style={{ borderColor: 'var(--border-color)' }}
+                    onClick={(e) => { e.stopPropagation(); setExpandedPdv(isOpen ? null : row.pdv_code) }}
+                  >
+                    <td className="px-2 py-1 font-semibold" style={{ color: 'var(--text-primary)' }}>
+                      <span className="text-[10px] mr-1" style={{ color: 'var(--text-muted)' }}>{isOpen ? '▾' : '▸'}</span>
+                      {row.pdv_code}
+                    </td>
+                    <td className="px-2 py-1 text-center" style={{ color: 'var(--text-primary)' }}>{row.eqc_announced}</td>
+                    <td className="px-2 py-1 text-center" style={{ color: Math.abs(row.eqc_announced - row.eqc_loaded) < 0.01 ? 'var(--text-primary)' : '#f59e0b' }}>{row.eqc_loaded.toFixed(2)}</td>
+                    <td className="px-2 py-1 text-center" style={{ color: 'var(--text-primary)' }}>{row.supports_total}</td>
+                    <td className="px-2 py-1 text-center" style={{ color: row.supports_scanned === row.supports_total && row.supports_total > 0 ? '#22c55e' : 'var(--text-muted)' }}>
+                      {row.supports_scanned}/{row.supports_total}
+                    </td>
+                    <td className="px-2 py-1 text-center">
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: `${statusColor}18`, color: statusColor }}>
+                        {statusLabel}
+                      </span>
+                    </td>
+                  </tr>
+                  {isOpen && row.lines.length > 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-2 py-1" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                        <table className="w-full text-[11px]">
+                          <thead>
+                            <tr>
+                              <th className="px-2 py-0.5 text-left font-semibold" style={{ color: 'var(--text-muted)' }}>N° Support</th>
+                              <th className="px-2 py-0.5 text-left font-semibold" style={{ color: 'var(--text-muted)' }}>Libelle</th>
+                              <th className="px-2 py-0.5 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>EQC</th>
+                              <th className="px-2 py-0.5 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>Colis</th>
+                              <th className="px-2 py-0.5 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>Scan</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {row.lines.map((line) => (
+                              <tr key={line.id} className="border-t" style={{ borderColor: 'var(--border-color)' }}>
+                                <td className="px-2 py-0.5 font-mono" style={{ color: 'var(--text-primary)' }}>{line.support_number}</td>
+                                <td className="px-2 py-0.5" style={{ color: 'var(--text-muted)' }}>{line.support_label || '—'}</td>
+                                <td className="px-2 py-0.5 text-center" style={{ color: 'var(--text-primary)' }}>{line.eqc}</td>
+                                <td className="px-2 py-0.5 text-center" style={{ color: 'var(--text-primary)' }}>{line.nb_colis}</td>
+                                <td className="px-2 py-0.5 text-center">
+                                  {line.scanned
+                                    ? <span style={{ color: '#22c55e' }}>&#10003;</span>
+                                    : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
   )
 }
 

@@ -30,6 +30,7 @@ from app.models.support_scan import SupportScan
 from app.models.delivery_alert import DeliveryAlert, AlertType, AlertSeverity
 from app.models.support_type import SupportType
 from app.models.pickup_request import PickupRequest, PickupLabel, PickupType, PickupStatus, LabelStatus
+from app.models.tour_manifest_line import TourManifestLine
 
 __all__ = [
     "Country",
@@ -70,4 +71,5 @@ __all__ = [
     "PickupType",
     "PickupStatus",
     "LabelStatus",
+    "TourManifestLine",
 ]

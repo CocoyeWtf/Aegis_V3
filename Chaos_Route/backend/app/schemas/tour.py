@@ -68,6 +68,7 @@ class TourBase(BaseModel):
     trailer_ready_time: str | None = None
     eqp_loaded: int | None = None
     departure_signal_time: str | None = None
+    wms_tour_code: str | None = None
     driver_user_id: int | None = None
     device_assignment_id: int | None = None
     actual_return_time: str | None = None
@@ -149,3 +150,25 @@ class TourRead(TourBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
     stops: list[TourStopRead] = []
+
+
+class ManifestLineRead(BaseModel):
+    """Ligne manifeste WMS / WMS manifest line."""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    pdv_code: str
+    support_number: str
+    support_label: str | None = None
+    eqc: float
+    nb_colis: int
+    scanned: bool
+    scanned_at_stop_id: int | None = None
+    scanned_at: str | None = None
+
+
+class ManifestImportResult(BaseModel):
+    """Résultat import manifeste / Manifest import result."""
+    created: int
+    skipped: int = 0
+    total_rows: int
+    errors: list[str]

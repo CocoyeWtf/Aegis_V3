@@ -58,6 +58,7 @@ class Tour(Base):
     trailer_ready_time: Mapped[str | None] = mapped_column(String(16))
     eqp_loaded: Mapped[int | None] = mapped_column(Integer)
     departure_signal_time: Mapped[str | None] = mapped_column(String(16))
+    wms_tour_code: Mapped[str | None] = mapped_column(String(30))
 
     # Champs suivi mobile / Mobile tracking fields
     driver_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))

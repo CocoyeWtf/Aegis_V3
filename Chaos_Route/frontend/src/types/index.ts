@@ -165,6 +165,7 @@ export interface Tour {
   trailer_ready_time?: string
   eqp_loaded?: number
   departure_signal_time?: string
+  wms_tour_code?: string
   driver_user_id?: number | null
   device_assignment_id?: number | null
   actual_return_time?: string | null
@@ -504,6 +505,27 @@ export interface PdvPickupSummary {
   pdv_name: string
   pending_count: number
   requests: PickupRequest[]
+}
+
+/* ─── Manifeste WMS / WMS Manifest types ─── */
+
+export interface ManifestLine {
+  id: number
+  pdv_code: string
+  support_number: string
+  support_label?: string
+  eqc: number
+  nb_colis: number
+  scanned: boolean
+  scanned_at_stop_id?: number
+  scanned_at?: string
+}
+
+export interface ManifestImportResult {
+  created: number
+  skipped: number
+  total_rows: number
+  errors: string[]
 }
 
 /* ─── KPI Ponctualité / Punctuality KPI types ─── */
