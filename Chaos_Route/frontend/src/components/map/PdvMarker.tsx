@@ -17,6 +17,9 @@ const PICKUP_TYPE_SHORT: Record<string, string> = {
   CONSIGNMENT: 'Consignes',
 }
 
+/* Ordre d'affichage des classes de température / Temperature class display order */
+const TEMP_ORDER: TemperatureClass[] = ['FRAIS', 'GEL', 'SEC']
+
 /* Facteur d'échelle selon le zoom / Scale factor based on zoom level */
 function zoomScale(zoom: number): number {
   return Math.max(1, 1 + (zoom - 10) * 0.12)
@@ -80,6 +83,54 @@ function makeLabelIcon(color: string, code: string, eqp: number, hasPickup: bool
   return icon
 }
 
+/* Label multi-température : en-tête PDV + carrés colorés par classe / Multi-temp label: PDV header + colored squares per class */
+function makeMultiTempLabelIcon(
+  code: string,
+  eqpByTemp: Record<string, number>,
+  hasPickup: boolean = false,
+  scale: number = 1,
+): L.DivIcon {
+  const entries = TEMP_ORDER
+    .filter((tc) => eqpByTemp[tc] != null && eqpByTemp[tc] > 0)
+    .map((tc) => ({ tc, count: eqpByTemp[tc] }))
+
+  const tempKey = entries.map((e) => `${e.tc}:${e.count}`).join(',')
+  const key = `mlabel-${code}-${tempKey}-${hasPickup}-${scale.toFixed(2)}`
+  const cached = labelIconCache.get(key)
+  if (cached) return cached
+
+  const fontSize1 = Math.round(10 * scale)
+  const fontSize2 = Math.round(10 * scale)
+  const padV = Math.round(2 * scale)
+  const padH = Math.round(5 * scale)
+  const badgeSize = Math.round(8 * scale)
+  const badge = hasPickup
+    ? `<div style="position:absolute;top:-4px;right:-4px;background:#f59e0b;width:${badgeSize}px;height:${badgeSize}px;border-radius:50%;border:1.5px solid #fff"></div>`
+    : ''
+
+  const squaresHtml = entries
+    .map(
+      (e) =>
+        `<div style="flex:1;background:${TEMPERATURE_COLORS[e.tc as TemperatureClass]};color:#fff;font-size:${fontSize2}px;font-weight:700;text-align:center;padding:${padV}px ${padH}px;">${e.count}</div>`,
+    )
+    .join('')
+
+  const icon = L.divIcon({
+    className: '',
+    html: `<div style="position:relative;transform:translate(-50%,-50%);display:inline-block;">
+      <div style="border-radius:4px;font-family:system-ui,sans-serif;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.5);overflow:hidden;border:1.5px solid rgba(255,255,255,.6);">
+        <div style="background:#374151;color:#fff;padding:${padV}px ${padH}px;text-align:center;font-size:${fontSize1}px;font-weight:700;line-height:1.2;">${code}</div>
+        <div style="display:flex;">${squaresHtml}</div>
+      </div>${badge}
+    </div>`,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  })
+
+  labelIconCache.set(key, icon)
+  return icon
+}
+
 interface PdvMarkerProps {
   pdv: PDV
   onClick?: (pdv: PDV) => void
@@ -105,10 +156,20 @@ export function PdvMarker({ pdv, onClick, selected, volumeStatus = 'none', picku
       ? TEMPERATURE_COLORS[tempKeys[0]]
       : volumeStatus === 'unassigned' ? '#ef4444' : '#22c55e'
 
+  /* Clé stable pour le breakdown multi-temp / Stable key for multi-temp breakdown */
+  const tempBreakdownKey = eqpByTemp
+    ? TEMP_ORDER.filter((tc) => eqpByTemp[tc]).map((tc) => `${tc}:${eqpByTemp[tc]}`).join(',')
+    : ''
+
   const icon = useMemo(() => {
     const s = zoomScale(zoomLevel)
-    /* Mode label : pill colorée avec code + EQC / Label mode: colored pill with code + EQC */
+    /* Mode label / Label mode */
     if (showLabel && eqpCount != null && eqpCount > 0 && volumeStatus !== 'none') {
+      /* Multi-température : en-tête PDV + carrés colorés / Multi-temp: PDV header + colored squares */
+      if (tempKeys.length > 1 && eqpByTemp) {
+        return makeMultiTempLabelIcon(pdv.code, eqpByTemp, hasPickup, s)
+      }
+      /* Mono-température : pill colorée / Single temp: colored pill */
       return makeLabelIcon(labelColor, pdv.code, eqpCount, hasPickup, s)
     }
     /* Mode pastille classique — taille scalée / Classic dot mode — scaled size */
@@ -116,7 +177,7 @@ export function PdvMarker({ pdv, onClick, selected, volumeStatus = 'none', picku
     if (volumeStatus === 'unassigned') return makeIcon('#ef4444', Math.round(18 * s), Math.round(2 * s), hasPickup)
     if (volumeStatus === 'assigned') return makeIcon('#22c55e', Math.round(18 * s), Math.round(2 * s), hasPickup)
     return makeIcon('#9ca3af', Math.round(14 * s), Math.round(2 * s), hasPickup)
-  }, [selected, volumeStatus, hasPickup, showLabel, eqpCount, pdv.code, zoomLevel, labelColor])
+  }, [selected, volumeStatus, hasPickup, showLabel, eqpCount, pdv.code, zoomLevel, labelColor, tempBreakdownKey])
 
   return (
     <Marker
