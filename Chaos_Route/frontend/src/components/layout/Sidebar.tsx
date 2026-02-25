@@ -5,6 +5,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '../../stores/useAppStore'
 import { useAuthStore } from '../../stores/useAuthStore'
+import { AboutDialog } from './AboutDialog'
 
 interface NavItem {
   path: string
@@ -143,6 +144,7 @@ export function Sidebar({ forceCollapsed = false }: SidebarProps) {
   const isCollapsed = forceCollapsed || sidebarCollapsed
 
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
+  const [showAbout, setShowAbout] = useState(false)
 
   /* Popover pour groupes en mode collapsed / Popover for groups in collapsed mode */
   const [popoverGroup, setPopoverGroup] = useState<string | null>(null)
@@ -336,6 +338,21 @@ export function Sidebar({ forceCollapsed = false }: SidebarProps) {
           </div>
         </div>
       </nav>
+
+      {/* Bouton À propos / About button */}
+      <div className="border-t p-1.5" style={{ borderColor: 'var(--border-color)' }}>
+        <button
+          onClick={() => setShowAbout(true)}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors hover:opacity-80"
+          style={{ color: 'var(--text-muted)', justifyContent: isCollapsed ? 'center' : undefined }}
+          title={isCollapsed ? 'À propos' : undefined}
+        >
+          <span className="text-base shrink-0">ℹ️</span>
+          {!isCollapsed && <span className="truncate">À propos</span>}
+        </button>
+      </div>
+
+      <AboutDialog open={showAbout} onClose={() => setShowAbout(false)} />
 
       {/* Popover flottant pour groupes en mode collapsed / Floating popover for collapsed groups */}
       {popoverGroup && popoverChildren.length > 0 && (
