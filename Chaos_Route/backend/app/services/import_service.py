@@ -127,9 +127,11 @@ class ImportService:
                         headers.append(None)
 
         # Agréger par PDV / Aggregate by PDV
+        # Référence = EQC (espace physique). Somme EQC par PDV puis ceil.
+        # Reference = EQC (physical space). Sum EQC per PDV then ceil.
         agg: dict[str, dict[str, float]] = defaultdict(lambda: {
             "nb_colis": 0.0, "weight_kg": 0.0, "volume_m3": 0.0,
-            "_eqp": 0.0, "nb_supports": 0,
+            "_eqc": 0.0, "nb_supports": 0,
         })
 
         for i, row in enumerate(ws.iter_rows(min_row=6, values_only=True), 6):
@@ -155,7 +157,7 @@ class ImportService:
             bucket["nb_colis"] += row_data.get("nb_colis", 0.0)
             bucket["weight_kg"] += row_data.get("weight_kg", 0.0)
             bucket["volume_m3"] += row_data.get("volume_m3", 0.0)
-            bucket["_eqp"] += row_data.get("_eqp", 0.0)
+            bucket["_eqc"] += row_data.get("_eqc", 0.0)
             bucket["nb_supports"] += 1
 
         wb.close()
@@ -168,7 +170,7 @@ class ImportService:
                 "nb_colis": int(data["nb_colis"]),
                 "weight_kg": round(data["weight_kg"], 2),
                 "volume_m3": round(data["volume_m3"], 4),
-                "eqp_count": math.ceil(data["_eqp"]),
+                "eqp_count": math.ceil(data["_eqc"]),
                 "nb_supports": int(data["nb_supports"]),
             })
 

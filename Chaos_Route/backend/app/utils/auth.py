@@ -35,6 +35,7 @@ RESOURCES = [
     "tracking",
     "support-types",
     "pickup-requests",
+    "aide-decision",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

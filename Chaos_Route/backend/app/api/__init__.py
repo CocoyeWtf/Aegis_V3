@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api import (
+    aide_decision,
     audit,
     auth,
     countries,
@@ -35,6 +36,7 @@ from app.api import (
 
 api_router = APIRouter(prefix="/api")
 
+api_router.include_router(aide_decision.router, prefix="/aide-decision", tags=["aide-decision"])
 api_router.include_router(audit.router, prefix="/audit", tags=["audit"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])

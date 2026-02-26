@@ -54,6 +54,7 @@ const navGroups: NavGroup[] = [
       { path: '/tour-planning', label: 'nav.tourPlanning', icon: '🗺️', resource: 'tour-planning' },
       { path: '/tour-history', label: 'nav.tourHistory', icon: '📜', resource: 'tour-history' },
       { path: '/transporter-summary', label: 'nav.transporterSummary', icon: '🧾', resource: 'tour-history' },
+      { path: '/aide-decision', label: 'Aide à la décision', icon: '🧠', resource: 'aide-decision' },
     ],
   },
   {
