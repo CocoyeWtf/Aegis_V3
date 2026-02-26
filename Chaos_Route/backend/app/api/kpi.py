@@ -18,19 +18,26 @@ from app.api.deps import require_permission, get_user_region_ids
 router = APIRouter()
 
 
-def _compute_deadline(volume: Volume, pdv: PDV) -> datetime | None:
+def _compute_deadline(volume: Volume, pdv: PDV, fallback_date: str | None = None) -> datetime | None:
     """Calculer la deadline d'un volume / Compute volume deadline.
 
     SUIVI : dispatch_date + 2j, 06h si SAS correspondant, 09h sinon.
     MEAV  : samedi précédant la semaine de promo_start_date, 23h59.
+    Fallback : activity_type vide → SUIVI, dispatch_date vide → tour.date.
     """
-    act = (volume.activity_type or "").upper()
+    act = (volume.activity_type or "").strip().upper()
+
+    # Fallback : si pas d'activité, traiter comme SUIVI / Default to SUIVI
+    if not act:
+        act = "SUIVI"
 
     if act == "SUIVI":
-        if not volume.dispatch_date:
+        # Fallback dispatch_date → tour.date / Fallback to tour date
+        dispatch_str = volume.dispatch_date or fallback_date
+        if not dispatch_str:
             return None
         try:
-            dispatch = datetime.strptime(volume.dispatch_date, "%Y-%m-%d")
+            dispatch = datetime.strptime(dispatch_str, "%Y-%m-%d")
         except ValueError:
             return None
         deadline_date = dispatch + timedelta(days=2)
@@ -140,15 +147,21 @@ async def get_punctuality_kpi(
     result = await db.execute(stop_query)
     stops = result.scalars().all()
 
-    # 3. Charger les volumes avec activity_type / Load volumes with activity_type
+    # 3. Charger les volumes / Load volumes (inclut ceux sans activity_type → fallback SUIVI)
     vol_query = (
         select(Volume)
-        .where(Volume.tour_id.in_(tour_ids), Volume.activity_type.is_not(None))
+        .where(Volume.tour_id.in_(tour_ids))
     )
     if pdv_id:
         vol_query = vol_query.where(Volume.pdv_id == pdv_id)
     if activity_type:
-        vol_query = vol_query.where(Volume.activity_type == activity_type.upper())
+        if activity_type.upper() == "SUIVI":
+            # Inclure aussi les vides (fallback SUIVI) / Include empty (fallback SUIVI)
+            vol_query = vol_query.where(
+                (Volume.activity_type == "SUIVI") | (Volume.activity_type.is_(None)) | (Volume.activity_type == "")
+            )
+        else:
+            vol_query = vol_query.where(Volume.activity_type == activity_type.upper())
 
     result = await db.execute(vol_query)
     all_volumes = result.scalars().all()
@@ -207,12 +220,15 @@ async def get_punctuality_kpi(
         # Trouver la deadline la plus stricte / Find strictest deadline
         strictest_deadline: datetime | None = None
         strictest_activity: str | None = None
+        # Fallback date = tour.date pour les volumes sans dispatch_date
+        fallback_date = tour.date
         for v in vols:
-            dl = _compute_deadline(v, pdv)
+            dl = _compute_deadline(v, pdv, fallback_date=fallback_date)
             if dl is not None:
                 if strictest_deadline is None or dl < strictest_deadline:
                     strictest_deadline = dl
-                    strictest_activity = (v.activity_type or "").upper()
+                    act_raw = (v.activity_type or "").strip().upper()
+                    strictest_activity = act_raw if act_raw else "SUIVI"
 
         if strictest_deadline is None:
             continue
