@@ -1,13 +1,10 @@
 """Routes KPI — taux de ponctualité / KPI routes — punctuality rate."""
 
-import logging
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-
-logger = logging.getLogger("chaos_route.kpi")
 
 from app.database import get_db
 from app.models.tour import Tour, TourStatus
@@ -123,7 +120,6 @@ async def get_punctuality_kpi(
 
     result = await db.execute(tour_query)
     tours = result.scalars().all()
-    logger.warning("[KPI] user=%s regions=%s | tours=%d", user.username, user_regions, len(tours))
 
     if not tours:
         return {
@@ -169,7 +165,6 @@ async def get_punctuality_kpi(
 
     result = await db.execute(vol_query)
     all_volumes = result.scalars().all()
-    logger.warning("[KPI] stops=%d volumes=%d", len(stops), len(all_volumes))
 
     # Indexer volumes par (tour_id, pdv_id) / Index volumes by (tour_id, pdv_id)
     vol_index: dict[tuple[int, int], list[Volume]] = {}
@@ -313,9 +308,6 @@ async def get_punctuality_kpi(
             except (ValueError, TypeError):
                 actual_no_scan += 1
                 by_activity[act_key]["actual"]["no_scan"] += 1
-
-    logger.warning("[KPI] total_stops=%d with_deadline=%d planned_ok=%d actual_ok=%d no_scan=%d",
-                    total_stops, with_deadline, planned_on_time, actual_on_time, actual_no_scan)
 
     # 7. Construire la réponse / Build response
     def pct(ok: int, total: int) -> float:
