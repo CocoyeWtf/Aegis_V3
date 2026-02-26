@@ -129,13 +129,14 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   const assignedPdvIds = useMemo(() => new Set(currentStops.map((s) => s.pdv_id)), [currentStops])
 
   /* IDs des volumes consommés par les stops du tour en construction /
-     Volume IDs consumed by stops of the tour being built */
+     Volume IDs consumed by stops of the tour being built.
+     Supporte plusieurs stops du même PDV (split ou multi-température). */
   const consumedVolumeIds = useMemo(() => {
     const ids = new Set<number>()
     for (const stop of currentStops) {
       let remaining = stop.eqp_count
       const pdvVols = volumes
-        .filter(v => v.pdv_id === stop.pdv_id)
+        .filter(v => v.pdv_id === stop.pdv_id && !ids.has(v.id))
         .sort((a, b) => {
           /* Préférer le match exact / Prefer exact match */
           if (a.eqp_count === remaining && b.eqp_count !== remaining) return -1
@@ -310,7 +311,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   /* Ajouter un volume — phase A (sans véhicule) ou C (avec véhicule) /
      Add volume — phase A (no vehicle) or phase C (with vehicle) */
   const handleAddVolume = (vol: Volume) => {
-    if (assignedPdvIds.has(vol.pdv_id)) return
+    if (consumedVolumeIds.has(vol.id)) return
 
     /* Phase A : pas de véhicule → ajout libre / Phase A: no vehicle → free add */
     if (!selectedVehicleType) {
@@ -405,8 +406,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   }
 
   const handlePdvClick = (pdv: PDV) => {
-    if (assignedPdvIds.has(pdv.id)) return
-    const vol = filteredVolumes.find((v) => v.pdv_id === pdv.id)
+    const vol = filteredVolumes.find((v) => v.pdv_id === pdv.id && !consumedVolumeIds.has(v.id))
     if (!vol) return
     handleAddVolume(vol)
   }
@@ -610,7 +610,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                       <VolumePanel
                         volumes={filteredVolumes}
                         pdvs={pdvs}
-                        assignedPdvIds={assignedPdvIds}
+
                         consumedVolumeIds={consumedVolumeIds}
                         onAddVolume={handleAddVolume}
                         vehicleCapacity={capacityEqp}
@@ -715,7 +715,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                           <VolumePanel
                             volumes={filteredVolumes}
                             pdvs={pdvs}
-                            assignedPdvIds={assignedPdvIds}
+    
                             consumedVolumeIds={consumedVolumeIds}
                             onAddVolume={handleAddVolume}
                             vehicleCapacity={capacityEqp}
@@ -792,7 +792,6 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
           <VolumePanel
             volumes={filteredVolumes}
             pdvs={pdvs}
-            assignedPdvIds={assignedPdvIds}
             consumedVolumeIds={consumedVolumeIds}
             onAddVolume={handleAddVolume}
             vehicleCapacity={capacityEqp}

@@ -31,7 +31,6 @@ const TEMP_CHIPS: { key: TemperatureClass; label: string }[] = [
 interface VolumePanelProps {
   volumes: Volume[]
   pdvs: PDV[]
-  assignedPdvIds: Set<number>
   consumedVolumeIds: Set<number>
   onAddVolume: (volume: Volume) => void
   vehicleCapacity: number
@@ -47,7 +46,7 @@ interface VolumePanelProps {
 }
 
 export function VolumePanel({
-  volumes, pdvs, assignedPdvIds, consumedVolumeIds, onAddVolume, vehicleCapacity, currentEqp,
+  volumes, pdvs, consumedVolumeIds, onAddVolume, vehicleCapacity, currentEqp,
   lastStopPdvId, baseId, distanceIndex, pickupSummaries, tempFilters, onTempFiltersChange,
 }: VolumePanelProps) {
   const { t } = useTranslation()
@@ -169,8 +168,7 @@ export function VolumePanel({
         {sortedVolumes.map((vol) => {
           const pdv = pdvMap.get(vol.pdv_id)
           const consumed = consumedVolumeIds.has(vol.id)
-          const pdvInTour = assignedPdvIds.has(vol.pdv_id)
-          const clickable = !consumed && !pdvInTour
+          const clickable = !consumed
           const overCapacity = remaining !== Infinity && vol.eqp_count > remaining
           const dist = clickable ? getDisplayDistance(vol.pdv_id) : null
           const pickup = pickupMap.get(vol.pdv_id)
@@ -241,9 +239,6 @@ export function VolumePanel({
               )}
               {consumed && (
                 <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>✓ {t('tourPlanning.assigned')}</div>
-              )}
-              {!consumed && pdvInTour && (
-                <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Reste dispo pour un autre tour</div>
               )}
             </div>
           )
