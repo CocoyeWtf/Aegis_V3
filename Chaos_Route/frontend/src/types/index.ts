@@ -533,26 +533,23 @@ export interface ManifestImportResult {
 export interface PunctualityMetrics {
   on_time: number
   late: number
-  pct: number
-}
-
-export interface PunctualityActualMetrics extends PunctualityMetrics {
   no_scan: number
+  pct: number
 }
 
 export interface PunctualityKpiResponse {
   summary: {
     total_stops: number
     with_deadline: number
-    planned: PunctualityMetrics
-    actual: PunctualityActualMetrics
+    cdc: PunctualityMetrics
+    operational: PunctualityMetrics
   }
   by_activity: Record<string, {
     total: number
-    planned: PunctualityMetrics
-    actual: PunctualityActualMetrics
+    cdc: PunctualityMetrics
+    operational: PunctualityMetrics
   }>
-  by_date: { date: string; total: number; planned_pct: number; actual_pct: number }[]
+  by_date: { date: string; total: number; cdc_pct: number; operational_pct: number }[]
   by_pdv: { pdv_id: number; pdv_code: string; pdv_name: string; total: number;
-            planned_pct: number; actual_pct: number }[]
+            cdc_pct: number; operational_pct: number }[]
 }

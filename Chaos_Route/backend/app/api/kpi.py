@@ -1,4 +1,4 @@
-"""Routes KPI — taux de ponctualité / KPI routes — punctuality rate."""
+"""Routes KPI — taux de ponctualité CDC et opérationnelle / KPI routes — CDC and operational punctuality rate."""
 
 from datetime import datetime, timedelta
 
@@ -93,7 +93,7 @@ async def get_punctuality_kpi(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("dashboard", "read")),
 ):
-    """Taux de ponctualité planifié et réel / Planned and actual punctuality rate."""
+    """Taux de ponctualité CDC et opérationnelle / CDC and operational punctuality rate."""
 
     # 1. Charger les tours complétés/en retour dans la plage / Load completed/returning tours
     tour_query = (
@@ -125,8 +125,8 @@ async def get_punctuality_kpi(
         return {
             "summary": {
                 "total_stops": 0, "with_deadline": 0,
-                "planned": {"on_time": 0, "late": 0, "pct": 0},
-                "actual": {"on_time": 0, "late": 0, "no_scan": 0, "pct": 0},
+                "cdc": {"on_time": 0, "late": 0, "no_scan": 0, "pct": 0},
+                "operational": {"on_time": 0, "late": 0, "no_scan": 0, "pct": 0},
             },
             "by_activity": {},
             "by_date": [],
@@ -190,14 +190,16 @@ async def get_punctuality_kpi(
     first_scans: dict[int, str] = {row[0]: row[1] for row in result.all()}
 
     # 6. Calcul ponctualité / Compute punctuality
-    # Accumulateurs
+    # Accumulateurs CDC (scan vs deadline cahier des charges) / CDC accumulators
     total_stops = 0
     with_deadline = 0
-    planned_on_time = 0
-    planned_late = 0
-    actual_on_time = 0
-    actual_late = 0
-    actual_no_scan = 0
+    cdc_on_time = 0
+    cdc_late = 0
+    cdc_no_scan = 0
+    # Accumulateurs opérationnels (scan vs heure planifiée) / Operational accumulators
+    oper_on_time = 0
+    oper_late = 0
+    oper_no_scan = 0
 
     by_activity: dict[str, dict] = {}
     by_date_agg: dict[str, dict] = {}
@@ -243,102 +245,119 @@ async def get_punctuality_kpi(
         if act_key not in by_activity:
             by_activity[act_key] = {
                 "total": 0,
-                "planned": {"on_time": 0, "late": 0},
-                "actual": {"on_time": 0, "late": 0, "no_scan": 0},
+                "cdc": {"on_time": 0, "late": 0, "no_scan": 0},
+                "operational": {"on_time": 0, "late": 0, "no_scan": 0},
             }
         by_activity[act_key]["total"] += 1
 
         if tour_date not in by_date_agg:
-            by_date_agg[tour_date] = {"total": 0, "planned_ok": 0, "actual_ok": 0, "actual_counted": 0}
+            by_date_agg[tour_date] = {
+                "total": 0,
+                "cdc_ok": 0, "cdc_counted": 0,
+                "oper_ok": 0, "oper_counted": 0,
+            }
         by_date_agg[tour_date]["total"] += 1
 
         if stop.pdv_id not in by_pdv_agg:
             by_pdv_agg[stop.pdv_id] = {
                 "pdv_code": pdv.code, "pdv_name": pdv.name,
-                "total": 0, "planned_ok": 0, "actual_ok": 0, "actual_counted": 0,
+                "total": 0,
+                "cdc_ok": 0, "cdc_counted": 0,
+                "oper_ok": 0, "oper_counted": 0,
             }
         by_pdv_agg[stop.pdv_id]["total"] += 1
 
-        # --- Ponctualité planifiée / Planned punctuality ---
+        # Premier scan pour ce stop / First scan for this stop
+        first_scan_ts = first_scans.get(stop.id)
+        scan_dt: datetime | None = None
+        if first_scan_ts:
+            try:
+                scan_dt = datetime.fromisoformat(first_scan_ts)
+                if scan_dt.tzinfo is not None:
+                    scan_dt = scan_dt.replace(tzinfo=None)
+            except (ValueError, TypeError):
+                scan_dt = None
+
+        # --- Ponctualité CDC (scan vs deadline cahier des charges) ---
+        if scan_dt is None:
+            cdc_no_scan += 1
+            by_activity[act_key]["cdc"]["no_scan"] += 1
+        else:
+            by_date_agg[tour_date]["cdc_counted"] += 1
+            by_pdv_agg[stop.pdv_id]["cdc_counted"] += 1
+            if scan_dt <= strictest_deadline:
+                cdc_on_time += 1
+                by_activity[act_key]["cdc"]["on_time"] += 1
+                by_date_agg[tour_date]["cdc_ok"] += 1
+                by_pdv_agg[stop.pdv_id]["cdc_ok"] += 1
+            else:
+                cdc_late += 1
+                by_activity[act_key]["cdc"]["late"] += 1
+
+        # --- Ponctualité opérationnelle (scan vs heure d'arrivée planifiée) ---
         delivery_date_str = tour.delivery_date or tour.date
         arrival_minutes = _parse_time_to_minutes(stop.arrival_time)
+        planned_arrival_dt: datetime | None = None
         if delivery_date_str and arrival_minutes is not None:
             try:
-                planned_dt = datetime.strptime(delivery_date_str, "%Y-%m-%d").replace(
+                planned_arrival_dt = datetime.strptime(delivery_date_str, "%Y-%m-%d").replace(
                     hour=arrival_minutes // 60,
                     minute=arrival_minutes % 60,
                 )
-                if planned_dt <= strictest_deadline:
-                    planned_on_time += 1
-                    by_activity[act_key]["planned"]["on_time"] += 1
-                    by_date_agg[tour_date]["planned_ok"] += 1
-                    by_pdv_agg[stop.pdv_id]["planned_ok"] += 1
-                else:
-                    planned_late += 1
-                    by_activity[act_key]["planned"]["late"] += 1
             except ValueError:
-                planned_late += 1
-                by_activity[act_key]["planned"]["late"] += 1
-        else:
-            planned_late += 1
-            by_activity[act_key]["planned"]["late"] += 1
+                planned_arrival_dt = None
 
-        # --- Ponctualité réelle / Actual punctuality ---
-        first_scan_ts = first_scans.get(stop.id)
-        if not first_scan_ts:
-            actual_no_scan += 1
-            by_activity[act_key]["actual"]["no_scan"] += 1
+        if scan_dt is None:
+            oper_no_scan += 1
+            by_activity[act_key]["operational"]["no_scan"] += 1
+        elif planned_arrival_dt is None:
+            # Pas d'heure planifiée → compté en retard / No planned time → counted as late
+            oper_late += 1
+            by_activity[act_key]["operational"]["late"] += 1
+            by_date_agg[tour_date]["oper_counted"] += 1
+            by_pdv_agg[stop.pdv_id]["oper_counted"] += 1
         else:
-            by_date_agg[tour_date]["actual_counted"] += 1
-            by_pdv_agg[stop.pdv_id]["actual_counted"] += 1
-            try:
-                # ISO 8601 : YYYY-MM-DDTHH:MM:SS ou YYYY-MM-DDTHH:MM:SSZ
-                actual_dt = datetime.fromisoformat(first_scan_ts)
-                # Retirer le timezone pour comparer avec la deadline naïve / Strip tz for naive comparison
-                if actual_dt.tzinfo is not None:
-                    actual_dt = actual_dt.replace(tzinfo=None)
-                if actual_dt <= strictest_deadline:
-                    actual_on_time += 1
-                    by_activity[act_key]["actual"]["on_time"] += 1
-                    by_date_agg[tour_date]["actual_ok"] += 1
-                    by_pdv_agg[stop.pdv_id]["actual_ok"] += 1
-                else:
-                    actual_late += 1
-                    by_activity[act_key]["actual"]["late"] += 1
-            except (ValueError, TypeError):
-                actual_no_scan += 1
-                by_activity[act_key]["actual"]["no_scan"] += 1
+            by_date_agg[tour_date]["oper_counted"] += 1
+            by_pdv_agg[stop.pdv_id]["oper_counted"] += 1
+            if scan_dt <= planned_arrival_dt:
+                oper_on_time += 1
+                by_activity[act_key]["operational"]["on_time"] += 1
+                by_date_agg[tour_date]["oper_ok"] += 1
+                by_pdv_agg[stop.pdv_id]["oper_ok"] += 1
+            else:
+                oper_late += 1
+                by_activity[act_key]["operational"]["late"] += 1
 
     # 7. Construire la réponse / Build response
     def pct(ok: int, total: int) -> float:
         return round(ok / total * 100, 1) if total > 0 else 0
 
-    planned_total = planned_on_time + planned_late
-    actual_total = actual_on_time + actual_late
+    cdc_total = cdc_on_time + cdc_late
+    oper_total = oper_on_time + oper_late
 
     summary = {
         "total_stops": total_stops,
         "with_deadline": with_deadline,
-        "planned": {"on_time": planned_on_time, "late": planned_late, "pct": pct(planned_on_time, planned_total)},
-        "actual": {"on_time": actual_on_time, "late": actual_late, "no_scan": actual_no_scan, "pct": pct(actual_on_time, actual_total)},
+        "cdc": {"on_time": cdc_on_time, "late": cdc_late, "no_scan": cdc_no_scan, "pct": pct(cdc_on_time, cdc_total)},
+        "operational": {"on_time": oper_on_time, "late": oper_late, "no_scan": oper_no_scan, "pct": pct(oper_on_time, oper_total)},
     }
 
     by_activity_resp = {}
     for act, data in by_activity.items():
-        p_total = data["planned"]["on_time"] + data["planned"]["late"]
-        a_total = data["actual"]["on_time"] + data["actual"]["late"]
+        c_total = data["cdc"]["on_time"] + data["cdc"]["late"]
+        o_total = data["operational"]["on_time"] + data["operational"]["late"]
         by_activity_resp[act] = {
             "total": data["total"],
-            "planned": {**data["planned"], "pct": pct(data["planned"]["on_time"], p_total)},
-            "actual": {**data["actual"], "pct": pct(data["actual"]["on_time"], a_total)},
+            "cdc": {**data["cdc"], "pct": pct(data["cdc"]["on_time"], c_total)},
+            "operational": {**data["operational"], "pct": pct(data["operational"]["on_time"], o_total)},
         }
 
     by_date_resp = sorted([
         {
             "date": d,
             "total": agg["total"],
-            "planned_pct": pct(agg["planned_ok"], agg["total"]),
-            "actual_pct": pct(agg["actual_ok"], agg["actual_counted"]) if agg["actual_counted"] > 0 else 0,
+            "cdc_pct": pct(agg["cdc_ok"], agg["cdc_counted"]) if agg["cdc_counted"] > 0 else 0,
+            "operational_pct": pct(agg["oper_ok"], agg["oper_counted"]) if agg["oper_counted"] > 0 else 0,
         }
         for d, agg in by_date_agg.items()
     ], key=lambda x: x["date"])
@@ -349,11 +368,11 @@ async def get_punctuality_kpi(
             "pdv_code": agg["pdv_code"],
             "pdv_name": agg["pdv_name"],
             "total": agg["total"],
-            "planned_pct": pct(agg["planned_ok"], agg["total"]),
-            "actual_pct": pct(agg["actual_ok"], agg["actual_counted"]) if agg["actual_counted"] > 0 else 0,
+            "cdc_pct": pct(agg["cdc_ok"], agg["cdc_counted"]) if agg["cdc_counted"] > 0 else 0,
+            "operational_pct": pct(agg["oper_ok"], agg["oper_counted"]) if agg["oper_counted"] > 0 else 0,
         }
         for pid, agg in by_pdv_agg.items()
-    ], key=lambda x: x["planned_pct"])
+    ], key=lambda x: x["cdc_pct"])
 
     return {
         "summary": summary,

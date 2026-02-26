@@ -1,4 +1,4 @@
-/* KPI Taux de ponctualité — planifié et réel / Punctuality rate KPI — planned and actual */
+/* KPI Taux de ponctualité — CDC et opérationnel / Punctuality rate KPI — CDC and operational */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
@@ -13,7 +13,7 @@ interface PunctualityKpiProps {
   regionId?: number | null
 }
 
-type SortKey = 'pdv_code' | 'pdv_name' | 'total' | 'planned_pct' | 'actual_pct'
+type SortKey = 'pdv_code' | 'pdv_name' | 'total' | 'cdc_pct' | 'operational_pct'
 type SortDir = 'asc' | 'desc'
 
 const tooltipStyle = {
@@ -27,7 +27,7 @@ export function PunctualityKpi({ dateFrom, dateTo, regionId }: PunctualityKpiPro
   const [data, setData] = useState<PunctualityKpiResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [activityFilter, setActivityFilter] = useState<string>('')
-  const [sortKey, setSortKey] = useState<SortKey>('planned_pct')
+  const [sortKey, setSortKey] = useState<SortKey>('cdc_pct')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   const load = useCallback(async () => {
@@ -57,8 +57,8 @@ export function PunctualityKpi({ dateFrom, dateTo, regionId }: PunctualityKpiPro
     if (!data?.by_date) return []
     return data.by_date.map(d => ({
       date: d.date.slice(8) + '/' + d.date.slice(5, 7),
-      planned_pct: d.planned_pct,
-      actual_pct: d.actual_pct,
+      cdc_pct: d.cdc_pct,
+      operational_pct: d.operational_pct,
     }))
   }, [data])
 
@@ -145,35 +145,40 @@ export function PunctualityKpi({ dateFrom, dateTo, regionId }: PunctualityKpiPro
 
       {/* Row 1 : Gauges + courbe / Gauges + chart */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
-        {/* Gauge planifié / Planned gauge */}
+        {/* Gauge CDC / CDC gauge */}
         <div
           className="rounded-xl border p-4 text-center"
           style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
         >
-          <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: 'var(--text-muted)' }}>Planifié</div>
-          <div className="text-3xl font-bold tabular-nums" style={{ color: summary.planned.pct >= 90 ? 'var(--color-success)' : summary.planned.pct >= 75 ? 'var(--color-warning)' : 'var(--color-danger)' }}>
-            {summary.planned.pct}%
+          <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: 'var(--text-muted)' }}>CDC</div>
+          <div className="text-3xl font-bold tabular-nums" style={{ color: summary.cdc.pct >= 90 ? 'var(--color-success)' : summary.cdc.pct >= 75 ? 'var(--color-warning)' : 'var(--color-danger)' }}>
+            {summary.cdc.pct}%
           </div>
           <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-            {summary.planned.on_time}/{summary.planned.on_time + summary.planned.late} à temps
+            {summary.cdc.on_time}/{summary.cdc.on_time + summary.cdc.late} à temps
           </div>
+          {summary.cdc.no_scan > 0 && (
+            <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+              ({summary.cdc.no_scan} sans scan)
+            </div>
+          )}
         </div>
 
-        {/* Gauge réel / Actual gauge */}
+        {/* Gauge Opérationnel / Operational gauge */}
         <div
           className="rounded-xl border p-4 text-center"
           style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
         >
-          <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: 'var(--text-muted)' }}>Réel</div>
-          <div className="text-3xl font-bold tabular-nums" style={{ color: summary.actual.pct >= 90 ? 'var(--color-success)' : summary.actual.pct >= 75 ? 'var(--color-warning)' : 'var(--color-danger)' }}>
-            {summary.actual.pct}%
+          <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: 'var(--text-muted)' }}>Opérationnel</div>
+          <div className="text-3xl font-bold tabular-nums" style={{ color: summary.operational.pct >= 90 ? 'var(--color-success)' : summary.operational.pct >= 75 ? 'var(--color-warning)' : 'var(--color-danger)' }}>
+            {summary.operational.pct}%
           </div>
           <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-            {summary.actual.on_time}/{summary.actual.on_time + summary.actual.late} à temps
+            {summary.operational.on_time}/{summary.operational.on_time + summary.operational.late} à temps
           </div>
-          {summary.actual.no_scan > 0 && (
+          {summary.operational.no_scan > 0 && (
             <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-              ({summary.actual.no_scan} sans scan)
+              ({summary.operational.no_scan} sans scan)
             </div>
           )}
         </div>
@@ -192,8 +197,8 @@ export function PunctualityKpi({ dateFrom, dateTo, regionId }: PunctualityKpiPro
                 <YAxis domain={[0, 100]} tick={{ fill: 'var(--text-muted)', fontSize: 9 }} />
                 <Tooltip contentStyle={tooltipStyle} formatter={(value) => `${value}%`} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
-                <Line type="monotone" dataKey="planned_pct" stroke="var(--color-primary)" strokeWidth={2} dot={{ r: 2 }} name="Planifié" />
-                <Line type="monotone" dataKey="actual_pct" stroke="var(--color-success)" strokeWidth={2} dot={{ r: 2 }} name="Réel" />
+                <Line type="monotone" dataKey="cdc_pct" stroke="var(--color-primary)" strokeWidth={2} dot={{ r: 2 }} name="CDC" />
+                <Line type="monotone" dataKey="operational_pct" stroke="var(--color-success)" strokeWidth={2} dot={{ r: 2 }} name="Opérationnel" />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -213,9 +218,9 @@ export function PunctualityKpi({ dateFrom, dateTo, regionId }: PunctualityKpiPro
             <span key={act} style={{ color: 'var(--text-primary)' }}>
               <span className="font-medium">{act}</span>
               {' '}
-              <span style={{ color: 'var(--color-primary)' }}>{metrics.planned.pct}%</span>
+              <span style={{ color: 'var(--color-primary)' }}>{metrics.cdc.pct}%</span>
               {' / '}
-              <span style={{ color: 'var(--color-success)' }}>{metrics.actual.pct}%</span>
+              <span style={{ color: 'var(--color-success)' }}>{metrics.operational.pct}%</span>
               {' '}
               <span style={{ color: 'var(--text-muted)' }}>({metrics.total} stops)</span>
             </span>
@@ -242,8 +247,8 @@ export function PunctualityKpi({ dateFrom, dateTo, regionId }: PunctualityKpiPro
                     ['pdv_code', 'Code'],
                     ['pdv_name', 'Nom'],
                     ['total', 'Stops'],
-                    ['planned_pct', 'Planifié %'],
-                    ['actual_pct', 'Réel %'],
+                    ['cdc_pct', 'CDC %'],
+                    ['operational_pct', 'Opérationnel %'],
                   ] as [SortKey, string][]).map(([key, label]) => (
                     <th
                       key={key}
@@ -262,11 +267,11 @@ export function PunctualityKpi({ dateFrom, dateTo, regionId }: PunctualityKpiPro
                     <td className="px-3 py-1.5 font-mono" style={{ color: 'var(--text-primary)' }}>{pdv.pdv_code}</td>
                     <td className="px-3 py-1.5" style={{ color: 'var(--text-primary)' }}>{pdv.pdv_name}</td>
                     <td className="px-3 py-1.5 tabular-nums" style={{ color: 'var(--text-muted)' }}>{pdv.total}</td>
-                    <td className="px-3 py-1.5 font-bold tabular-nums" style={{ color: pdv.planned_pct >= 90 ? 'var(--color-success)' : pdv.planned_pct >= 75 ? 'var(--color-warning)' : 'var(--color-danger)' }}>
-                      {pdv.planned_pct}%
+                    <td className="px-3 py-1.5 font-bold tabular-nums" style={{ color: pdv.cdc_pct >= 90 ? 'var(--color-success)' : pdv.cdc_pct >= 75 ? 'var(--color-warning)' : 'var(--color-danger)' }}>
+                      {pdv.cdc_pct}%
                     </td>
-                    <td className="px-3 py-1.5 font-bold tabular-nums" style={{ color: pdv.actual_pct >= 90 ? 'var(--color-success)' : pdv.actual_pct >= 75 ? 'var(--color-warning)' : 'var(--color-danger)' }}>
-                      {pdv.actual_pct}%
+                    <td className="px-3 py-1.5 font-bold tabular-nums" style={{ color: pdv.operational_pct >= 90 ? 'var(--color-success)' : pdv.operational_pct >= 75 ? 'var(--color-warning)' : 'var(--color-danger)' }}>
+                      {pdv.operational_pct}%
                     </td>
                   </tr>
                 ))}
