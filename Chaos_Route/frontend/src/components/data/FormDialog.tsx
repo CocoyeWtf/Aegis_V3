@@ -109,7 +109,7 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4" autoComplete="off">
           {error && (
             <div
               className="p-3 rounded-lg border text-sm font-medium"
@@ -199,6 +199,7 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
                     min={field.min}
                     max={field.max}
                     step={field.step}
+                    autoComplete={field.type === 'password' ? 'new-password' : 'off'}
                     className="w-full px-3 py-2 rounded-lg text-sm border outline-none focus:ring-1"
                     style={inputStyle}
                   />
