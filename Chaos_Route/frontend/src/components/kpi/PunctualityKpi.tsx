@@ -36,7 +36,7 @@ export function PunctualityKpi({ dateFrom, dateTo, regionId }: PunctualityKpiPro
       const params: Record<string, string | number> = { date_from: dateFrom, date_to: dateTo }
       if (regionId) params.region_id = regionId
       if (activityFilter) params.activity_type = activityFilter
-      const resp = await api.get<PunctualityKpiResponse>('/kpi/punctuality/', { params })
+      const resp = await api.get<PunctualityKpiResponse>('/kpi/punctuality', { params })
       setData(resp.data)
     } catch {
       setData(null)

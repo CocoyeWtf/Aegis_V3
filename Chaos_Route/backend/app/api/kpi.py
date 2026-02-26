@@ -76,7 +76,7 @@ def _parse_time_to_minutes(time_str: str | None) -> int | None:
         return None
 
 
-@router.get("/punctuality")
+@router.get("/punctuality/")
 async def get_punctuality_kpi(
     date_from: str = Query(..., description="Date début (YYYY-MM-DD)"),
     date_to: str = Query(..., description="Date fin (YYYY-MM-DD)"),
