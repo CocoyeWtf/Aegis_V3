@@ -292,8 +292,11 @@ async def get_punctuality_kpi(
             by_date_agg[tour_date]["actual_counted"] += 1
             by_pdv_agg[stop.pdv_id]["actual_counted"] += 1
             try:
-                # ISO 8601 : YYYY-MM-DDTHH:MM:SS ou YYYY-MM-DDTHH:MM
+                # ISO 8601 : YYYY-MM-DDTHH:MM:SS ou YYYY-MM-DDTHH:MM:SSZ
                 actual_dt = datetime.fromisoformat(first_scan_ts)
+                # Retirer le timezone pour comparer avec la deadline naïve / Strip tz for naive comparison
+                if actual_dt.tzinfo is not None:
+                    actual_dt = actual_dt.replace(tzinfo=None)
                 if actual_dt <= strictest_deadline:
                     actual_on_time += 1
                     by_activity[act_key]["actual"]["on_time"] += 1
@@ -302,7 +305,7 @@ async def get_punctuality_kpi(
                 else:
                     actual_late += 1
                     by_activity[act_key]["actual"]["late"] += 1
-            except ValueError:
+            except (ValueError, TypeError):
                 actual_no_scan += 1
                 by_activity[act_key]["actual"]["no_scan"] += 1
 
