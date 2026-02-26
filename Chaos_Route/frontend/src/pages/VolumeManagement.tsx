@@ -22,7 +22,7 @@ export default function VolumeManagement() {
   ]
 
   const columns: Column<Volume>[] = [
-    { key: 'date', label: t('common.date'), width: '110px', filterable: true, render: (row) => formatDate(row.date) },
+    { key: 'date', label: t('common.date'), width: '110px', filterable: true, render: (row) => formatDate(row.date), filterValue: (row) => formatDate(row.date) },
     {
       key: 'pdv_id', label: t('volumes.pdv'), filterable: true,
       render: (row) => pdvs.find((p) => p.id === row.pdv_id)?.name || String(row.pdv_id),
@@ -39,6 +39,7 @@ export default function VolumeManagement() {
     {
       key: 'dispatch_date' as keyof Volume, label: t('volumes.dispatchDate'), width: '140px', filterable: true,
       render: (row) => row.dispatch_date ? `${formatDate(row.dispatch_date)}${row.dispatch_time ? ` ${row.dispatch_time}` : ''}` : '—',
+      filterValue: (row) => row.dispatch_date ? `${formatDate(row.dispatch_date)}${row.dispatch_time ? ` ${row.dispatch_time}` : ''}` : '',
     },
     {
       key: 'preparation_start' as keyof Volume, label: 'Début prépa', width: '130px',
