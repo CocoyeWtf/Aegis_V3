@@ -47,6 +47,12 @@ export function PunctualityKpi({ dateFrom, dateTo, regionId }: PunctualityKpiPro
 
   useEffect(() => { load() }, [load])
 
+  /* Auto-refresh toutes les 60s / Auto-refresh every 60s */
+  useEffect(() => {
+    const interval = setInterval(() => { load() }, 60_000)
+    return () => clearInterval(interval)
+  }, [load])
+
   const chartData = useMemo(() => {
     if (!data?.by_date) return []
     return data.by_date.map(d => ({
@@ -108,9 +114,23 @@ export function PunctualityKpi({ dateFrom, dateTo, regionId }: PunctualityKpiPro
     <div className="space-y-3">
       {/* Header + filtre activité / Header + activity filter */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-          Taux de ponctualité
-        </h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Taux de ponctualité
+          </h3>
+          <button
+            onClick={load}
+            disabled={loading}
+            className="p-1 rounded transition-colors hover:opacity-80 disabled:opacity-40"
+            style={{ color: 'var(--text-muted)' }}
+            title="Rafraîchir"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+              <path d="M3 22v-6h6" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+            </svg>
+          </button>
+        </div>
         <select
           value={activityFilter}
           onChange={e => setActivityFilter(e.target.value)}
