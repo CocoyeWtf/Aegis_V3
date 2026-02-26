@@ -19,6 +19,8 @@ class VolumeBase(BaseModel):
     dispatch_time: str | None = None
     activity_type: str | None = None      # 'SUIVI' | 'MEAV'
     promo_start_date: str | None = None   # YYYY-MM-DD
+    volume_m3: float | None = None
+    nb_supports: int | None = None
 
 
 class VolumeCreate(VolumeBase):
@@ -39,6 +41,8 @@ class VolumeUpdate(BaseModel):
     dispatch_time: str | None = None
     activity_type: str | None = None
     promo_start_date: str | None = None
+    volume_m3: float | None = None
+    nb_supports: int | None = None
 
 
 class VolumeRead(VolumeBase):

@@ -32,6 +32,11 @@ class Volume(Base):
     dispatch_time: Mapped[str | None] = mapped_column(String(5))    # HH:MM — heure de répartition
     tour_id: Mapped[int | None] = mapped_column(ForeignKey("tours.id", ondelete="SET NULL"), nullable=True)
 
+    # Volume total en m3 et nombre de supports/palettes (import SUPERLOG)
+    # Total volume in m3 and number of supports/pallets (SUPERLOG import)
+    volume_m3: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
+    nb_supports: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     # Activité : suivi (fond de rayon) ou mise en avant (promo) / Activity type
     activity_type: Mapped[str | None] = mapped_column(String(10))  # 'SUIVI' | 'MEAV'
     # Date début promo (MEAV uniquement) / Promo start date (MEAV only)

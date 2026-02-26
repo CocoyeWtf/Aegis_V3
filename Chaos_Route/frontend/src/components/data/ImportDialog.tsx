@@ -1,8 +1,9 @@
 /* Dialogue d'import CSV/Excel / Import dialog for CSV/Excel files */
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import api from '../../services/api'
+import api, { fetchAll } from '../../services/api'
+import type { BaseLogistics } from '../../types'
 
 interface DuplicateInfo {
   existing: { date?: string; dispatch_date?: string; dispatch_time?: string; base: string; count: number }[]
@@ -29,6 +30,15 @@ export function ImportDialog({ open, onClose, entityType, onSuccess }: ImportDia
   const [dispatchTime, setDispatchTime] = useState('')
   const [activityType, setActivityType] = useState('')
   const [promoStartDate, setPromoStartDate] = useState('')
+  const [baseOriginId, setBaseOriginId] = useState('')
+  const [temperatureClass, setTemperatureClass] = useState('')
+  const [bases, setBases] = useState<BaseLogistics[]>([])
+
+  useEffect(() => {
+    if (entityType === 'volumes') {
+      fetchAll<BaseLogistics>('/bases').then(setBases).catch(() => {})
+    }
+  }, [entityType])
 
   if (!open) return null
 
@@ -36,7 +46,6 @@ export function ImportDialog({ open, onClose, entityType, onSuccess }: ImportDia
 
   const doImport = async (mode: string) => {
     if (!file) return
-    if (isVolumes && !dispatchDate) return
     setLoading(true)
     setError(null)
     setResult(null)
@@ -53,6 +62,12 @@ export function ImportDialog({ open, onClose, entityType, onSuccess }: ImportDia
       if (isVolumes && activityType) {
         url += `&activity_type=${encodeURIComponent(activityType)}`
         if (activityType === 'MEAV' && promoStartDate) url += `&promo_start_date=${encodeURIComponent(promoStartDate)}`
+      }
+      if (isVolumes && baseOriginId) {
+        url += `&base_origin_id=${encodeURIComponent(baseOriginId)}`
+      }
+      if (isVolumes && temperatureClass) {
+        url += `&temperature_class=${encodeURIComponent(temperatureClass)}`
       }
       const resp = await api.post(url, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -87,6 +102,8 @@ export function ImportDialog({ open, onClose, entityType, onSuccess }: ImportDia
     setDispatchTime('')
     setActivityType('')
     setPromoStartDate('')
+    setBaseOriginId('')
+    setTemperatureClass('')
   }
 
   return (
@@ -123,12 +140,50 @@ export function ImportDialog({ open, onClose, entityType, onSuccess }: ImportDia
             <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>CSV, XLSX</p>
           </div>
 
+          {/* Base d'origine + Température pour volumes / Base origin + Temperature for volumes */}
+          {isVolumes && file && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+                  Base d'origine
+                </label>
+                <select
+                  value={baseOriginId}
+                  onChange={(e) => setBaseOriginId(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-lg border text-sm"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                >
+                  <option value="">— (dans le fichier)</option>
+                  {bases.map((b) => (
+                    <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+                  Température
+                </label>
+                <select
+                  value={temperatureClass}
+                  onChange={(e) => setTemperatureClass(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-lg border text-sm"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                >
+                  <option value="">— (dans le fichier)</option>
+                  <option value="SEC">SEC</option>
+                  <option value="FRAIS">FRAIS</option>
+                  <option value="GEL">GEL</option>
+                </select>
+              </div>
+            </div>
+          )}
+
           {/* Champs date/heure répartition pour volumes / Dispatch date/time fields for volumes */}
           {isVolumes && file && (
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
-                  {t('import.dispatchDate')} *
+                  {t('import.dispatchDate')}
                 </label>
                 <input
                   type="date"
@@ -150,11 +205,6 @@ export function ImportDialog({ open, onClose, entityType, onSuccess }: ImportDia
                   style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                 />
               </div>
-              {!dispatchDate && (
-                <p className="col-span-2 text-xs" style={{ color: 'var(--color-warning)' }}>
-                  {t('import.dispatchDateRequired')}
-                </p>
-              )}
             </div>
           )}
 
@@ -257,7 +307,7 @@ export function ImportDialog({ open, onClose, entityType, onSuccess }: ImportDia
             {!duplicateWarning && (
               <button
                 onClick={handleImport}
-                disabled={!file || loading || (isVolumes && !dispatchDate)}
+                disabled={!file || loading}
                 className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >

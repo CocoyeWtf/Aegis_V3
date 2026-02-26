@@ -93,8 +93,8 @@ def _coerce_value(val, field_name: str):
         return s.lower() in ("true", "1", "yes", "oui", "vrai")
 
     int_fields = {"country_id", "region_id", "pdv_id", "base_origin_id", "contract_id",
-                  "capacity_eqp", "capacity_weight_kg", "eqp_count", "nb_colis", "dock_time_minutes",
-                  "unload_time_per_eqp_minutes",
+                  "capacity_eqp", "capacity_weight_kg", "eqp_count", "nb_colis", "nb_supports",
+                  "dock_time_minutes", "unload_time_per_eqp_minutes",
                   "sas_sec_capacity_eqc", "sas_frais_capacity_eqc", "sas_gel_capacity_eqc",
                   "origin_id", "destination_id",
                   "duration_minutes", "sequence_order"}
@@ -106,7 +106,7 @@ def _coerce_value(val, field_name: str):
 
     float_fields = {"latitude", "longitude", "fixed_cost", "cost_per_km", "cost_per_hour",
                     "fixed_daily_cost", "min_hours_per_day", "min_km_per_day", "consumption_coefficient",
-                    "weight_kg", "distance_km", "total_km", "total_cost", "tax_per_km",
+                    "weight_kg", "volume_m3", "distance_km", "total_km", "total_cost", "tax_per_km",
                     "sas_sec_surface_m2", "sas_frais_surface_m2", "sas_gel_surface_m2"}
     if field_name in float_fields:
         try:
@@ -576,6 +576,8 @@ async def import_data(
     dispatch_time: str | None = Query(None, description="Heure de répartition (HH:MM) — volumes only"),
     activity_type: str | None = Query(None, description="Activité : SUIVI ou MEAV — volumes only"),
     promo_start_date: str | None = Query(None, description="Date début promo (YYYY-MM-DD) — MEAV only"),
+    base_origin_id: int | None = Query(None, description="Base d'origine (ID) — SUPERLOG/override"),
+    temperature_class: str | None = Query(None, description="Classe température (SEC/FRAIS/GEL) — SUPERLOG/override"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("imports-exports", "create")),
 ):
@@ -623,6 +625,10 @@ async def import_data(
     # --- Détection doublons volumes / Volume duplicate detection ---
     if entity_type == "volumes" and mode != "append":
         base_ids_in_file: set[int] = set()
+        # Si base_origin_id fourni en query param → l'utiliser directement
+        # If base_origin_id provided as query param → use it directly
+        if base_origin_id is not None:
+            base_ids_in_file.add(base_origin_id)
         base_lk = typed_lookups.get("BASE", {})
         for row in rows:
             for key, val in row.items():
@@ -814,17 +820,24 @@ async def import_data(
                 if not data:
                     continue
 
-            # Injecter dispatch_date/dispatch_time dans chaque volume importé
-            # Inject dispatch metadata into each imported volume
+            # Injecter les métadonnées dans chaque volume importé
+            # Inject metadata into each imported volume
             if entity_type == "volumes":
                 if dispatch_date:
                     data["dispatch_date"] = dispatch_date
+                    # SUPERLOG : utiliser dispatch_date comme date si absente / Use dispatch_date as date if missing
+                    if "date" not in data or data["date"] is None:
+                        data["date"] = dispatch_date
                 if dispatch_time:
                     data["dispatch_time"] = dispatch_time
                 if activity_type:
                     data["activity_type"] = activity_type
                 if promo_start_date:
                     data["promo_start_date"] = promo_start_date
+                if base_origin_id is not None:
+                    data["base_origin_id"] = base_origin_id
+                if temperature_class:
+                    data["temperature_class"] = temperature_class
 
             missing = [f for f in required if f not in data or data[f] is None]
             if missing:
