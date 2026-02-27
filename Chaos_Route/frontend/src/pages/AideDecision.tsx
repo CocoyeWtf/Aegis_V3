@@ -1,7 +1,24 @@
 /* Page Aide à la Décision Niveau 1 / Decision Support Level 1 page.
    Simulation pure : génère un plan affiché en tableau, sans créer de tours ni consommer de volumes. */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import api from '../services/api'
 import { useApi } from '../hooks/useApi'
 import type { BaseLogistics } from '../types'
@@ -98,6 +115,17 @@ function fillRateColor(rate: number): string {
   return 'var(--color-danger, #ef4444)'
 }
 
+/* ── Critères d'optimisation / Optimization criteria ── */
+
+const CRITERIA_META: Record<string, { label: string; description: string }> = {
+  cost: { label: 'Cout', description: 'Minimiser le cout total' },
+  punctuality: { label: 'Ponctualite', description: 'Minimiser les retards' },
+  fill_rate: { label: 'Remplissage', description: 'Maximiser le remplissage' },
+  num_tours: { label: 'Nb tours', description: 'Minimiser les vehicules' },
+}
+
+const RANK_LABELS = ['1er', '2e', '3e', '4e']
+
 /* ── Composant principal / Main component ── */
 
 export default function AideDecision() {
@@ -112,6 +140,26 @@ export default function AideDecision() {
   const [temperatureClass, setTemperatureClass] = useState('SEC')
   const [level, setLevel] = useState<1 | 2>(1)
   const [timeLimitSeconds, setTimeLimitSeconds] = useState(30)
+  const [optimizationPriorities, setOptimizationPriorities] = useState([
+    'cost', 'punctuality', 'fill_rate', 'num_tours',
+  ])
+
+  /* DnD sensors */
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    setOptimizationPriorities((prev) => {
+      const oldIndex = prev.indexOf(active.id as string)
+      const newIndex = prev.indexOf(over.id as string)
+      if (oldIndex === -1 || newIndex === -1) return prev
+      return arrayMove(prev, oldIndex, newIndex)
+    })
+  }, [])
 
   /* Timer pour Niveau 2 / Timer for Level 2 */
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
@@ -173,6 +221,7 @@ export default function AideDecision() {
         temperature_class: temperatureClass,
         level,
         time_limit_seconds: timeLimitSeconds,
+        optimization_priorities: level === 2 ? optimizationPriorities : undefined,
       })
       setResult(data)
     } catch (err: unknown) {
@@ -312,6 +361,30 @@ export default function AideDecision() {
             : 'Générer'}
         </button>
       </div>
+
+      {/* Priorités d'optimisation N2 / Optimization priorities N2 */}
+      {level === 2 && (
+        <div>
+          <label className="block text-xs mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+            Priorites d'optimisation
+          </label>
+          <div
+            className="rounded border p-1 w-full max-w-md"
+            style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
+          >
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={optimizationPriorities} strategy={verticalListSortingStrategy}>
+                {optimizationPriorities.map((key, idx) => (
+                  <SortableCriterion key={key} id={key} rank={RANK_LABELS[idx]} meta={CRITERIA_META[key]} />
+                ))}
+              </SortableContext>
+            </DndContext>
+          </div>
+          <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+            Glisser pour reordonner
+          </p>
+        </div>
+      )}
 
       {/* Erreur / Error */}
       {error && (
@@ -604,6 +677,52 @@ function SummaryCard({ label, value }: { label: string; value: string | number }
     >
       <div className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>{label}</div>
       <div className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{value}</div>
+    </div>
+  )
+}
+
+function SortableCriterion({
+  id,
+  rank,
+  meta,
+}: {
+  id: string
+  rank: string
+  meta: { label: string; description: string }
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    backgroundColor: isDragging ? 'var(--bg-tertiary)' : 'transparent',
+    borderColor: isDragging ? 'var(--color-primary)' : 'transparent',
+    opacity: isDragging ? 0.9 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 px-2 py-1.5 rounded border text-sm"
+    >
+      <span
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing text-base select-none"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        ⠿
+      </span>
+      <span
+        className="inline-block w-8 text-center text-[10px] font-bold rounded px-1 py-0.5"
+        style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-primary)' }}
+      >
+        {rank}
+      </span>
+      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{meta.label}</span>
+      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>— {meta.description}</span>
     </div>
   )
 }

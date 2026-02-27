@@ -42,6 +42,14 @@ SAS_DEADLINE = "06:00"
 NON_SAS_DEADLINE = "09:00"
 AVERAGE_SPEED_KMH = 60          # pour estimation durée si manquante
 
+# Multiplicateurs par position dans la liste de priorités / Priority position multipliers
+PRIORITY_MULTIPLIERS = {0: 4.0, 1: 2.0, 2: 1.0, 3: 0.5}
+
+
+def _compute_optimization_multipliers(priorities: list[str]) -> dict[str, float]:
+    """Convertir la liste ordonnée en dict de multiplicateurs / Convert priority list to multiplier dict."""
+    return {key: PRIORITY_MULTIPLIERS[idx] for idx, key in enumerate(priorities)}
+
 # Compatible temperature mappings / Correspondances température
 TEMP_COMPAT: dict[str, set[str]] = {
     "SEC": {"SEC", "BI_TEMP", "TRI_TEMP"},
@@ -304,6 +312,10 @@ class AideDecisionService:
                 dist_cache, dur_cache, contracts, fuel_price, km_tax_cache
             )
 
+        # ── Calculer les multiplicateurs d'optimisation / Compute optimization multipliers ──
+        mults = _compute_optimization_multipliers(request.optimization_priorities)
+        fixed_cost_mult = max(mults.get("fill_rate", 1.0), mults.get("num_tours", 1.0))
+
         # ── Construire l'entrée OR-Tools ──
 
         # Index mapping : node 0 = depot, node 1..N = PDVs
@@ -378,7 +390,7 @@ class AideDecisionService:
                 vehicles.append(VehicleSlot(
                     contract_idx=0,
                     capacity_eqp=DEFAULT_CAPACITY_EQP,
-                    fixed_cost_cents=10000,
+                    fixed_cost_cents=int(10000 * fixed_cost_mult),
                     cost_per_km_cents=100,
                     compatible_nodes=set(range(1, num_nodes)),
                 ))
@@ -411,7 +423,7 @@ class AideDecisionService:
                 vehicles.append(VehicleSlot(
                     contract_idx=c_idx,
                     capacity_eqp=cap,
-                    fixed_cost_cents=fixed_cents,
+                    fixed_cost_cents=int(fixed_cents * fixed_cost_mult),
                     cost_per_km_cents=km_cents,
                     compatible_nodes=compatible,
                 ))
@@ -450,6 +462,9 @@ class AideDecisionService:
             vehicles=vehicles,
             km_tax_matrix=km_tax_mat,
             time_limit_seconds=request.time_limit_seconds,
+            late_penalty_per_min=int(500 * mults.get("punctuality", 1.0)),
+            drop_penalty=int(1_000_000 * mults.get("num_tours", 1.0)),
+            cost_multiplier=mults.get("cost", 1.0),
         )
 
         # ── Résoudre / Solve ──

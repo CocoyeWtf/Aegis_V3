@@ -3,7 +3,10 @@ Schémas Aide à la Décision / Decision Support schemas.
 Simulation pure — aucun impact sur les données.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
+
+_VALID_PRIORITIES = {"cost", "punctuality", "fill_rate", "num_tours"}
+_DEFAULT_PRIORITIES = ["cost", "punctuality", "fill_rate", "num_tours"]
 
 
 class AideDecisionRequest(BaseModel):
@@ -13,6 +16,15 @@ class AideDecisionRequest(BaseModel):
     temperature_class: str      # SEC | FRAIS | GEL
     level: int = 1              # 1 = heuristique, 2 = OR-Tools
     time_limit_seconds: int = 30  # limite de recherche OR-Tools (level 2)
+    optimization_priorities: list[str] = _DEFAULT_PRIORITIES.copy()
+
+    @model_validator(mode="after")
+    def _validate_priorities(self):
+        """Valider les 4 clés uniques, sinon fallback default / Validate 4 unique keys."""
+        p = self.optimization_priorities
+        if set(p) != _VALID_PRIORITIES or len(p) != 4:
+            self.optimization_priorities = _DEFAULT_PRIORITIES.copy()
+        return self
 
 
 class SuggestedStop(BaseModel):

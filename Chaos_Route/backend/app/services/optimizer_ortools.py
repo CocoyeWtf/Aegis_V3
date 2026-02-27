@@ -39,6 +39,9 @@ class ORToolsInput:
     vehicles: list[VehicleSlot]
     km_tax_matrix: list[list[int]] = field(default_factory=list)  # centimes, forfait par arc
     time_limit_seconds: int = 30
+    late_penalty_per_min: int = 500       # pénalité retard par minute / late penalty per minute
+    drop_penalty: int = 1_000_000         # pénalité pour dropper un PDV / drop penalty per PDV
+    cost_multiplier: float = 1.0          # multiplicateur coût d'arc / arc cost multiplier
 
 
 @dataclass
@@ -81,7 +84,7 @@ def solve_cvrptw(data: ORToolsInput) -> tuple[list[RawTour], list[int]]:
             fuel = (_cpm * dist_m) // 1000
             # taxe km forfaitaire par arc / flat km tax per arc
             tax = data.km_tax_matrix[from_node][to_node] if _has_tax else 0
-            return fuel + tax
+            return int((fuel + tax) * data.cost_multiplier)
 
         cb_idx = routing.RegisterTransitCallback(_cost_cb)
         cost_callback_indices.append(cb_idx)
@@ -127,7 +130,6 @@ def solve_cvrptw(data: ORToolsInput) -> tuple[list[RawTour], list[int]]:
     # 6. Time windows par nœud — souples / Soft time windows per node
     # Pénalité par minute de retard (soft upper bound) plutôt que hard constraint
     # Permet de placer les PDV même avec un léger retard, comme le fait le Niveau 1
-    LATE_PENALTY_PER_MIN = 500  # centimes/min de retard
     for node in range(num_nodes):
         index = manager.NodeToIndex(node)
         tw_start, tw_end = data.time_windows[node]
@@ -138,7 +140,7 @@ def solve_cvrptw(data: ORToolsInput) -> tuple[list[RawTour], list[int]]:
             # PDV : hard start, soft end (pénalité si retard)
             time_dimension.CumulVar(index).SetRange(tw_start, 600)
             time_dimension.SetCumulVarSoftUpperBound(
-                index, tw_end, LATE_PENALTY_PER_MIN
+                index, tw_end, data.late_penalty_per_min
             )
 
     # Contrainte sur le départ/retour du dépôt / Depot start/end constraint
@@ -159,10 +161,9 @@ def solve_cvrptw(data: ORToolsInput) -> tuple[list[RawTour], list[int]]:
             routing.VehicleVar(index).RemoveValues(incompatible_vehicles)
 
     # 8. Disjunctions — permet de dropper des PDV impossibles / Allow dropping
-    penalty = 1_000_000
     for node in range(1, num_nodes):
         index = manager.NodeToIndex(node)
-        routing.AddDisjunction([index], penalty)
+        routing.AddDisjunction([index], data.drop_penalty)
 
     # 9. Paramètres de recherche / Search parameters
     search_params = pywrapcp.DefaultRoutingSearchParameters()
