@@ -19,6 +19,7 @@ WORKDIR /app
 # Dépendances système / System dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Dépendances Python / Python dependencies

@@ -1,4 +1,19 @@
 services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cmro
+      POSTGRES_USER: cmro
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cmro -d cmro"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -21,7 +36,11 @@ services:
       - ./apk:/app/apk
     env_file: .env.production
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   caddy_data:
   caddy_config:
+  pgdata:
