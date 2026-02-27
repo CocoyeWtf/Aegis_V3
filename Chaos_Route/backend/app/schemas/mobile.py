@@ -24,6 +24,9 @@ class MobileDeviceRead(BaseModel):
     base_id: int | None = None
     is_active: bool
     registered_at: str | None = None
+    app_version: str | None = None
+    os_version: str | None = None
+    last_seen_at: str | None = None
 
 class DeviceRegistration(BaseModel):
     """Enregistrement mobile via QR / Mobile registration via QR code."""
@@ -117,6 +120,15 @@ class SupportScanRead(BaseModel):
     expected_pdv_code: str | None = None   # PDV attendu selon manifeste / Expected PDV from manifest
     latitude: float | None = None
     longitude: float | None = None
+
+
+# ─── Manifest Check ───
+
+class ManifestCheckResponse(BaseModel):
+    """Verification manifeste avant cloture / Manifest check before closure."""
+    total_expected: int = 0
+    scanned: int = 0
+    missing_barcodes: list[str] = []
 
 
 # ─── Pickup Summary ───

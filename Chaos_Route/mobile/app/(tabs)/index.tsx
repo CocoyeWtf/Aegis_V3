@@ -4,16 +4,17 @@
    - Scanner QR : optionnel, accessible via bouton
 */
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import {
   View, FlatList, Text, TouchableOpacity,
-  StyleSheet, RefreshControl, Alert, ActivityIndicator,
+  StyleSheet, RefreshControl, Alert, ActivityIndicator, Vibration,
 } from 'react-native'
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import { useRouter, useFocusEffect } from 'expo-router'
 import api from '../../services/api'
 import { TourCard } from '../../components/TourCard'
 import { COLORS } from '../../constants/config'
+import { TorchToggleButton } from '../../components/TorchToggleButton'
 import type { DriverTour, AvailableTour } from '../../types'
 
 export default function TourListScreen() {
@@ -24,6 +25,7 @@ export default function TourListScreen() {
   const [assigning, setAssigning] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [torchOn, setTorchOn] = useState(false)
   const [permission, requestPermission] = useCameraPermissions()
   const scannedRef = useRef(false)
   const date = new Date().toISOString().slice(0, 10)
@@ -34,6 +36,7 @@ export default function TourListScreen() {
     try {
       const { data } = await api.get<DriverTour[]>('/driver/my-tours', { params: { date } })
       setTours(data)
+      prevTourIdsRef.current = data.map((t) => t.id).sort().join(',')
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
         || (e as { message?: string })?.message || 'Erreur chargement tours'
@@ -60,6 +63,31 @@ export default function TourListScreen() {
       loadAvailable()
     }, [loadTours, loadAvailable])
   )
+
+  // Polling 30s quand aucun tour actif — detecter affectation distante / Poll when no active tour
+  const prevTourIdsRef = useRef<string>('')
+  useEffect(() => {
+    if (tours.some((t) => t.status === 'IN_PROGRESS' || t.status === 'VALIDATED')) return
+    const interval = setInterval(async () => {
+      try {
+        const { data } = await api.get<DriverTour[]>('/driver/my-tours', { params: { date } })
+        const newIds = data.map((t) => t.id).sort().join(',')
+        if (newIds && newIds !== prevTourIdsRef.current && prevTourIdsRef.current !== '') {
+          // Nouveau tour detecte / New tour detected
+          const newTour = data.find((t) => !prevTourIdsRef.current.includes(String(t.id)))
+          Vibration.vibrate([0, 200, 100, 200])
+          Alert.alert('Nouveau tour assigne', newTour ? `${newTour.code} — ${newTour.stops.length} arrets` : 'Un tour a ete assigne')
+          setTours(data)
+          loadAvailable()
+        }
+        prevTourIdsRef.current = newIds || prevTourIdsRef.current
+        if (!prevTourIdsRef.current) {
+          prevTourIdsRef.current = data.map((t) => t.id).sort().join(',')
+        }
+      } catch {}
+    }, 30_000)
+    return () => clearInterval(interval)
+  }, [tours, date, loadAvailable])
 
   /* Affecter un tour (depuis liste ou QR) / Assign tour (from list or QR) */
   const doAssign = useCallback(async (tourId: number) => {
@@ -94,7 +122,7 @@ export default function TourListScreen() {
     if (!match) {
       Alert.alert('QR invalide', 'Format attendu: TOUR:xxx', [
         { text: 'Re-scanner', onPress: () => { scannedRef.current = false } },
-        { text: 'Fermer', onPress: () => { setShowScanner(false); scannedRef.current = false } },
+        { text: 'Fermer', onPress: () => { setShowScanner(false); scannedRef.current = false; setTorchOn(false) } },
       ])
       return
     }
@@ -123,7 +151,7 @@ export default function TourListScreen() {
           <TouchableOpacity onPress={requestPermission} style={styles.primaryBtn}>
             <Text style={styles.primaryBtnText}>Autoriser la camera</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => { setShowScanner(false); scannedRef.current = false }} style={{ marginTop: 16 }}>
+          <TouchableOpacity onPress={() => { setShowScanner(false); scannedRef.current = false; setTorchOn(false) }} style={{ marginTop: 16 }}>
             <Text style={styles.linkText}>Retour</Text>
           </TouchableOpacity>
         </View>
@@ -142,10 +170,12 @@ export default function TourListScreen() {
             <CameraView
               style={styles.camera}
               facing="back"
+              enableTorch={torchOn}
               barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
               onBarcodeScanned={handleQrScanned}
             />
           )}
+          <TorchToggleButton enabled={torchOn} onToggle={() => setTorchOn((v) => !v)} />
           <View style={styles.cameraOverlay}>
             <View style={styles.qrFrame} />
             <Text style={styles.scanHint}>
@@ -154,7 +184,7 @@ export default function TourListScreen() {
           </View>
         </View>
         <TouchableOpacity
-          onPress={() => { setShowScanner(false); scannedRef.current = false }}
+          onPress={() => { setShowScanner(false); scannedRef.current = false; setTorchOn(false) }}
           style={styles.closeScannerBtn}
         >
           <Text style={styles.closeScannerText}>Fermer le scanner</Text>

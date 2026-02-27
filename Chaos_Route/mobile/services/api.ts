@@ -6,6 +6,8 @@ Deux modes d'auth :
 */
 
 import axios from 'axios'
+import { Platform } from 'react-native'
+import Constants from 'expo-constants'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useDeviceStore } from '../stores/useDeviceStore'
 import { API_BASE_URL } from '../constants/config'
@@ -29,6 +31,10 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+
+  // Tracabilite — version app + OS / Traceability — app version + OS
+  config.headers['X-App-Version'] = Constants.expoConfig?.version || '1.0.0'
+  config.headers['X-OS-Version'] = `${Platform.OS} ${Platform.Version}`
 
   return config
 })

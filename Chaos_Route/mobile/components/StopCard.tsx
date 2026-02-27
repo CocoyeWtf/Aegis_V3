@@ -12,13 +12,15 @@ interface StopCardProps {
   onScanPickups: () => void
   onClose: () => void
   onRefusePickup?: () => void
+  onReopen?: () => void
 }
 
-export function StopCard({ stop, onScanPdv, onScanSupports, onScanPickups, onClose, onRefusePickup }: StopCardProps) {
+export function StopCard({ stop, onScanPdv, onScanSupports, onScanPickups, onClose, onRefusePickup, onReopen }: StopCardProps) {
   const status = stop.delivery_status || 'PENDING'
   const color = STATUS_COLORS[status] || COLORS.textMuted
   const isPending = status === 'PENDING'
   const isArrived = status === 'ARRIVED'
+  const isDelivered = status === 'DELIVERED'
 
   const openNavigation = () => {
     if (stop.pdv_latitude && stop.pdv_longitude) {
@@ -100,6 +102,12 @@ export function StopCard({ stop, onScanPdv, onScanSupports, onScanPickups, onClo
         {isArrived && (stop.pending_pickup_labels_count ?? 0) > 0 && onRefusePickup && (
           <TouchableOpacity onPress={onRefusePickup} style={styles.refuseBtn}>
             <Text style={styles.refuseBtnText}>Refuser</Text>
+          </TouchableOpacity>
+        )}
+
+        {isDelivered && onReopen && (
+          <TouchableOpacity onPress={onReopen} style={styles.reopenBtn}>
+            <Text style={styles.reopenBtnText}>Re-livrer</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -244,6 +252,19 @@ const styles = StyleSheet.create({
   refuseBtnText: {
     fontSize: 12,
     color: COLORS.white,
+    fontWeight: '700',
+  },
+  reopenBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#f97316',
+    backgroundColor: '#f97316' + '22',
+  },
+  reopenBtnText: {
+    fontSize: 12,
+    color: '#f97316',
     fontWeight: '700',
   },
 })

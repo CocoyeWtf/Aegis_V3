@@ -4,7 +4,7 @@ import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Fra
 import { useTranslation } from 'react-i18next'
 import { QRCodeSVG } from 'qrcode.react'
 import api from '../services/api'
-import type { Tour, BaseLogistics, Contract, PDV, Volume, ManifestLine, ManifestImportResult } from '../types'
+import type { Tour, BaseLogistics, Contract, PDV, Volume, ManifestLine, ManifestImportResult, MobileDevice } from '../types'
 import { TourWaybill } from '../components/tour/TourWaybill'
 import { DriverRouteSheet } from '../components/tour/DriverRouteSheet'
 import { TourGantt } from '../components/operations/TourGantt'
@@ -75,6 +75,11 @@ export default function Operations() {
   const [waybillTourId, setWaybillTourId] = useState<number | null>(null)
   const [routeSheetTourId, setRouteSheetTourId] = useState<number | null>(null)
   const [assignQrTour, setAssignQrTour] = useState<{ id: number; code: string; driver_name?: string } | null>(null)
+  const [assignMode, setAssignMode] = useState<'qr' | 'direct'>('qr')
+  const [assignDevices, setAssignDevices] = useState<MobileDevice[]>([])
+  const [assignDeviceId, setAssignDeviceId] = useState<number | ''>('')
+  const [assignDriverName, setAssignDriverName] = useState('')
+  const [assignBusy, setAssignBusy] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<string>('')
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -316,6 +321,40 @@ export default function Operations() {
     }
   }
 
+  /* Charger appareils quand modale ouvre / Load devices when modal opens */
+  useEffect(() => {
+    if (!assignQrTour) return
+    setAssignMode('qr')
+    setAssignDeviceId('')
+    setAssignDriverName(assignQrTour.driver_name || '')
+    if (baseId) {
+      api.get<MobileDevice[]>('/devices/', { params: { base_id: baseId } })
+        .then((r) => setAssignDevices(r.data.filter((d) => d.is_active && d.registered_at)))
+        .catch(() => setAssignDevices([]))
+    }
+  }, [assignQrTour, baseId])
+
+  /* Affecter tour directement a un telephone / Assign tour directly to a device */
+  const handleDirectAssign = async () => {
+    if (!assignQrTour || !assignDeviceId) return
+    setAssignBusy(true)
+    try {
+      await api.post('/assignments/', {
+        device_id: assignDeviceId,
+        tour_id: assignQrTour.id,
+        date,
+        driver_name: assignDriverName || null,
+      })
+      setAssignQrTour(null)
+      await loadTours()
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur'
+      alert(msg)
+    } finally {
+      setAssignBusy(false)
+    }
+  }
+
   const getTourEqp = (tour: Tour) => tour.total_eqp ?? tour.stops.reduce((s, st) => s + st.eqp_count, 0)
   const toggleExpand = (id: number) => setExpandedId((prev) => (prev === id ? null : id))
 
@@ -363,24 +402,95 @@ export default function Operations() {
       {waybillTourId && <TourWaybill tourId={waybillTourId} onClose={() => setWaybillTourId(null)} />}
       {routeSheetTourId && <DriverRouteSheet tourId={routeSheetTourId} onClose={() => setRouteSheetTourId(null)} />}
 
-      {/* Modale QR affectation telephone / Device assignment QR modal */}
+      {/* Modale affectation telephone (QR + direct) / Device assignment modal (QR + direct) */}
       {assignQrTour && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
-          <div className="rounded-2xl p-6 shadow-2xl text-center" style={{ backgroundColor: 'var(--bg-secondary)', minWidth: 320 }}>
-            <h3 className="text-lg font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Affecter au telephone</h3>
-            <p className="text-sm mb-1" style={{ color: 'var(--color-primary)' }}>{assignQrTour.code}</p>
-            {assignQrTour.driver_name ? (
-              <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Chauffeur: {assignQrTour.driver_name}</p>
-            ) : null}
-            <div className="flex justify-center mb-4 p-4 rounded-xl" style={{ backgroundColor: '#fff' }}>
-              <QRCodeSVG value={`TOUR:${assignQrTour.id}`} size={200} level="H" />
+          <div className="rounded-2xl p-6 shadow-2xl" style={{ backgroundColor: 'var(--bg-secondary)', minWidth: 360, maxWidth: 420 }}>
+            <h3 className="text-lg font-bold mb-1 text-center" style={{ color: 'var(--text-primary)' }}>Affecter au telephone</h3>
+            <p className="text-sm mb-3 text-center" style={{ color: 'var(--color-primary)' }}>{assignQrTour.code}</p>
+
+            {/* Onglets QR / Direct / Tabs QR / Direct */}
+            <div className="flex mb-4 rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border-color)' }}>
+              <button
+                onClick={() => setAssignMode('qr')}
+                className="flex-1 py-2 text-sm font-semibold transition-all"
+                style={{
+                  backgroundColor: assignMode === 'qr' ? 'var(--color-primary)' : 'var(--bg-tertiary)',
+                  color: assignMode === 'qr' ? '#fff' : 'var(--text-secondary)',
+                }}
+              >
+                QR Code
+              </button>
+              <button
+                onClick={() => setAssignMode('direct')}
+                className="flex-1 py-2 text-sm font-semibold transition-all"
+                style={{
+                  backgroundColor: assignMode === 'direct' ? 'var(--color-primary)' : 'var(--bg-tertiary)',
+                  color: assignMode === 'direct' ? '#fff' : 'var(--text-secondary)',
+                }}
+              >
+                Affectation directe
+              </button>
             </div>
-            <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
-              Scannez ce QR avec l'application chauffeur pour affecter le tour.
-            </p>
+
+            {assignMode === 'qr' ? (
+              <div className="text-center">
+                <div className="flex justify-center mb-4 p-4 rounded-xl" style={{ backgroundColor: '#fff' }}>
+                  <QRCodeSVG value={`TOUR:${assignQrTour.id}`} size={200} level="H" />
+                </div>
+                <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
+                  Scannez ce QR avec l'application chauffeur pour affecter le tour.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Dropdown telephone / Device dropdown */}
+                <div>
+                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>Telephone</label>
+                  <select
+                    value={assignDeviceId}
+                    onChange={(e) => setAssignDeviceId(e.target.value ? Number(e.target.value) : '')}
+                    className="w-full px-3 py-2 rounded-lg border text-sm"
+                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="">-- Choisir un telephone --</option>
+                    {assignDevices.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.friendly_name || `Tel #${d.id}`} {d.device_identifier ? `(${d.device_identifier.slice(0, 8)}...)` : '(non enregistre)'}
+                      </option>
+                    ))}
+                  </select>
+                  {assignDevices.length === 0 && (
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Aucun telephone enregistre pour cette base.</p>
+                  )}
+                </div>
+                {/* Nom chauffeur / Driver name */}
+                <div>
+                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>Nom du chauffeur</label>
+                  <input
+                    type="text"
+                    value={assignDriverName}
+                    onChange={(e) => setAssignDriverName(e.target.value)}
+                    placeholder="Nom du chauffeur"
+                    className="w-full px-3 py-2 rounded-lg border text-sm"
+                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  />
+                </div>
+                {/* Bouton affecter / Assign button */}
+                <button
+                  onClick={handleDirectAssign}
+                  disabled={!assignDeviceId || assignBusy}
+                  className="w-full py-2.5 rounded-lg text-sm font-bold transition-all hover:opacity-80 disabled:opacity-40"
+                  style={{ backgroundColor: 'var(--color-primary)', color: '#fff' }}
+                >
+                  {assignBusy ? 'Affectation...' : 'Affecter'}
+                </button>
+              </div>
+            )}
+
             <button
               onClick={() => setAssignQrTour(null)}
-              className="px-6 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-80"
+              className="w-full mt-3 px-6 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-80"
               style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
             >
               Fermer

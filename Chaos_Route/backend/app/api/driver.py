@@ -33,6 +33,7 @@ from app.schemas.mobile import (
     DriverTourRead,
     DriverTourStopRead,
     GPSBatchCreate,
+    ManifestCheckResponse,
     PickupRefusalCreate,
     PickupSummaryItem,
     ReturnToBaseCreate,
@@ -339,6 +340,49 @@ async def get_driver_tour(
     return await _build_tour_read(tour, db)
 
 
+@router.post("/switch-driver")
+async def switch_driver(
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Changer le nom du chauffeur sur l'assignment actif / Switch driver name on active assignment."""
+    new_name = data.get("driver_name", "").strip()
+    if not new_name:
+        raise HTTPException(status_code=422, detail="Nom du chauffeur requis")
+
+    # Trouver l'assignment actif du jour / Find today's active assignment
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    result = await db.execute(
+        select(DeviceAssignment)
+        .join(Tour, Tour.id == DeviceAssignment.tour_id)
+        .where(
+            DeviceAssignment.device_id == device.id,
+            or_(Tour.delivery_date == today, Tour.date == today),
+            DeviceAssignment.returned_at.is_(None),
+        )
+        .order_by(DeviceAssignment.assigned_at.desc())
+        .limit(1)
+    )
+    assignment = result.scalar_one_or_none()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Aucun tour actif aujourd'hui")
+
+    old_name = assignment.driver_name
+    assignment.driver_name = new_name
+
+    db.add(AuditLog(
+        entity_type="device_assignment", entity_id=assignment.id, action="SWITCH_DRIVER",
+        changes=f'{{"old_driver":"{old_name or ""}","new_driver":"{new_name}","device_id":{device.id}}}',
+        user=f"device:{device.id}",
+        timestamp=_now_iso(),
+    ))
+    await db.flush()
+
+    return {"status": "ok", "old_driver": old_name, "new_driver": new_name}
+
+
 @router.post("/gps")
 @limiter.limit(settings.RATE_LIMIT_GPS)
 async def submit_gps_batch(
@@ -528,6 +572,39 @@ async def close_stop(
             "message": alert.message,
         })
 
+    # Verifier supports manquants au manifeste / Check missing supports from manifest
+    pdv = await db.get(PDV, stop.pdv_id)
+    if pdv:
+        manifest_result = await db.execute(
+            select(TourManifestLine).where(
+                TourManifestLine.tour_id == tour_id,
+                TourManifestLine.pdv_code == pdv.code,
+                TourManifestLine.scanned == False,
+            )
+        )
+        missing_lines = manifest_result.scalars().all()
+        if missing_lines:
+            missing_barcodes = [l.support_number for l in missing_lines]
+            missing_alert = DeliveryAlert(
+                tour_id=tour_id,
+                tour_stop_id=stop_id,
+                alert_type=AlertType.MISSING_SUPPORTS,
+                severity=AlertSeverity.WARNING,
+                message=f"{len(missing_barcodes)} support(s) non scanné(s) : {', '.join(missing_barcodes[:10])}",
+                created_at=_now_iso(),
+                device_id=device.id,
+            )
+            db.add(missing_alert)
+            stop.missing_supports_count = len(missing_barcodes)
+
+            await manager.broadcast({
+                "type": "alert",
+                "alert_type": "MISSING_SUPPORTS",
+                "tour_id": tour_id,
+                "stop_id": stop_id,
+                "message": missing_alert.message,
+            })
+
     event = StopEvent(
         tour_stop_id=stop_id,
         event_type=StopEventType.CLOSURE,
@@ -557,6 +634,77 @@ async def close_stop(
     })
 
     return {"status": "ok", "delivery_status": "DELIVERED"}
+
+
+@router.post("/tour/{tour_id}/stops/{stop_id}/reopen")
+async def reopen_stop(
+    tour_id: int,
+    stop_id: int,
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(require_device_tour_access),
+):
+    """Reouvrir un stop DELIVERED pour re-livraison / Reopen a DELIVERED stop for re-delivery."""
+    stop = await db.get(TourStop, stop_id)
+    if not stop or stop.tour_id != tour_id:
+        raise HTTPException(status_code=404, detail="Stop not found")
+
+    if stop.delivery_status != "DELIVERED":
+        raise HTTPException(status_code=422, detail="Le stop n'est pas en statut DELIVERED")
+
+    timestamp = data.get("timestamp", _now_iso())
+
+    # Reouvrir le stop / Reopen the stop
+    stop.delivery_status = "ARRIVED"
+    stop.actual_departure_time = None
+    stop.forced_closure = False
+
+    # Creer evenement REOPEN / Create REOPEN event
+    event = StopEvent(
+        tour_stop_id=stop_id,
+        event_type=StopEventType.REOPEN,
+        timestamp=timestamp,
+        notes=data.get("reason", "Re-livraison"),
+        device_id=device.id,
+    )
+    db.add(event)
+
+    # Alerte STOP_REOPENED / STOP_REOPENED alert
+    alert = DeliveryAlert(
+        tour_id=tour_id,
+        tour_stop_id=stop_id,
+        alert_type=AlertType.STOP_REOPENED,
+        severity=AlertSeverity.INFO,
+        message=f"Stop rouvert pour re-livraison",
+        created_at=timestamp,
+        device_id=device.id,
+    )
+    db.add(alert)
+
+    # Remettre le tour en IN_PROGRESS si RETURNING / Set tour back to IN_PROGRESS if RETURNING
+    tour = await db.get(Tour, tour_id)
+    if tour and tour.status == TourStatus.RETURNING:
+        tour.status = TourStatus.IN_PROGRESS
+        tour.actual_return_time = None
+
+    db.add(AuditLog(
+        entity_type="tour_stop", entity_id=stop_id, action="REOPEN",
+        changes=f'{{"tour_id":{tour_id},"device_id":{device.id},"reason":"{data.get("reason", "Re-livraison")}"}}',
+        user=f"device:{device.id}",
+        timestamp=timestamp,
+    ))
+
+    await db.flush()
+
+    await manager.broadcast({
+        "type": "stop_event",
+        "event": "REOPEN",
+        "tour_id": tour_id,
+        "stop_id": stop_id,
+        "timestamp": timestamp,
+    })
+
+    return {"status": "ok", "delivery_status": "ARRIVED"}
 
 
 @router.post("/tour/{tour_id}/return")
@@ -739,6 +887,44 @@ async def list_stop_supports(
     return enriched
 
 
+@router.get("/tour/{tour_id}/stops/{stop_id}/manifest-check", response_model=ManifestCheckResponse)
+async def manifest_check(
+    tour_id: int,
+    stop_id: int,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(require_device_tour_access),
+):
+    """Verifier le manifeste avant cloture / Check manifest before closure."""
+    stop = await db.get(TourStop, stop_id)
+    if not stop or stop.tour_id != tour_id:
+        raise HTTPException(status_code=404, detail="Stop not found")
+
+    pdv = await db.get(PDV, stop.pdv_id)
+    if not pdv:
+        return ManifestCheckResponse()
+
+    # Lignes manifeste pour ce PDV dans ce tour / Manifest lines for this PDV in this tour
+    manifest_result = await db.execute(
+        select(TourManifestLine).where(
+            TourManifestLine.tour_id == tour_id,
+            TourManifestLine.pdv_code == pdv.code,
+        )
+    )
+    lines = manifest_result.scalars().all()
+    if not lines:
+        return ManifestCheckResponse()
+
+    total = len(lines)
+    scanned = sum(1 for l in lines if l.scanned)
+    missing = [l.support_number for l in lines if not l.scanned]
+
+    return ManifestCheckResponse(
+        total_expected=total,
+        scanned=scanned,
+        missing_barcodes=missing,
+    )
+
+
 @router.get("/tour/{tour_id}/pickups", response_model=list[PickupLabelRead])
 async def list_tour_pickups(
     tour_id: int,
@@ -880,3 +1066,20 @@ async def refuse_pickup(
     })
 
     return {"status": "ok", "refused": len(labels)}
+
+
+# ─── Mode kiosque / Kiosk mode ───
+
+# Mot de passe kiosque global (peut etre rendu configurable par appareil plus tard)
+# Global kiosk password (can be made per-device later)
+KIOSK_PASSWORD = "cmro2026"
+
+
+@router.post("/verify-kiosk-password")
+async def verify_kiosk_password(
+    data: dict,
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Verifier mot de passe kiosque / Verify kiosk password."""
+    password = data.get("password", "")
+    return {"valid": password == KIOSK_PASSWORD}

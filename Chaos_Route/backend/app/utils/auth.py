@@ -38,6 +38,7 @@ RESOURCES = [
     "aide-decision",
     "surcharges",
     "surcharge-types",
+    "declarations",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

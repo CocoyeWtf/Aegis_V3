@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.config import settings
 from app.rate_limit import limiter
@@ -11,7 +11,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.audit import AuditLog
+from app.models.device_assignment import DeviceAssignment
 from app.models.mobile_device import MobileDevice
+from app.models.tour import Tour, TourStatus
 from app.models.user import User
 from app.schemas.mobile import MobileDeviceCreate, MobileDeviceRead, MobileDeviceUpdate, DeviceRegistration
 from app.api.deps import require_permission
@@ -87,15 +90,81 @@ async def update_device(
 @router.delete("/{device_id}", status_code=204)
 async def delete_device(
     device_id: int,
+    hard: bool = Query(False, description="Suppression definitive si True"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("devices", "delete")),
 ):
-    """Desactiver un appareil (soft delete) / Deactivate a device."""
+    """Desactiver ou supprimer un appareil / Deactivate or delete a device."""
     device = await db.get(MobileDevice, device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
-    device.is_active = False
+
+    # Verifier qu'aucun tour n'est en cours / Check no active tour
+    active_assignment = (await db.execute(
+        select(DeviceAssignment)
+        .join(Tour, Tour.id == DeviceAssignment.tour_id)
+        .where(
+            DeviceAssignment.device_id == device_id,
+            Tour.status.in_([TourStatus.IN_PROGRESS, TourStatus.RETURNING]),
+        )
+        .limit(1)
+    )).scalar_one_or_none()
+
+    if active_assignment and hard:
+        raise HTTPException(status_code=422, detail="Impossible de supprimer : un tour est en cours sur cet appareil")
+
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    if hard:
+        # Supprimer les assignments lies / Delete linked assignments
+        assignments = (await db.execute(
+            select(DeviceAssignment).where(DeviceAssignment.device_id == device_id)
+        )).scalars().all()
+        for a in assignments:
+            await db.delete(a)
+
+        db.add(AuditLog(
+            entity_type="device", entity_id=device_id, action="HARD_DELETE",
+            changes=f'{{"friendly_name":"{device.friendly_name or ""}","registration_code":"{device.registration_code}"}}',
+            user=user.username, timestamp=now,
+        ))
+        await db.delete(device)
+    else:
+        device.is_active = False
+        db.add(AuditLog(
+            entity_type="device", entity_id=device_id, action="SOFT_DELETE",
+            changes=f'{{"friendly_name":"{device.friendly_name or ""}"}}',
+            user=user.username, timestamp=now,
+        ))
+
     await db.flush()
+
+
+@router.post("/{device_id}/reset-identity", response_model=MobileDeviceRead)
+async def reset_device_identity(
+    device_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("devices", "update")),
+):
+    """Reinitialiser l'identite physique d'un appareil / Reset device physical identity.
+    Permet a un nouveau telephone de s'enregistrer avec ce registration_code.
+    """
+    device = await db.get(MobileDevice, device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    db.add(AuditLog(
+        entity_type="device", entity_id=device_id, action="RESET_IDENTITY",
+        changes=f'{{"old_identifier":"{device.device_identifier or ""}"}}',
+        user=user.username, timestamp=now,
+    ))
+
+    device.device_identifier = None
+    device.registered_at = None
+    device.is_active = True
+    await db.flush()
+    return device
 
 
 @router.post("/register", response_model=MobileDeviceRead)

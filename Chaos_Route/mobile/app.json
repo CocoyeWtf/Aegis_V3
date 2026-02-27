@@ -2,7 +2,7 @@
   "expo": {
     "name": "CMRO Driver",
     "slug": "cmro-driver",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -40,7 +40,8 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.REQUEST_INSTALL_PACKAGES"
       ]
     },
     "plugins": [
@@ -65,6 +66,13 @@
         {
           "cameraPermission": "Scanner les QR codes des points de vente"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Joindre des photos aux declarations",
+          "cameraPermission": "Prendre des photos pour les declarations"
+        }
       ]
     ],
     "extra": {
@@ -78,7 +86,7 @@
     },
     "updates": {
       "url": "https://u.expo.dev/507e74dc-b8be-43cb-8ed9-22e4fa405a28",
-      "checkAutomatically": "ON_LAUNCH",
+      "checkAutomatically": "NEVER",
       "fallbackToCacheTimeout": 0
     },
     "owner": "cocoye"

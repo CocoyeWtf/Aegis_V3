@@ -34,6 +34,7 @@ from app.api import (
     kpi,
     surcharge_types,
     surcharges,
+    declarations,
 )
 
 api_router = APIRouter(prefix="/api")
@@ -68,3 +69,4 @@ api_router.include_router(pickup_requests.router, prefix="/pickup-requests", tag
 api_router.include_router(kpi.router, prefix="/kpi", tags=["KPI"])
 api_router.include_router(surcharge_types.router, prefix="/surcharge-types", tags=["surcharge-types"])
 api_router.include_router(surcharges.router, prefix="/surcharges", tags=["surcharges"])
+api_router.include_router(declarations.router, prefix="/declarations", tags=["declarations"])

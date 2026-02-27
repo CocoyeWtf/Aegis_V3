@@ -17,6 +17,9 @@ class MobileDevice(Base):
     base_id: Mapped[int | None] = mapped_column(ForeignKey("bases_logistics.id"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     registered_at: Mapped[str | None] = mapped_column(String(25))  # ISO 8601
+    app_version: Mapped[str | None] = mapped_column(String(20))
+    os_version: Mapped[str | None] = mapped_column(String(50))
+    last_seen_at: Mapped[str | None] = mapped_column(String(25))  # ISO 8601
 
     # Relations
     base: Mapped["BaseLogistics | None"] = relationship()

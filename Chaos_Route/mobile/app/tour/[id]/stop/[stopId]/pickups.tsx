@@ -12,6 +12,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import api from '../../../../../services/api'
 import { COLORS } from '../../../../../constants/config'
+import { TorchToggleButton } from '../../../../../components/TorchToggleButton'
 import type { PickupLabelMobile } from '../../../../../types'
 
 export default function PickupScanScreen() {
@@ -25,6 +26,7 @@ export default function PickupScanScreen() {
   const [scannedLabels, setScannedLabels] = useState<PickupLabelMobile[]>([])
   const [scanning, setScanning] = useState(true)
   const [lastScanned, setLastScanned] = useState('')
+  const [torchOn, setTorchOn] = useState(false)
   const lastScanRef = useRef<string>('')
   const lastScanTimeRef = useRef(0)
 
@@ -96,11 +98,13 @@ export default function PickupScanScreen() {
           <CameraView
             style={styles.camera}
             facing="back"
+            enableTorch={torchOn}
             barcodeScannerSettings={{
               barcodeTypes: ['code128', 'code39', 'ean13', 'qr'],
             }}
             onBarcodeScanned={handleBarCodeScanned}
           />
+          <TorchToggleButton enabled={torchOn} onToggle={() => setTorchOn((v) => !v)} />
           <View style={styles.cameraOverlay}>
             <View style={styles.scanLine} />
             {lastScanned ? (

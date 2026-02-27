@@ -38,6 +38,7 @@ const PdvDeliverySchedule = lazy(() => import('./pages/PdvDeliverySchedule'))
 const SurchargeTypes = lazy(() => import('./pages/SurchargeTypes'))
 const AideDecision = lazy(() => import('./pages/AideDecision'))
 const DetachedMap = lazy(() => import('./pages/DetachedMap'))
+const PhoneSetupGuide = lazy(() => import('./pages/PhoneSetupGuide'))
 
 function Loading() {
   return (
@@ -84,6 +85,7 @@ export default function App() {
             <Route path="/surcharge-types" element={<SurchargeTypes />} />
             <Route path="/aide-decision" element={<AideDecision />} />
             <Route path="/pdv-deliveries" element={<PdvDeliverySchedule />} />
+            <Route path="/phone-setup" element={<PhoneSetupGuide />} />
             <Route path="/help" element={<Help />} />
           </Route>
         </Route>

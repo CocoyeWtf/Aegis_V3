@@ -7,12 +7,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.audit import AuditLog
 from app.models.device_assignment import DeviceAssignment
 from app.models.mobile_device import MobileDevice
 from app.models.tour import Tour
 from app.models.user import User
 from app.schemas.mobile import DeviceAssignmentCreate, DeviceAssignmentRead
 from app.api.deps import require_permission
+from app.api.ws_tracking import manager
 
 router = APIRouter()
 
@@ -48,7 +50,25 @@ async def create_assignment(
     tour.device_assignment_id = assignment.id
     if data.driver_name:
         tour.driver_name = data.driver_name
+
+    # Audit log
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    db.add(AuditLog(
+        entity_type="device_assignment", entity_id=assignment.id, action="CREATE",
+        changes=f'{{"device_id":{data.device_id},"tour_id":{data.tour_id},"driver_name":"{data.driver_name or ""}","tour_code":"{tour.code}"}}',
+        user=user.username, timestamp=now,
+    ))
+
     await db.flush()
+
+    # Broadcast WebSocket — le telephone recevra via polling
+    await manager.broadcast({
+        "type": "tour_assigned",
+        "device_id": data.device_id,
+        "tour_id": data.tour_id,
+        "tour_code": tour.code,
+        "driver_name": data.driver_name or "",
+    })
 
     return assignment
 

@@ -6,6 +6,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import api from '../../../../../services/api'
 import { COLORS } from '../../../../../constants/config'
+import { TorchToggleButton } from '../../../../../components/TorchToggleButton'
 
 export default function ScanPdvScreen() {
   const { id, stopId } = useLocalSearchParams<{ id: string; stopId: string }>()
@@ -13,6 +14,7 @@ export default function ScanPdvScreen() {
   const [permission, requestPermission] = useCameraPermissions()
   const [scanning, setScanning] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [torchOn, setTorchOn] = useState(false)
   const scannedRef = useRef(false)
 
   const tourId = Number(id)
@@ -72,11 +74,15 @@ export default function ScanPdvScreen() {
       <CameraView
         style={styles.camera}
         facing="back"
+        enableTorch={torchOn}
         barcodeScannerSettings={{
           barcodeTypes: ['qr'],
         }}
         onBarcodeScanned={scanning ? handleBarCodeScanned : undefined}
       />
+
+      {/* Torch toggle */}
+      <TorchToggleButton enabled={torchOn} onToggle={() => setTorchOn((v) => !v)} />
 
       {/* Overlay */}
       <View style={styles.overlay}>

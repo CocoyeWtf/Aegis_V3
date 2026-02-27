@@ -3,6 +3,8 @@ Dépendances d'authentification et d'autorisation / Authentication and authoriza
 Injectées dans les routes via Depends().
 """
 
+from datetime import datetime, timezone
+
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
@@ -61,11 +63,14 @@ def require_permission(resource: str, action: str):
 
 async def get_authenticated_device(
     x_device_id: str = Header(..., alias="X-Device-ID"),
+    x_app_version: str | None = Header(None, alias="X-App-Version"),
+    x_os_version: str | None = Header(None, alias="X-OS-Version"),
     db: AsyncSession = Depends(get_db),
 ) -> MobileDevice:
     """Authentifier un appareil mobile via son UUID / Authenticate a mobile device via its UUID.
 
     Le telephone envoie son device_identifier dans le header X-Device-ID.
+    Met a jour automatiquement app_version, os_version, last_seen_at.
     """
     if not x_device_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing X-Device-ID header")
@@ -79,6 +84,14 @@ async def get_authenticated_device(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unknown device")
     if not device.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Device deactivated")
+
+    # Auto-update tracabilite / Auto-update traceability fields
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    device.last_seen_at = now
+    if x_app_version:
+        device.app_version = x_app_version
+    if x_os_version:
+        device.os_version = x_os_version
 
     return device
 

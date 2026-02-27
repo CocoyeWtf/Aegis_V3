@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router'
 import axios from 'axios'
 import { useDeviceStore, getOrCreateDeviceUUID } from '../stores/useDeviceStore'
 import { COLORS, API_BASE_URL } from '../constants/config'
+import { TorchToggleButton } from '../components/TorchToggleButton'
 
 export default function RegisterScreen() {
   const router = useRouter()
@@ -19,6 +20,7 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false)
   const [serverUrl, setServerUrl] = useState(API_BASE_URL)
   const [showServer, setShowServer] = useState(false)
+  const [torchOn, setTorchOn] = useState(false)
   const [permission, requestPermission] = useCameraPermissions()
   const scannedRef = useRef(false)
 
@@ -112,9 +114,11 @@ export default function RegisterScreen() {
         <CameraView
           style={styles.camera}
           facing="back"
+          enableTorch={torchOn}
           barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
           onBarcodeScanned={loading ? undefined : handleBarCodeScanned}
         />
+        <TorchToggleButton enabled={torchOn} onToggle={() => setTorchOn((v) => !v)} />
         <View style={styles.overlay}>
           <View style={styles.scanFrame} />
           <Text style={styles.hint}>

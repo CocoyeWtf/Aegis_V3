@@ -13,6 +13,7 @@ import * as Location from 'expo-location'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import api from '../../../../../services/api'
 import { COLORS } from '../../../../../constants/config'
+import { TorchToggleButton } from '../../../../../components/TorchToggleButton'
 import type { SupportScan } from '../../../../../types'
 
 export default function SupportScanScreen() {
@@ -25,15 +26,17 @@ export default function SupportScanScreen() {
 
   const [scans, setScans] = useState<SupportScan[]>([])
   const [scanning, setScanning] = useState(true)
+  const [isReady, setIsReady] = useState(false)
   const [finText, setFinText] = useState('')
   const [closing, setClosing] = useState(false)
   const [showClose, setShowClose] = useState(false)
   const [lastScanned, setLastScanned] = useState('')
   const [scanCount, setScanCount] = useState(0)
+  const [torchOn, setTorchOn] = useState(false)
   const lastScanRef = useRef<string>('')
   const lastScanTimeRef = useRef(0)
 
-  /* Charger les scans existants / Load existing scans */
+  /* Charger les scans existants avant d'activer le scanner / Load existing scans before enabling scanner */
   useEffect(() => {
     api.get<SupportScan[]>(`/driver/tour/${tourId}/stops/${tourStopId}/supports`)
       .then(({ data }) => {
@@ -43,11 +46,12 @@ export default function SupportScanScreen() {
         }
       })
       .catch(() => {})
+      .finally(() => setIsReady(true))
   }, [tourId, tourStopId])
 
   /* Scanner un code barre support / Scan a support barcode */
   const handleBarCodeScanned = useCallback(async ({ data, type }: { data: string; type: string }) => {
-    if (!scanning) return
+    if (!scanning || !isReady) return
 
     // Anti-doublon : ignorer si meme code dans les 3 dernieres secondes
     const now = Date.now()
@@ -88,7 +92,79 @@ export default function SupportScanScreen() {
       console.warn('Support scan API error:', err?.response?.data?.detail || err.message)
       setScans((prev) => [{ id: Date.now(), tour_stop_id: tourStopId, barcode: data, timestamp: new Date().toISOString(), expected_at_stop: true }, ...prev])
     })
-  }, [scanning, tourId, tourStopId])
+  }, [scanning, isReady, tourId, tourStopId])
+
+  /* Verifier manifeste + reprises en attente puis proposer cloture / Check manifest + pickups before offering closure */
+  const checkManifestAndPickups = async () => {
+    try {
+      // Verifier les supports manquants au manifeste / Check missing supports from manifest
+      const { data: manifest } = await api.get<{ total_expected: number; scanned: number; missing_barcodes: string[] }>(
+        `/driver/tour/${tourId}/stops/${tourStopId}/manifest-check`
+      )
+
+      if (manifest.total_expected > 0 && manifest.missing_barcodes.length > 0) {
+        const missingList = manifest.missing_barcodes.slice(0, 5).join(', ')
+        const extra = manifest.missing_barcodes.length > 5 ? ` (+${manifest.missing_barcodes.length - 5} autres)` : ''
+        Alert.alert(
+          `${manifest.scanned}/${manifest.total_expected} supports scannes`,
+          `${manifest.missing_barcodes.length} support(s) manquant(s) :\n${missingList}${extra}\n\nContinuer quand meme ?`,
+          [
+            { text: 'Reprendre le scan', onPress: () => { setScanning(true); setFinText('') } },
+            { text: 'Continuer', onPress: () => checkPickupsAndClose() },
+          ],
+        )
+        return
+      }
+    } catch {
+      // Si l'endpoint echoue, continuer (pas de manifeste ou erreur reseau)
+    }
+
+    await checkPickupsAndClose()
+  }
+
+  /* Verifier les reprises en attente puis proposer cloture / Check pending pickups before offering closure */
+  const checkPickupsAndClose = async () => {
+    try {
+      const { data: tourData } = await api.get<{ stops: { id: number; pending_pickup_labels_count?: number; pickup_summary?: { support_type_name: string; pending_labels: number; total_labels: number }[] }[] }>(`/driver/tour/${tourId}`)
+      const stopData = tourData.stops.find((s) => s.id === tourStopId)
+      const pendingCount = stopData?.pending_pickup_labels_count ?? 0
+
+      if (pendingCount > 0) {
+        const summaryLines = (stopData?.pickup_summary || [])
+          .filter((s) => s.pending_labels > 0)
+          .map((s) => `${s.support_type_name} : ${s.pending_labels}`)
+          .join('\n')
+        Alert.alert(
+          `${pendingCount} reprise(s) en attente`,
+          `Avant de cloturer, vous devez scanner ou refuser les reprises :\n${summaryLines}`,
+          [
+            { text: 'Scanner reprises', onPress: () => router.replace(`/tour/${tourId}/stop/${tourStopId}/pickups`) },
+            {
+              text: 'Refuser reprises',
+              style: 'destructive',
+              onPress: async () => {
+                try {
+                  await api.post(`/driver/tour/${tourId}/stops/${tourStopId}/refuse-pickup`, {
+                    reason: 'Refuse par le chauffeur',
+                    timestamp: new Date().toISOString(),
+                  })
+                  setShowClose(true)
+                } catch {
+                  Alert.alert('Erreur', 'Impossible de refuser les reprises')
+                }
+              },
+            },
+            { text: 'Ignorer et cloturer', style: 'cancel', onPress: () => setShowClose(true) },
+          ],
+        )
+      } else {
+        setShowClose(true)
+      }
+    } catch {
+      // En cas d'erreur réseau, laisser cloturer (le backend vérifiera)
+      setShowClose(true)
+    }
+  }
 
   /* Verifier le mot "fin" / Check for "fin" keyword */
   const handleFinSubmit = () => {
@@ -106,7 +182,7 @@ export default function SupportScanScreen() {
         'Aucun support n\'a ete scanne pour ce stop. Voulez-vous cloturer quand meme ?',
         [
           { text: 'Reprendre', onPress: () => { setScanning(true); setFinText('') } },
-          { text: 'Cloturer', onPress: () => setShowClose(true) },
+          { text: 'Cloturer', onPress: () => checkManifestAndPickups() },
         ],
       )
     } else {
@@ -116,7 +192,7 @@ export default function SupportScanScreen() {
       Alert.alert(
         'Scan termine',
         msg,
-        [{ text: 'OK', onPress: () => setShowClose(true) }],
+        [{ text: 'OK', onPress: () => checkManifestAndPickups() }],
       )
     }
   }
@@ -207,6 +283,7 @@ export default function SupportScanScreen() {
           <CameraView
             style={styles.camera}
             facing="back"
+            enableTorch={torchOn}
             barcodeScannerSettings={{
               barcodeTypes: [
                 'ean13', 'ean8', 'code128', 'code39', 'code93',
@@ -216,9 +293,12 @@ export default function SupportScanScreen() {
             }}
             onBarcodeScanned={handleBarCodeScanned}
           />
+          <TorchToggleButton enabled={torchOn} onToggle={() => setTorchOn((v) => !v)} />
           <View style={styles.cameraOverlay}>
             <View style={styles.scanLine} />
-            {lastScanned ? (
+            {!isReady ? (
+              <Text style={styles.scanHint}>Chargement...</Text>
+            ) : lastScanned ? (
               <Text style={styles.scanSuccess}>{lastScanned}</Text>
             ) : (
               <Text style={styles.scanHint}>Pointez un code barre</Text>

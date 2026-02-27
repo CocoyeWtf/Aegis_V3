@@ -33,6 +33,7 @@ from app.models.pickup_request import PickupRequest, PickupLabel, PickupType, Pi
 from app.models.tour_manifest_line import TourManifestLine
 from app.models.surcharge_type import SurchargeType
 from app.models.tour_surcharge import TourSurcharge, SurchargeStatus
+from app.models.driver_declaration import DriverDeclaration, DeclarationPhoto, DeclarationType
 
 __all__ = [
     "Country",
@@ -77,4 +78,7 @@ __all__ = [
     "SurchargeType",
     "TourSurcharge",
     "SurchargeStatus",
+    "DriverDeclaration",
+    "DeclarationPhoto",
+    "DeclarationType",
 ]

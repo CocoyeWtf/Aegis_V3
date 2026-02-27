@@ -159,6 +159,31 @@ export default function TourDetailScreen() {
     )
   }
 
+  const handleReopenStop = (stopId: number, pdvName: string) => {
+    Alert.alert(
+      'Re-livrer',
+      `Reouvrir le stop ${pdvName} pour re-livraison ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Re-livrer',
+          onPress: async () => {
+            try {
+              await api.post(`/driver/tour/${tourId}/stops/${stopId}/reopen`, {
+                timestamp: new Date().toISOString(),
+                reason: 'Support retrouve',
+              })
+              loadTour()
+            } catch (e: unknown) {
+              const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur'
+              Alert.alert('Erreur', msg)
+            }
+          },
+        },
+      ],
+    )
+  }
+
   const handleReturnBase = () => {
     Alert.alert(
       'Retour base',
@@ -246,6 +271,7 @@ export default function TourDetailScreen() {
             onScanPickups={() => router.push(`/tour/${tourId}/stop/${item.id}/pickups`)}
             onClose={() => handleCloseStop(item.id, item.pdv_name || item.pdv_code || '—')}
             onRefusePickup={() => handleRefusePickup(item.id, item.pdv_name || item.pdv_code || '—')}
+            onReopen={() => handleReopenStop(item.id, item.pdv_name || item.pdv_code || '—')}
           />
         )}
         contentContainerStyle={styles.list}
@@ -257,6 +283,16 @@ export default function TourDetailScreen() {
           ) : null
         }
       />
+
+      {/* Bouton flottant Declarer / Floating declare button */}
+      {tour.status !== 'COMPLETED' && (
+        <TouchableOpacity
+          onPress={() => router.push(`/declaration?tourId=${tourId}`)}
+          style={styles.declareFab}
+        >
+          <Text style={styles.declareFabText}>! Declarer</Text>
+        </TouchableOpacity>
+      )}
     </View>
   )
 }
@@ -366,6 +402,25 @@ const styles = StyleSheet.create({
   returnBtnText: {
     color: COLORS.white,
     fontSize: 16,
+    fontWeight: '700',
+  },
+  declareFab: {
+    position: 'absolute',
+    bottom: 20,
+    right: 16,
+    backgroundColor: COLORS.danger,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 24,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  declareFabText: {
+    color: COLORS.white,
+    fontSize: 13,
     fontWeight: '700',
   },
 })

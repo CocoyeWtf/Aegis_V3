@@ -87,6 +87,7 @@ const navGroups: NavGroup[] = [
       { path: '/admin/roles', label: 'nav.roles', icon: '🛡️', resource: 'roles' },
       { path: '/parameters', label: 'nav.parameters', icon: '⚙️', resource: 'parameters' },
       { path: '/audit', label: 'nav.auditLog', icon: '📜', resource: 'parameters', superadminOnly: true },
+      { path: '/phone-setup', label: 'Guide telephones', icon: '📱', resource: 'devices' },
     ],
   },
 ]

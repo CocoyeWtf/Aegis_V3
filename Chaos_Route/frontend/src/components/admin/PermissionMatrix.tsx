@@ -28,6 +28,7 @@ const RESOURCES = [
   'aide-decision',
   'surcharges',
   'surcharge-types',
+  'declarations',
 ]
 
 const ACTIONS = ['read', 'create', 'update', 'delete'] as const
@@ -69,6 +70,7 @@ const RESOURCE_I18N: Record<string, string> = {
   'aide-decision': 'Aide à la décision',
   'surcharges': 'Surcharges',
   'surcharge-types': 'Types de surcharge',
+  'declarations': 'Declarations chauffeur',
 }
 
 export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {

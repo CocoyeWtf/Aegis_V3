@@ -81,6 +81,32 @@ export interface AvailableTour {
   vehicle_code?: string
 }
 
+export type DeclarationType = 'ANOMALY' | 'BREAKAGE' | 'ACCIDENT' | 'VEHICLE_ISSUE' | 'CLIENT_ISSUE' | 'OTHER'
+
+export interface DriverDeclaration {
+  id: number
+  device_id: number
+  tour_id?: number | null
+  tour_stop_id?: number | null
+  declaration_type: DeclarationType
+  description?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  accuracy?: number | null
+  driver_name?: string | null
+  created_at: string
+  photos: DeclarationPhoto[]
+}
+
+export interface DeclarationPhoto {
+  id: number
+  declaration_id: number
+  filename: string
+  file_size?: number | null
+  mime_type?: string | null
+  uploaded_at: string
+}
+
 export interface TokenResponse {
   access_token: string
   refresh_token: string

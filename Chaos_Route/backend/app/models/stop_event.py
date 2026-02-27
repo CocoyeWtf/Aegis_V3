@@ -13,6 +13,7 @@ class StopEventType(str, enum.Enum):
     ARRIVAL = "ARRIVAL"
     DEPARTURE = "DEPARTURE"
     CLOSURE = "CLOSURE"
+    REOPEN = "REOPEN"
 
 
 class StopEvent(Base):

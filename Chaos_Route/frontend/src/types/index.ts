@@ -365,6 +365,9 @@ export interface MobileDevice {
   base_id?: number | null
   is_active: boolean
   registered_at?: string | null
+  app_version?: string | null
+  os_version?: string | null
+  last_seen_at?: string | null
 }
 
 export interface DeviceAssignment {
@@ -373,6 +376,7 @@ export interface DeviceAssignment {
   user_id: number
   tour_id: number
   date: string
+  driver_name?: string | null
   assigned_at?: string
   returned_at?: string
 }

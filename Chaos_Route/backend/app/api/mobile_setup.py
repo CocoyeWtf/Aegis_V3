@@ -16,6 +16,24 @@ router = APIRouter()
 # Dossier pour stocker l'APK / Directory for APK storage
 APK_DIR = Path(__file__).resolve().parent.parent.parent / "apk"
 
+# Version courante de l'app mobile / Current mobile app version
+# Mettre a jour a chaque build APK / Update on each APK build
+APP_VERSION = "1.1.0"
+APP_BUILD_NUMBER = 2
+
+
+@router.get("/app/version")
+async def get_app_version():
+    """Version courante de l'app + URL telechargement / Current app version + download URL."""
+    base_url = settings.PUBLIC_URL.rstrip("/")
+    apk_exists = (APK_DIR / "cmro-driver.apk").is_file()
+    return {
+        "version": APP_VERSION,
+        "build_number": APP_BUILD_NUMBER,
+        "download_url": f"{base_url}/app/download/cmro-driver.apk" if apk_exists else None,
+        "force_update": True,
+    }
+
 
 @router.get("/app/setup/{registration_code}", response_class=HTMLResponse)
 async def mobile_setup_page(registration_code: str, request: Request):
