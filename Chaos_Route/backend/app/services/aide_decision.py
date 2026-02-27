@@ -113,15 +113,25 @@ class AideDecisionService:
         if not contracts:
             warnings.append("Aucun contrat disponible — capacité par défaut (54 EQP)")
 
+        # --- 4b. Charger prix gasoil + cache taxe km / Load fuel price + km tax cache ---
+        fuel_price = await self._load_fuel_price(request.dispatch_date)
+        if fuel_price == 0.0:
+            warnings.append(
+                f"Aucun prix gasoil pour le {request.dispatch_date} — coût carburant à 0"
+            )
+        km_tax_cache = await self._load_km_tax_cache(base.id, pdv_ids)
+
         # --- 5. Branchement Niveau 1 / Niveau 2 ---
         if request.level == 2:
             tours, unassigned, level_warnings = self._build_tours_level2(
-                request, base, pdv_agg, pdv_ids, pdvs, dist_cache, dur_cache, contracts
+                request, base, pdv_agg, pdv_ids, pdvs, dist_cache, dur_cache,
+                contracts, fuel_price, km_tax_cache,
             )
             warnings.extend(level_warnings)
         else:
             tours, unassigned, level_warnings = self._build_tours_level1(
-                request, base, pdv_agg, pdv_ids, pdvs, dist_cache, dur_cache, contracts
+                request, base, pdv_agg, pdv_ids, pdvs, dist_cache, dur_cache,
+                contracts, fuel_price, km_tax_cache,
             )
             warnings.extend(level_warnings)
 
@@ -172,6 +182,8 @@ class AideDecisionService:
         dist_cache: dict,
         dur_cache: dict,
         contracts: list[Contract],
+        fuel_price: float,
+        km_tax_cache: dict[tuple, float],
     ) -> tuple[list[SuggestedTour], list[UnassignedPDV], list[str]]:
         """Construire les tours par nearest-neighbor / Build tours by nearest-neighbor."""
         warnings: list[str] = []
@@ -251,6 +263,7 @@ class AideDecisionService:
                 tour_number, sequenced, base, pdvs, pdv_agg,
                 dist_cache, dur_cache, contracts, request,
                 contract_tour_count, contract_duration, max_capacity,
+                fuel_price, km_tax_cache,
             )
             tours.append(tour)
 
@@ -270,6 +283,8 @@ class AideDecisionService:
         dist_cache: dict,
         dur_cache: dict,
         contracts: list[Contract],
+        fuel_price: float,
+        km_tax_cache: dict[tuple, float],
     ) -> tuple[list[SuggestedTour], list[UnassignedPDV], list[str]]:
         """Construire les tours par OR-Tools CVRPTW / Build tours with OR-Tools CVRPTW."""
         warnings: list[str] = []
@@ -286,7 +301,7 @@ class AideDecisionService:
             )
             return self._build_tours_level1(
                 request, base, pdv_agg, pdv_ids, pdvs,
-                dist_cache, dur_cache, contracts
+                dist_cache, dur_cache, contracts, fuel_price, km_tax_cache
             )
 
         # ── Construire l'entrée OR-Tools ──
@@ -370,10 +385,17 @@ class AideDecisionService:
         else:
             for c_idx, c in enumerate(contract_list):
                 cap = c.capacity_eqp or DEFAULT_CAPACITY_EQP
-                fixed_cents = int(float(c.fixed_daily_cost or 0) * 100)
-                km_cents = int(float(c.cost_per_km or 0) * 100)
+                # Coût fixe = fixed_daily_cost + vacation (partagé par nb_tours, géré par OR-Tools)
+                fixed_cents = int((float(c.fixed_daily_cost or 0) + float(c.vacation or 0)) * 100)
                 if fixed_cents < 10000:
                     fixed_cents = 10000
+
+                # Coût km = fuel_price * consumption_coefficient (formule alignée)
+                consumption = float(c.consumption_coefficient or 0)
+                km_cents = int(fuel_price * consumption * 100)
+                # Fallback sur cost_per_km si fuel ou conso manquant
+                if km_cents == 0:
+                    km_cents = int(float(c.cost_per_km or 0) * 100)
 
                 # Compatible nodes (dock/hayon)
                 compatible = set()
@@ -402,6 +424,21 @@ class AideDecisionService:
                     compatible_nodes=compatible,
                 ))
 
+        # Construire la matrice km_tax pour OR-Tools (centimes, forfait par arc)
+        km_tax_mat: list[list[int]] = [[0] * num_nodes for _ in range(num_nodes)]
+        for from_node in range(num_nodes):
+            for to_node in range(num_nodes):
+                if from_node == to_node:
+                    continue
+                if from_node == 0:
+                    key = ("BASE", base.id, "PDV", node_to_pdv[to_node])
+                elif to_node == 0:
+                    key = ("PDV", node_to_pdv[from_node], "BASE", base.id)
+                else:
+                    key = ("PDV", node_to_pdv[from_node], "PDV", node_to_pdv[to_node])
+                tax = km_tax_cache.get(key, 0.0)
+                km_tax_mat[from_node][to_node] = int(tax * 100)  # € → centimes
+
         ortools_input = ORToolsInput(
             num_pdvs=num_pdvs,
             pdv_ids=[0] + pdv_ids,
@@ -411,6 +448,7 @@ class AideDecisionService:
             distance_matrix=distance_matrix,
             time_matrix=time_matrix,
             vehicles=vehicles,
+            km_tax_matrix=km_tax_mat,
             time_limit_seconds=request.time_limit_seconds,
         )
 
@@ -432,7 +470,7 @@ class AideDecisionService:
             )
             return self._build_tours_level1(
                 request, base, pdv_agg, pdv_ids, pdvs,
-                dist_cache, dur_cache, contracts
+                dist_cache, dur_cache, contracts, fuel_price, km_tax_cache
             )
 
         # ── Convertir les tours bruts en SuggestedTour ──
@@ -548,11 +586,14 @@ class AideDecisionService:
                 cap = c.capacity_eqp or DEFAULT_CAPACITY_EQP
                 fill_rate = round((total_eqp / cap) * 100, 1) if cap > 0 else 0.0
 
-                # Coût
+                # Coût — formule alignée historique/synthèse
                 nb_tours_for_contract = contract_tour_count[cid]
                 fixed = float(c.fixed_daily_cost or 0) / nb_tours_for_contract
-                km_cost = float(c.cost_per_km or 0) * total_tour_km
-                total_cost = round(fixed + km_cost, 2)
+                vacation = float(c.vacation or 0) / nb_tours_for_contract
+                consumption = float(c.consumption_coefficient or 0)
+                fuel_cost = total_tour_km * fuel_price * consumption
+                km_tax = self._sum_km_tax(km_tax_cache, base.id, sequenced)
+                total_cost = round(fixed + vacation + fuel_cost + km_tax, 2)
 
                 sc = SuggestedContract(
                     contract_id=c.id,
@@ -754,6 +795,8 @@ class AideDecisionService:
         contract_tour_count: dict[int, int],
         contract_duration: dict[int, int],
         max_capacity: int,
+        fuel_price: float,
+        km_tax_cache: dict[tuple, float],
     ) -> SuggestedTour:
         """Construire un tour complet à partir d'une séquence PDV / Build a complete tour from a PDV sequence."""
         stops_info = self._compute_stops_info(
@@ -852,7 +895,8 @@ class AideDecisionService:
                 tour_warnings.append("Aucun contrat compatible (capacité, dock/hayon, ou 10h dépassées)")
 
         total_cost = self._compute_cost(
-            selected_contract, total_tour_km, contract_tour_count, request.dispatch_date
+            selected_contract, total_tour_km, contract_tour_count,
+            fuel_price, km_tax_cache, base.id, sequenced,
         )
 
         sc = None
@@ -1052,6 +1096,60 @@ class AideDecisionService:
 
         return valid
 
+    async def _load_fuel_price(self, dispatch_date: str) -> float:
+        """Charger le prix gasoil pour la date / Load fuel price for the date."""
+        fuel = await self.db.scalar(
+            select(FuelPrice.price_per_liter)
+            .where(
+                FuelPrice.start_date <= dispatch_date,
+                FuelPrice.end_date >= dispatch_date,
+            )
+            .order_by(FuelPrice.start_date.desc())
+            .limit(1)
+        )
+        return float(fuel) if fuel else 0.0
+
+    async def _load_km_tax_cache(
+        self, base_id: int, pdv_ids: list[int]
+    ) -> dict[tuple, float]:
+        """Charger la taxe km pour tous les segments possibles / Load km tax for all possible segments.
+        Returns dict: (origin_type, origin_id, dest_type, dest_id) → tax_amount (flat).
+        """
+        cache: dict[tuple, float] = {}
+        if not pdv_ids:
+            return cache
+
+        stmt = select(KmTax).where(
+            or_(
+                # BASE → PDV
+                and_(
+                    KmTax.origin_type == "BASE",
+                    KmTax.origin_id == base_id,
+                    KmTax.destination_type == "PDV",
+                    KmTax.destination_id.in_(pdv_ids),
+                ),
+                # PDV → BASE
+                and_(
+                    KmTax.origin_type == "PDV",
+                    KmTax.origin_id.in_(pdv_ids),
+                    KmTax.destination_type == "BASE",
+                    KmTax.destination_id == base_id,
+                ),
+                # PDV → PDV
+                and_(
+                    KmTax.origin_type == "PDV",
+                    KmTax.origin_id.in_(pdv_ids),
+                    KmTax.destination_type == "PDV",
+                    KmTax.destination_id.in_(pdv_ids),
+                ),
+            )
+        )
+        result = await self.db.execute(stmt)
+        for row in result.scalars().all():
+            key = (row.origin_type, row.origin_id, row.destination_type, row.destination_id)
+            cache[key] = float(row.tax_per_km)
+        return cache
+
     # ── PDV helpers ───────────────────────────────────────────────
 
     def _has_sas(self, pdv: PDV, temperature_class: str) -> bool:
@@ -1220,16 +1318,41 @@ class AideDecisionService:
 
     def _compute_cost(
         self, selected_contract: dict | None, total_km: float,
-        contract_tour_count: dict[int, int], dispatch_date: str
+        contract_tour_count: dict[int, int],
+        fuel_price: float, km_tax_cache: dict[tuple, float],
+        base_id: int, sequenced_pdv_ids: list[int],
     ) -> float:
-        """Calculer le coût estimé / Compute estimated cost."""
+        """Calculer le coût estimé — formule alignée sur historique/synthèse.
+        Compute estimated cost — aligned with history/synthesis formula.
+        fixed/nb_tours + vacation/nb_tours + km * fuel * conso + sum(km_tax)
+        """
         if not selected_contract:
             return 0.0
         c = selected_contract["contract"]
         nb_tours = contract_tour_count.get(c.id, 1) or 1
         fixed = float(c.fixed_daily_cost or 0) / nb_tours
-        km_cost = float(c.cost_per_km or 0) * total_km
-        return round(fixed + km_cost, 2)
+        vacation = float(c.vacation or 0) / nb_tours
+        consumption = float(c.consumption_coefficient or 0)
+        fuel_cost = total_km * fuel_price * consumption
+        # Taxe km forfaitaire par segment / Flat km tax per segment
+        km_tax_total = self._sum_km_tax(km_tax_cache, base_id, sequenced_pdv_ids)
+        return round(fixed + vacation + fuel_cost + km_tax_total, 2)
+
+    @staticmethod
+    def _sum_km_tax(
+        km_tax_cache: dict[tuple, float], base_id: int, sequenced_pdv_ids: list[int]
+    ) -> float:
+        """Sommer la taxe km pour les segments d'un tour / Sum km tax for tour segments."""
+        total = 0.0
+        prev_type, prev_id = "BASE", base_id
+        for pid in sequenced_pdv_ids:
+            key = (prev_type, prev_id, "PDV", pid)
+            total += km_tax_cache.get(key, 0.0)
+            prev_type, prev_id = "PDV", pid
+        if sequenced_pdv_ids:
+            key = ("PDV", sequenced_pdv_ids[-1], "BASE", base_id)
+            total += km_tax_cache.get(key, 0.0)
+        return round(total, 2)
 
     def _empty_response(
         self, request: AideDecisionRequest, base_name: str, warning: str

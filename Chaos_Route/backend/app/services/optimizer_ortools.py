@@ -37,6 +37,7 @@ class ORToolsInput:
     distance_matrix: list[list[int]]         # mètres (entiers)
     time_matrix: list[list[int]]             # minutes (entiers)
     vehicles: list[VehicleSlot]
+    km_tax_matrix: list[list[int]] = field(default_factory=list)  # centimes, forfait par arc
     time_limit_seconds: int = 30
 
 
@@ -67,16 +68,20 @@ def solve_cvrptw(data: ORToolsInput) -> tuple[list[RawTour], list[int]]:
     routing = pywrapcp.RoutingModel(manager)
 
     # 2. Callback coût par véhicule / Cost callback per vehicle
+    has_tax = bool(data.km_tax_matrix)
     cost_callback_indices: list[int] = []
     for v_idx, slot in enumerate(data.vehicles):
         cost_per_km = slot.cost_per_km_cents  # centimes/km
 
-        def _cost_cb(from_index: int, to_index: int, _cpm=cost_per_km) -> int:
+        def _cost_cb(from_index: int, to_index: int, _cpm=cost_per_km, _has_tax=has_tax) -> int:
             from_node = manager.IndexToNode(from_index)
             to_node = manager.IndexToNode(to_index)
             dist_m = data.distance_matrix[from_node][to_node]
-            # coût = cost_per_km_cents × distance_km = cpm × dist_m / 1000
-            return (_cpm * dist_m) // 1000
+            # coût carburant = cost_per_km_cents × distance_km
+            fuel = (_cpm * dist_m) // 1000
+            # taxe km forfaitaire par arc / flat km tax per arc
+            tax = data.km_tax_matrix[from_node][to_node] if _has_tax else 0
+            return fuel + tax
 
         cb_idx = routing.RegisterTransitCallback(_cost_cb)
         cost_callback_indices.append(cb_idx)
