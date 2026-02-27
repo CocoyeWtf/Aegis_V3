@@ -1,7 +1,11 @@
 /* Fiche détaillée d'un tour (overlay imprimable) / Printable tour detail sheet */
 
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { displayDateTime, formatDate } from '../../utils/tourTimeUtils'
+import api from '../../services/api'
+import { useAuthStore } from '../../stores/useAuthStore'
+import { PasswordConfirmDialog } from '../data/PasswordConfirmDialog'
 
 interface TourStop {
   sequence_order: number
@@ -22,6 +26,7 @@ interface CostBreakdown {
   fixed_share: number
   fuel_cost: number
   km_tax_total: number
+  surcharges_total?: number
   total_calculated: number
 }
 
@@ -30,6 +35,20 @@ interface TimeBreakdown {
   dock_minutes: number
   unload_minutes: number
   total_minutes: number
+}
+
+interface Surcharge {
+  id: number
+  tour_id: number
+  amount: number
+  motif: string
+  status: string
+  created_by_id: number
+  created_at: string
+  validated_by_id: number | null
+  validated_at: string | null
+  created_by_username: string
+  validated_by_username: string | null
 }
 
 export interface TourDetailData {
@@ -74,8 +93,110 @@ function formatDuration(minutes: number): string {
 
 export function TourDetailSheet({ tour, onClose }: TourDetailSheetProps) {
   const { t } = useTranslation()
+  const hasPermission = useAuthStore((s) => s.hasPermission)
 
   const handlePrint = () => window.print()
+
+  /* ---- Surcharges state ---- */
+  const [surcharges, setSurcharges] = useState<Surcharge[]>([])
+  const [surchargeLoading, setSurchargeLoading] = useState(false)
+  const [surchargeError, setSurchargeError] = useState<string | null>(null)
+
+  /* Formulaire ajout / Add form */
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [addAmount, setAddAmount] = useState('')
+  const [addMotif, setAddMotif] = useState('')
+  const [addLoading, setAddLoading] = useState(false)
+
+  /* Dialogs validation/suppression / Validate/delete dialogs */
+  const [validatingId, setValidatingId] = useState<number | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [dialogLoading, setDialogLoading] = useState(false)
+  const [dialogError, setDialogError] = useState<string | null>(null)
+
+  const canRead = hasPermission('surcharges', 'read')
+  const canCreate = hasPermission('surcharges', 'create')
+  const canUpdate = hasPermission('surcharges', 'update')
+  const canDelete = hasPermission('surcharges', 'delete')
+
+  const fetchSurcharges = useCallback(async () => {
+    if (!canRead) return
+    setSurchargeLoading(true)
+    setSurchargeError(null)
+    try {
+      const { data } = await api.get<Surcharge[]>(`/surcharges/by-tour/${tour.tour_id}`)
+      setSurcharges(data)
+    } catch {
+      setSurchargeError('Erreur chargement surcharges')
+    } finally {
+      setSurchargeLoading(false)
+    }
+  }, [tour.tour_id, canRead])
+
+  useEffect(() => {
+    fetchSurcharges()
+  }, [fetchSurcharges])
+
+  const handleAddSurcharge = async () => {
+    const amount = parseFloat(addAmount)
+    if (!amount || amount <= 0 || !addMotif.trim()) return
+    setAddLoading(true)
+    try {
+      await api.post('/surcharges/', { tour_id: tour.tour_id, amount, motif: addMotif.trim() })
+      setAddAmount('')
+      setAddMotif('')
+      setShowAddForm(false)
+      await fetchSurcharges()
+    } catch {
+      setSurchargeError('Erreur création surcharge')
+    } finally {
+      setAddLoading(false)
+    }
+  }
+
+  const handleValidate = async (password: string) => {
+    if (validatingId === null) return
+    setDialogLoading(true)
+    setDialogError(null)
+    try {
+      await api.post(`/surcharges/${validatingId}/validate`, { password })
+      setValidatingId(null)
+      await fetchSurcharges()
+    } catch (e: unknown) {
+      const err = e as { response?: { status?: number; data?: { detail?: string } } }
+      if (err.response?.status === 401) {
+        setDialogError('Mot de passe incorrect')
+      } else {
+        setDialogError(err.response?.data?.detail || 'Erreur validation')
+      }
+    } finally {
+      setDialogLoading(false)
+    }
+  }
+
+  const handleDelete = async (password: string) => {
+    if (deletingId === null) return
+    setDialogLoading(true)
+    setDialogError(null)
+    try {
+      await api.delete(`/surcharges/${deletingId}`, { data: { password } })
+      setDeletingId(null)
+      await fetchSurcharges()
+    } catch (e: unknown) {
+      const err = e as { response?: { status?: number; data?: { detail?: string } } }
+      if (err.response?.status === 401) {
+        setDialogError('Mot de passe incorrect')
+      } else {
+        setDialogError(err.response?.data?.detail || 'Erreur suppression')
+      }
+    } finally {
+      setDialogLoading(false)
+    }
+  }
+
+  const validatedTotal = surcharges
+    .filter((s) => s.status === 'VALIDATED')
+    .reduce((sum, s) => sum + s.amount, 0)
 
   return (
     <div className="fixed inset-0 z-50 overflow-auto print-overlay" style={{ backgroundColor: 'var(--bg-primary)' }}>
@@ -181,6 +302,148 @@ export function TourDetailSheet({ tour, onClose }: TourDetailSheetProps) {
           </section>
         )}
 
+        {/* Section 2c — Surcharges */}
+        {canRead && (
+          <section className="rounded-xl border p-5 print-hide" style={{ borderColor: 'var(--border-color)' }}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+                Surcharges
+              </h3>
+              {canCreate && (
+                <button
+                  onClick={() => setShowAddForm(!showAddForm)}
+                  className="px-3 py-1 rounded-lg text-xs font-medium transition-colors hover:opacity-80"
+                  style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}
+                >
+                  {showAddForm ? 'Annuler' : '+ Ajouter'}
+                </button>
+              )}
+            </div>
+
+            {surchargeError && (
+              <p className="text-xs mb-2" style={{ color: 'var(--color-danger)' }}>{surchargeError}</p>
+            )}
+
+            {/* Formulaire ajout / Add form */}
+            {showAddForm && (
+              <div
+                className="mb-4 p-3 rounded-lg border space-y-2"
+                style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-tertiary)' }}
+              >
+                <div className="flex gap-2">
+                  <div className="flex flex-col flex-shrink-0" style={{ width: '120px' }}>
+                    <label className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Montant (EUR)</label>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={addAmount}
+                      onChange={(e) => setAddAmount(e.target.value)}
+                      className="px-2 py-1.5 rounded-lg border text-sm"
+                      style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                  <div className="flex flex-col flex-1">
+                    <label className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Motif</label>
+                    <input
+                      type="text"
+                      value={addMotif}
+                      onChange={(e) => setAddMotif(e.target.value)}
+                      maxLength={500}
+                      className="px-2 py-1.5 rounded-lg border text-sm"
+                      style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleAddSurcharge}
+                    disabled={addLoading || !addAmount || !addMotif.trim()}
+                    className="px-4 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  >
+                    {addLoading ? '...' : 'Créer'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Liste surcharges */}
+            {surchargeLoading ? (
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Chargement...</p>
+            ) : surcharges.length === 0 ? (
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Aucune surcharge</p>
+            ) : (
+              <div className="space-y-2">
+                {surcharges.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex items-center justify-between p-2 rounded-lg border text-sm"
+                    style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-tertiary)' }}
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <span
+                        className="inline-block px-2 py-0.5 rounded text-xs font-medium"
+                        style={{
+                          backgroundColor: s.status === 'VALIDATED' ? 'rgba(34,197,94,0.15)' : 'rgba(249,115,22,0.15)',
+                          color: s.status === 'VALIDATED' ? '#22c55e' : '#f97316',
+                        }}
+                      >
+                        {s.status === 'VALIDATED' ? 'Validée' : 'En attente'}
+                      </span>
+                      <span className="font-bold" style={{ color: 'var(--color-danger)' }}>
+                        {s.amount.toFixed(2)} &euro;
+                      </span>
+                      <span className="truncate" style={{ color: 'var(--text-primary)' }} title={s.motif}>
+                        {s.motif}
+                      </span>
+                      <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
+                        par {s.created_by_username}
+                        {s.validated_by_username && ` — validée par ${s.validated_by_username}`}
+                      </span>
+                    </div>
+                    <div className="flex gap-1 flex-shrink-0 ml-2">
+                      {s.status === 'PENDING' && canUpdate && (
+                        <button
+                          onClick={() => { setValidatingId(s.id); setDialogError(null) }}
+                          className="px-2 py-1 rounded text-xs font-medium text-white"
+                          style={{ backgroundColor: '#22c55e' }}
+                        >
+                          Valider
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() => { setDeletingId(s.id); setDialogError(null) }}
+                          className="px-2 py-1 rounded text-xs font-medium text-white"
+                          style={{ backgroundColor: 'var(--color-danger)' }}
+                        >
+                          Suppr.
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Total surcharges validées */}
+            {validatedTotal > 0 && (
+              <div
+                className="mt-3 rounded-lg p-3 flex items-center justify-between"
+                style={{ backgroundColor: 'rgba(239,68,68,0.08)', borderLeft: '4px solid var(--color-danger)' }}
+              >
+                <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                  Total surcharges validées
+                </span>
+                <span className="text-lg font-bold" style={{ color: 'var(--color-danger)' }}>
+                  {validatedTotal.toFixed(2)} &euro;
+                </span>
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Section 3 — Itinéraire / Itinerary */}
         <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border-color)' }}>
           <h3 className="text-base font-bold mb-3" style={{ color: 'var(--text-primary)' }}>
@@ -257,6 +520,27 @@ export function TourDetailSheet({ tour, onClose }: TourDetailSheetProps) {
           )}
         </section>
       </div>
+
+      {/* Dialogs confirmation par mot de passe */}
+      <PasswordConfirmDialog
+        open={validatingId !== null}
+        onClose={() => { setValidatingId(null); setDialogError(null) }}
+        onConfirm={handleValidate}
+        title="Valider la surcharge"
+        message="Saisissez votre mot de passe pour confirmer la validation."
+        loading={dialogLoading}
+        error={dialogError}
+      />
+      <PasswordConfirmDialog
+        open={deletingId !== null}
+        onClose={() => { setDeletingId(null); setDialogError(null) }}
+        onConfirm={handleDelete}
+        title="Supprimer la surcharge"
+        message="Saisissez votre mot de passe pour confirmer la suppression."
+        loading={dialogLoading}
+        danger
+        error={dialogError}
+      />
     </div>
   )
 }

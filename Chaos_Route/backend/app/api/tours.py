@@ -21,6 +21,7 @@ from app.models.parameter import Parameter
 from app.models.pdv import PDV
 from app.models.tour import Tour, TourStatus
 from app.models.tour_stop import TourStop
+from app.models.tour_surcharge import TourSurcharge, SurchargeStatus
 from app.models.volume import Volume
 from app.models.base_logistics import BaseLogistics
 from app.models.user import User
@@ -577,6 +578,19 @@ async def transporter_summary(
     if not tours:
         return {"period": {"date_from": date_from, "date_to": date_to}, "transporters": []}
 
+    # 1b. Batch-load surcharges validées / Batch-load validated surcharges
+    tour_ids = [t.id for t in tours]
+    surcharges_map: dict[int, list] = {tid: [] for tid in tour_ids}
+    if tour_ids:
+        s_result = await db.execute(
+            select(TourSurcharge).where(
+                TourSurcharge.tour_id.in_(tour_ids),
+                TourSurcharge.status == SurchargeStatus.VALIDATED,
+            )
+        )
+        for s in s_result.scalars().all():
+            surcharges_map[s.tour_id].append({"id": s.id, "amount": float(s.amount), "motif": s.motif})
+
     # 2. Batch load contrats, bases, PDVs / Batch load contracts, bases, PDVs
     contract_ids = list({t.contract_id for t in tours if t.contract_id})
     contracts_map: dict[int, Contract] = {}
@@ -670,7 +684,9 @@ async def transporter_summary(
             if tax_entry:
                 km_tax_total += round(float(tax_entry), 2)
         km_tax_total = round(km_tax_total, 2)
-        total_calculated = round(fixed_share + vacation_share + fuel_cost + km_tax_total, 2)
+        surcharges_for_tour = surcharges_map.get(tour.id, [])
+        surcharges_total = sum(s["amount"] for s in surcharges_for_tour)
+        total_calculated = round(fixed_share + vacation_share + fuel_cost + km_tax_total + surcharges_total, 2)
 
         sorted_stops = sorted(tour.stops, key=lambda s: s.sequence_order)
 
@@ -707,11 +723,14 @@ async def transporter_summary(
             "barrier_exit_time": tour.barrier_exit_time,
             "barrier_entry_time": tour.barrier_entry_time,
             "remarks": tour.remarks,
+            "surcharges": surcharges_for_tour,
+            "surcharges_total": round(surcharges_total, 2),
             "cost_breakdown": {
                 "fixed_share": fixed_share,
                 "vacation_share": vacation_share,
                 "fuel_cost": fuel_cost,
                 "km_tax_total": km_tax_total,
+                "surcharges_total": round(surcharges_total, 2),
                 "total_calculated": total_calculated,
             },
             "time_breakdown": {
@@ -763,6 +782,7 @@ async def transporter_summary(
         grand_vacation = 0.0
         grand_fuel = 0.0
         grand_km_tax = 0.0
+        grand_surcharges = 0.0
         grand_cost = 0.0
 
         for cid in sorted(contracts_group.keys()):
@@ -776,6 +796,7 @@ async def transporter_summary(
             sub_vacation = sum(t["cost_breakdown"]["vacation_share"] for t in c_tours)
             sub_fuel = sum(t["cost_breakdown"]["fuel_cost"] for t in c_tours)
             sub_km_tax = sum(t["cost_breakdown"]["km_tax_total"] for t in c_tours)
+            sub_surcharges = sum(t["surcharges_total"] for t in c_tours)
             sub_cost = sum(t["cost_breakdown"]["total_calculated"] for t in c_tours)
 
             # Nettoyer les clés internes / Remove internal keys
@@ -799,6 +820,7 @@ async def transporter_summary(
                     "vacation_cost_total": round(sub_vacation, 2),
                     "fuel_cost_total": round(sub_fuel, 2),
                     "km_tax_total": round(sub_km_tax, 2),
+                    "surcharges_total": round(sub_surcharges, 2),
                     "total_cost": round(sub_cost, 2),
                 },
             })
@@ -811,6 +833,7 @@ async def transporter_summary(
             grand_vacation += sub_vacation
             grand_fuel += sub_fuel
             grand_km_tax += sub_km_tax
+            grand_surcharges += sub_surcharges
             grand_cost += sub_cost
 
         transporters_result.append({
@@ -826,6 +849,7 @@ async def transporter_summary(
                 "vacation_cost_total": round(grand_vacation, 2),
                 "fuel_cost_total": round(grand_fuel, 2),
                 "km_tax_total": round(grand_km_tax, 2),
+                "surcharges_total": round(grand_surcharges, 2),
                 "total_cost": round(grand_cost, 2),
             },
         })

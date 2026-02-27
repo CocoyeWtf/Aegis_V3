@@ -71,6 +71,9 @@ class Tour(Base):
     stops: Mapped[list["TourStop"]] = relationship(
         back_populates="tour", cascade="all, delete-orphan", order_by="TourStop.sequence_order"
     )
+    surcharges: Mapped[list["TourSurcharge"]] = relationship(
+        back_populates="tour", cascade="all, delete-orphan"
+    )
     driver_user: Mapped["User | None"] = relationship(foreign_keys=[driver_user_id])
     device_assignment: Mapped["DeviceAssignment | None"] = relationship(foreign_keys=[device_assignment_id])
 

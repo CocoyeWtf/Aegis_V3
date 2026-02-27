@@ -26,6 +26,7 @@ const RESOURCES = [
   'support-types',
   'pickup-requests',
   'aide-decision',
+  'surcharges',
 ]
 
 const ACTIONS = ['read', 'create', 'update', 'delete'] as const
@@ -65,6 +66,7 @@ const RESOURCE_I18N: Record<string, string> = {
   'support-types': 'Types de support',
   'pickup-requests': 'Demandes de reprise',
   'aide-decision': 'Aide à la décision',
+  'surcharges': 'Surcharges',
 }
 
 export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
