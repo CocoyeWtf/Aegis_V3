@@ -83,6 +83,7 @@ export interface TourDetailData {
 interface TourDetailSheetProps {
   tour: TourDetailData
   onClose: () => void
+  onSurchargesChanged?: () => void
 }
 
 function formatDuration(minutes: number): string {
@@ -91,7 +92,7 @@ function formatDuration(minutes: number): string {
   return `${h}h${String(m).padStart(2, '0')}`
 }
 
-export function TourDetailSheet({ tour, onClose }: TourDetailSheetProps) {
+export function TourDetailSheet({ tour, onClose, onSurchargesChanged }: TourDetailSheetProps) {
   const { t } = useTranslation()
   const hasPermission = useAuthStore((s) => s.hasPermission)
 
@@ -101,6 +102,7 @@ export function TourDetailSheet({ tour, onClose }: TourDetailSheetProps) {
   const [surcharges, setSurcharges] = useState<Surcharge[]>([])
   const [surchargeLoading, setSurchargeLoading] = useState(false)
   const [surchargeError, setSurchargeError] = useState<string | null>(null)
+  const [surchargesDirty, setSurchargesDirty] = useState(false)
 
   /* Formulaire ajout / Add form */
   const [showAddForm, setShowAddForm] = useState(false)
@@ -146,6 +148,7 @@ export function TourDetailSheet({ tour, onClose }: TourDetailSheetProps) {
       setAddAmount('')
       setAddMotif('')
       setShowAddForm(false)
+      setSurchargesDirty(true)
       await fetchSurcharges()
     } catch {
       setSurchargeError('Erreur création surcharge')
@@ -161,6 +164,7 @@ export function TourDetailSheet({ tour, onClose }: TourDetailSheetProps) {
     try {
       await api.post(`/surcharges/${validatingId}/validate`, { password })
       setValidatingId(null)
+      setSurchargesDirty(true)
       await fetchSurcharges()
     } catch (e: unknown) {
       const err = e as { response?: { status?: number; data?: { detail?: string } } }
@@ -181,6 +185,7 @@ export function TourDetailSheet({ tour, onClose }: TourDetailSheetProps) {
     try {
       await api.delete(`/surcharges/${deletingId}`, { data: { password } })
       setDeletingId(null)
+      setSurchargesDirty(true)
       await fetchSurcharges()
     } catch (e: unknown) {
       const err = e as { response?: { status?: number; data?: { detail?: string } } }
@@ -197,6 +202,16 @@ export function TourDetailSheet({ tour, onClose }: TourDetailSheetProps) {
   const validatedTotal = surcharges
     .filter((s) => s.status === 'VALIDATED')
     .reduce((sum, s) => sum + s.amount, 0)
+
+  /* Coût de base (sans surcharges) + surcharges locales → total dynamique
+     Base cost (without surcharges) + local surcharges → dynamic total */
+  const baseCost = tour.cost_breakdown.total_calculated - (tour.cost_breakdown.surcharges_total || 0)
+  const dynamicTotal = Math.round((baseCost + validatedTotal) * 100) / 100
+
+  const handleClose = () => {
+    if (surchargesDirty && onSurchargesChanged) onSurchargesChanged()
+    onClose()
+  }
 
   return (
     <div className="fixed inset-0 z-50 overflow-auto print-overlay" style={{ backgroundColor: 'var(--bg-primary)' }}>
@@ -217,7 +232,7 @@ export function TourDetailSheet({ tour, onClose }: TourDetailSheetProps) {
             {t('transporterSummary.print')}
           </button>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="px-4 py-1.5 rounded-lg text-sm font-medium border transition-colors hover:opacity-80"
             style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}
           >
@@ -263,6 +278,9 @@ export function TourDetailSheet({ tour, onClose }: TourDetailSheetProps) {
             <InfoRow label={t('transporterSummary.fixedShare')} value={`${tour.cost_breakdown.fixed_share.toFixed(2)} \u20AC`} />
             <InfoRow label={t('transporterSummary.fuelCost')} value={`${tour.cost_breakdown.fuel_cost.toFixed(2)} \u20AC`} />
             <InfoRow label={t('transporterSummary.kmTax')} value={`${tour.cost_breakdown.km_tax_total.toFixed(2)} \u20AC`} />
+            {validatedTotal > 0 && (
+              <InfoRow label="Surcharges" value={`${validatedTotal.toFixed(2)} \u20AC`} />
+            )}
           </div>
           <div
             className="mt-3 rounded-lg p-3 flex items-center justify-between"
@@ -272,7 +290,7 @@ export function TourDetailSheet({ tour, onClose }: TourDetailSheetProps) {
               {t('transporterSummary.totalCost')}
             </span>
             <span className="text-lg font-bold" style={{ color: 'var(--color-primary)' }}>
-              {tour.cost_breakdown.total_calculated.toFixed(2)} &euro;
+              {dynamicTotal.toFixed(2)} &euro;
             </span>
           </div>
         </section>

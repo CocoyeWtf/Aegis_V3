@@ -276,7 +276,13 @@ export default function TransporterSummary() {
 
   /* Si fiche tour ouverte, afficher l'overlay / If tour detail open, show overlay */
   if (detailTour) {
-    return <TourDetailSheet tour={detailTour} onClose={() => setDetailTour(null)} />
+    return (
+      <TourDetailSheet
+        tour={detailTour}
+        onClose={() => setDetailTour(null)}
+        onSurchargesChanged={handleLoad}
+      />
+    )
   }
 
   return (
