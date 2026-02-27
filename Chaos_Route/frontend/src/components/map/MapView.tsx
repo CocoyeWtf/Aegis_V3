@@ -135,7 +135,7 @@ export function MapView({ onPdvClick, selectedPdvIds, pdvVolumeStatusMap, pdvEqp
           ) : null
         )}
 
-        {showPdvs && pdvs.map((pdv) =>
+        {showPdvs && pdvs.filter((pdv) => !selectedPdvIds?.has(pdv.id)).map((pdv) =>
           pdv.latitude && pdv.longitude ? (
             <PdvMarker
               key={`pdv-${pdv.id}`}
