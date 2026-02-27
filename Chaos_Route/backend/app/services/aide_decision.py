@@ -54,7 +54,7 @@ def _compute_optimization_multipliers(priorities: list[str]) -> dict[str, float]
 TEMP_COMPAT: dict[str, set[str]] = {
     "SEC": {"SEC", "BI_TEMP", "TRI_TEMP"},
     "FRAIS": {"FRAIS", "BI_TEMP", "TRI_TEMP"},
-    "GEL": {"GEL", "TRI_TEMP"},
+    "GEL": {"GEL", "BI_TEMP", "TRI_TEMP"},
 }
 
 
