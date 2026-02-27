@@ -37,6 +37,7 @@ RESOURCES = [
     "pickup-requests",
     "aide-decision",
     "surcharges",
+    "surcharge-types",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

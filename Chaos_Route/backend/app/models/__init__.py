@@ -31,6 +31,7 @@ from app.models.delivery_alert import DeliveryAlert, AlertType, AlertSeverity
 from app.models.support_type import SupportType
 from app.models.pickup_request import PickupRequest, PickupLabel, PickupType, PickupStatus, LabelStatus
 from app.models.tour_manifest_line import TourManifestLine
+from app.models.surcharge_type import SurchargeType
 from app.models.tour_surcharge import TourSurcharge, SurchargeStatus
 
 __all__ = [
@@ -73,6 +74,7 @@ __all__ = [
     "PickupStatus",
     "LabelStatus",
     "TourManifestLine",
+    "SurchargeType",
     "TourSurcharge",
     "SurchargeStatus",
 ]

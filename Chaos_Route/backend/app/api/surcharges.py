@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.audit import AuditLog
+from app.models.surcharge_type import SurchargeType
 from app.models.tour_surcharge import TourSurcharge, SurchargeStatus
 from app.models.user import User
 from app.schemas.surcharge import SurchargeCreate, SurchargeDelete, SurchargeRead, SurchargeValidate
@@ -23,11 +24,17 @@ def _now_iso() -> str:
 
 def _surcharge_to_read(s: TourSurcharge) -> SurchargeRead:
     """Convertir un modèle en schema de lecture / Convert model to read schema."""
+    st_label = ""
+    if s.surcharge_type:
+        st_label = s.surcharge_type.label
     return SurchargeRead(
         id=s.id,
         tour_id=s.tour_id,
         amount=float(s.amount),
-        motif=s.motif,
+        surcharge_type_id=s.surcharge_type_id,
+        surcharge_type_label=st_label,
+        comment=s.comment,
+        motif=s.motif or "",
         status=s.status.value if hasattr(s.status, "value") else s.status,
         created_by_id=s.created_by_id,
         created_at=s.created_at,
@@ -51,9 +58,9 @@ async def list_surcharges_by_tour(
         .order_by(TourSurcharge.created_at.desc())
     )
     surcharges = result.scalars().all()
-    # Eager-load users — les relations sont lazy par défaut
+    # Eager-load relations
     for s in surcharges:
-        await db.refresh(s, ["created_by", "validated_by"])
+        await db.refresh(s, ["created_by", "validated_by", "surcharge_type"])
     return [_surcharge_to_read(s) for s in surcharges]
 
 
@@ -64,10 +71,17 @@ async def create_surcharge(
     user: User = Depends(require_permission("surcharges", "create")),
 ):
     """Créer une surcharge PENDING / Create a PENDING surcharge."""
+    # Valider que le type existe / Validate type exists
+    st = await db.get(SurchargeType, payload.surcharge_type_id)
+    if not st:
+        raise HTTPException(status_code=400, detail="Type de surcharge invalide")
+
     surcharge = TourSurcharge(
         tour_id=payload.tour_id,
         amount=payload.amount,
-        motif=payload.motif,
+        surcharge_type_id=payload.surcharge_type_id,
+        comment=payload.comment,
+        motif=st.label,  # legacy field: store label for backwards compat
         status=SurchargeStatus.PENDING,
         created_by_id=user.id,
         created_at=_now_iso(),
@@ -76,15 +90,15 @@ async def create_surcharge(
 
     db.add(AuditLog(
         entity_type="TourSurcharge",
-        entity_id=0,  # sera mis à jour après flush
+        entity_id=0,
         action="CREATE",
-        changes=f"tour_id={payload.tour_id} amount={payload.amount} motif={payload.motif}",
+        changes=f"tour_id={payload.tour_id} amount={payload.amount} type={st.code} comment={payload.comment or ''}",
         user=user.username,
         timestamp=_now_iso(),
     ))
 
     await db.commit()
-    await db.refresh(surcharge, ["created_by", "validated_by"])
+    await db.refresh(surcharge, ["created_by", "validated_by", "surcharge_type"])
     return _surcharge_to_read(surcharge)
 
 
@@ -96,7 +110,6 @@ async def validate_surcharge(
     user: User = Depends(require_permission("surcharges", "update")),
 ):
     """Valider une surcharge (vérification mdp) / Validate a surcharge (password check)."""
-    # Vérifier le mot de passe (403, pas 401 pour ne pas déclencher le refresh token)
     if not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=403, detail="Mot de passe incorrect")
 
@@ -121,7 +134,7 @@ async def validate_surcharge(
     ))
 
     await db.commit()
-    await db.refresh(surcharge, ["created_by", "validated_by"])
+    await db.refresh(surcharge, ["created_by", "validated_by", "surcharge_type"])
     return _surcharge_to_read(surcharge)
 
 
@@ -133,7 +146,6 @@ async def delete_surcharge(
     user: User = Depends(require_permission("surcharges", "delete")),
 ):
     """Supprimer une surcharge (vérification mdp) / Delete a surcharge (password check)."""
-    # Vérifier le mot de passe (403, pas 401 pour ne pas déclencher le refresh token)
     if not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=403, detail="Mot de passe incorrect")
 

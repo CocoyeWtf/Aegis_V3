@@ -27,7 +27,7 @@ interface SummaryStop {
 }
 
 interface SurchargeItem {
-  id: number; amount: number; motif: string
+  id: number; amount: number; motif: string; surcharge_type_label?: string
 }
 
 interface SummaryCostBreakdown {
@@ -489,7 +489,14 @@ export default function TransporterSummary() {
                                   <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{tour.cost_breakdown.vacation_share.toFixed(2)}</td>
                                   <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{tour.cost_breakdown.fuel_cost.toFixed(2)}</td>
                                   <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{tour.cost_breakdown.km_tax_total.toFixed(2)}</td>
-                                  <td className="px-2 py-1.5 text-right">
+                                  <td
+                                    className="px-2 py-1.5 text-right"
+                                    title={
+                                      tour.surcharges && tour.surcharges.length > 0
+                                        ? tour.surcharges.map((s) => `${s.surcharge_type_label || s.motif}: ${s.amount.toFixed(2)} €`).join('\n')
+                                        : undefined
+                                    }
+                                  >
                                     {(tour.surcharges_total || 0) > 0 && (
                                       <span style={{ color: 'var(--color-danger)' }}>{(tour.surcharges_total || 0).toFixed(2)}</span>
                                     )}

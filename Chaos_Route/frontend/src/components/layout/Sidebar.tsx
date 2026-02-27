@@ -37,6 +37,7 @@ const navGroups: NavGroup[] = [
       { path: '/bases', label: 'nav.bases', icon: '🏭', resource: 'bases' },
       { path: '/loaders', label: 'Chargeurs', icon: '🧑‍🔧', resource: 'loaders' },
       { path: '/support-types', label: 'Types de support', icon: '📦', resource: 'support-types' },
+      { path: '/surcharge-types', label: 'Types de surcharge', icon: '🏷️', resource: 'surcharge-types' },
       { path: '/distances', label: 'nav.distances', icon: '📏', resource: 'distances' },
       { path: '/km-tax', label: 'nav.kmTax', icon: '💰', resource: 'distances' },
       { path: '/devices', label: 'Appareils', icon: '📱', resource: 'devices' },

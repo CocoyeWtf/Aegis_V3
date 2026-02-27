@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.tour import Tour, TourStatus
 from app.models.tour_stop import TourStop
+from app.models.tour_surcharge import TourSurcharge, SurchargeStatus
+from app.models.surcharge_type import SurchargeType
 from app.models.volume import Volume
 from app.models.pdv import PDV
 from app.models.support_scan import SupportScan
@@ -379,4 +381,96 @@ async def get_punctuality_kpi(
         "by_activity": by_activity_resp,
         "by_date": by_date_resp,
         "by_pdv": by_pdv_resp,
+    }
+
+
+@router.get("/surcharges")
+async def get_surcharges_kpi(
+    date_from: str = Query(..., description="Date début (YYYY-MM-DD)"),
+    date_to: str = Query(..., description="Date fin (YYYY-MM-DD)"),
+    base_id: int | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("dashboard", "read")),
+):
+    """KPI surcharges par mois et par type (validées uniquement) / Surcharges KPI by month and type (validated only)."""
+
+    # 1. Charger les tours sur la période / Load tours in the period
+    tour_query = select(Tour.id, Tour.date, Tour.base_id).where(
+        Tour.date >= date_from, Tour.date <= date_to,
+    )
+    if base_id:
+        tour_query = tour_query.where(Tour.base_id == base_id)
+    # Scope région / Region scope
+    user_regions = get_user_region_ids(user)
+    if user_regions:
+        from app.models.base_logistics import BaseLogistics
+        base_ids_q = select(BaseLogistics.id).where(BaseLogistics.region_id.in_(user_regions))
+        tour_query = tour_query.where(Tour.base_id.in_(base_ids_q))
+
+    result = await db.execute(tour_query)
+    tour_rows = result.all()
+    if not tour_rows:
+        return {"by_month": [], "by_type": [], "by_month_and_type": []}
+
+    tour_ids = [r[0] for r in tour_rows]
+    tour_date_map = {r[0]: r[1] for r in tour_rows}  # tour_id -> date
+
+    # 2. Charger les surcharges VALIDATED / Load VALIDATED surcharges
+    s_result = await db.execute(
+        select(TourSurcharge).where(
+            TourSurcharge.tour_id.in_(tour_ids),
+            TourSurcharge.status == SurchargeStatus.VALIDATED,
+        )
+    )
+    surcharges = s_result.scalars().all()
+
+    if not surcharges:
+        return {"by_month": [], "by_type": [], "by_month_and_type": []}
+
+    # 3. Charger les types de surcharge / Load surcharge types
+    type_ids = list({s.surcharge_type_id for s in surcharges if s.surcharge_type_id})
+    type_map: dict[int, str] = {}
+    if type_ids:
+        t_result = await db.execute(select(SurchargeType).where(SurchargeType.id.in_(type_ids)))
+        for t in t_result.scalars().all():
+            type_map[t.id] = t.label
+
+    # 4. Agréger / Aggregate
+    by_month: dict[str, dict] = {}
+    by_type: dict[int, dict] = {}
+    by_month_and_type: dict[tuple[str, int], dict] = {}
+
+    for s in surcharges:
+        tour_date = tour_date_map.get(s.tour_id, "")
+        month = tour_date[:7] if tour_date else "unknown"
+        amount = float(s.amount)
+        st_id = s.surcharge_type_id or 0
+        st_label = type_map.get(st_id, s.motif or "Non typé")
+
+        # by_month
+        if month not in by_month:
+            by_month[month] = {"month": month, "count": 0, "total_amount": 0.0}
+        by_month[month]["count"] += 1
+        by_month[month]["total_amount"] = round(by_month[month]["total_amount"] + amount, 2)
+
+        # by_type
+        if st_id not in by_type:
+            by_type[st_id] = {"surcharge_type_id": st_id, "label": st_label, "count": 0, "total_amount": 0.0}
+        by_type[st_id]["count"] += 1
+        by_type[st_id]["total_amount"] = round(by_type[st_id]["total_amount"] + amount, 2)
+
+        # by_month_and_type
+        key = (month, st_id)
+        if key not in by_month_and_type:
+            by_month_and_type[key] = {
+                "month": month, "surcharge_type_id": st_id, "label": st_label,
+                "count": 0, "total_amount": 0.0,
+            }
+        by_month_and_type[key]["count"] += 1
+        by_month_and_type[key]["total_amount"] = round(by_month_and_type[key]["total_amount"] + amount, 2)
+
+    return {
+        "by_month": sorted(by_month.values(), key=lambda x: x["month"]),
+        "by_type": sorted(by_type.values(), key=lambda x: x["total_amount"], reverse=True),
+        "by_month_and_type": sorted(by_month_and_type.values(), key=lambda x: (x["month"], x["label"])),
     }

@@ -35,6 +35,7 @@ const SupportTypes = lazy(() => import('./pages/SupportTypes'))
 const PdvPickupRequests = lazy(() => import('./pages/PdvPickupRequests'))
 const BaseReception = lazy(() => import('./pages/BaseReception'))
 const PdvDeliverySchedule = lazy(() => import('./pages/PdvDeliverySchedule'))
+const SurchargeTypes = lazy(() => import('./pages/SurchargeTypes'))
 const AideDecision = lazy(() => import('./pages/AideDecision'))
 const DetachedMap = lazy(() => import('./pages/DetachedMap'))
 
@@ -80,6 +81,7 @@ export default function App() {
             <Route path="/support-types" element={<SupportTypes />} />
             <Route path="/pickup-requests" element={<PdvPickupRequests />} />
             <Route path="/base-reception" element={<BaseReception />} />
+            <Route path="/surcharge-types" element={<SurchargeTypes />} />
             <Route path="/aide-decision" element={<AideDecision />} />
             <Route path="/pdv-deliveries" element={<PdvDeliverySchedule />} />
             <Route path="/help" element={<Help />} />

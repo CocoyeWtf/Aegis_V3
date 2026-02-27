@@ -586,9 +586,18 @@ async def transporter_summary(
         s_result = await db.execute(
             select(TourSurcharge).where(TourSurcharge.tour_id.in_(tour_ids))
         )
-        for s in s_result.scalars().all():
+        all_surcharges = s_result.scalars().all()
+        # Eager-load surcharge_type for label / Charger le type de surcharge
+        for s in all_surcharges:
+            await db.refresh(s, ["surcharge_type"])
+        for s in all_surcharges:
             if s.status == SurchargeStatus.VALIDATED:
-                surcharges_map[s.tour_id].append({"id": s.id, "amount": float(s.amount), "motif": s.motif})
+                surcharges_map[s.tour_id].append({
+                    "id": s.id,
+                    "amount": float(s.amount),
+                    "motif": s.motif,
+                    "surcharge_type_label": s.surcharge_type.label if s.surcharge_type else "",
+                })
             elif s.status == SurchargeStatus.PENDING:
                 pending_surcharges_count[s.tour_id] = pending_surcharges_count.get(s.tour_id, 0) + 1
 

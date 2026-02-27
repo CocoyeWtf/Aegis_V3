@@ -20,7 +20,9 @@ class TourSurcharge(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     tour_id: Mapped[int] = mapped_column(ForeignKey("tours.id", ondelete="CASCADE"), nullable=False)
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    motif: Mapped[str] = mapped_column(Text, nullable=False)
+    motif: Mapped[str] = mapped_column(Text, nullable=False, default="")  # legacy, kept for existing data
+    surcharge_type_id: Mapped[int | None] = mapped_column(ForeignKey("surcharge_types.id"), nullable=True)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[SurchargeStatus] = mapped_column(Enum(SurchargeStatus), default=SurchargeStatus.PENDING)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[str] = mapped_column(String(25), nullable=False)  # ISO 8601
@@ -31,6 +33,7 @@ class TourSurcharge(Base):
     tour: Mapped["Tour"] = relationship(back_populates="surcharges")
     created_by: Mapped["User"] = relationship(foreign_keys=[created_by_id])
     validated_by: Mapped["User | None"] = relationship(foreign_keys=[validated_by_id])
+    surcharge_type: Mapped["SurchargeType | None"] = relationship()
 
     def __repr__(self) -> str:
         return f"<TourSurcharge {self.id} tour={self.tour_id} {self.amount}€ {self.status}>"

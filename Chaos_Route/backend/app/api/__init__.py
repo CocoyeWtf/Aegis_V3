@@ -32,6 +32,7 @@ from app.api import (
     support_types,
     pickup_requests,
     kpi,
+    surcharge_types,
     surcharges,
 )
 
@@ -65,4 +66,5 @@ api_router.include_router(tracking.router, prefix="/tracking", tags=["tracking"]
 api_router.include_router(support_types.router, prefix="/support-types", tags=["support-types"])
 api_router.include_router(pickup_requests.router, prefix="/pickup-requests", tags=["pickup-requests"])
 api_router.include_router(kpi.router, prefix="/kpi", tags=["KPI"])
+api_router.include_router(surcharge_types.router, prefix="/surcharge-types", tags=["surcharge-types"])
 api_router.include_router(surcharges.router, prefix="/surcharges", tags=["surcharges"])

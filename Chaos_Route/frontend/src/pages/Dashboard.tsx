@@ -6,6 +6,7 @@ import { useApi } from '../hooks/useApi'
 import { useAppStore } from '../stores/useAppStore'
 import { KpiDashboard } from '../components/kpi/KpiDashboard'
 import { PunctualityKpi } from '../components/kpi/PunctualityKpi'
+import { SurchargesKpi } from '../components/kpi/SurchargesKpi'
 import type { Tour, Volume, PdvPickupSummary } from '../types'
 
 /** Lundi de la semaine courante (YYYY-MM-DD) / Monday of current week */
@@ -50,6 +51,10 @@ export default function Dashboard() {
           {/* Taux de ponctualité / Punctuality KPI */}
           <div className="mt-3">
             <PunctualityKpi dateFrom={yearStart} dateTo={today} regionId={selectedRegionId} />
+          </div>
+          {/* KPI Surcharges */}
+          <div className="mt-3">
+            <SurchargesKpi dateFrom={yearStart} dateTo={today} regionId={selectedRegionId} />
           </div>
         </>
       ) : (

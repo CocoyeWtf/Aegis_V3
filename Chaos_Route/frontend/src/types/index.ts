@@ -553,3 +553,12 @@ export interface PunctualityKpiResponse {
   by_pdv: { pdv_id: number; pdv_code: string; pdv_name: string; total: number;
             cdc_pct: number; operational_pct: number }[]
 }
+
+/* ─── SurchargeType ─── */
+
+export interface SurchargeType {
+  id: number
+  code: string
+  label: string
+  is_active: boolean
+}

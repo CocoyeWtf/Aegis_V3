@@ -37,10 +37,20 @@ interface TimeBreakdown {
   total_minutes: number
 }
 
+interface SurchargeTypeOption {
+  id: number
+  code: string
+  label: string
+  is_active: boolean
+}
+
 interface Surcharge {
   id: number
   tour_id: number
   amount: number
+  surcharge_type_id: number | null
+  surcharge_type_label: string
+  comment: string | null
   motif: string
   status: string
   created_by_id: number
@@ -104,10 +114,14 @@ export function TourDetailSheet({ tour, onClose, onSurchargesChanged }: TourDeta
   const [surchargeError, setSurchargeError] = useState<string | null>(null)
   const [surchargesDirty, setSurchargesDirty] = useState(false)
 
+  /* Types de surcharge / Surcharge types */
+  const [surchargeTypes, setSurchargeTypes] = useState<SurchargeTypeOption[]>([])
+
   /* Formulaire ajout / Add form */
   const [showAddForm, setShowAddForm] = useState(false)
   const [addAmount, setAddAmount] = useState('')
-  const [addMotif, setAddMotif] = useState('')
+  const [addTypeId, setAddTypeId] = useState('')
+  const [addComment, setAddComment] = useState('')
   const [addLoading, setAddLoading] = useState(false)
 
   /* Dialogs validation/suppression / Validate/delete dialogs */
@@ -139,14 +153,26 @@ export function TourDetailSheet({ tour, onClose, onSurchargesChanged }: TourDeta
     fetchSurcharges()
   }, [fetchSurcharges])
 
+  useEffect(() => {
+    api.get<SurchargeTypeOption[]>('/surcharge-types/', { params: { is_active: true } })
+      .then(({ data }) => setSurchargeTypes(data))
+      .catch(() => {})
+  }, [])
+
   const handleAddSurcharge = async () => {
     const amount = parseFloat(addAmount)
-    if (!amount || amount <= 0 || !addMotif.trim()) return
+    if (!amount || amount <= 0 || !addTypeId) return
     setAddLoading(true)
     try {
-      await api.post('/surcharges/', { tour_id: tour.tour_id, amount, motif: addMotif.trim() })
+      await api.post('/surcharges/', {
+        tour_id: tour.tour_id,
+        amount,
+        surcharge_type_id: Number(addTypeId),
+        comment: addComment.trim() || null,
+      })
       setAddAmount('')
-      setAddMotif('')
+      setAddTypeId('')
+      setAddComment('')
       setShowAddForm(false)
       setSurchargesDirty(true)
       await fetchSurcharges()
@@ -362,21 +388,36 @@ export function TourDetailSheet({ tour, onClose, onSurchargesChanged }: TourDeta
                     />
                   </div>
                   <div className="flex flex-col flex-1">
-                    <label className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Motif</label>
-                    <input
-                      type="text"
-                      value={addMotif}
-                      onChange={(e) => setAddMotif(e.target.value)}
-                      maxLength={500}
+                    <label className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Type de surcharge</label>
+                    <select
+                      value={addTypeId}
+                      onChange={(e) => setAddTypeId(e.target.value)}
                       className="px-2 py-1.5 rounded-lg border text-sm"
                       style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-                    />
+                    >
+                      <option value="">-- Sélectionner --</option>
+                      {surchargeTypes.map((st) => (
+                        <option key={st.id} value={st.id}>{st.label}</option>
+                      ))}
+                    </select>
                   </div>
+                </div>
+                <div className="flex flex-col">
+                  <label className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Commentaire (optionnel)</label>
+                  <input
+                    type="text"
+                    value={addComment}
+                    onChange={(e) => setAddComment(e.target.value)}
+                    maxLength={500}
+                    placeholder="Commentaire libre..."
+                    className="px-2 py-1.5 rounded-lg border text-sm"
+                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  />
                 </div>
                 <div className="flex justify-end">
                   <button
                     onClick={handleAddSurcharge}
-                    disabled={addLoading || !addAmount || !addMotif.trim()}
+                    disabled={addLoading || !addAmount || !addTypeId}
                     className="px-4 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-50"
                     style={{ backgroundColor: 'var(--color-primary)' }}
                   >
@@ -412,9 +453,14 @@ export function TourDetailSheet({ tour, onClose, onSurchargesChanged }: TourDeta
                       <span className="font-bold" style={{ color: 'var(--color-danger)' }}>
                         {s.amount.toFixed(2)} &euro;
                       </span>
-                      <span className="truncate" style={{ color: 'var(--text-primary)' }} title={s.motif}>
-                        {s.motif}
+                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
+                        {s.surcharge_type_label || s.motif}
                       </span>
+                      {s.comment && (
+                        <span className="truncate text-xs" style={{ color: 'var(--text-muted)' }} title={s.comment}>
+                          {s.comment}
+                        </span>
+                      )}
                       <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
                         par {s.created_by_username}
                         {s.validated_by_username && ` — validée par ${s.validated_by_username}`}
