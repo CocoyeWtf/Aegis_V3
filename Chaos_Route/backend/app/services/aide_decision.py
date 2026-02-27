@@ -591,7 +591,11 @@ class AideDecisionService:
                 fixed = float(c.fixed_daily_cost or 0) / nb_tours_for_contract
                 vacation = float(c.vacation or 0) / nb_tours_for_contract
                 consumption = float(c.consumption_coefficient or 0)
-                fuel_cost = total_tour_km * fuel_price * consumption
+                km_rate = fuel_price * consumption
+                # Fallback sur cost_per_km si fuel ou conso manquant
+                if km_rate == 0:
+                    km_rate = float(c.cost_per_km or 0)
+                fuel_cost = total_tour_km * km_rate
                 km_tax = self._sum_km_tax(km_tax_cache, base.id, sequenced)
                 total_cost = round(fixed + vacation + fuel_cost + km_tax, 2)
 
@@ -1333,7 +1337,11 @@ class AideDecisionService:
         fixed = float(c.fixed_daily_cost or 0) / nb_tours
         vacation = float(c.vacation or 0) / nb_tours
         consumption = float(c.consumption_coefficient or 0)
-        fuel_cost = total_km * fuel_price * consumption
+        km_rate = fuel_price * consumption
+        # Fallback sur cost_per_km si fuel ou conso manquant
+        if km_rate == 0:
+            km_rate = float(c.cost_per_km or 0)
+        fuel_cost = total_km * km_rate
         # Taxe km forfaitaire par segment / Flat km tax per segment
         km_tax_total = self._sum_km_tax(km_tax_cache, base_id, sequenced_pdv_ids)
         return round(fixed + vacation + fuel_cost + km_tax_total, 2)
