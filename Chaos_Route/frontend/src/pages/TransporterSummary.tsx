@@ -69,6 +69,7 @@ interface SummaryTour {
   time_breakdown?: SummaryTimeBreakdown
   surcharges?: SurchargeItem[]
   surcharges_total?: number
+  pending_surcharges_count?: number
   stops: SummaryStop[]
 }
 
@@ -488,8 +489,22 @@ export default function TransporterSummary() {
                                   <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{tour.cost_breakdown.vacation_share.toFixed(2)}</td>
                                   <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{tour.cost_breakdown.fuel_cost.toFixed(2)}</td>
                                   <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{tour.cost_breakdown.km_tax_total.toFixed(2)}</td>
-                                  <td className="px-2 py-1.5 text-right" style={{ color: (tour.surcharges_total || 0) > 0 ? 'var(--color-danger)' : 'var(--text-muted)' }}>
-                                    {(tour.surcharges_total || 0) > 0 ? (tour.surcharges_total || 0).toFixed(2) : '—'}
+                                  <td className="px-2 py-1.5 text-right">
+                                    {(tour.surcharges_total || 0) > 0 && (
+                                      <span style={{ color: 'var(--color-danger)' }}>{(tour.surcharges_total || 0).toFixed(2)}</span>
+                                    )}
+                                    {(tour.pending_surcharges_count || 0) > 0 && (
+                                      <span
+                                        className="inline-block ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold"
+                                        style={{ backgroundColor: 'rgba(249,115,22,0.15)', color: '#f97316' }}
+                                        title={`${tour.pending_surcharges_count} en attente de validation`}
+                                      >
+                                        {tour.pending_surcharges_count}
+                                      </span>
+                                    )}
+                                    {!(tour.surcharges_total || 0) && !(tour.pending_surcharges_count || 0) && (
+                                      <span style={{ color: 'var(--text-muted)' }}>—</span>
+                                    )}
                                   </td>
                                   <td className="px-3 py-1.5 text-right font-bold" style={{ color: 'var(--text-primary)' }}>{tour.total_cost.toFixed(2)}</td>
                                 </tr>

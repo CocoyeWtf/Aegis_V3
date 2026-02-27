@@ -578,18 +578,19 @@ async def transporter_summary(
     if not tours:
         return {"period": {"date_from": date_from, "date_to": date_to}, "transporters": []}
 
-    # 1b. Batch-load surcharges validées / Batch-load validated surcharges
+    # 1b. Batch-load surcharges (validées + compteur pending) / Batch-load surcharges
     tour_ids = [t.id for t in tours]
     surcharges_map: dict[int, list] = {tid: [] for tid in tour_ids}
+    pending_surcharges_count: dict[int, int] = {tid: 0 for tid in tour_ids}
     if tour_ids:
         s_result = await db.execute(
-            select(TourSurcharge).where(
-                TourSurcharge.tour_id.in_(tour_ids),
-                TourSurcharge.status == SurchargeStatus.VALIDATED,
-            )
+            select(TourSurcharge).where(TourSurcharge.tour_id.in_(tour_ids))
         )
         for s in s_result.scalars().all():
-            surcharges_map[s.tour_id].append({"id": s.id, "amount": float(s.amount), "motif": s.motif})
+            if s.status == SurchargeStatus.VALIDATED:
+                surcharges_map[s.tour_id].append({"id": s.id, "amount": float(s.amount), "motif": s.motif})
+            elif s.status == SurchargeStatus.PENDING:
+                pending_surcharges_count[s.tour_id] = pending_surcharges_count.get(s.tour_id, 0) + 1
 
     # 2. Batch load contrats, bases, PDVs / Batch load contracts, bases, PDVs
     contract_ids = list({t.contract_id for t in tours if t.contract_id})
@@ -725,6 +726,7 @@ async def transporter_summary(
             "remarks": tour.remarks,
             "surcharges": surcharges_for_tour,
             "surcharges_total": round(surcharges_total, 2),
+            "pending_surcharges_count": pending_surcharges_count.get(tour.id, 0),
             "cost_breakdown": {
                 "fixed_share": fixed_share,
                 "vacation_share": vacation_share,
