@@ -96,9 +96,9 @@ async def validate_surcharge(
     user: User = Depends(require_permission("surcharges", "update")),
 ):
     """Valider une surcharge (vérification mdp) / Validate a surcharge (password check)."""
-    # Vérifier le mot de passe / Verify password
+    # Vérifier le mot de passe (403, pas 401 pour ne pas déclencher le refresh token)
     if not verify_password(payload.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Mot de passe incorrect")
+        raise HTTPException(status_code=403, detail="Mot de passe incorrect")
 
     result = await db.execute(select(TourSurcharge).where(TourSurcharge.id == surcharge_id))
     surcharge = result.scalar_one_or_none()
@@ -133,9 +133,9 @@ async def delete_surcharge(
     user: User = Depends(require_permission("surcharges", "delete")),
 ):
     """Supprimer une surcharge (vérification mdp) / Delete a surcharge (password check)."""
-    # Vérifier le mot de passe / Verify password
+    # Vérifier le mot de passe (403, pas 401 pour ne pas déclencher le refresh token)
     if not verify_password(payload.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Mot de passe incorrect")
+        raise HTTPException(status_code=403, detail="Mot de passe incorrect")
 
     result = await db.execute(select(TourSurcharge).where(TourSurcharge.id == surcharge_id))
     surcharge = result.scalar_one_or_none()

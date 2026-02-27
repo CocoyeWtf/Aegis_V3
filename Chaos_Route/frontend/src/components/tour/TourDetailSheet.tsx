@@ -168,7 +168,7 @@ export function TourDetailSheet({ tour, onClose, onSurchargesChanged }: TourDeta
       await fetchSurcharges()
     } catch (e: unknown) {
       const err = e as { response?: { status?: number; data?: { detail?: string } } }
-      if (err.response?.status === 401) {
+      if (err.response?.status === 403) {
         setDialogError('Mot de passe incorrect')
       } else {
         setDialogError(err.response?.data?.detail || 'Erreur validation')
@@ -189,7 +189,7 @@ export function TourDetailSheet({ tour, onClose, onSurchargesChanged }: TourDeta
       await fetchSurcharges()
     } catch (e: unknown) {
       const err = e as { response?: { status?: number; data?: { detail?: string } } }
-      if (err.response?.status === 401) {
+      if (err.response?.status === 403) {
         setDialogError('Mot de passe incorrect')
       } else {
         setDialogError(err.response?.data?.detail || 'Erreur suppression')
