@@ -67,6 +67,7 @@ export interface DriverTour {
   base_name?: string
   vehicle_code?: string
   vehicle_name?: string
+  driver_name?: string
   stops: DriverTourStop[]
 }
 
@@ -105,6 +106,38 @@ export interface DeclarationPhoto {
   file_size?: number | null
   mime_type?: string | null
   uploaded_at: string
+}
+
+/* ─── Inspections vehicules / Vehicle inspections ─── */
+
+export type InspectionItemResult = 'OK' | 'KO' | 'NA' | 'NOT_CHECKED'
+
+export interface InspectionStartItem {
+  id: number
+  label: string
+  category: string
+  is_critical: boolean
+  requires_photo: boolean
+  result: InspectionItemResult
+}
+
+export interface InspectionStartResponse {
+  inspection_id: number
+  items: InspectionStartItem[]
+}
+
+export interface InspectionCheckVehicle {
+  id: number
+  code: string
+  name?: string
+  fleet_vehicle_type: string
+  inspection_done: boolean
+  inspection_id?: number
+}
+
+export interface InspectionCheckResponse {
+  required: boolean
+  vehicles: InspectionCheckVehicle[]
 }
 
 export interface TokenResponse {

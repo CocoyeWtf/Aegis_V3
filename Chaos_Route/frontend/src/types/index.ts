@@ -169,6 +169,8 @@ export interface Tour {
   driver_user_id?: number | null
   device_assignment_id?: number | null
   actual_return_time?: string | null
+  vehicle_id?: number | null
+  tractor_id?: number | null
 }
 
 export interface Loader {
@@ -565,4 +567,207 @@ export interface SurchargeType {
   code: string
   label: string
   is_active: boolean
+}
+
+/* ─── Fleet & Vehicle Management ─── */
+
+export type FleetVehicleType = 'TRACTEUR' | 'SEMI_REMORQUE' | 'PORTEUR' | 'REMORQUE' | 'VL' | 'SEMI' | 'PORTEUR_REMORQUE' | 'CITY'
+export type VehicleStatusType = 'ACTIVE' | 'MAINTENANCE' | 'OUT_OF_SERVICE' | 'DISPOSED'
+export type FuelTypeEnum = 'DIESEL' | 'ESSENCE' | 'GNV' | 'ELECTRIQUE' | 'HYBRIDE'
+export type OwnershipType = 'OWNED' | 'LEASED' | 'RENTED'
+
+export interface Vehicle {
+  id: number
+  code: string
+  name?: string
+  license_plate?: string
+  vin?: string
+  brand?: string
+  model?: string
+  fleet_vehicle_type: FleetVehicleType
+  status: VehicleStatusType
+  fuel_type?: FuelTypeEnum
+  temperature_type?: TemperatureType
+  capacity_eqp?: number
+  capacity_weight_kg?: number
+  has_tailgate: boolean
+  tailgate_type?: string
+  first_registration_date?: string
+  acquisition_date?: string
+  disposal_date?: string
+  current_km?: number
+  last_km_update?: string
+  ownership_type?: OwnershipType
+  lessor_name?: string
+  lease_start_date?: string
+  lease_end_date?: string
+  monthly_lease_cost?: number
+  lease_contract_ref?: string
+  purchase_price?: number
+  depreciation_years?: number
+  residual_value?: number
+  insurance_company?: string
+  insurance_policy_number?: string
+  insurance_start_date?: string
+  insurance_end_date?: string
+  insurance_annual_cost?: number
+  last_technical_inspection_date?: string
+  next_technical_inspection_date?: string
+  tachograph_type?: string
+  tachograph_next_calibration?: string
+  region_id?: number
+  notes?: string
+}
+
+export interface VehicleSummary {
+  id: number
+  code: string
+  name?: string
+  license_plate?: string
+  fleet_vehicle_type: FleetVehicleType
+  status: VehicleStatusType
+}
+
+export interface InspectionTemplate {
+  id: number
+  label: string
+  description?: string
+  category: string
+  applicable_vehicle_types?: string
+  is_critical: boolean
+  requires_photo: boolean
+  display_order: number
+  is_active: boolean
+}
+
+export interface InspectionItem {
+  id: number
+  inspection_id: number
+  template_id?: number
+  label: string
+  category: string
+  result: string
+  comment?: string
+  is_critical: boolean
+}
+
+export interface InspectionPhoto {
+  id: number
+  inspection_id: number
+  item_id?: number
+  filename: string
+  file_size?: number
+  mime_type?: string
+  uploaded_at: string
+}
+
+export interface VehicleInspection {
+  id: number
+  vehicle_id: number
+  tour_id?: number
+  device_id?: number
+  inspection_type: string
+  status: string
+  driver_name?: string
+  km_at_inspection?: number
+  latitude?: number
+  longitude?: number
+  started_at: string
+  completed_at?: string
+  remarks?: string
+  has_critical_defect: boolean
+  items: InspectionItem[]
+  photos: InspectionPhoto[]
+  vehicle_code?: string
+  vehicle_name?: string
+}
+
+export interface MaintenanceRecord {
+  id: number
+  vehicle_id: number
+  maintenance_type: string
+  status: string
+  description?: string
+  provider_name?: string
+  scheduled_date?: string
+  scheduled_km?: number
+  completed_date?: string
+  km_at_service?: number
+  cost_parts?: number
+  cost_labor?: number
+  cost_total?: number
+  invoice_ref?: string
+  inspection_id?: number
+  notes?: string
+  created_at?: string
+}
+
+export interface MaintenanceScheduleRule {
+  id: number
+  label: string
+  maintenance_type: string
+  applicable_vehicle_types?: string
+  interval_km?: number
+  interval_months?: number
+  is_active: boolean
+}
+
+export interface FuelEntry {
+  id: number
+  vehicle_id: number
+  date: string
+  km_at_fill?: number
+  liters: number
+  price_per_liter?: number
+  total_cost?: number
+  is_full_tank: boolean
+  station_name?: string
+  driver_name?: string
+  notes?: string
+}
+
+export interface VehicleModificationEntry {
+  id: number
+  vehicle_id: number
+  date: string
+  description: string
+  cost?: number
+  provider_name?: string
+  invoice_ref?: string
+  notes?: string
+}
+
+export interface VehicleCostEntry {
+  id: number
+  vehicle_id: number
+  category: string
+  date: string
+  description?: string
+  amount: number
+  invoice_ref?: string
+  notes?: string
+}
+
+export interface VehicleTCOItem {
+  vehicle_id: number
+  vehicle_code: string
+  vehicle_name?: string
+  fleet_vehicle_type: string
+  ownership_type?: string
+  lease_cost: number
+  depreciation_cost: number
+  maintenance_cost: number
+  fuel_cost: number
+  modification_cost: number
+  other_costs: number
+  total_cost: number
+  total_km: number
+  cost_per_km?: number
+}
+
+export interface FleetDashboard {
+  vehicles: VehicleTCOItem[]
+  total_fleet_cost: number
+  total_fleet_km: number
+  avg_cost_per_km?: number
 }

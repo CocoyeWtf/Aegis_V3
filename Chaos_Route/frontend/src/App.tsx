@@ -39,6 +39,9 @@ const SurchargeTypes = lazy(() => import('./pages/SurchargeTypes'))
 const AideDecision = lazy(() => import('./pages/AideDecision'))
 const DetachedMap = lazy(() => import('./pages/DetachedMap'))
 const PhoneSetupGuide = lazy(() => import('./pages/PhoneSetupGuide'))
+const VehicleManagement = lazy(() => import('./pages/VehicleManagement'))
+const InspectionManagement = lazy(() => import('./pages/InspectionManagement'))
+const FleetManagement = lazy(() => import('./pages/FleetManagement'))
 
 function Loading() {
   return (
@@ -86,6 +89,9 @@ export default function App() {
             <Route path="/aide-decision" element={<AideDecision />} />
             <Route path="/pdv-deliveries" element={<PdvDeliverySchedule />} />
             <Route path="/phone-setup" element={<PhoneSetupGuide />} />
+            <Route path="/vehicles" element={<VehicleManagement />} />
+            <Route path="/inspections" element={<InspectionManagement />} />
+            <Route path="/fleet" element={<FleetManagement />} />
             <Route path="/help" element={<Help />} />
           </Route>
         </Route>

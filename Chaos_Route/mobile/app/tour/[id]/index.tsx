@@ -5,9 +5,10 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndi
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router'
 import api from '../../../services/api'
 import { StopCard } from '../../../components/StopCard'
+import { InspectionRequiredBanner } from '../../../components/InspectionRequiredBanner'
 import { COLORS, STATUS_COLORS } from '../../../constants/config'
 import { startGPSTracking, stopGPSTracking } from '../../../services/gps'
-import type { DriverTour } from '../../../types'
+import type { DriverTour, InspectionCheckResponse } from '../../../types'
 
 export default function TourDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -15,6 +16,8 @@ export default function TourDetailScreen() {
   const [tour, setTour] = useState<DriverTour | null>(null)
   const [loading, setLoading] = useState(true)
   const [gpsActive, setGpsActive] = useState(false)
+  const [inspectionCheck, setInspectionCheck] = useState<InspectionCheckResponse | null>(null)
+  const [inspectionGateDismissed, setInspectionGateDismissed] = useState(false)
 
   const tourId = Number(id)
 
@@ -30,11 +33,27 @@ export default function TourDetailScreen() {
     }
   }, [tourId])
 
-  // Recharger a chaque focus (retour depuis scan/supports) / Reload on every focus
+  /* Verifier inspection requise / Check inspection requirement */
+  const checkInspection = useCallback(async () => {
+    try {
+      const { data } = await api.get<InspectionCheckResponse>(`/inspections/driver/check/${tourId}`)
+      setInspectionCheck(data)
+      /* Si tous les vehicules sont inspectes, desactiver la gate / If all inspected, dismiss gate */
+      if (!data.required || data.vehicles.every((v) => v.inspection_done)) {
+        setInspectionGateDismissed(true)
+      }
+    } catch {
+      /* Silencieux si endpoint absent ou erreur / Silent on failure */
+      setInspectionCheck(null)
+    }
+  }, [tourId])
+
+  // Recharger a chaque focus (retour depuis scan/supports/inspection) / Reload on every focus
   useFocusEffect(
     useCallback(() => {
       loadTour()
-    }, [loadTour])
+      checkInspection()
+    }, [loadTour, checkInspection])
   )
 
   // Polling statut pendant RETURNING / Poll status during RETURNING
@@ -251,6 +270,17 @@ export default function TourDetailScreen() {
           </View>
         </View>
       </View>
+
+      {/* Bandeau inspection requise / Inspection required banner */}
+      {inspectionCheck?.required && !inspectionGateDismissed &&
+        inspectionCheck.vehicles.some((v) => !v.inspection_done) && (
+        <InspectionRequiredBanner
+          tourId={tourId}
+          vehicles={inspectionCheck.vehicles}
+          driverName={tour.driver_name || undefined}
+          onDone={() => setInspectionGateDismissed(true)}
+        />
+      )}
 
       {/* Bandeau retour / Returning banner */}
       {tour.status === 'RETURNING' && (

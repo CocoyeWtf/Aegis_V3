@@ -62,12 +62,16 @@ class Contract(Base):
     has_tailgate: Mapped[bool] = mapped_column(Boolean, default=False)
     tailgate_type: Mapped[TailgateType | None] = mapped_column(Enum(TailgateType))
 
+    # Lien vers vehicule autonome (si applicable) / Link to standalone vehicle
+    vehicle_id: Mapped[int | None] = mapped_column(ForeignKey("vehicles.id"))
+
     # Relations
     region: Mapped["Region"] = relationship(back_populates="contracts")
     tours: Mapped[list["Tour"]] = relationship(back_populates="contract")
     schedules: Mapped[list["ContractSchedule"]] = relationship(
         back_populates="contract", cascade="all, delete-orphan"
     )
+    vehicle: Mapped["Vehicle | None"] = relationship(back_populates="contracts")
 
     def __repr__(self) -> str:
         return f"<Contract {self.code} - {self.transporter_name}>"

@@ -212,6 +212,7 @@ export default function RootLayout() {
         <Stack.Screen name="tour/[id]/stop/[stopId]/supports" options={{ title: 'Scan supports' }} />
         <Stack.Screen name="tour/[id]/stop/[stopId]/pickups" options={{ title: 'Scanner reprises' }} />
         <Stack.Screen name="declaration" options={{ title: 'Declaration', presentation: 'modal' }} />
+        <Stack.Screen name="inspection" options={{ title: 'Inspection vehicule' }} />
       </Stack>
     </>
   )

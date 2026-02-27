@@ -187,6 +187,7 @@ class DriverTourRead(BaseModel):
     base_name: str | None = None
     vehicle_code: str | None = None
     vehicle_name: str | None = None
+    driver_name: str | None = None
     stops: list[DriverTourStopRead] = []
 
 

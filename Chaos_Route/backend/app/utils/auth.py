@@ -39,6 +39,9 @@ RESOURCES = [
     "surcharges",
     "surcharge-types",
     "declarations",
+    "vehicles",
+    "inspections",
+    "fleet",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

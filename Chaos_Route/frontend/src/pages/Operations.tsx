@@ -4,7 +4,7 @@ import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Fra
 import { useTranslation } from 'react-i18next'
 import { QRCodeSVG } from 'qrcode.react'
 import api from '../services/api'
-import type { Tour, BaseLogistics, Contract, PDV, Volume, ManifestLine, ManifestImportResult, MobileDevice } from '../types'
+import type { Tour, BaseLogistics, Contract, PDV, Volume, ManifestLine, ManifestImportResult, MobileDevice, VehicleSummary } from '../types'
 import { TourWaybill } from '../components/tour/TourWaybill'
 import { DriverRouteSheet } from '../components/tour/DriverRouteSheet'
 import { TourGantt } from '../components/operations/TourGantt'
@@ -201,13 +201,17 @@ export default function Operations() {
     trailer_ready_time: string
     eqp_loaded: string
     departure_signal_time: string
+    vehicle_id: string
+    tractor_id: string
   }>>({})
+  const [fleetVehicles, setFleetVehicles] = useState<VehicleSummary[]>([])
 
   /* Charger référentiels / Load reference data */
   useEffect(() => {
     api.get('/bases/').then((r) => setBases(r.data))
     api.get('/contracts/').then((r) => setContracts(r.data))
     api.get('/pdvs/').then((r) => setPdvs(r.data))
+    api.get('/vehicles/summary').then((r) => setFleetVehicles(r.data)).catch(() => {})
   }, [])
 
   const contractMap = useMemo(() => new Map(contracts.map((c) => [c.id, c])), [contracts])
@@ -243,6 +247,8 @@ export default function Operations() {
             trailer_ready_time: tour.trailer_ready_time ?? '',
             eqp_loaded: tour.eqp_loaded != null ? String(tour.eqp_loaded) : '',
             departure_signal_time: tour.departure_signal_time ?? '',
+            vehicle_id: tour.vehicle_id != null ? String(tour.vehicle_id) : '',
+            tractor_id: tour.tractor_id != null ? String(tour.tractor_id) : '',
           }
         }
         return next
@@ -300,6 +306,8 @@ export default function Operations() {
         ...f,
         total_weight_kg: f.total_weight_kg ? parseFloat(f.total_weight_kg) : null,
         eqp_loaded: f.eqp_loaded ? parseInt(f.eqp_loaded, 10) : null,
+        vehicle_id: f.vehicle_id ? parseInt(f.vehicle_id, 10) : null,
+        tractor_id: f.tractor_id ? parseInt(f.tractor_id, 10) : null,
       })
       await loadTours()
     } catch (e) {
@@ -622,7 +630,7 @@ export default function Operations() {
                         <TourRow
                           tour={tour} contract={contract ?? null} form={form}
                           isExpanded={isExpanded} color={color} pdvMap={pdvMap} volumes={volumes}
-                          saving={saving === tour.id} eqc={getTourEqp(tour)}
+                          saving={saving === tour.id} eqc={getTourEqp(tour)} fleetVehicles={fleetVehicles}
                           visibleCols={visibleCols} colCount={colCount} t={t}
                           onToggle={() => toggleExpand(tour.id)}
                           onFormChange={(field, value) => updateForm(tour.id, field, value)}
@@ -676,7 +684,8 @@ export default function Operations() {
 interface TourRowProps {
   tour: TourWithDelay
   contract: Contract | null
-  form: { driver_name: string; driver_arrival_time: string; loading_end_time: string; total_weight_kg: string; remarks: string; loader_code: string; loader_name: string; trailer_number: string; dock_door_number: string; trailer_ready_time: string; eqp_loaded: string; departure_signal_time: string } | undefined
+  form: { driver_name: string; driver_arrival_time: string; loading_end_time: string; total_weight_kg: string; remarks: string; loader_code: string; loader_name: string; trailer_number: string; dock_door_number: string; trailer_ready_time: string; eqp_loaded: string; departure_signal_time: string; vehicle_id: string; tractor_id: string } | undefined
+  fleetVehicles: VehicleSummary[]
   isExpanded: boolean
   color: string
   pdvMap: Map<number, PDV>
@@ -700,7 +709,7 @@ interface TourRowProps {
 }
 
 function TourRow({
-  tour, contract, form, isExpanded, color, pdvMap, volumes, saving, eqc,
+  tour, contract, form, isExpanded, color, pdvMap, volumes, saving, eqc, fleetVehicles,
   visibleCols, colCount, t,
   onToggle, onFormChange, onSave, onRouteSheet, onWaybill, onAssignDevice, onUnassignDevice, onSetNow, onLoaderLookup, onPatchStopsEqc,
 }: TourRowProps) {
@@ -953,6 +962,36 @@ function TourRow({
                   onClick={(e) => e.stopPropagation()} />
               </div>
             </div>
+
+            {/* Vehicules propres / Own fleet vehicles */}
+            {fleetVehicles.length > 0 && (
+              <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                <div className="min-w-0">
+                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Vehicule (semi/porteur)</label>
+                  <select value={form.vehicle_id} onChange={(e) => onFormChange('vehicle_id', e.target.value)}
+                    className="w-full min-w-0 px-1.5 py-1.5 rounded border text-xs"
+                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                    onClick={(e) => e.stopPropagation()}>
+                    <option value="">— Aucun (preste) —</option>
+                    {fleetVehicles.filter((v) => v.fleet_vehicle_type !== 'TRACTEUR').map((v) => (
+                      <option key={v.id} value={v.id}>{v.code} — {v.name || v.license_plate || ''}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="min-w-0">
+                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Tracteur</label>
+                  <select value={form.tractor_id} onChange={(e) => onFormChange('tractor_id', e.target.value)}
+                    className="w-full min-w-0 px-1.5 py-1.5 rounded border text-xs"
+                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                    onClick={(e) => e.stopPropagation()}>
+                    <option value="">— Aucun (preste) —</option>
+                    {fleetVehicles.filter((v) => v.fleet_vehicle_type === 'TRACTEUR').map((v) => (
+                      <option key={v.id} value={v.id}>{v.code} — {v.name || v.license_plate || ''}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex gap-2 justify-end">

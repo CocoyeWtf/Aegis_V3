@@ -35,6 +35,9 @@ from app.api import (
     surcharge_types,
     surcharges,
     declarations,
+    vehicles,
+    inspections,
+    fleet,
 )
 
 api_router = APIRouter(prefix="/api")
@@ -70,3 +73,6 @@ api_router.include_router(kpi.router, prefix="/kpi", tags=["KPI"])
 api_router.include_router(surcharge_types.router, prefix="/surcharge-types", tags=["surcharge-types"])
 api_router.include_router(surcharges.router, prefix="/surcharges", tags=["surcharges"])
 api_router.include_router(declarations.router, prefix="/declarations", tags=["declarations"])
+api_router.include_router(vehicles.router, prefix="/vehicles", tags=["vehicles"])
+api_router.include_router(inspections.router, prefix="/inspections", tags=["inspections"])
+api_router.include_router(fleet.router, prefix="/fleet", tags=["fleet"])

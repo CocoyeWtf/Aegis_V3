@@ -173,6 +173,7 @@ async def _build_tour_read(tour: Tour, db: AsyncSession) -> DriverTourRead:
         base_name=base.name if base else None,
         vehicle_code=contract.vehicle_code if contract else None,
         vehicle_name=contract.vehicle_name if contract else None,
+        driver_name=tour.driver_name,
         stops=_build_tour_stops(tour.stops, pdv_map, support_counts, pickup_label_counts, pickup_summary_map),
     )
 

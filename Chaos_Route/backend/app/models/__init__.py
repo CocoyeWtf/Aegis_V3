@@ -34,6 +34,19 @@ from app.models.tour_manifest_line import TourManifestLine
 from app.models.surcharge_type import SurchargeType
 from app.models.tour_surcharge import TourSurcharge, SurchargeStatus
 from app.models.driver_declaration import DriverDeclaration, DeclarationPhoto, DeclarationType
+from app.models.vehicle import Vehicle, FleetVehicleType, VehicleStatus, FuelType, OwnershipType
+from app.models.inspection_template import InspectionTemplate, InspectionCategory
+from app.models.vehicle_inspection import (
+    VehicleInspection, InspectionItem, InspectionPhoto,
+    InspectionType, InspectionStatus, InspectionItemResult,
+)
+from app.models.vehicle_maintenance import (
+    VehicleMaintenanceRecord, MaintenanceScheduleRule,
+    MaintenanceType, MaintenanceStatus,
+)
+from app.models.vehicle_fuel import VehicleFuelEntry
+from app.models.vehicle_modification import VehicleModification
+from app.models.vehicle_cost_entry import VehicleCostEntry, CostCategory
 
 __all__ = [
     "Country",
@@ -81,4 +94,25 @@ __all__ = [
     "DriverDeclaration",
     "DeclarationPhoto",
     "DeclarationType",
+    "Vehicle",
+    "FleetVehicleType",
+    "VehicleStatus",
+    "FuelType",
+    "OwnershipType",
+    "InspectionTemplate",
+    "InspectionCategory",
+    "VehicleInspection",
+    "InspectionItem",
+    "InspectionPhoto",
+    "InspectionType",
+    "InspectionStatus",
+    "InspectionItemResult",
+    "VehicleMaintenanceRecord",
+    "MaintenanceScheduleRule",
+    "MaintenanceType",
+    "MaintenanceStatus",
+    "VehicleFuelEntry",
+    "VehicleModification",
+    "VehicleCostEntry",
+    "CostCategory",
 ]

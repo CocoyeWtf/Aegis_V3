@@ -77,6 +77,16 @@ const navGroups: NavGroup[] = [
       { path: '/pickup-requests', label: 'Demandes de reprise', icon: '📋', resource: 'pickup-requests' },
     ],
   },
+  {
+    key: 'fleet',
+    label: 'Flotte',
+    icon: '🚛',
+    children: [
+      { path: '/vehicles', label: 'Vehicules', icon: '🚚', resource: 'vehicles' },
+      { path: '/inspections', label: 'Inspections', icon: '🔍', resource: 'inspections' },
+      { path: '/fleet', label: 'Gestion flotte', icon: '📊', resource: 'fleet' },
+    ],
+  },
   { key: 'guardPost', label: 'nav.guardPost', icon: '🚧', path: '/guard-post', resource: 'guard-post' },
   {
     key: 'admin',

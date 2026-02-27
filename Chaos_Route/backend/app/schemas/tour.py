@@ -72,6 +72,8 @@ class TourBase(BaseModel):
     driver_user_id: int | None = None
     device_assignment_id: int | None = None
     actual_return_time: str | None = None
+    vehicle_id: int | None = None
+    tractor_id: int | None = None
 
 
 class TourCreate(TourBase):
@@ -113,6 +115,8 @@ class TourUpdate(BaseModel):
     driver_user_id: int | None = None
     device_assignment_id: int | None = None
     actual_return_time: str | None = None
+    vehicle_id: int | None = None
+    tractor_id: int | None = None
 
 
 class TourOperationsUpdate(BaseModel):
@@ -129,6 +133,8 @@ class TourOperationsUpdate(BaseModel):
     trailer_ready_time: str | None = None
     eqp_loaded: int | None = None
     departure_signal_time: str | None = None
+    vehicle_id: int | None = None
+    tractor_id: int | None = None
 
 
 class TourGateUpdate(BaseModel):

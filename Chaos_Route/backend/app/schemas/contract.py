@@ -38,6 +38,7 @@ class ContractBase(BaseModel):
     capacity_weight_kg: int | None = None
     has_tailgate: bool = False
     tailgate_type: TailgateType | None = None
+    vehicle_id: int | None = None
 
 
 class ContractCreate(ContractBase):
@@ -65,6 +66,7 @@ class ContractUpdate(BaseModel):
     capacity_weight_kg: int | None = None
     has_tailgate: bool | None = None
     tailgate_type: TailgateType | None = None
+    vehicle_id: int | None = None
 
 
 class ContractRead(ContractBase):

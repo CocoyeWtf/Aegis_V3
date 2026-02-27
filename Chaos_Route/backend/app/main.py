@@ -42,6 +42,11 @@ async def lifespan(app: FastAPI):
     # Seed superadmin si aucun utilisateur / Seed superadmin if no users
     async with async_session() as session:
         await seed_superadmin(session)
+    # Seed templates inspection par defaut / Seed default inspection templates
+    from app.utils.seed_inspection_templates import seed_inspection_templates
+    async with async_session() as session:
+        await seed_inspection_templates(session)
+        await session.commit()
     yield
 
 

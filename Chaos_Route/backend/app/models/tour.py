@@ -60,6 +60,13 @@ class Tour(Base):
     departure_signal_time: Mapped[str | None] = mapped_column(String(16))
     wms_tour_code: Mapped[str | None] = mapped_column(String(30))
 
+    # Vehicules propres affectes au tour / Own vehicles assigned to tour
+    # vehicle_id = vehicule principal (porteur seul, ou semi-remorque dans un ensemble)
+    # tractor_id = tracteur (seulement pour les ensembles tracteur+semi)
+    # Si NULL → vehicule preste (du transporteur, pas dans notre parc)
+    vehicle_id: Mapped[int | None] = mapped_column(ForeignKey("vehicles.id"))
+    tractor_id: Mapped[int | None] = mapped_column(ForeignKey("vehicles.id"))
+
     # Champs suivi mobile / Mobile tracking fields
     driver_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     device_assignment_id: Mapped[int | None] = mapped_column(ForeignKey("device_assignments.id"))
@@ -68,6 +75,8 @@ class Tour(Base):
     # Relations
     contract: Mapped["Contract | None"] = relationship(back_populates="tours")
     base: Mapped["BaseLogistics"] = relationship(back_populates="tours")
+    vehicle: Mapped["Vehicle | None"] = relationship(foreign_keys=[vehicle_id])
+    tractor: Mapped["Vehicle | None"] = relationship(foreign_keys=[tractor_id])
     stops: Mapped[list["TourStop"]] = relationship(
         back_populates="tour", cascade="all, delete-orphan", order_by="TourStop.sequence_order"
     )
