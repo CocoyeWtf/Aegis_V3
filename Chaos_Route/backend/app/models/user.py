@@ -39,6 +39,7 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_superadmin: Mapped[bool] = mapped_column(Boolean, default=False)
     pdv_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("pdvs.id"), nullable=True)  # Lien optionnel vers un PDV / Optional link to a PDV
+    badge_code: Mapped[str | None] = mapped_column(String(8), unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

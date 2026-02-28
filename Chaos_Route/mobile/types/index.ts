@@ -131,6 +131,7 @@ export interface InspectionCheckVehicle {
   code: string
   name?: string
   fleet_vehicle_type: string
+  qr_code?: string
   inspection_done: boolean
   inspection_id?: number
 }

@@ -1,9 +1,12 @@
 /* Page Vehicules / Vehicle management page */
 
+import { useState, useCallback } from 'react'
 import { CrudPage } from '../components/data/CrudPage'
 import type { Column } from '../components/data/DataTable'
 import type { FieldDef } from '../components/data/FormDialog'
 import { useApi } from '../hooks/useApi'
+import { VehicleQRLabel } from '../components/print/VehicleQRLabel'
+import api from '../services/api'
 import type { Vehicle, Region } from '../types'
 
 const VEHICLE_TYPES = [
@@ -76,6 +79,13 @@ const OWNERSHIP_LABELS: Record<string, string> = {
 
 export default function VehicleManagement() {
   const { data: regions } = useApi<Region>('/regions')
+  const [qrVehicle, setQrVehicle] = useState<Vehicle | null>(null)
+
+  const handleRegenerate = useCallback(async () => {
+    if (!qrVehicle) return
+    const { data } = await api.post<Vehicle>(`/vehicles/${qrVehicle.id}/regenerate-qr`)
+    setQrVehicle(data)
+  }, [qrVehicle])
 
   const columns: Column<Vehicle>[] = [
     { key: 'code', label: 'Code', width: '80px', filterable: true },
@@ -112,6 +122,19 @@ export default function VehicleManagement() {
       key: 'region_id', label: 'Region', width: '100px', filterable: true,
       render: (row) => regions.find((r) => r.id === row.region_id)?.name || '—',
       filterValue: (row) => regions.find((r) => r.id === row.region_id)?.name || '',
+    },
+    {
+      key: 'qr_code' as keyof Vehicle, label: 'QR', width: '60px',
+      render: (row) => (
+        <button
+          onClick={(e) => { e.stopPropagation(); setQrVehicle(row) }}
+          className="px-2 py-1 rounded text-xs font-medium"
+          style={{ backgroundColor: 'var(--color-primary)', color: '#fff' }}
+          title="Voir QR vehicule"
+        >
+          QR
+        </button>
+      ),
     },
   ]
 
@@ -170,27 +193,53 @@ export default function VehicleManagement() {
   ]
 
   return (
-    <CrudPage<Vehicle>
-      title="Vehicules"
-      endpoint="/vehicles"
-      columns={columns}
-      fields={fields}
-      searchKeys={['code', 'name', 'license_plate', 'brand']}
-      createTitle="Nouveau vehicule"
-      editTitle="Modifier vehicule"
-      exportEntity="vehicles"
-      transformPayload={(d) => ({
-        ...d,
-        region_id: d.region_id ? Number(d.region_id) : null,
-        capacity_eqp: d.capacity_eqp ? Number(d.capacity_eqp) : null,
-        capacity_weight_kg: d.capacity_weight_kg ? Number(d.capacity_weight_kg) : null,
-        current_km: d.current_km ? Number(d.current_km) : null,
-        monthly_lease_cost: d.monthly_lease_cost ? Number(d.monthly_lease_cost) : null,
-        purchase_price: d.purchase_price ? Number(d.purchase_price) : null,
-        depreciation_years: d.depreciation_years ? Number(d.depreciation_years) : null,
-        residual_value: d.residual_value ? Number(d.residual_value) : null,
-        insurance_annual_cost: d.insurance_annual_cost ? Number(d.insurance_annual_cost) : null,
-      })}
-    />
+    <>
+      <CrudPage<Vehicle>
+        title="Vehicules"
+        endpoint="/vehicles"
+        columns={columns}
+        fields={fields}
+        searchKeys={['code', 'name', 'license_plate', 'brand']}
+        createTitle="Nouveau vehicule"
+        editTitle="Modifier vehicule"
+        exportEntity="vehicles"
+        transformPayload={(d) => ({
+          ...d,
+          region_id: d.region_id ? Number(d.region_id) : null,
+          capacity_eqp: d.capacity_eqp ? Number(d.capacity_eqp) : null,
+          capacity_weight_kg: d.capacity_weight_kg ? Number(d.capacity_weight_kg) : null,
+          current_km: d.current_km ? Number(d.current_km) : null,
+          monthly_lease_cost: d.monthly_lease_cost ? Number(d.monthly_lease_cost) : null,
+          purchase_price: d.purchase_price ? Number(d.purchase_price) : null,
+          depreciation_years: d.depreciation_years ? Number(d.depreciation_years) : null,
+          residual_value: d.residual_value ? Number(d.residual_value) : null,
+          insurance_annual_cost: d.insurance_annual_cost ? Number(d.insurance_annual_cost) : null,
+        })}
+      />
+
+      {/* Modal QR vehicule / Vehicle QR modal */}
+      {qrVehicle && qrVehicle.qr_code && (
+        <div
+          className="fixed inset-0 flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999 }}
+          onClick={() => setQrVehicle(null)}
+        >
+          <div
+            className="rounded-xl p-6"
+            style={{ backgroundColor: 'var(--bg-primary)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <VehicleQRLabel
+              qrCode={qrVehicle.qr_code}
+              vehicleCode={qrVehicle.code}
+              licensePlate={qrVehicle.license_plate}
+              vehicleType={qrVehicle.fleet_vehicle_type}
+              onClose={() => setQrVehicle(null)}
+              onRegenerate={handleRegenerate}
+            />
+          </div>
+        </div>
+      )}
+    </>
   )
 }

@@ -86,6 +86,7 @@ class UserRead(BaseModel):
     is_active: bool
     is_superadmin: bool
     pdv_id: int | None = None
+    badge_code: str | None = None
     roles: list[RoleBrief]
     regions: list[RegionBrief]
     created_at: datetime
@@ -100,6 +101,7 @@ class UserMe(BaseModel):
     email: str
     is_superadmin: bool
     pdv_id: int | None = None
+    badge_code: str | None = None
     roles: list[RoleBrief]
     regions: list[RegionBrief]
     permissions: list[str]  # ["pdvs:read", "pdvs:create", ...]

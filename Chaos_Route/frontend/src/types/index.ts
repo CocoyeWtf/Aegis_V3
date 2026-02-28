@@ -351,6 +351,7 @@ export interface UserAccount {
   is_active: boolean
   is_superadmin: boolean
   pdv_id?: number | null
+  badge_code?: string
   roles: { id: number; name: string }[]
   regions: { id: number; name: string }[]
   created_at: string
@@ -617,6 +618,7 @@ export interface Vehicle {
   tachograph_next_calibration?: string
   region_id?: number
   notes?: string
+  qr_code?: string
 }
 
 export interface VehicleSummary {
@@ -626,6 +628,7 @@ export interface VehicleSummary {
   license_plate?: string
   fleet_vehicle_type: FleetVehicleType
   status: VehicleStatusType
+  qr_code?: string
 }
 
 export interface InspectionTemplate {

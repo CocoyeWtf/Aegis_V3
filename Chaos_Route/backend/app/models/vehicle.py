@@ -64,6 +64,7 @@ class Vehicle(Base):
     vin: Mapped[str | None] = mapped_column(String(30))
     brand: Mapped[str | None] = mapped_column(String(50))
     model: Mapped[str | None] = mapped_column(String(50))
+    qr_code: Mapped[str | None] = mapped_column(String(8), unique=True)
 
     # --- Classification ---
     fleet_vehicle_type: Mapped[FleetVehicleType] = mapped_column(

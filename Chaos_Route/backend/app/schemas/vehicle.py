@@ -130,6 +130,7 @@ class VehicleRead(BaseModel):
     tachograph_next_calibration: str | None = None
     region_id: int | None = None
     notes: str | None = None
+    qr_code: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -142,5 +143,6 @@ class VehicleSummary(BaseModel):
     license_plate: str | None = None
     fleet_vehicle_type: str
     status: str
+    qr_code: str | None = None
 
     model_config = {"from_attributes": True}

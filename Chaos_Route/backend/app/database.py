@@ -56,8 +56,46 @@ async def init_db():
     # Ajouter les colonnes manquantes sur tables existantes /
     # Add missing columns on existing tables
     await _migrate_missing_columns()
+    # Generer les QR/badge codes manquants / Backfill missing QR/badge codes
+    await _backfill_qr_codes()
     # Purger les positions GPS > 30 jours / Purge GPS positions older than 30 days
     await _cleanup_old_gps()
+
+
+async def _backfill_qr_codes():
+    """Generer qr_code/badge_code pour les entites existantes / Backfill QR/badge codes for existing entities."""
+    import uuid
+
+    async with async_session() as session:
+        # Vehicules sans qr_code / Vehicles without qr_code
+        result = await session.execute(
+            text("SELECT id FROM vehicles WHERE qr_code IS NULL OR qr_code = ''")
+        )
+        vehicle_ids = [row[0] for row in result.fetchall()]
+        for vid in vehicle_ids:
+            code = uuid.uuid4().hex[:8].upper()
+            await session.execute(
+                text("UPDATE vehicles SET qr_code = :code WHERE id = :id"),
+                {"code": code, "id": vid},
+            )
+        if vehicle_ids:
+            print(f"[backfill] Generated qr_code for {len(vehicle_ids)} vehicles")
+
+        # Users sans badge_code / Users without badge_code
+        result = await session.execute(
+            text("SELECT id FROM users WHERE badge_code IS NULL OR badge_code = ''")
+        )
+        user_ids = [row[0] for row in result.fetchall()]
+        for uid in user_ids:
+            code = uuid.uuid4().hex[:8].upper()
+            await session.execute(
+                text("UPDATE users SET badge_code = :code WHERE id = :id"),
+                {"code": code, "id": uid},
+            )
+        if user_ids:
+            print(f"[backfill] Generated badge_code for {len(user_ids)} users")
+
+        await session.commit()
 
 
 async def _cleanup_old_gps(days: int = 30):

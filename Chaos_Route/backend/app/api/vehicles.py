@@ -1,5 +1,6 @@
 """Routes Vehicules / Vehicle API routes."""
 
+import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -55,6 +56,36 @@ async def list_vehicles_summary(
     return result.scalars().all()
 
 
+@router.get("/resolve-qr/{qr_code}", response_model=VehicleRead)
+async def resolve_qr(
+    qr_code: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("vehicles", "read")),
+):
+    """Resoudre un QR code vehicule / Resolve vehicle QR code (for mobile scan)."""
+    result = await db.execute(select(Vehicle).where(Vehicle.qr_code == qr_code))
+    vehicle = result.scalar_one_or_none()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found for this QR code")
+    return vehicle
+
+
+@router.post("/{vehicle_id}/regenerate-qr", response_model=VehicleRead)
+async def regenerate_qr(
+    vehicle_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("vehicles", "update")),
+):
+    """Regenerer le QR code d'un vehicule / Regenerate vehicle QR code."""
+    vehicle = await db.get(Vehicle, vehicle_id)
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle.qr_code = uuid.uuid4().hex[:8].upper()
+    await db.flush()
+    await db.refresh(vehicle)
+    return vehicle
+
+
 @router.get("/{vehicle_id}", response_model=VehicleRead)
 async def get_vehicle(
     vehicle_id: int,
@@ -81,6 +112,8 @@ async def create_vehicle(
     dump["status"] = VehicleStatus(dump.get("status") or "ACTIVE")
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     dump["last_km_update"] = now if dump.get("current_km") else None
+    # Generer QR code unique / Generate unique QR code
+    dump["qr_code"] = uuid.uuid4().hex[:8].upper()
     vehicle = Vehicle(**dump)
     db.add(vehicle)
     await db.flush()

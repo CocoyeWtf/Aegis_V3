@@ -3,6 +3,8 @@ CRUD Utilisateurs / User CRUD routes.
 Protégé par permissions "users" / Protected by "users" permissions.
 """
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,6 +64,7 @@ async def create_user(
         is_active=data.is_active,
         is_superadmin=data.is_superadmin,
         pdv_id=data.pdv_id,
+        badge_code=uuid.uuid4().hex[:8].upper(),
     )
 
     # Attacher les rôles / Attach roles

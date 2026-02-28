@@ -7,6 +7,7 @@ import { FormDialog, type FieldDef } from '../../components/data/FormDialog'
 import { ConfirmDialog } from '../../components/data/ConfirmDialog'
 import { useApi } from '../../hooks/useApi'
 import { create, update, remove } from '../../services/api'
+import { DriverBadgeCard } from '../../components/print/DriverBadgeCard'
 import type { UserAccount, Role, Region, PDV } from '../../types'
 
 export default function UserManagement() {
@@ -20,6 +21,7 @@ export default function UserManagement() {
   const [editItem, setEditItem] = useState<Record<string, unknown> | undefined>()
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
+  const [badgeUser, setBadgeUser] = useState<UserAccount | null>(null)
 
   const columns: Column<UserAccount>[] = [
     { key: 'username', label: t('admin.users.username'), width: '140px' },
@@ -47,6 +49,19 @@ export default function UserManagement() {
       label: 'Superadmin',
       width: '100px',
       render: (row) => row.is_superadmin ? '✓' : '',
+    },
+    {
+      key: 'badge_code' as keyof UserAccount, label: 'Badge', width: '70px',
+      render: (row) => row.badge_code ? (
+        <button
+          onClick={(e) => { e.stopPropagation(); setBadgeUser(row) }}
+          className="px-2 py-1 rounded text-xs font-medium"
+          style={{ backgroundColor: 'var(--color-primary)', color: '#fff' }}
+          title="Voir badge chauffeur"
+        >
+          Badge
+        </button>
+      ) : '—',
     },
   ]
 
@@ -177,6 +192,28 @@ export default function UserManagement() {
         message={t('common.deleteConfirm')}
         loading={saving}
       />
+
+      {/* Modal badge chauffeur / Driver badge modal */}
+      {badgeUser && badgeUser.badge_code && (
+        <div
+          className="fixed inset-0 flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999 }}
+          onClick={() => setBadgeUser(null)}
+        >
+          <div
+            className="rounded-xl p-6"
+            style={{ backgroundColor: 'var(--bg-primary)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <DriverBadgeCard
+              badgeCode={badgeUser.badge_code}
+              username={badgeUser.username}
+              roleName={badgeUser.roles.map((r) => r.name).join(', ') || undefined}
+              onClose={() => setBadgeUser(null)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
