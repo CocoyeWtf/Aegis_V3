@@ -65,11 +65,12 @@ export interface PDV {
   delivery_window_start?: string
   delivery_window_end?: string
   access_constraints?: string
+  allowed_vehicle_types?: string
   region_id: number
 }
 
 export type TemperatureType = 'GEL' | 'FRAIS' | 'SEC' | 'BI_TEMP' | 'TRI_TEMP'
-export type VehicleType = 'SEMI' | 'PORTEUR' | 'PORTEUR_REMORQUE' | 'CITY' | 'VL'
+export type VehicleType = 'SEMI' | 'PORTEUR' | 'PORTEUR_SURBAISSE' | 'PORTEUR_REMORQUE' | 'CITY' | 'VL'
 export type TailgateType = 'RETRACTABLE' | 'RABATTABLE'
 
 export interface Supplier {
@@ -235,6 +236,7 @@ export interface WaybillData {
 export const VEHICLE_TYPE_DEFAULTS: Record<VehicleType, { label: string; capacity_eqp: number }> = {
   SEMI: { label: 'Semi-remorque', capacity_eqp: 54 },
   PORTEUR: { label: 'Porteur', capacity_eqp: 33 },
+  PORTEUR_SURBAISSE: { label: 'Porteur surbaissé', capacity_eqp: 33 },
   PORTEUR_REMORQUE: { label: 'Porteur + Remorque', capacity_eqp: 43 },
   CITY: { label: 'City', capacity_eqp: 16 },
   VL: { label: 'VL', capacity_eqp: 8 },
@@ -572,7 +574,7 @@ export interface SurchargeType {
 
 /* ─── Fleet & Vehicle Management ─── */
 
-export type FleetVehicleType = 'TRACTEUR' | 'SEMI_REMORQUE' | 'PORTEUR' | 'REMORQUE' | 'VL' | 'SEMI' | 'PORTEUR_REMORQUE' | 'CITY'
+export type FleetVehicleType = 'TRACTEUR' | 'SEMI_REMORQUE' | 'PORTEUR' | 'PORTEUR_SURBAISSE' | 'REMORQUE' | 'VL' | 'SEMI' | 'PORTEUR_REMORQUE' | 'CITY'
 export type VehicleStatusType = 'ACTIVE' | 'MAINTENANCE' | 'OUT_OF_SERVICE' | 'DISPOSED'
 export type FuelTypeEnum = 'DIESEL' | 'ESSENCE' | 'GNV' | 'ELECTRIQUE' | 'HYBRIDE'
 export type OwnershipType = 'OWNED' | 'LEASED' | 'RENTED'

@@ -303,6 +303,34 @@ async def _log_audit(
     ))
 
 
+async def _check_vehicle_type_compatibility(
+    db: AsyncSession, stops_data: list[dict], contract: Contract
+) -> list[str]:
+    """Vérifier compatibilité type véhicule entre les PDV et le contrat /
+    Check vehicle type compatibility between PDVs and the contract.
+    Returns list of violation messages (empty = OK).
+    """
+    pdv_ids = [s["pdv_id"] for s in stops_data]
+    if not pdv_ids:
+        return []
+    result = await db.execute(select(PDV).where(PDV.id.in_(pdv_ids)))
+    pdvs = {p.id: p for p in result.scalars().all()}
+
+    vt = contract.vehicle_type
+    vt_value = vt.value if (vt and hasattr(vt, 'value')) else vt
+
+    violations: list[str] = []
+    for stop in stops_data:
+        pdv = pdvs.get(stop["pdv_id"])
+        if not pdv or not pdv.allowed_vehicle_types:
+            continue
+        allowed = pdv.allowed_vehicle_types.split("|")
+        if vt_value and vt_value not in allowed:
+            violations.append(f"TYPE_NOT_ALLOWED:{pdv.code} {pdv.name} (requiert {', '.join(allowed)})")
+
+    return violations
+
+
 async def _check_dock_tailgate_compatibility(
     db: AsyncSession, stops_data: list[dict], contract: Contract
 ) -> list[str]:
@@ -439,8 +467,9 @@ async def available_contracts_for_tours(
             ]
             compatible = []
             for c in available:
-                violations = await _check_dock_tailgate_compatibility(db, stops_data, c)
-                if not violations:
+                dock_violations = await _check_dock_tailgate_compatibility(db, stops_data, c)
+                vt_violations = await _check_vehicle_type_compatibility(db, stops_data, c)
+                if not dock_violations and not vt_violations:
                     compatible.append(c)
             available = compatible
 
@@ -1038,6 +1067,15 @@ async def create_tour(
                 detail=f"DOCK_TAILGATE:{' | '.join(dock_violations)}",
             )
 
+    # Vérification compatibilité type véhicule / Vehicle type compatibility check
+    if contract and stops_input:
+        vt_violations = await _check_vehicle_type_compatibility(db, stops_input, contract)
+        if vt_violations:
+            raise HTTPException(
+                status_code=422,
+                detail=f"VEHICLE_TYPE:{' | '.join(vt_violations)}",
+            )
+
     total_km = data.total_km or 0
     if data.departure_time and enriched_stops:
         total_km = sum(s.get("distance_from_previous_km", 0) for s in enriched_stops)
@@ -1277,6 +1315,15 @@ async def schedule_tour(
             raise HTTPException(
                 status_code=422,
                 detail=f"DOCK_TAILGATE:{' | '.join(dock_violations)}",
+            )
+
+    # Vérification compatibilité type véhicule / Vehicle type compatibility check
+    if contract and stops_data:
+        vt_violations = await _check_vehicle_type_compatibility(db, stops_data, contract)
+        if vt_violations:
+            raise HTTPException(
+                status_code=422,
+                detail=f"VEHICLE_TYPE:{' | '.join(vt_violations)}",
             )
 
     total_km = sum(s.get("distance_from_previous_km", 0) for s in enriched_stops)

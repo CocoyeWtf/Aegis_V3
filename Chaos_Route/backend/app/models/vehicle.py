@@ -19,6 +19,7 @@ class FleetVehicleType(str, enum.Enum):
     TRACTEUR = "TRACTEUR"
     SEMI_REMORQUE = "SEMI_REMORQUE"
     PORTEUR = "PORTEUR"
+    PORTEUR_SURBAISSE = "PORTEUR_SURBAISSE"
     REMORQUE = "REMORQUE"
     VL = "VL"
     # Legacy compat (anciennes valeurs Contract.vehicle_type)

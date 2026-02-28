@@ -28,6 +28,7 @@ export default function ContractManagement() {
   const vehicleTypeOptions = [
     { value: 'SEMI', label: t('vehicles.semi') },
     { value: 'PORTEUR', label: t('vehicles.porteur') },
+    { value: 'PORTEUR_SURBAISSE', label: 'Porteur surbaissé' },
     { value: 'PORTEUR_REMORQUE', label: t('vehicles.porteurRemorque') },
     { value: 'CITY', label: t('vehicles.city') },
     { value: 'VL', label: t('vehicles.vl') },

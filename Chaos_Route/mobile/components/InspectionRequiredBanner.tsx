@@ -11,6 +11,7 @@ const VEHICLE_TYPE_LABELS: Record<string, string> = {
   TRACTEUR: 'Tracteur',
   SEMI_REMORQUE: 'Semi-remorque',
   PORTEUR: 'Porteur',
+  PORTEUR_SURBAISSE: 'Porteur surbaissé',
   REMORQUE: 'Remorque',
   VL: 'VL',
 }

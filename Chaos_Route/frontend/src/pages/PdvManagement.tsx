@@ -7,13 +7,19 @@ import { CrudPage } from '../components/data/CrudPage'
 import type { Column } from '../components/data/DataTable'
 import type { FieldDef } from '../components/data/FormDialog'
 import { useApi } from '../hooks/useApi'
-import type { PDV, Region } from '../types'
+import type { PDV, Region, VehicleType } from '../types'
+import { VEHICLE_TYPE_DEFAULTS } from '../types'
 
 export default function PdvManagement() {
   const { t } = useTranslation()
   const { data: regions } = useApi<Region>('/regions')
   const [qrPdv, setQrPdv] = useState<PDV | null>(null)
   const printRef = useRef<HTMLDivElement>(null)
+
+  const vehicleTypeOptions = (Object.keys(VEHICLE_TYPE_DEFAULTS) as VehicleType[]).map((vt) => ({
+    value: vt,
+    label: VEHICLE_TYPE_DEFAULTS[vt].label,
+  }))
 
   const pdvTypeOptions = [
     { value: 'EXPRESS', label: t('pdvs.express') },
@@ -65,6 +71,12 @@ export default function PdvManagement() {
     { key: 'delivery_window_start', label: t('pdvs.deliveryStart'), width: '100px', defaultHidden: true },
     { key: 'delivery_window_end', label: t('pdvs.deliveryEnd'), width: '100px', defaultHidden: true },
     {
+      key: 'allowed_vehicle_types' as keyof PDV, label: 'Types véhicules', width: '150px', defaultHidden: true,
+      render: (row) => row.allowed_vehicle_types
+        ? row.allowed_vehicle_types.split('|').map((vt) => VEHICLE_TYPE_DEFAULTS[vt as VehicleType]?.label || vt).join(', ')
+        : 'Tous',
+    },
+    {
       key: 'region_id', label: t('common.region'), width: '120px', filterable: true,
       render: (row) => regions.find((r) => r.id === row.region_id)?.name || '—',
       filterValue: (row) => regions.find((r) => r.id === row.region_id)?.name || '',
@@ -98,6 +110,7 @@ export default function PdvManagement() {
     { key: 'delivery_window_start', label: t('pdvs.deliveryStart'), type: 'time' },
     { key: 'delivery_window_end', label: t('pdvs.deliveryEnd'), type: 'time' },
     { key: 'access_constraints', label: t('pdvs.accessConstraints'), type: 'textarea' },
+    { key: 'allowed_vehicle_types', label: 'Types véhicules autorisés', type: 'multicheck', options: vehicleTypeOptions },
     {
       key: 'region_id', label: t('common.region'), type: 'select', required: true,
       options: regions.map((r) => ({ value: String(r.id), label: r.name })),
@@ -135,7 +148,18 @@ export default function PdvManagement() {
         editTitle={t('pdvs.edit')}
         importEntity="pdvs"
         exportEntity="pdvs"
-        transformPayload={(d) => ({ ...d, region_id: Number(d.region_id) })}
+        transformPayload={(d) => {
+          const avt = d.allowed_vehicle_types as string[] | undefined
+          return {
+            ...d,
+            region_id: Number(d.region_id),
+            allowed_vehicle_types: avt && avt.length > 0 ? avt.join('|') : null,
+          }
+        }}
+        transformInitialData={(d) => ({
+          ...d,
+          allowed_vehicle_types: d.allowed_vehicle_types ? (d.allowed_vehicle_types as string).split('|') : [],
+        })}
       />
 
       {/* Modale QR PDV / PDV QR code modal */}

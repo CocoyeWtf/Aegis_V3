@@ -62,6 +62,10 @@ class PDV(Base):
     # Contraintes d'accès / Access constraints
     access_constraints: Mapped[str | None] = mapped_column(Text)
 
+    # Types de véhicules autorisés (pipe-delimited) / Allowed vehicle types (pipe-delimited)
+    # NULL = tous acceptés / NULL = all accepted
+    allowed_vehicle_types: Mapped[str | None] = mapped_column(String(200))
+
     region_id: Mapped[int] = mapped_column(ForeignKey("regions.id"), nullable=False)
 
     # Relations

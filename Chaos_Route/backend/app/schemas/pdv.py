@@ -32,6 +32,7 @@ class PDVBase(BaseModel):
     delivery_window_start: str | None = None
     delivery_window_end: str | None = None
     access_constraints: str | None = None
+    allowed_vehicle_types: str | None = None
     region_id: int
 
 
@@ -66,6 +67,7 @@ class PDVUpdate(BaseModel):
     delivery_window_start: str | None = None
     delivery_window_end: str | None = None
     access_constraints: str | None = None
+    allowed_vehicle_types: str | None = None
     region_id: int | None = None
 
 

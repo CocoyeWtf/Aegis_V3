@@ -409,12 +409,12 @@ class AideDecisionService:
                 if km_cents == 0:
                     km_cents = int(float(c.cost_per_km or 0) * 100)
 
-                # Compatible nodes (dock/hayon)
+                # Compatible nodes (dock/hayon + type véhicule)
                 compatible = set()
                 for node in range(1, num_nodes):
                     pid = node_to_pdv[node]
                     pdv = pdvs.get(pid)
-                    if pdv and self._check_dock_tailgate(pdv, c):
+                    if pdv and self._check_dock_tailgate(pdv, c) and self._check_vehicle_type(pdv, c):
                         compatible.add(node)
                     elif not pdv:
                         compatible.add(node)
@@ -1261,6 +1261,18 @@ class AideDecisionService:
 
     # ── Contract helpers ─────────────────────────────────────────
 
+    def _check_vehicle_type(self, pdv: PDV, contract: Contract) -> bool:
+        """Vérifie compatibilité type véhicule / Check vehicle type compatibility.
+        NULL allowed_vehicle_types = tous acceptés / all accepted.
+        Returns True if compatible, False if violation.
+        """
+        if not pdv.allowed_vehicle_types:
+            return True
+        allowed = pdv.allowed_vehicle_types.split("|")
+        vt = contract.vehicle_type
+        vt_value = vt.value if (vt and hasattr(vt, "value")) else vt
+        return vt_value in allowed if vt_value else True
+
     def _check_dock_tailgate(self, pdv: PDV, contract: Contract) -> bool:
         """Vérifie compatibilité dock/hayon / Check dock/tailgate compatibility.
         Returns True if compatible, False if violation.
@@ -1297,7 +1309,7 @@ class AideDecisionService:
             compatible = True
             for pid in pdv_ids:
                 pdv = pdvs.get(pid)
-                if pdv and not self._check_dock_tailgate(pdv, c):
+                if pdv and (not self._check_dock_tailgate(pdv, c) or not self._check_vehicle_type(pdv, c)):
                     compatible = False
                     break
             if not compatible:

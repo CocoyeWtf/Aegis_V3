@@ -196,7 +196,7 @@ class ImportService:
         "bases": ["code", "name", "type", "address", "postal_code", "city", "phone", "email", "latitude", "longitude", "region_id"],
         "pdvs": ["code", "name", "type", "address", "postal_code", "city", "phone", "email", "latitude", "longitude",
                  "has_sas", "sas_capacity", "has_dock", "dock_time_minutes", "unload_time_per_eqp_minutes",
-                 "delivery_window_start", "delivery_window_end", "access_constraints", "region_id"],
+                 "delivery_window_start", "delivery_window_end", "access_constraints", "allowed_vehicle_types", "region_id"],
         "suppliers": ["code", "name", "address", "postal_code", "city", "phone", "email", "latitude", "longitude", "region_id"],
         "volumes": ["pdv_id", "date", "nb_colis", "eqp_count", "weight_kg", "temperature_class", "base_origin_id", "preparation_start", "preparation_end", "dispatch_date", "dispatch_time", "activity_type", "promo_start_date", "volume_m3", "nb_supports"],
         "contracts": ["code", "transporter_name", "fixed_daily_cost", "vacation", "cost_per_km", "cost_per_hour",

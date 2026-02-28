@@ -318,6 +318,9 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
           if (v.startsWith('DOCK_NO_NICHE_FOLDABLE:')) return t('tourPlanning.noDockNicheNoFoldable', { pdv: v.replace('DOCK_NO_NICHE_FOLDABLE:', '') })
           return v
         }).join('\n'))
+      } else if (status === 422 && detail?.startsWith('VEHICLE_TYPE:')) {
+        const violations = detail.replace('VEHICLE_TYPE:', '')
+        alert('Type de véhicule incompatible :\n\n' + violations.split(' | ').join('\n'))
       } else if (status === 422 && detail?.startsWith('DELIVERY_WINDOW:')) {
         const violations = detail.replace('DELIVERY_WINDOW:', '')
         const confirmed = window.confirm(

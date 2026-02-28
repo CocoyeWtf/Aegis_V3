@@ -21,6 +21,7 @@ class VehicleType(str, enum.Enum):
     """Type de véhicule / Vehicle type."""
     SEMI = "SEMI"
     PORTEUR = "PORTEUR"
+    PORTEUR_SURBAISSE = "PORTEUR_SURBAISSE"
     PORTEUR_REMORQUE = "PORTEUR_REMORQUE"
     CITY = "CITY"
     VL = "VL"
