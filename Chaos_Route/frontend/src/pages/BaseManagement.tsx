@@ -149,6 +149,7 @@ export default function BaseManagement() {
         fields={fields}
         initialData={editItem}
         loading={saving}
+        size="md"
       />
 
       <ConfirmDialog

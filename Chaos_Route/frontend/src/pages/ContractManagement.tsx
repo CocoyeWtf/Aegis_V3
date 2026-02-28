@@ -159,6 +159,7 @@ export default function ContractManagement() {
         exportEntity="contracts"
         allowDuplicate
         transformPayload={(d) => ({ ...d, region_id: Number(d.region_id) })}
+        formSize="lg"
       />
 
       {scheduleContract && (

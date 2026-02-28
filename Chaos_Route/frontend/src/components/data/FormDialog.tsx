@@ -19,6 +19,18 @@ export interface FieldDef {
   /** Dynamic function to filter options based on current form values */
   getOptions?: (formData: Record<string, unknown>) => { value: string; label: string }[]
   hidden?: (formData: Record<string, unknown>) => boolean
+  /** Nombre de colonnes occupées dans la grille / Number of grid columns to span (default: 1, textarea/multicheck auto full) */
+  colSpan?: number
+}
+
+/** Taille du dialogue / Dialog size */
+export type FormDialogSize = 'sm' | 'md' | 'lg' | 'xl'
+
+const sizeConfig: Record<FormDialogSize, { maxWidth: string; cols: number }> = {
+  sm: { maxWidth: 'max-w-lg', cols: 1 },
+  md: { maxWidth: 'max-w-2xl', cols: 2 },
+  lg: { maxWidth: 'max-w-4xl', cols: 2 },
+  xl: { maxWidth: 'max-w-5xl', cols: 3 },
 }
 
 interface FormDialogProps {
@@ -33,9 +45,11 @@ interface FormDialogProps {
   error?: string | null
   /** Contenu supplémentaire dans le formulaire / Extra content rendered inside the form */
   renderExtra?: (formData: Record<string, unknown>, initialData?: Record<string, unknown>) => React.ReactNode
+  /** Taille du dialogue : sm (1 col), md (2 cols), lg (2 cols large), xl (3 cols) / Dialog size */
+  size?: FormDialogSize
 }
 
-export function FormDialog({ open, onClose, onSubmit, title, fields, initialData, loading, error, renderExtra }: FormDialogProps) {
+export function FormDialog({ open, onClose, onSubmit, title, fields, initialData, loading, error, renderExtra, size = 'sm' }: FormDialogProps) {
   const { t } = useTranslation()
   const [form, setForm] = useState<Record<string, unknown>>({})
 
@@ -89,6 +103,8 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
     color: 'var(--text-primary)',
   }
 
+  const { maxWidth, cols } = sizeConfig[size]
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       {/* Backdrop */}
@@ -96,7 +112,7 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
 
       {/* Dialog */}
       <div
-        className="relative rounded-xl border shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto"
+        className={`relative rounded-xl border shadow-2xl w-full ${maxWidth} max-h-[85vh] overflow-y-auto`}
         style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -109,10 +125,10 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4" autoComplete="off">
+        <form onSubmit={handleSubmit} className="p-6 grid gap-y-4" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, columnGap: cols > 1 ? '1.5rem' : undefined }} autoComplete="off">
           {error && (
             <div
-              className="p-3 rounded-lg border text-sm font-medium"
+              className="p-3 rounded-lg border text-sm font-medium col-span-full"
               style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: '#ef4444', color: '#ef4444' }}
             >
               {error}
@@ -123,8 +139,13 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
 
             const options = field.getOptions ? field.getOptions(form) : field.options
 
+            // Auto col-span-full pour textarea/multicheck sauf si colSpan explicite
+            const autoFull = (field.type === 'textarea' || field.type === 'multicheck') && !field.colSpan
+            const span = autoFull ? cols : (field.colSpan && field.colSpan > 1 ? Math.min(field.colSpan, cols) : undefined)
+            const spanStyle = span ? { gridColumn: `span ${span}` } : undefined
+
             return (
-              <div key={field.key}>
+              <div key={field.key} style={spanStyle}>
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>
                   {field.label}
                   {field.required && <span style={{ color: 'var(--color-danger)' }}> *</span>}
@@ -208,10 +229,10 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
             )
           })}
 
-          {renderExtra?.(form, initialData)}
+          {renderExtra && <div className="col-span-full">{renderExtra(form, initialData)}</div>}
 
           {/* Actions */}
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex justify-end gap-2 pt-4 col-span-full">
             <button
               type="button"
               onClick={onClose}

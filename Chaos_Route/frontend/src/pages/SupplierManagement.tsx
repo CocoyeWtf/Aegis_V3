@@ -51,6 +51,7 @@ export default function SupplierManagement() {
       importEntity="suppliers"
       exportEntity="suppliers"
       transformPayload={(d) => ({ ...d, region_id: Number(d.region_id) })}
+      formSize="md"
     />
   )
 }

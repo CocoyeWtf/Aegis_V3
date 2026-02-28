@@ -277,6 +277,7 @@ function TemplatesCrud() {
       searchKeys={['label']}
       createTitle="Nouveau template"
       editTitle="Modifier template"
+      formSize="md"
     />
   )
 }

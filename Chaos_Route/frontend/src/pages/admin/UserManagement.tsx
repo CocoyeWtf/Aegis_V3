@@ -182,6 +182,7 @@ export default function UserManagement() {
         fields={fields}
         initialData={editItem}
         loading={saving}
+        size="md"
       />
 
       <ConfirmDialog

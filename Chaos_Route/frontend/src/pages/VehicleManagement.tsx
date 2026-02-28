@@ -185,7 +185,7 @@ export default function VehicleManagement() {
     { key: 'tachograph_next_calibration', label: 'Prochaine calibration tacho', type: 'date' },
     // Region
     {
-      key: 'region_id', label: 'Region', type: 'select',
+      key: 'region_id', label: 'Region', type: 'select', colSpan: 2,
       options: regions.map((r) => ({ value: String(r.id), label: r.name })),
     },
     // Notes
@@ -215,6 +215,7 @@ export default function VehicleManagement() {
           residual_value: d.residual_value ? Number(d.residual_value) : null,
           insurance_annual_cost: d.insurance_annual_cost ? Number(d.insurance_annual_cost) : null,
         })}
+        formSize="xl"
       />
 
       {/* Modal QR vehicule / Vehicle QR modal */}

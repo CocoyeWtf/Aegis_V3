@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DataTable, type Column } from './DataTable'
-import { FormDialog, type FieldDef } from './FormDialog'
+import { FormDialog, type FieldDef, type FormDialogSize } from './FormDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ImportDialog } from './ImportDialog'
 import { useApi } from '../../hooks/useApi'
@@ -34,6 +34,8 @@ interface CrudPageProps<T extends { id: number }> {
   transformInitialData?: (data: Record<string, unknown>) => Record<string, unknown>
   /** Contenu supplémentaire dans le formulaire / Extra content inside the form dialog */
   formExtra?: (formData: Record<string, unknown>, initialData?: Record<string, unknown>) => React.ReactNode
+  /** Taille du formulaire / Form dialog size */
+  formSize?: FormDialogSize
 }
 
 export function CrudPage<T extends { id: number }>({
@@ -54,6 +56,7 @@ export function CrudPage<T extends { id: number }>({
   toolbarExtra,
   transformInitialData,
   formExtra,
+  formSize,
 }: CrudPageProps<T>) {
   const { t } = useTranslation()
   const { data, loading, refetch } = useApi<T>(endpoint, apiParams)
@@ -158,6 +161,7 @@ export function CrudPage<T extends { id: number }>({
         loading={saving}
         error={formOpen ? error : null}
         renderExtra={formExtra}
+        size={formSize}
       />
 
       <ConfirmDialog

@@ -87,7 +87,7 @@ export default function PdvManagement() {
     { key: 'code', label: t('common.code'), type: 'text', required: true },
     { key: 'name', label: t('common.name'), type: 'text', required: true },
     { key: 'type', label: t('common.type'), type: 'select', required: true, options: pdvTypeOptions },
-    { key: 'address', label: t('common.address'), type: 'text' },
+    { key: 'address', label: t('common.address'), type: 'text', colSpan: 2 },
     { key: 'postal_code', label: t('common.postalCode'), type: 'text' },
     { key: 'city', label: t('common.city'), type: 'text' },
     { key: 'phone', label: t('common.phone'), type: 'text' },
@@ -160,6 +160,7 @@ export default function PdvManagement() {
           ...d,
           allowed_vehicle_types: d.allowed_vehicle_types ? (d.allowed_vehicle_types as string).split('|') : [],
         })}
+        formSize="xl"
       />
 
       {/* Modale QR PDV / PDV QR code modal */}

@@ -199,6 +199,7 @@ function MaintenanceCrud({ vehicleOptions }: { vehicleOptions: { value: string; 
         cost_labor: d.cost_labor ? Number(d.cost_labor) : null,
         cost_total: d.cost_total ? Number(d.cost_total) : null,
       })}
+      formSize="lg"
     />
   )
 }
@@ -268,6 +269,7 @@ function FuelCrud({ vehicleOptions }: { vehicleOptions: { value: string; label: 
         price_per_liter: d.price_per_liter ? Number(d.price_per_liter) : null,
         total_cost: d.total_cost ? Number(d.total_cost) : null,
       })}
+      formSize="md"
     />
   )
 }
@@ -316,6 +318,7 @@ function ModificationsCrud({ vehicleOptions }: { vehicleOptions: { value: string
         vehicle_id: d.vehicle_id ? Number(d.vehicle_id) : null,
         cost: d.cost ? Number(d.cost) : null,
       })}
+      formSize="md"
     />
   )
 }
@@ -368,6 +371,7 @@ function CostsCrud({ vehicleOptions }: { vehicleOptions: { value: string; label:
         vehicle_id: d.vehicle_id ? Number(d.vehicle_id) : null,
         amount: d.amount ? Number(d.amount) : null,
       })}
+      formSize="md"
     />
   )
 }
