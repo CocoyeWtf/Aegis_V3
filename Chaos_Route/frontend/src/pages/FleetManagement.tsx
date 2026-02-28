@@ -8,14 +8,12 @@ import { useApi } from '../hooks/useApi'
 import api from '../services/api'
 import type {
   Vehicle,
-  VehicleSummary,
   MaintenanceRecord,
   MaintenanceScheduleRule,
   FuelEntry,
   VehicleModificationEntry,
   VehicleCostEntry,
   FleetDashboard,
-  VehicleTCOItem,
 } from '../types'
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
@@ -71,7 +69,6 @@ const VEHICLE_TYPE_LABELS: Record<string, string> = {
 const MAINTENANCE_TYPE_OPTIONS = Object.entries(MAINTENANCE_TYPE_LABELS).map(([value, label]) => ({ value, label }))
 const MAINTENANCE_STATUS_OPTIONS = Object.entries(MAINTENANCE_STATUS_LABELS).map(([value, label]) => ({ value, label }))
 const COST_CATEGORY_OPTIONS = Object.entries(COST_CATEGORY_LABELS).map(([value, label]) => ({ value, label }))
-const VEHICLE_TYPE_OPTIONS = Object.entries(VEHICLE_TYPE_LABELS).map(([value, label]) => ({ value, label }))
 
 type TabKey = 'maintenance' | 'fuel' | 'modifications' | 'costs' | 'rules' | 'tco'
 
@@ -519,7 +516,7 @@ function TCODashboard() {
                   cy="50%"
                   outerRadius={100}
                   dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                 >
                   {pieData.map((_entry, index) => (
                     <Cell key={`cell-${index}`} fill={TCO_COLORS[index % TCO_COLORS.length]} />
