@@ -162,7 +162,7 @@ export default function ReportVehicle() {
                   <YAxis type="category" dataKey="vehicle_code" width={70} style={{ fontSize: 11 }} />
                   <Tooltip
                     contentStyle={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '12px' }}
-                    formatter={(value: number) => [`${value}%`, 'Remplissage']}
+                    formatter={(value) => [`${value}%`, 'Remplissage']}
                   />
                   <Bar dataKey="avg_fill_rate_pct" name="Remplissage %" fill="#f97316" radius={[0, 4, 4, 0]} />
                 </BarChart>
