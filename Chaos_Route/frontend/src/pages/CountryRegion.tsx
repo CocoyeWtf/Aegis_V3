@@ -93,11 +93,16 @@ export default function CountryRegion() {
       if (deleteItem.type === 'country') {
         await remove('/countries', deleteItem.id)
         refetchC()
+        refetchR()
         if (selectedCountryId === deleteItem.id) setSelectedCountryId(null)
       } else {
         await remove('/regions', deleteItem.id)
         refetchR()
       }
+      setDeleteItem(null)
+    } catch {
+      refetchC()
+      refetchR()
       setDeleteItem(null)
     } finally {
       setSaving(false)
