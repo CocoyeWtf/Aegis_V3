@@ -517,36 +517,36 @@ export function TourDetailSheet({ tour, onClose, onSurchargesChanged }: TourDeta
             <table className="w-full text-xs">
               <thead>
                 <tr style={{ color: 'var(--text-muted)' }}>
-                  <th className="text-left pb-2 font-medium">{t('transporterSummary.sequence')}</th>
-                  <th className="text-left pb-2 font-medium">{t('transporterSummary.pdvCode')}</th>
-                  <th className="text-left pb-2 font-medium">{t('transporterSummary.pdvName')}</th>
-                  <th className="text-right pb-2 font-medium">{t('transporterSummary.km')}</th>
-                  <th className="text-right pb-2 font-medium">{t('transporterSummary.duration')}</th>
-                  <th className="text-right pb-2 font-medium">{t('transporterSummary.arrivalTime')}</th>
-                  <th className="text-right pb-2 font-medium">{t('transporterSummary.eqp')}</th>
-                  <th className="text-center pb-2 font-medium">{t('transporterSummary.pickups')}</th>
-                  <th className="text-right pb-2 font-medium">{t('transporterSummary.departureTime')}</th>
+                  <th className="text-left pb-2 font-medium whitespace-nowrap">{t('transporterSummary.sequence')}</th>
+                  <th className="text-left pb-2 font-medium whitespace-nowrap">{t('transporterSummary.pdvCode')}</th>
+                  <th className="text-left pb-2 font-medium whitespace-nowrap">{t('transporterSummary.pdvName')}</th>
+                  <th className="text-right pb-2 font-medium whitespace-nowrap">{t('transporterSummary.km')}</th>
+                  <th className="text-right pb-2 font-medium whitespace-nowrap">{t('transporterSummary.duration')}</th>
+                  <th className="text-right pb-2 font-medium whitespace-nowrap">{t('transporterSummary.arrivalTime')}</th>
+                  <th className="text-right pb-2 font-medium whitespace-nowrap">{t('transporterSummary.eqp')}</th>
+                  <th className="text-center pb-2 font-medium whitespace-nowrap">{t('transporterSummary.pickups')}</th>
+                  <th className="text-right pb-2 font-medium whitespace-nowrap">{t('transporterSummary.departureTime')}</th>
                 </tr>
               </thead>
               <tbody>
                 {tour.stops.map((stop) => (
                   <tr key={stop.sequence_order} className="border-t" style={{ borderColor: 'var(--border-color)' }}>
-                    <td className="py-1.5" style={{ color: 'var(--text-muted)' }}>{stop.sequence_order}</td>
-                    <td className="py-1.5 font-mono" style={{ color: 'var(--text-primary)' }}>{stop.pdv_code}</td>
-                    <td className="py-1.5" style={{ color: 'var(--text-primary)' }}>{stop.pdv_name}</td>
-                    <td className="py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>
+                    <td className="py-1.5 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{stop.sequence_order}</td>
+                    <td className="py-1.5 font-mono whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{stop.pdv_code}</td>
+                    <td className="py-1.5 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{stop.pdv_name}</td>
+                    <td className="py-1.5 text-right whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
                       {stop.distance_from_previous_km.toFixed(1)}
                     </td>
-                    <td className="py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>
+                    <td className="py-1.5 text-right whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
                       {stop.duration_from_previous_minutes}′
                     </td>
-                    <td className="py-1.5 text-right" style={{ color: 'var(--text-primary)' }}>
+                    <td className="py-1.5 text-right whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                       {stop.arrival_time || '—'}
                     </td>
-                    <td className="py-1.5 text-right font-bold" style={{ color: 'var(--text-primary)' }}>
+                    <td className="py-1.5 text-right font-bold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                       {stop.eqp_count}
                     </td>
-                    <td className="py-1.5 text-center" style={{ color: 'var(--text-muted)' }}>
+                    <td className="py-1.5 text-center whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
                       {[
                         stop.pickup_cardboard && 'C',
                         stop.pickup_containers && 'B',
@@ -554,7 +554,7 @@ export function TourDetailSheet({ tour, onClose, onSurchargesChanged }: TourDeta
                         stop.pickup_consignment && 'K',
                       ].filter(Boolean).join('/') || '—'}
                     </td>
-                    <td className="py-1.5 text-right" style={{ color: 'var(--text-primary)' }}>
+                    <td className="py-1.5 text-right whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                       {stop.departure_time || '—'}
                     </td>
                   </tr>

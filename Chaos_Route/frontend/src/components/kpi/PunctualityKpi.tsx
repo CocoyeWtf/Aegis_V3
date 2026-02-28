@@ -252,7 +252,7 @@ export function PunctualityKpi({ dateFrom, dateTo, regionId }: PunctualityKpiPro
                   ] as [SortKey, string][]).map(([key, label]) => (
                     <th
                       key={key}
-                      className="px-3 py-2 font-semibold cursor-pointer select-none text-left"
+                      className="px-3 py-2 font-semibold cursor-pointer select-none text-left whitespace-nowrap"
                       style={{ color: 'var(--text-muted)' }}
                       onClick={() => handleSort(key)}
                     >
@@ -264,13 +264,13 @@ export function PunctualityKpi({ dateFrom, dateTo, regionId }: PunctualityKpiPro
               <tbody>
                 {sortedPdvs.map((pdv) => (
                   <tr key={pdv.pdv_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <td className="px-3 py-1.5 font-mono" style={{ color: 'var(--text-primary)' }}>{pdv.pdv_code}</td>
-                    <td className="px-3 py-1.5" style={{ color: 'var(--text-primary)' }}>{pdv.pdv_name}</td>
-                    <td className="px-3 py-1.5 tabular-nums" style={{ color: 'var(--text-muted)' }}>{pdv.total}</td>
-                    <td className="px-3 py-1.5 font-bold tabular-nums" style={{ color: pdv.cdc_pct >= 90 ? 'var(--color-success)' : pdv.cdc_pct >= 75 ? 'var(--color-warning)' : 'var(--color-danger)' }}>
+                    <td className="px-3 py-1.5 font-mono whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{pdv.pdv_code}</td>
+                    <td className="px-3 py-1.5 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{pdv.pdv_name}</td>
+                    <td className="px-3 py-1.5 tabular-nums whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{pdv.total}</td>
+                    <td className="px-3 py-1.5 font-bold tabular-nums whitespace-nowrap" style={{ color: pdv.cdc_pct >= 90 ? 'var(--color-success)' : pdv.cdc_pct >= 75 ? 'var(--color-warning)' : 'var(--color-danger)' }}>
                       {pdv.cdc_pct}%
                     </td>
-                    <td className="px-3 py-1.5 font-bold tabular-nums" style={{ color: pdv.operational_pct >= 90 ? 'var(--color-success)' : pdv.operational_pct >= 75 ? 'var(--color-warning)' : 'var(--color-danger)' }}>
+                    <td className="px-3 py-1.5 font-bold tabular-nums whitespace-nowrap" style={{ color: pdv.operational_pct >= 90 ? 'var(--color-success)' : pdv.operational_pct >= 75 ? 'var(--color-warning)' : 'var(--color-danger)' }}>
                       {pdv.operational_pct}%
                     </td>
                   </tr>

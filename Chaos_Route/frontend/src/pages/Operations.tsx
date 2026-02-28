@@ -602,7 +602,7 @@ export default function Operations() {
                       {visibleCols.map((col) => (
                         <th
                           key={col.key}
-                          className={`px-3 py-2 font-medium relative ${col.align === 'center' ? 'text-center' : 'text-left'}`}
+                          className={`px-3 py-2 font-medium relative whitespace-nowrap ${col.align === 'center' ? 'text-center' : 'text-left'}`}
                           style={{ color: 'var(--text-muted)', overflow: 'hidden' }}
                         >
                           {col.label === 'EQC' ? 'EQC' : t(col.label)}
@@ -756,7 +756,7 @@ function TourRow({
         onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = isExpanded ? 'rgba(249,115,22,0.06)' : 'transparent' }}
       >
         {visibleCols.map((col) => (
-          <td key={col.key} className={`px-3 py-2 ${col.align === 'center' ? 'text-center' : ''}`} style={{ color: 'var(--text-primary)' }}>
+          <td key={col.key} className={`px-3 py-2 whitespace-nowrap ${col.align === 'center' ? 'text-center' : ''}`} style={{ color: 'var(--text-primary)' }}>
             {cells[col.key]}
           </td>
         ))}
@@ -765,7 +765,7 @@ function TourRow({
       {/* Détail déplié / Expanded detail */}
       {isExpanded && form && (
         <tr style={{ backgroundColor: 'rgba(249,115,22,0.03)' }}>
-          <td colSpan={colCount} className="px-3 py-3">
+          <td colSpan={colCount} className="px-3 py-3 whitespace-nowrap">
             {/* Info répartition + livraison / Dispatch + delivery info */}
             {(() => {
               const tourVolumes = volumes.filter((v) => v.tour_id === tour.id)
@@ -793,12 +793,12 @@ function TourRow({
               <table className="w-full text-xs" style={{ tableLayout: 'auto' }}>
                 <thead>
                   <tr>
-                    <th className="px-2 py-1 text-left font-semibold" style={{ color: 'var(--text-muted)' }}>#</th>
-                    <th className="px-2 py-1 text-left font-semibold" style={{ color: 'var(--text-muted)' }}>PDV</th>
-                    <th className="px-2 py-1 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>{t('operations.planned')}</th>
-                    <th className="px-2 py-1 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>{t('operations.estimated')}</th>
-                    <th className="px-2 py-1 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>EQC</th>
-                    <th className="px-2 py-1 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>{t('operations.pickups')}</th>
+                    <th className="px-2 py-1 text-left font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>#</th>
+                    <th className="px-2 py-1 text-left font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>PDV</th>
+                    <th className="px-2 py-1 text-center font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{t('operations.planned')}</th>
+                    <th className="px-2 py-1 text-center font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{t('operations.estimated')}</th>
+                    <th className="px-2 py-1 text-center font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>EQC</th>
+                    <th className="px-2 py-1 text-center font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{t('operations.pickups')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -815,8 +815,8 @@ function TourRow({
 
                       return (
                         <tr key={stop.id} className="border-t" style={{ borderColor: 'var(--border-color)' }}>
-                          <td className="px-2 py-1" style={{ color: 'var(--text-muted)' }}>{stop.sequence_order}</td>
-                          <td className="px-2 py-1" style={{ color: 'var(--text-primary)' }}>
+                          <td className="px-2 py-1 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{stop.sequence_order}</td>
+                          <td className="px-2 py-1 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                             <span className="font-semibold">{pdv?.code ?? ''}</span>
                             <span className="ml-1">{pdv?.name ?? `#${stop.pdv_id}`}</span>
                             {pdv?.city && <span className="ml-1" style={{ color: 'var(--text-muted)' }}>({pdv.city})</span>}
@@ -826,22 +826,22 @@ function TourRow({
                               </span>
                             )}
                           </td>
-                          <td className="px-2 py-1 text-center font-mono" style={{ color: 'var(--text-muted)' }}>{stop.arrival_time ?? '—'}</td>
-                          <td className="px-2 py-1 text-center font-mono font-semibold" style={{ color: tour.delay_minutes > 0 ? color : 'var(--text-primary)' }}>
+                          <td className="px-2 py-1 text-center font-mono whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{stop.arrival_time ?? '—'}</td>
+                          <td className="px-2 py-1 text-center font-mono font-semibold whitespace-nowrap" style={{ color: tour.delay_minutes > 0 ? color : 'var(--text-primary)' }}>
                             {stop.estimated_arrival ?? '—'}
                           </td>
-                          <td className="px-2 py-1 text-center" style={{ color: 'var(--text-primary)' }}>{stop.eqp_count}</td>
-                          <td className="px-2 py-1 text-center" style={{ color: pickups ? 'var(--color-primary)' : 'var(--text-muted)' }}>
+                          <td className="px-2 py-1 text-center whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{stop.eqp_count}</td>
+                          <td className="px-2 py-1 text-center whitespace-nowrap" style={{ color: pickups ? 'var(--color-primary)' : 'var(--text-muted)' }}>
                             {pickups || '—'}
                           </td>
                         </tr>
                       )
                     })}
                   <tr className="border-t" style={{ borderColor: 'var(--border-color)' }}>
-                    <td className="px-2 py-1" style={{ color: 'var(--text-muted)' }}>&#8617;</td>
-                    <td className="px-2 py-1 font-semibold" style={{ color: 'var(--text-muted)' }}>{t('tourPlanning.returnBase')}</td>
-                    <td className="px-2 py-1 text-center font-mono" style={{ color: 'var(--text-muted)' }}>{tour.return_time ?? '—'}</td>
-                    <td className="px-2 py-1 text-center font-mono font-semibold" style={{ color: tour.delay_minutes > 0 ? color : 'var(--text-primary)' }}>
+                    <td className="px-2 py-1 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>&#8617;</td>
+                    <td className="px-2 py-1 font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{t('tourPlanning.returnBase')}</td>
+                    <td className="px-2 py-1 text-center font-mono whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{tour.return_time ?? '—'}</td>
+                    <td className="px-2 py-1 text-center font-mono font-semibold whitespace-nowrap" style={{ color: tour.delay_minutes > 0 ? color : 'var(--text-primary)' }}>
                       {tour.estimated_return ?? '—'}
                     </td>
                     <td /><td />
@@ -1163,12 +1163,12 @@ function ManifestSection({ tourId, wmsTourCode, stops, pdvMap, onImported }: {
         <table className="w-full text-xs mb-1" style={{ tableLayout: 'auto' }}>
           <thead>
             <tr>
-              <th className="px-2 py-1 text-left font-semibold" style={{ color: 'var(--text-muted)' }}>PDV</th>
-              <th className="px-2 py-1 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>EQC annonce</th>
-              <th className="px-2 py-1 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>EQC charge</th>
-              <th className="px-2 py-1 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>Supports</th>
-              <th className="px-2 py-1 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>Scannes</th>
-              <th className="px-2 py-1 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>Statut</th>
+              <th className="px-2 py-1 text-left font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>PDV</th>
+              <th className="px-2 py-1 text-center font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>EQC annonce</th>
+              <th className="px-2 py-1 text-center font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>EQC charge</th>
+              <th className="px-2 py-1 text-center font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Supports</th>
+              <th className="px-2 py-1 text-center font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Scannes</th>
+              <th className="px-2 py-1 text-center font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Statut</th>
             </tr>
           </thead>
           <tbody>
@@ -1186,17 +1186,17 @@ function ManifestSection({ tourId, wmsTourCode, stops, pdvMap, onImported }: {
                     style={{ borderColor: 'var(--border-color)' }}
                     onClick={(e) => { e.stopPropagation(); setExpandedPdv(isOpen ? null : row.pdv_code) }}
                   >
-                    <td className="px-2 py-1 font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    <td className="px-2 py-1 font-semibold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                       <span className="text-[10px] mr-1" style={{ color: 'var(--text-muted)' }}>{isOpen ? '▾' : '▸'}</span>
                       {row.pdv_code}
                     </td>
-                    <td className="px-2 py-1 text-center" style={{ color: 'var(--text-primary)' }}>{row.eqc_announced}</td>
-                    <td className="px-2 py-1 text-center" style={{ color: Math.abs(row.eqc_announced - row.eqc_loaded) < 0.01 ? 'var(--text-primary)' : '#f59e0b' }}>{row.eqc_loaded.toFixed(2)}</td>
-                    <td className="px-2 py-1 text-center" style={{ color: 'var(--text-primary)' }}>{row.supports_total}</td>
-                    <td className="px-2 py-1 text-center" style={{ color: row.supports_scanned === row.supports_total && row.supports_total > 0 ? '#22c55e' : 'var(--text-muted)' }}>
+                    <td className="px-2 py-1 text-center whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{row.eqc_announced}</td>
+                    <td className="px-2 py-1 text-center whitespace-nowrap" style={{ color: Math.abs(row.eqc_announced - row.eqc_loaded) < 0.01 ? 'var(--text-primary)' : '#f59e0b' }}>{row.eqc_loaded.toFixed(2)}</td>
+                    <td className="px-2 py-1 text-center whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{row.supports_total}</td>
+                    <td className="px-2 py-1 text-center whitespace-nowrap" style={{ color: row.supports_scanned === row.supports_total && row.supports_total > 0 ? '#22c55e' : 'var(--text-muted)' }}>
                       {row.supports_scanned}/{row.supports_total}
                     </td>
-                    <td className="px-2 py-1 text-center">
+                    <td className="px-2 py-1 text-center whitespace-nowrap">
                       <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: `${statusColor}18`, color: statusColor }}>
                         {statusLabel}
                       </span>
@@ -1204,25 +1204,25 @@ function ManifestSection({ tourId, wmsTourCode, stops, pdvMap, onImported }: {
                   </tr>
                   {isOpen && row.lines.length > 0 && (
                     <tr>
-                      <td colSpan={6} className="px-2 py-1" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                      <td colSpan={6} className="px-2 py-1 whitespace-nowrap" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                         <table className="w-full text-[11px]">
                           <thead>
                             <tr>
-                              <th className="px-2 py-0.5 text-left font-semibold" style={{ color: 'var(--text-muted)' }}>N° Support</th>
-                              <th className="px-2 py-0.5 text-left font-semibold" style={{ color: 'var(--text-muted)' }}>Libelle</th>
-                              <th className="px-2 py-0.5 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>EQC</th>
-                              <th className="px-2 py-0.5 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>Colis</th>
-                              <th className="px-2 py-0.5 text-center font-semibold" style={{ color: 'var(--text-muted)' }}>Scan</th>
+                              <th className="px-2 py-0.5 text-left font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>N° Support</th>
+                              <th className="px-2 py-0.5 text-left font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Libelle</th>
+                              <th className="px-2 py-0.5 text-center font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>EQC</th>
+                              <th className="px-2 py-0.5 text-center font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Colis</th>
+                              <th className="px-2 py-0.5 text-center font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Scan</th>
                             </tr>
                           </thead>
                           <tbody>
                             {row.lines.map((line) => (
                               <tr key={line.id} className="border-t" style={{ borderColor: 'var(--border-color)' }}>
-                                <td className="px-2 py-0.5 font-mono" style={{ color: 'var(--text-primary)' }}>{line.support_number}</td>
-                                <td className="px-2 py-0.5" style={{ color: 'var(--text-muted)' }}>{line.support_label || '—'}</td>
-                                <td className="px-2 py-0.5 text-center" style={{ color: 'var(--text-primary)' }}>{line.eqc}</td>
-                                <td className="px-2 py-0.5 text-center" style={{ color: 'var(--text-primary)' }}>{line.nb_colis}</td>
-                                <td className="px-2 py-0.5 text-center">
+                                <td className="px-2 py-0.5 font-mono whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{line.support_number}</td>
+                                <td className="px-2 py-0.5 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{line.support_label || '—'}</td>
+                                <td className="px-2 py-0.5 text-center whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{line.eqc}</td>
+                                <td className="px-2 py-0.5 text-center whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{line.nb_colis}</td>
+                                <td className="px-2 py-0.5 text-center whitespace-nowrap">
                                   {line.scanned
                                     ? <span style={{ color: '#22c55e' }}>&#10003;</span>
                                     : <span style={{ color: 'var(--text-muted)' }}>—</span>}

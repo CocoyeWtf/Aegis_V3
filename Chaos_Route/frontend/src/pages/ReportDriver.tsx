@@ -186,7 +186,7 @@ export default function ReportDriver() {
                     ['avg_duration_minutes', 'Duree moy.'],
                     ['punctuality_pct', 'Ponctualite %'],
                   ] as [keyof DriverRow, string][]).map(([col, label]) => (
-                    <th key={col} className="px-3 py-2 text-left cursor-pointer select-none" style={{ color: 'var(--text-muted)' }} onClick={() => handleSort(col)}>
+                    <th key={col} className="px-3 py-2 text-left cursor-pointer select-none whitespace-nowrap" style={{ color: 'var(--text-muted)' }} onClick={() => handleSort(col)}>
                       {label}<SortIcon col={col} />
                     </th>
                   ))}
@@ -195,14 +195,14 @@ export default function ReportDriver() {
               <tbody>
                 {sortedDrivers.map((d) => (
                   <tr key={d.driver_name} className="border-t" style={{ borderColor: 'var(--border-color)' }}>
-                    <td className="px-3 py-2 font-medium" style={{ color: 'var(--text-primary)' }}>{d.driver_name}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{d.nb_tours}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{d.total_km}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{d.total_eqp}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{d.nb_stops}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{formatMinutes(d.total_duration_minutes)}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{formatMinutes(d.avg_duration_minutes)}</td>
-                    <td className="px-3 py-2" style={{ color: d.punctuality_pct >= 90 ? '#10b981' : d.punctuality_pct >= 75 ? '#f59e0b' : '#ef4444' }}>{d.punctuality_pct}%</td>
+                    <td className="px-3 py-2 font-medium whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{d.driver_name}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{d.nb_tours}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{d.total_km}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{d.total_eqp}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{d.nb_stops}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{formatMinutes(d.total_duration_minutes)}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{formatMinutes(d.avg_duration_minutes)}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: d.punctuality_pct >= 90 ? '#10b981' : d.punctuality_pct >= 75 ? '#f59e0b' : '#ef4444' }}>{d.punctuality_pct}%</td>
                   </tr>
                 ))}
               </tbody>

@@ -453,20 +453,20 @@ export default function TransporterSummary() {
                           <table className="w-full text-xs">
                             <thead>
                               <tr style={{ color: 'var(--text-muted)' }}>
-                                <th className="text-left px-3 py-1.5 font-medium">{t('transporterSummary.date')}</th>
-                                <th className="text-left px-2 py-1.5 font-medium">{t('transporterSummary.tourCode')}</th>
-                                <th className="text-left px-2 py-1.5 font-medium">{t('transporterSummary.base')}</th>
-                                <th className="text-right px-2 py-1.5 font-medium">{t('transporterSummary.departure')}</th>
-                                <th className="text-right px-2 py-1.5 font-medium">{t('transporterSummary.return')}</th>
-                                <th className="text-right px-2 py-1.5 font-medium">{t('transporterSummary.duration')}</th>
-                                <th className="text-right px-2 py-1.5 font-medium">{t('transporterSummary.km')}</th>
-                                <th className="text-right px-2 py-1.5 font-medium">{t('transporterSummary.eqp')}</th>
-                                <th className="text-right px-2 py-1.5 font-medium">{t('transporterSummary.fixedShare')}</th>
-                                <th className="text-right px-2 py-1.5 font-medium">{t('transporterSummary.vacationShare')}</th>
-                                <th className="text-right px-2 py-1.5 font-medium">{t('transporterSummary.fuelCost')}</th>
-                                <th className="text-right px-2 py-1.5 font-medium">{t('transporterSummary.kmTax')}</th>
-                                <th className="text-right px-2 py-1.5 font-medium">Surcharges</th>
-                                <th className="text-right px-3 py-1.5 font-medium">{t('transporterSummary.totalCost')}</th>
+                                <th className="text-left px-3 py-1.5 font-medium whitespace-nowrap">{t('transporterSummary.date')}</th>
+                                <th className="text-left px-2 py-1.5 font-medium whitespace-nowrap">{t('transporterSummary.tourCode')}</th>
+                                <th className="text-left px-2 py-1.5 font-medium whitespace-nowrap">{t('transporterSummary.base')}</th>
+                                <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">{t('transporterSummary.departure')}</th>
+                                <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">{t('transporterSummary.return')}</th>
+                                <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">{t('transporterSummary.duration')}</th>
+                                <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">{t('transporterSummary.km')}</th>
+                                <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">{t('transporterSummary.eqp')}</th>
+                                <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">{t('transporterSummary.fixedShare')}</th>
+                                <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">{t('transporterSummary.vacationShare')}</th>
+                                <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">{t('transporterSummary.fuelCost')}</th>
+                                <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">{t('transporterSummary.kmTax')}</th>
+                                <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">Surcharges</th>
+                                <th className="text-right px-3 py-1.5 font-medium whitespace-nowrap">{t('transporterSummary.totalCost')}</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -477,20 +477,20 @@ export default function TransporterSummary() {
                                   style={{ borderColor: 'var(--border-color)' }}
                                   onClick={() => openDetail(tour, cg, tr.transporter_name)}
                                 >
-                                  <td className="px-3 py-1.5" style={{ color: 'var(--text-primary)' }}>{formatDate(tour.date)}</td>
-                                  <td className="px-2 py-1.5 font-mono" style={{ color: 'var(--text-primary)' }}>{tour.tour_code}</td>
-                                  <td className="px-2 py-1.5" style={{ color: 'var(--text-muted)' }}>{tour.base_code}</td>
-                                  <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-primary)' }}>{tour.departure_time || '—'}</td>
-                                  <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-primary)' }}>{tour.return_time || '—'}</td>
-                                  <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{formatDuration(tour.total_duration_minutes)}</td>
-                                  <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{tour.total_km.toFixed(1)}</td>
-                                  <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-primary)' }}>{tour.total_eqp}</td>
-                                  <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{tour.cost_breakdown.fixed_share.toFixed(2)}</td>
-                                  <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{tour.cost_breakdown.vacation_share.toFixed(2)}</td>
-                                  <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{tour.cost_breakdown.fuel_cost.toFixed(2)}</td>
-                                  <td className="px-2 py-1.5 text-right" style={{ color: 'var(--text-muted)' }}>{tour.cost_breakdown.km_tax_total.toFixed(2)}</td>
+                                  <td className="px-3 py-1.5 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{formatDate(tour.date)}</td>
+                                  <td className="px-2 py-1.5 font-mono whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{tour.tour_code}</td>
+                                  <td className="px-2 py-1.5 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{tour.base_code}</td>
+                                  <td className="px-2 py-1.5 text-right whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{tour.departure_time || '—'}</td>
+                                  <td className="px-2 py-1.5 text-right whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{tour.return_time || '—'}</td>
+                                  <td className="px-2 py-1.5 text-right whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{formatDuration(tour.total_duration_minutes)}</td>
+                                  <td className="px-2 py-1.5 text-right whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{tour.total_km.toFixed(1)}</td>
+                                  <td className="px-2 py-1.5 text-right whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{tour.total_eqp}</td>
+                                  <td className="px-2 py-1.5 text-right whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{tour.cost_breakdown.fixed_share.toFixed(2)}</td>
+                                  <td className="px-2 py-1.5 text-right whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{tour.cost_breakdown.vacation_share.toFixed(2)}</td>
+                                  <td className="px-2 py-1.5 text-right whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{tour.cost_breakdown.fuel_cost.toFixed(2)}</td>
+                                  <td className="px-2 py-1.5 text-right whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{tour.cost_breakdown.km_tax_total.toFixed(2)}</td>
                                   <td
-                                    className="px-2 py-1.5 text-right"
+                                    className="px-2 py-1.5 text-right whitespace-nowrap"
                                     title={
                                       tour.surcharges && tour.surcharges.length > 0
                                         ? tour.surcharges.map((s) => `${s.surcharge_type_label || s.motif}: ${s.amount.toFixed(2)} €`).join('\n')
@@ -513,7 +513,7 @@ export default function TransporterSummary() {
                                       <span style={{ color: 'var(--text-muted)' }}>—</span>
                                     )}
                                   </td>
-                                  <td className="px-3 py-1.5 text-right font-bold" style={{ color: 'var(--text-primary)' }}>{tour.total_cost.toFixed(2)}</td>
+                                  <td className="px-3 py-1.5 text-right font-bold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{tour.total_cost.toFixed(2)}</td>
                                 </tr>
                               ))}
                               {/* Ligne sous-total contrat / Contract subtotal row */}
@@ -521,20 +521,20 @@ export default function TransporterSummary() {
                                 className="border-t"
                                 style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-tertiary)' }}
                               >
-                                <td colSpan={5} className="px-3 py-2 font-bold text-xs" style={{ color: 'var(--text-primary)' }}>
+                                <td colSpan={5} className="px-3 py-2 font-bold text-xs whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                                   {t('transporterSummary.subtotalContract')} {cg.contract_code} ({cg.subtotal.nb_tours} {t('transporterSummary.nbTours')})
                                 </td>
-                                <td className="px-2 py-2 text-right font-bold" style={{ color: 'var(--text-primary)' }}>{formatDuration(cg.subtotal.total_duration_minutes)}</td>
-                                <td className="px-2 py-2 text-right font-bold" style={{ color: 'var(--text-primary)' }}>{cg.subtotal.total_km.toFixed(1)}</td>
-                                <td className="px-2 py-2 text-right font-bold" style={{ color: 'var(--text-primary)' }}>{cg.subtotal.total_eqp}</td>
-                                <td className="px-2 py-2 text-right font-bold" style={{ color: 'var(--text-primary)' }}>{cg.subtotal.fixed_cost_total.toFixed(2)}</td>
-                                <td className="px-2 py-2 text-right font-bold" style={{ color: 'var(--text-primary)' }}>{cg.subtotal.vacation_cost_total.toFixed(2)}</td>
-                                <td className="px-2 py-2 text-right font-bold" style={{ color: 'var(--text-primary)' }}>{cg.subtotal.fuel_cost_total.toFixed(2)}</td>
-                                <td className="px-2 py-2 text-right font-bold" style={{ color: 'var(--text-primary)' }}>{cg.subtotal.km_tax_total.toFixed(2)}</td>
-                                <td className="px-2 py-2 text-right font-bold" style={{ color: (cg.subtotal.surcharges_total || 0) > 0 ? 'var(--color-danger)' : 'var(--text-primary)' }}>
+                                <td className="px-2 py-2 text-right font-bold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{formatDuration(cg.subtotal.total_duration_minutes)}</td>
+                                <td className="px-2 py-2 text-right font-bold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{cg.subtotal.total_km.toFixed(1)}</td>
+                                <td className="px-2 py-2 text-right font-bold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{cg.subtotal.total_eqp}</td>
+                                <td className="px-2 py-2 text-right font-bold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{cg.subtotal.fixed_cost_total.toFixed(2)}</td>
+                                <td className="px-2 py-2 text-right font-bold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{cg.subtotal.vacation_cost_total.toFixed(2)}</td>
+                                <td className="px-2 py-2 text-right font-bold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{cg.subtotal.fuel_cost_total.toFixed(2)}</td>
+                                <td className="px-2 py-2 text-right font-bold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{cg.subtotal.km_tax_total.toFixed(2)}</td>
+                                <td className="px-2 py-2 text-right font-bold whitespace-nowrap" style={{ color: (cg.subtotal.surcharges_total || 0) > 0 ? 'var(--color-danger)' : 'var(--text-primary)' }}>
                                   {(cg.subtotal.surcharges_total || 0) > 0 ? (cg.subtotal.surcharges_total || 0).toFixed(2) : '—'}
                                 </td>
-                                <td className="px-3 py-2 text-right font-bold" style={{ color: 'var(--color-primary)' }}>{cg.subtotal.total_cost.toFixed(2)}</td>
+                                <td className="px-3 py-2 text-right font-bold whitespace-nowrap" style={{ color: 'var(--color-primary)' }}>{cg.subtotal.total_cost.toFixed(2)}</td>
                               </tr>
                             </tbody>
                           </table>

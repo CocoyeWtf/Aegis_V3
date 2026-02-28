@@ -124,32 +124,32 @@ export default function BaseReception() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-              <th className="text-left px-4 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Heure</th>
-              <th className="text-left px-4 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Code etiquette</th>
-              <th className="text-left px-4 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>PDV</th>
-              <th className="text-left px-4 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Type support</th>
+              <th className="text-left px-4 py-2 font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Heure</th>
+              <th className="text-left px-4 py-2 font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Code etiquette</th>
+              <th className="text-left px-4 py-2 font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>PDV</th>
+              <th className="text-left px-4 py-2 font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Type support</th>
             </tr>
           </thead>
           <tbody>
             {receivedToday.length === 0 && (
               <tr>
-                <td colSpan={4} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
+                <td colSpan={4} className="text-center py-8 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
                   Aucune reception
                 </td>
               </tr>
             )}
             {receivedToday.map((entry, i) => (
               <tr key={i} className="border-t" style={{ borderColor: 'var(--border-color)' }}>
-                <td className="px-4 py-2 font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
+                <td className="px-4 py-2 font-mono text-xs whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
                   {entry.receivedAt}
                 </td>
-                <td className="px-4 py-2 font-mono" style={{ color: 'var(--text-primary)' }}>
+                <td className="px-4 py-2 font-mono whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                   {entry.label.label_code}
                 </td>
-                <td className="px-4 py-2" style={{ color: 'var(--text-primary)' }}>
+                <td className="px-4 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                   {entry.pdvCode} - {entry.pdvName}
                 </td>
-                <td className="px-4 py-2" style={{ color: 'var(--text-primary)' }}>
+                <td className="px-4 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                   {entry.supportType}
                 </td>
               </tr>

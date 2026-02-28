@@ -113,22 +113,22 @@ export default function AuditLog() {
           <table className="w-full text-sm">
             <thead>
               <tr style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                <th className="text-left px-4 py-2 font-medium text-xs" style={{ color: 'var(--text-muted)' }}>
+                <th className="text-left px-4 py-2 font-medium text-xs whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
                   {t('audit.timestamp')}
                 </th>
-                <th className="text-left px-4 py-2 font-medium text-xs" style={{ color: 'var(--text-muted)' }}>
+                <th className="text-left px-4 py-2 font-medium text-xs whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
                   {t('audit.user')}
                 </th>
-                <th className="text-left px-4 py-2 font-medium text-xs" style={{ color: 'var(--text-muted)' }}>
+                <th className="text-left px-4 py-2 font-medium text-xs whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
                   {t('audit.action')}
                 </th>
-                <th className="text-left px-4 py-2 font-medium text-xs" style={{ color: 'var(--text-muted)' }}>
+                <th className="text-left px-4 py-2 font-medium text-xs whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
                   {t('audit.entityType')}
                 </th>
-                <th className="text-left px-4 py-2 font-medium text-xs" style={{ color: 'var(--text-muted)' }}>
+                <th className="text-left px-4 py-2 font-medium text-xs whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
                   {t('audit.entityId')}
                 </th>
-                <th className="text-left px-4 py-2 font-medium text-xs" style={{ color: 'var(--text-muted)' }}>
+                <th className="text-left px-4 py-2 font-medium text-xs whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
                   {t('audit.changes')}
                 </th>
               </tr>
@@ -147,10 +147,10 @@ export default function AuditLog() {
                       return `${day}/${m}/${y} ${rest?.slice(0, 8) ?? ''}`
                     })()}
                   </td>
-                  <td className="px-4 py-2 text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
+                  <td className="px-4 py-2 text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                     {log.user ?? '—'}
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2 whitespace-nowrap">
                     <span
                       className="text-xs font-bold px-2 py-0.5 rounded-full"
                       style={{ backgroundColor: `${actionColor(log.action)}20`, color: actionColor(log.action) }}
@@ -158,10 +158,10 @@ export default function AuditLog() {
                       {log.action}
                     </span>
                   </td>
-                  <td className="px-4 py-2 text-xs" style={{ color: 'var(--text-primary)' }}>
+                  <td className="px-4 py-2 text-xs whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                     {log.entity_type}
                   </td>
-                  <td className="px-4 py-2 text-xs font-mono" style={{ color: 'var(--text-primary)' }}>
+                  <td className="px-4 py-2 text-xs font-mono whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                     {log.entity_id}
                   </td>
                   <td className="px-4 py-2 text-xs max-w-xs truncate" style={{ color: 'var(--text-muted)' }}>

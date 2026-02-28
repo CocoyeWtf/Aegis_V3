@@ -212,12 +212,12 @@ export default function DeviceManagement() {
           <table className="w-full text-sm">
             <thead>
               <tr style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                <th className="px-3 py-2 text-left font-medium" style={{ color: 'var(--text-muted)' }}>Nom</th>
-                <th className="px-3 py-2 text-left font-medium" style={{ color: 'var(--text-muted)' }}>Statut</th>
-                <th className="px-3 py-2 text-left font-medium" style={{ color: 'var(--text-muted)' }}>Identifiant</th>
-                <th className="px-3 py-2 text-left font-medium" style={{ color: 'var(--text-muted)' }}>Base</th>
-                <th className="px-3 py-2 text-center font-medium" style={{ color: 'var(--text-muted)' }}>Actif</th>
-                <th className="px-3 py-2 text-center font-medium" style={{ color: 'var(--text-muted)' }}>Actions</th>
+                <th className="px-3 py-2 text-left font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Nom</th>
+                <th className="px-3 py-2 text-left font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Statut</th>
+                <th className="px-3 py-2 text-left font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Identifiant</th>
+                <th className="px-3 py-2 text-left font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Base</th>
+                <th className="px-3 py-2 text-center font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Actif</th>
+                <th className="px-3 py-2 text-center font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -225,19 +225,19 @@ export default function DeviceManagement() {
                 <tr key={d.id} className="border-t" style={{ borderColor: 'var(--border-color)' }}>
                   {editingId === d.id ? (
                     <>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <input type="text" value={editForm.friendly_name} onChange={(e) => setEditForm({ ...editForm, friendly_name: e.target.value })}
                           className="w-full px-2 py-1 rounded border text-xs"
                           style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         {isRegistered(d)
                           ? <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#22c55e22', color: '#22c55e' }}>Enregistre</span>
                           : <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#f59e0b22', color: '#f59e0b' }}>En attente</span>
                         }
                       </td>
-                      <td className="px-3 py-2 font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>{d.device_identifier || '—'}</td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2 font-mono text-xs whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{d.device_identifier || '—'}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <select value={editForm.base_id} onChange={(e) => setEditForm({ ...editForm, base_id: e.target.value })}
                           className="w-full px-2 py-1 rounded border text-xs"
                           style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
@@ -245,24 +245,24 @@ export default function DeviceManagement() {
                           {bases.map((b) => <option key={b.id} value={b.id}>{b.code} — {b.name}</option>)}
                         </select>
                       </td>
-                      <td className="px-3 py-2 text-center">{d.is_active ? '✓' : '✗'}</td>
-                      <td className="px-3 py-2 text-center">
+                      <td className="px-3 py-2 text-center whitespace-nowrap">{d.is_active ? '✓' : '✗'}</td>
+                      <td className="px-3 py-2 text-center whitespace-nowrap">
                         <button onClick={() => handleUpdate(d.id)} className="text-xs font-semibold mr-2" style={{ color: 'var(--color-primary)' }}>OK</button>
                         <button onClick={() => setEditingId(null)} className="text-xs" style={{ color: 'var(--text-muted)' }}>Annuler</button>
                       </td>
                     </>
                   ) : (
                     <>
-                      <td className="px-3 py-2 font-semibold" style={{ color: 'var(--text-primary)' }}>{d.friendly_name || '—'}</td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2 font-semibold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{d.friendly_name || '—'}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">
                         {isRegistered(d)
                           ? <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#22c55e22', color: '#22c55e' }}>Enregistre</span>
                           : <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#f59e0b22', color: '#f59e0b' }}>En attente</span>
                         }
                       </td>
-                      <td className="px-3 py-2 font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>{d.device_identifier || '—'}</td>
-                      <td className="px-3 py-2" style={{ color: 'var(--text-secondary)' }}>{baseName(d.base_id)}</td>
-                      <td className="px-3 py-2 text-center" style={{ color: d.is_active ? '#22c55e' : 'var(--color-danger)' }}>
+                      <td className="px-3 py-2 font-mono text-xs whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{d.device_identifier || '—'}</td>
+                      <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{baseName(d.base_id)}</td>
+                      <td className="px-3 py-2 text-center whitespace-nowrap" style={{ color: d.is_active ? '#22c55e' : 'var(--color-danger)' }}>
                         {d.is_active ? '✓' : '✗'}
                       </td>
                       <td className="px-3 py-2 text-center whitespace-nowrap">
@@ -282,7 +282,7 @@ export default function DeviceManagement() {
               ))}
               {devices.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center" style={{ color: 'var(--text-muted)' }}>
+                  <td colSpan={6} className="px-3 py-8 text-center whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
                     Aucun appareil enregistre — cliquez sur "Ajouter" pour creer un appareil
                   </td>
                 </tr>

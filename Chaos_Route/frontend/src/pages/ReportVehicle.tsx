@@ -196,18 +196,18 @@ export default function ReportVehicle() {
               <tbody>
                 {sortedVehicles.map((v) => (
                   <tr key={v.vehicle_id} className="border-t" style={{ borderColor: 'var(--border-color)' }}>
-                    <td className="px-3 py-2 font-medium" style={{ color: 'var(--text-primary)' }}>{v.vehicle_code}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{v.vehicle_name}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-secondary)' }}>{v.vehicle_type}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{v.capacity_eqp}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{v.nb_tours}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{v.total_km}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{v.total_eqp}</td>
-                    <td className="px-3 py-2 font-medium" style={{ color: v.avg_fill_rate_pct >= 80 ? '#10b981' : v.avg_fill_rate_pct >= 60 ? '#f59e0b' : '#ef4444' }}>
+                    <td className="px-3 py-2 font-medium whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{v.vehicle_code}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{v.vehicle_name}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{v.vehicle_type}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{v.capacity_eqp}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{v.nb_tours}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{v.total_km}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{v.total_eqp}</td>
+                    <td className="px-3 py-2 font-medium whitespace-nowrap" style={{ color: v.avg_fill_rate_pct >= 80 ? '#10b981' : v.avg_fill_rate_pct >= 60 ? '#f59e0b' : '#ef4444' }}>
                       {v.avg_fill_rate_pct}%
                     </td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{v.total_cost.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{v.cost_per_km.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{v.total_cost.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{v.cost_per_km.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}</td>
                   </tr>
                 ))}
               </tbody>

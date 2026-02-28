@@ -219,7 +219,7 @@ export default function ReportDaily() {
                     ['avg_fill_rate_pct', 'Remplissage %'],
                     ['punctuality_pct', 'Ponctualite %'],
                   ] as [keyof DailyRow, string][]).map(([col, label]) => (
-                    <th key={col} className="px-3 py-2 text-left cursor-pointer select-none" style={{ color: 'var(--text-muted)' }} onClick={() => handleSort(col)}>
+                    <th key={col} className="px-3 py-2 text-left cursor-pointer select-none whitespace-nowrap" style={{ color: 'var(--text-muted)' }} onClick={() => handleSort(col)}>
                       {label}<SortIcon col={col} />
                     </th>
                   ))}
@@ -228,29 +228,29 @@ export default function ReportDaily() {
               <tbody>
                 {sortedDays.map((d) => (
                   <tr key={d.date} className="border-t" style={{ borderColor: 'var(--border-color)' }}>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{d.date}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{d.nb_tours}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{d.nb_pdv}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{d.total_eqp}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{d.total_km}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{d.total_weight_kg}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{d.total_cost.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{d.avg_fill_rate_pct}%</td>
-                    <td className="px-3 py-2" style={{ color: d.punctuality_pct >= 90 ? '#10b981' : d.punctuality_pct >= 75 ? '#f59e0b' : '#ef4444' }}>{d.punctuality_pct}%</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{d.date}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{d.nb_tours}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{d.nb_pdv}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{d.total_eqp}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{d.total_km}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{d.total_weight_kg}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{d.total_cost.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{d.avg_fill_rate_pct}%</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: d.punctuality_pct >= 90 ? '#10b981' : d.punctuality_pct >= 75 ? '#f59e0b' : '#ef4444' }}>{d.punctuality_pct}%</td>
                   </tr>
                 ))}
                 {/* Ligne totaux / Totals row */}
                 {data.totals && (
                   <tr className="border-t-2 font-bold" style={{ borderColor: 'var(--color-primary)', backgroundColor: 'var(--bg-tertiary)' }}>
-                    <td className="px-3 py-2" style={{ color: 'var(--color-primary)' }}>TOTAL</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{data.totals.nb_tours}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{data.totals.nb_pdv}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{data.totals.total_eqp}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{data.totals.total_km}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{data.totals.total_weight_kg}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{data.totals.total_cost.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{data.totals.avg_fill_rate_pct}%</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{data.totals.punctuality_pct}%</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--color-primary)' }}>TOTAL</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{data.totals.nb_tours}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{data.totals.nb_pdv}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{data.totals.total_eqp}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{data.totals.total_km}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{data.totals.total_weight_kg}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{data.totals.total_cost.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{data.totals.avg_fill_rate_pct}%</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{data.totals.punctuality_pct}%</td>
                   </tr>
                 )}
               </tbody>

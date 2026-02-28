@@ -356,7 +356,7 @@ export function DataTable<T extends { id: number }>({
                 {visibleColumns.map((col) => (
                   <th
                     key={String(col.key)}
-                    className={`px-4 py-3 text-left font-medium relative ${col.sortable !== false ? 'cursor-pointer select-none hover:opacity-80' : ''}`}
+                    className={`px-4 py-3 text-left font-medium relative whitespace-nowrap ${col.sortable !== false ? 'cursor-pointer select-none hover:opacity-80' : ''}`}
                     style={{ color: 'var(--text-muted)', width: getColWidth(col), minWidth: col.minWidth || col.width || '50px', overflow: 'hidden' }}
                     onClick={() => col.sortable !== false && handleSort(String(col.key))}
                   >
@@ -465,7 +465,7 @@ export function DataTable<T extends { id: number }>({
                       onClick={() => onRowClick?.(row)}
                     >
                       {visibleColumns.map((col) => (
-                        <td key={String(col.key)} className="px-4 py-2.5 truncate" style={{ color: 'var(--text-primary)' }}>
+                        <td key={String(col.key)} className="px-4 py-2.5 truncate max-w-[300px]" style={{ color: 'var(--text-primary)' }}>
                           {col.render ? col.render(row) : getCellValue(row, String(col.key))}
                         </td>
                       ))}

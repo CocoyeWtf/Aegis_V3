@@ -194,17 +194,17 @@ export default function ReportPdv() {
               <tbody>
                 {sortedPdvs.map((p) => (
                   <tr key={p.pdv_id} className="border-t" style={{ borderColor: 'var(--border-color)' }}>
-                    <td className="px-3 py-2 font-medium" style={{ color: 'var(--text-primary)' }}>{p.pdv_code}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{p.pdv_name}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-secondary)' }}>{p.pdv_city}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-secondary)' }}>{p.pdv_type}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{p.nb_deliveries}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{p.total_eqp}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{p.avg_eqp}</td>
-                    <td className="px-3 py-2 font-medium" style={{ color: punctualityColor(p.punctuality_pct) }}>{p.punctuality_pct}%</td>
-                    <td className="px-3 py-2" style={{ color: p.nb_incidents > 0 ? '#ef4444' : 'var(--text-primary)' }}>{p.nb_incidents}</td>
-                    <td className="px-3 py-2" style={{ color: p.nb_forced_closures > 0 ? '#f59e0b' : 'var(--text-primary)' }}>{p.nb_forced_closures}</td>
-                    <td className="px-3 py-2" style={{ color: p.nb_missing_supports > 0 ? '#f59e0b' : 'var(--text-primary)' }}>{p.nb_missing_supports}</td>
+                    <td className="px-3 py-2 font-medium whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{p.pdv_code}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{p.pdv_name}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{p.pdv_city}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{p.pdv_type}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{p.nb_deliveries}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{p.total_eqp}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{p.avg_eqp}</td>
+                    <td className="px-3 py-2 font-medium whitespace-nowrap" style={{ color: punctualityColor(p.punctuality_pct) }}>{p.punctuality_pct}%</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: p.nb_incidents > 0 ? '#ef4444' : 'var(--text-primary)' }}>{p.nb_incidents}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: p.nb_forced_closures > 0 ? '#f59e0b' : 'var(--text-primary)' }}>{p.nb_forced_closures}</td>
+                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: p.nb_missing_supports > 0 ? '#f59e0b' : 'var(--text-primary)' }}>{p.nb_missing_supports}</td>
                   </tr>
                 ))}
               </tbody>
