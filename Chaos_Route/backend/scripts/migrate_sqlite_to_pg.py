@@ -58,6 +58,9 @@ async def migrate():
 
     async with sqlite_engine.connect() as sqlite_conn:
         async with pg_engine.begin() as pg_conn:
+            # Desactiver les FK checks pendant l'import / Disable FK checks during import
+            await pg_conn.execute(text("SET session_replication_role = 'replica'"))
+
             for table_name in table_names:
                 table = Base.metadata.tables[table_name]
 
@@ -80,6 +83,9 @@ async def migrate():
 
                 total_rows += len(rows)
                 print(f"  [OK] {table_name}: {len(rows)} lignes")
+
+            # Reactiver les FK checks / Re-enable FK checks
+            await pg_conn.execute(text("SET session_replication_role = 'origin'"))
 
     # Remettre a zero les sequences PostgreSQL (compteurs autoincrement) /
     # Reset PostgreSQL sequences (autoincrement counters)
