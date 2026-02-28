@@ -42,6 +42,10 @@ const PhoneSetupGuide = lazy(() => import('./pages/PhoneSetupGuide'))
 const VehicleManagement = lazy(() => import('./pages/VehicleManagement'))
 const InspectionManagement = lazy(() => import('./pages/InspectionManagement'))
 const FleetManagement = lazy(() => import('./pages/FleetManagement'))
+const ReportDaily = lazy(() => import('./pages/ReportDaily'))
+const ReportDriver = lazy(() => import('./pages/ReportDriver'))
+const ReportPdv = lazy(() => import('./pages/ReportPdv'))
+const ReportVehicle = lazy(() => import('./pages/ReportVehicle'))
 
 function Loading() {
   return (
@@ -92,6 +96,10 @@ export default function App() {
             <Route path="/vehicles" element={<VehicleManagement />} />
             <Route path="/inspections" element={<InspectionManagement />} />
             <Route path="/fleet" element={<FleetManagement />} />
+            <Route path="/reports/daily" element={<ReportDaily />} />
+            <Route path="/reports/driver" element={<ReportDriver />} />
+            <Route path="/reports/pdv" element={<ReportPdv />} />
+            <Route path="/reports/vehicle" element={<ReportVehicle />} />
             <Route path="/help" element={<Help />} />
           </Route>
         </Route>

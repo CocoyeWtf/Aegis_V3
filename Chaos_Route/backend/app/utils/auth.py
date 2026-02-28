@@ -42,6 +42,7 @@ RESOURCES = [
     "vehicles",
     "inspections",
     "fleet",
+    "reports",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

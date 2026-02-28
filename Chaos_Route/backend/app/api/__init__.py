@@ -38,6 +38,7 @@ from app.api import (
     vehicles,
     inspections,
     fleet,
+    reports,
 )
 
 api_router = APIRouter(prefix="/api")
@@ -76,3 +77,4 @@ api_router.include_router(declarations.router, prefix="/declarations", tags=["de
 api_router.include_router(vehicles.router, prefix="/vehicles", tags=["vehicles"])
 api_router.include_router(inspections.router, prefix="/inspections", tags=["inspections"])
 api_router.include_router(fleet.router, prefix="/fleet", tags=["fleet"])
+api_router.include_router(reports.router, prefix="/reports", tags=["reports"])

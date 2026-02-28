@@ -87,6 +87,17 @@ const navGroups: NavGroup[] = [
       { path: '/fleet', label: 'Gestion flotte', icon: '📊', resource: 'fleet' },
     ],
   },
+  {
+    key: 'reports',
+    label: 'Rapports',
+    icon: '📈',
+    children: [
+      { path: '/reports/daily', label: 'Rapport quotidien', icon: '📅', resource: 'reports' },
+      { path: '/reports/driver', label: 'Rapport chauffeurs', icon: '🧑', resource: 'reports' },
+      { path: '/reports/pdv', label: 'Rapport PDV', icon: '🏪', resource: 'reports' },
+      { path: '/reports/vehicle', label: 'Rapport vehicules', icon: '🚚', resource: 'reports' },
+    ],
+  },
   { key: 'guardPost', label: 'nav.guardPost', icon: '🚧', path: '/guard-post', resource: 'guard-post' },
   {
     key: 'admin',
