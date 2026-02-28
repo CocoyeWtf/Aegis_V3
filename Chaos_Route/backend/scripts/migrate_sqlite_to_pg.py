@@ -16,8 +16,9 @@ Ou via Docker:
 import asyncio
 import os
 import sys
+from datetime import datetime, date
 
-from sqlalchemy import text
+from sqlalchemy import text, DateTime, Date, Boolean
 from sqlalchemy.ext.asyncio import create_async_engine
 
 # Rendre le package app importable / Make app package importable
@@ -99,8 +100,22 @@ async def migrate():
                     print(f"  [skip] {table_name}: 0 lignes")
                     continue
 
-                # Inserer par batch dans PostgreSQL via SQL brut (evite type mismatch asyncpg) /
-                # Batch insert into PostgreSQL via raw SQL (avoids asyncpg type mismatch)
+                # Detecter les colonnes qui necessitent une conversion de type /
+                # Detect columns needing type conversion
+                datetime_cols = set()
+                date_cols = set()
+                bool_cols = set()
+                for col_name in common_cols:
+                    if col_name in [c.name for c in table.columns]:
+                        col_type = table.columns[col_name].type
+                        if isinstance(col_type, DateTime):
+                            datetime_cols.add(col_name)
+                        elif isinstance(col_type, Date):
+                            date_cols.add(col_name)
+                        elif isinstance(col_type, Boolean):
+                            bool_cols.add(col_name)
+
+                # Inserer par batch dans PostgreSQL / Batch insert into PostgreSQL
                 batch_size = 500
                 col_names = ", ".join(f'"{c}"' for c in common_cols)
                 placeholders = ", ".join(f":{c}" for c in common_cols)
@@ -110,8 +125,24 @@ async def migrate():
 
                 for i in range(0, len(rows), batch_size):
                     batch = rows[i:i + batch_size]
-                    values = [dict(zip(common_cols, row)) for row in batch]
-                    for row_dict in values:
+                    for row in batch:
+                        row_dict = dict(zip(common_cols, row))
+                        # Convertir les types pour asyncpg / Convert types for asyncpg
+                        for col_name, value in row_dict.items():
+                            if value is None:
+                                continue
+                            if col_name in datetime_cols and isinstance(value, str):
+                                try:
+                                    row_dict[col_name] = datetime.fromisoformat(value)
+                                except ValueError:
+                                    pass
+                            elif col_name in date_cols and isinstance(value, str):
+                                try:
+                                    row_dict[col_name] = date.fromisoformat(value)
+                                except ValueError:
+                                    pass
+                            elif col_name in bool_cols and isinstance(value, int):
+                                row_dict[col_name] = bool(value)
                         await pg_conn.execute(insert_sql, row_dict)
 
                 total_rows += len(rows)
