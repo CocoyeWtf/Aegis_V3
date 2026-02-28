@@ -7,7 +7,6 @@ import type { FieldDef } from '../components/data/FormDialog'
 import { DataTable } from '../components/data/DataTable'
 import { useApi } from '../hooks/useApi'
 import type { VehicleInspection, InspectionTemplate, Vehicle } from '../types'
-import api from '../services/api'
 
 const CATEGORY_LABELS: Record<string, string> = {
   EXTERIOR: 'Exterieur',
@@ -31,7 +30,6 @@ const VEHICLE_TYPE_LABELS: Record<string, string> = {
 }
 
 const CATEGORY_OPTIONS = Object.entries(CATEGORY_LABELS).map(([value, label]) => ({ value, label }))
-const VEHICLE_TYPE_OPTIONS = Object.entries(VEHICLE_TYPE_LABELS).map(([value, label]) => ({ value, label }))
 
 export default function InspectionManagement() {
   const [tab, setTab] = useState<'inspections' | 'templates'>('inspections')

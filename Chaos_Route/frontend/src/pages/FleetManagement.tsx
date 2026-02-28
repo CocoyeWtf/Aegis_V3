@@ -525,7 +525,7 @@ function TCODashboard() {
                     <Cell key={`cell-${index}`} fill={TCO_COLORS[index % TCO_COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number) => `${value.toLocaleString()} €`} />
+                <Tooltip formatter={(value) => `${Number(value).toLocaleString()} €`} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -583,9 +583,9 @@ function TCODashboard() {
           </h3>
           <ResponsiveContainer width="100%" height={Math.max(300, barData.length * 35)}>
             <BarChart data={barData} layout="vertical" margin={{ left: 80, right: 20, top: 5, bottom: 5 }}>
-              <XAxis type="number" tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k €`} />
+              <XAxis type="number" tickFormatter={(v) => `${(Number(v) / 1000).toFixed(0)}k €`} />
               <YAxis type="category" dataKey="name" width={70} tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(value: number) => `${value.toLocaleString()} €`} />
+              <Tooltip formatter={(value) => `${Number(value).toLocaleString()} €`} />
               <Legend />
               <Bar dataKey="Entretien" stackId="a" fill="#22c55e" />
               <Bar dataKey="Carburant" stackId="a" fill="#3b82f6" />
