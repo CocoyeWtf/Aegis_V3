@@ -12,10 +12,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.audit import AuditLog
+from app.models.delivery_alert import DeliveryAlert
 from app.models.device_assignment import DeviceAssignment
+from app.models.driver_declaration import DriverDeclaration
+from app.models.gps_position import GPSPosition
 from app.models.mobile_device import MobileDevice
+from app.models.pickup_request import PickupLabel
+from app.models.stop_event import StopEvent
+from app.models.support_scan import SupportScan
 from app.models.tour import Tour, TourStatus
 from app.models.user import User
+from app.models.vehicle_inspection import VehicleInspection
 from app.schemas.mobile import MobileDeviceCreate, MobileDeviceRead, MobileDeviceUpdate, DeviceRegistration
 from app.api.deps import require_permission
 
@@ -116,11 +123,33 @@ async def delete_device(
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     if hard:
-        # Supprimer les assignments lies / Delete linked assignments
-        assignments = (await db.execute(
+        # Nullifier les FK optionnelles / Nullify optional FKs
+        for label in (await db.execute(
+            select(PickupLabel).where(PickupLabel.picked_up_device_id == device_id)
+        )).scalars().all():
+            label.picked_up_device_id = None
+
+        # Supprimer les donnees liees / Delete linked data
+        for model in (GPSPosition, StopEvent, SupportScan, DeliveryAlert, DriverDeclaration, VehicleInspection):
+            for row in (await db.execute(
+                select(model).where(model.device_id == device_id)
+            )).scalars().all():
+                await db.delete(row)
+
+        # Delier les tours des assignments / Unlink tours from assignments
+        assignment_ids = [a.id for a in (await db.execute(
             select(DeviceAssignment).where(DeviceAssignment.device_id == device_id)
-        )).scalars().all()
-        for a in assignments:
+        )).scalars().all()]
+        if assignment_ids:
+            for tour in (await db.execute(
+                select(Tour).where(Tour.device_assignment_id.in_(assignment_ids))
+            )).scalars().all():
+                tour.device_assignment_id = None
+
+        # Supprimer les assignments / Delete assignments
+        for a in (await db.execute(
+            select(DeviceAssignment).where(DeviceAssignment.device_id == device_id)
+        )).scalars().all():
             await db.delete(a)
 
         db.add(AuditLog(
