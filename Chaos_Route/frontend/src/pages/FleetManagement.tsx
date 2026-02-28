@@ -165,15 +165,19 @@ function MaintenanceCrud({ vehicleOptions }: { vehicleOptions: { value: string; 
   ]
 
   const fields: FieldDef[] = [
+    // Identification
     { key: 'vehicle_id', label: 'Vehicule', type: 'select', required: true, options: vehicleOptions },
     { key: 'maintenance_type', label: 'Type entretien', type: 'select', required: true, options: MAINTENANCE_TYPE_OPTIONS },
     { key: 'status', label: 'Statut', type: 'select', options: MAINTENANCE_STATUS_OPTIONS, defaultValue: 'SCHEDULED' },
-    { key: 'description', label: 'Description', type: 'textarea' },
     { key: 'provider_name', label: 'Prestataire', type: 'text' },
+    { key: 'description', label: 'Description', type: 'textarea' },
+    // Planifié
     { key: 'scheduled_date', label: 'Date prevue', type: 'date' },
     { key: 'scheduled_km', label: 'Km prevu', type: 'number' },
+    // Réalisé
     { key: 'completed_date', label: 'Date realisee', type: 'date' },
     { key: 'km_at_service', label: 'Km lors entretien', type: 'number' },
+    // Couts
     { key: 'cost_parts', label: 'Cout pieces (EUR)', type: 'number', step: 0.01 },
     { key: 'cost_labor', label: 'Cout main d\'oeuvre (EUR)', type: 'number', step: 0.01 },
     { key: 'cost_total', label: 'Cout total (EUR)', type: 'number', step: 0.01 },
@@ -240,14 +244,18 @@ function FuelCrud({ vehicleOptions }: { vehicleOptions: { value: string; label: 
   ]
 
   const fields: FieldDef[] = [
+    // Identification
     { key: 'vehicle_id', label: 'Vehicule', type: 'select', required: true, options: vehicleOptions },
     { key: 'date', label: 'Date', type: 'date', required: true },
+    // Compteur + Plein
     { key: 'km_at_fill', label: 'Km au plein', type: 'number' },
+    { key: 'is_full_tank', label: 'Plein complet', type: 'checkbox', defaultValue: true },
+    // Carburant
     { key: 'liters', label: 'Litres', type: 'number', step: 0.1, required: true },
     { key: 'price_per_liter', label: 'Prix par litre (EUR)', type: 'number', step: 0.001 },
     { key: 'total_cost', label: 'Cout total (EUR)', type: 'number', step: 0.01 },
-    { key: 'is_full_tank', label: 'Plein complet', type: 'checkbox', defaultValue: true },
     { key: 'station_name', label: 'Station', type: 'text' },
+    // Chauffeur
     { key: 'driver_name', label: 'Chauffeur', type: 'text' },
     { key: 'notes', label: 'Notes', type: 'textarea' },
   ]
@@ -295,9 +303,11 @@ function ModificationsCrud({ vehicleOptions }: { vehicleOptions: { value: string
   ]
 
   const fields: FieldDef[] = [
+    // Identification
     { key: 'vehicle_id', label: 'Vehicule', type: 'select', required: true, options: vehicleOptions },
     { key: 'date', label: 'Date', type: 'date', required: true },
     { key: 'description', label: 'Description', type: 'textarea', required: true },
+    // Couts + Facturation
     { key: 'cost', label: 'Cout (EUR)', type: 'number', step: 0.01 },
     { key: 'provider_name', label: 'Prestataire', type: 'text' },
     { key: 'invoice_ref', label: 'Ref facture', type: 'text' },
@@ -348,11 +358,13 @@ function CostsCrud({ vehicleOptions }: { vehicleOptions: { value: string; label:
   ]
 
   const fields: FieldDef[] = [
+    // Identification
     { key: 'vehicle_id', label: 'Vehicule', type: 'select', required: true, options: vehicleOptions },
     { key: 'category', label: 'Categorie', type: 'select', required: true, options: COST_CATEGORY_OPTIONS },
+    // Date + Montant
     { key: 'date', label: 'Date', type: 'date', required: true },
-    { key: 'description', label: 'Description', type: 'textarea' },
     { key: 'amount', label: 'Montant (EUR)', type: 'number', step: 0.01, required: true },
+    { key: 'description', label: 'Description', type: 'textarea' },
     { key: 'invoice_ref', label: 'Ref facture', type: 'text' },
     { key: 'notes', label: 'Notes', type: 'textarea' },
   ]

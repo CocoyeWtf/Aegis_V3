@@ -64,13 +64,15 @@ export default function BaseManagement() {
       key: 'activity_ids', label: t('bases.activities'), type: 'multicheck',
       options: activities.map((a) => ({ value: String(a.id), label: a.name })),
     },
-    { key: 'address', label: t('common.address'), type: 'text' },
+    // Adresse + Géolocalisation
+    { key: 'address', label: t('common.address'), type: 'text', colSpan: 2 },
     { key: 'postal_code', label: t('common.postalCode'), type: 'text' },
     { key: 'city', label: t('common.city'), type: 'text' },
-    { key: 'phone', label: t('common.phone'), type: 'text' },
-    { key: 'email', label: t('common.email'), type: 'text' },
     { key: 'latitude', label: t('common.latitude'), type: 'number', step: 0.000001 },
     { key: 'longitude', label: t('common.longitude'), type: 'number', step: 0.000001 },
+    // Contact
+    { key: 'phone', label: t('common.phone'), type: 'text' },
+    { key: 'email', label: t('common.email'), type: 'text' },
   ]
 
   const handleCreate = () => {

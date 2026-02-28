@@ -84,16 +84,24 @@ export default function PdvManagement() {
   ]
 
   const fields: FieldDef[] = [
+    // Identification
     { key: 'code', label: t('common.code'), type: 'text', required: true },
     { key: 'name', label: t('common.name'), type: 'text', required: true },
     { key: 'type', label: t('common.type'), type: 'select', required: true, options: pdvTypeOptions },
+    // Adresse + Géolocalisation
     { key: 'address', label: t('common.address'), type: 'text', colSpan: 2 },
     { key: 'postal_code', label: t('common.postalCode'), type: 'text' },
     { key: 'city', label: t('common.city'), type: 'text' },
-    { key: 'phone', label: t('common.phone'), type: 'text' },
-    { key: 'email', label: t('common.email'), type: 'text' },
     { key: 'latitude', label: t('common.latitude'), type: 'number', step: 0.000001 },
     { key: 'longitude', label: t('common.longitude'), type: 'number', step: 0.000001 },
+    // Contact + Affectation
+    { key: 'phone', label: t('common.phone'), type: 'text' },
+    { key: 'email', label: t('common.email'), type: 'text' },
+    {
+      key: 'region_id', label: t('common.region'), type: 'select', required: true,
+      options: regions.map((r) => ({ value: String(r.id), label: r.name })),
+    },
+    // SAS (checkbox + détails sur la même ligne)
     { key: 'has_sas_sec', label: 'SAS Sec', type: 'checkbox' },
     { key: 'sas_sec_surface_m2', label: 'SAS Sec — Surface (m²)', type: 'number', min: 0, step: 0.1 },
     { key: 'sas_sec_capacity_eqc', label: 'SAS Sec — Capacité (EQC)', type: 'number', min: 0 },
@@ -103,18 +111,17 @@ export default function PdvManagement() {
     { key: 'has_sas_gel', label: 'SAS Gel', type: 'checkbox' },
     { key: 'sas_gel_surface_m2', label: 'SAS Gel — Surface (m²)', type: 'number', min: 0, step: 0.1 },
     { key: 'sas_gel_capacity_eqc', label: 'SAS Gel — Capacité (EQC)', type: 'number', min: 0 },
+    // Dock + Déchargement
     { key: 'has_dock', label: t('pdvs.hasDock'), type: 'checkbox' },
     { key: 'dock_has_niche', label: t('pdvs.dockHasNiche'), type: 'checkbox' },
     { key: 'dock_time_minutes', label: t('pdvs.dockTime'), type: 'number', min: 0 },
+    // Livraison
     { key: 'unload_time_per_eqp_minutes', label: t('pdvs.unloadTime'), type: 'number', min: 0 },
     { key: 'delivery_window_start', label: t('pdvs.deliveryStart'), type: 'time' },
     { key: 'delivery_window_end', label: t('pdvs.deliveryEnd'), type: 'time' },
+    // Contraintes
     { key: 'access_constraints', label: t('pdvs.accessConstraints'), type: 'textarea' },
     { key: 'allowed_vehicle_types', label: 'Types véhicules autorisés', type: 'multicheck', options: vehicleTypeOptions },
-    {
-      key: 'region_id', label: t('common.region'), type: 'select', required: true,
-      options: regions.map((r) => ({ value: String(r.id), label: r.name })),
-    },
   ]
 
   /* Impression QR / Print QR code */

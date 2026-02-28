@@ -96,29 +96,35 @@ export default function ContractManagement() {
   ]
 
   const fields: FieldDef[] = [
+    // Identification
     { key: 'code', label: t('common.code'), type: 'text', required: true },
     { key: 'transporter_name', label: t('contracts.transporterName'), type: 'text', required: true },
+    // Véhicule
     { key: 'vehicle_code', label: t('contracts.vehicleCode'), type: 'text' },
     { key: 'vehicle_name', label: t('contracts.vehicleName'), type: 'text' },
     { key: 'temperature_type', label: t('vehicles.temperatureType'), type: 'select', options: tempOptions },
     { key: 'vehicle_type', label: t('vehicles.vehicleType'), type: 'select', options: vehicleTypeOptions },
+    // Capacité + Hayon
     { key: 'capacity_eqp', label: t('contracts.capacity'), type: 'number', min: 1 },
     { key: 'capacity_weight_kg', label: t('vehicles.capacityWeight'), type: 'number', min: 0 },
     { key: 'has_tailgate', label: t('vehicles.hasTailgate'), type: 'checkbox' },
     { key: 'tailgate_type', label: t('vehicles.tailgateType'), type: 'select', options: tailgateOptions },
+    // Couts
     { key: 'fixed_daily_cost', label: t('contracts.fixedDailyCost'), type: 'number', step: 0.01 },
     { key: 'vacation', label: t('contracts.vacation'), type: 'number', step: 0.01 },
     { key: 'cost_per_km', label: t('contracts.costPerKm'), type: 'number', step: 0.0001 },
     { key: 'cost_per_hour', label: t('contracts.costPerHour'), type: 'number', step: 0.01 },
+    // Minimums + Consommation
     { key: 'min_hours_per_day', label: t('contracts.minHoursPerDay'), type: 'number', step: 0.5 },
     { key: 'min_km_per_day', label: t('contracts.minKmPerDay'), type: 'number' },
     { key: 'consumption_coefficient', label: t('contracts.consumptionCoefficient'), type: 'number', step: 0.0001 },
-    { key: 'start_date', label: t('common.startDate'), type: 'date' },
-    { key: 'end_date', label: t('common.endDate'), type: 'date' },
     {
       key: 'region_id', label: t('common.region'), type: 'select', required: true,
       options: regions.map((r) => ({ value: String(r.id), label: r.name })),
     },
+    // Dates
+    { key: 'start_date', label: t('common.startDate'), type: 'date' },
+    { key: 'end_date', label: t('common.endDate'), type: 'date' },
   ]
 
   // Dates indisponibles du contrat sélectionné / Unavailable dates of selected contract

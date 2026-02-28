@@ -66,6 +66,7 @@ export default function UserManagement() {
   ]
 
   const fields: FieldDef[] = [
+    // Identifiants
     { key: 'username', label: t('admin.users.username'), type: 'text', required: true },
     { key: 'email', label: t('admin.users.email'), type: 'text', required: true },
     {
@@ -75,8 +76,19 @@ export default function UserManagement() {
       required: !editItem?.id,
       placeholder: editItem?.id ? t('admin.users.passwordPlaceholder') : undefined,
     },
+    {
+      key: 'pdv_id',
+      label: 'PDV lié',
+      type: 'select',
+      options: [
+        { value: '', label: '— Aucun —' },
+        ...pdvs.map((p) => ({ value: String(p.id), label: `${p.code} — ${p.name}` })),
+      ],
+    },
+    // Statut
     { key: 'is_active', label: t('admin.users.active'), type: 'checkbox' },
     { key: 'is_superadmin', label: 'Superadmin', type: 'checkbox' },
+    // Permissions
     {
       key: 'role_ids',
       label: t('admin.users.roles'),
@@ -88,15 +100,6 @@ export default function UserManagement() {
       label: t('admin.users.regions'),
       type: 'multicheck',
       getOptions: () => regions.map((r) => ({ value: String(r.id), label: r.name })),
-    },
-    {
-      key: 'pdv_id',
-      label: 'PDV lié',
-      type: 'select',
-      options: [
-        { value: '', label: '— Aucun —' },
-        ...pdvs.map((p) => ({ value: String(p.id), label: `${p.code} — ${p.name}` })),
-      ],
     },
   ]
 
