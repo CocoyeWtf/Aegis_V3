@@ -17,7 +17,7 @@ import { verifyKioskPassword } from '../../services/kioskMode'
 export default function SettingsScreen() {
   const router = useRouter()
   const { user, accessToken, logout } = useAuthStore()
-  const { deviceId, registrationCode, reset: resetDevice } = useDeviceStore()
+  const { deviceId, registrationCode, friendlyName, baseName, reset: resetDevice } = useDeviceStore()
 
   const [driverName, setDriverName] = useState('')
   const [switching, setSwitching] = useState(false)
@@ -220,6 +220,14 @@ export default function SettingsScreen() {
       {/* Appareil / Device */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Appareil</Text>
+        <View style={styles.row}>
+          <Text style={styles.label}>Nom</Text>
+          <Text style={[styles.value, { fontWeight: '700' }]}>{friendlyName || '—'}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>Base</Text>
+          <Text style={styles.value}>{baseName || '—'}</Text>
+        </View>
         <View style={styles.row}>
           <Text style={styles.label}>Code enregistrement</Text>
           <Text style={[styles.value, { color: COLORS.primary, fontWeight: '700' }]}>{registrationCode || '—'}</Text>

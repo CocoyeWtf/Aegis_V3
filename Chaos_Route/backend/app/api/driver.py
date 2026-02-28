@@ -50,6 +50,23 @@ from app.api.ws_tracking import manager
 router = APIRouter()
 
 
+@router.get("/device-info")
+async def get_device_info(
+    device: MobileDevice = Depends(get_authenticated_device),
+    db: AsyncSession = Depends(get_db),
+):
+    """Infos appareil pour affichage mobile / Device info for mobile display."""
+    base_name: str | None = None
+    if device.base_id:
+        base = await db.get(BaseLogistics, device.base_id)
+        base_name = base.name if base else None
+    return {
+        "friendly_name": device.friendly_name,
+        "base_name": base_name,
+        "registration_code": device.registration_code,
+    }
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
