@@ -66,6 +66,7 @@ const navGroups: NavGroup[] = [
       { path: '/operations', label: 'nav.postier', icon: '📮', resource: 'operations' },
       { path: '/tracking', label: 'Suivi chauffeurs', icon: '📡', resource: 'tracking' },
       { path: '/base-reception', label: 'Reception reprises', icon: '📥', resource: 'pickup-requests' },
+      { path: '/declarations', label: 'Declarations', icon: '⚠', resource: 'declarations' },
     ],
   },
   {

@@ -776,3 +776,29 @@ export interface FleetDashboard {
   total_fleet_km: number
   avg_cost_per_km?: number
 }
+
+/* ─── Driver Declarations ─── */
+
+export interface DeclarationPhoto {
+  id: number
+  declaration_id: number
+  filename: string
+  file_size?: number
+  mime_type?: string
+  uploaded_at: string
+}
+
+export interface Declaration {
+  id: number
+  device_id: number
+  tour_id?: number | null
+  tour_stop_id?: number | null
+  declaration_type: string
+  description?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  accuracy?: number | null
+  driver_name?: string | null
+  created_at: string
+  photos: DeclarationPhoto[]
+}

@@ -46,6 +46,7 @@ const ReportDaily = lazy(() => import('./pages/ReportDaily'))
 const ReportDriver = lazy(() => import('./pages/ReportDriver'))
 const ReportPdv = lazy(() => import('./pages/ReportPdv'))
 const ReportVehicle = lazy(() => import('./pages/ReportVehicle'))
+const DeclarationManagement = lazy(() => import('./pages/DeclarationManagement'))
 
 function Loading() {
   return (
@@ -100,6 +101,7 @@ export default function App() {
             <Route path="/reports/driver" element={<ReportDriver />} />
             <Route path="/reports/pdv" element={<ReportPdv />} />
             <Route path="/reports/vehicle" element={<ReportVehicle />} />
+            <Route path="/declarations" element={<DeclarationManagement />} />
             <Route path="/help" element={<Help />} />
           </Route>
         </Route>
