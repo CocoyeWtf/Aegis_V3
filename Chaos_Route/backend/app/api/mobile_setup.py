@@ -19,7 +19,7 @@ APK_DIR = Path(__file__).resolve().parent.parent.parent / "apk"
 # Version courante de l'app mobile / Current mobile app version
 # Mettre a jour a chaque build APK / Update on each APK build
 APP_VERSION = "1.1.0"
-APP_BUILD_NUMBER = 2
+APP_BUILD_NUMBER = 3
 
 
 @router.get("/app/version")

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import api from '../services/api'
+import { ConfirmDialog } from '../components/data/ConfirmDialog'
 import type { MobileDevice, BaseLogistics } from '../types'
 
 /** URL publique HTTPS du backend / Public HTTPS backend URL.
@@ -15,6 +16,8 @@ function getServerBaseUrl(): string {
   return 'https://chaosroute.chaosmanager.tech'
 }
 
+type ConfirmActionType = 'deactivate' | 'hardDelete' | 'resetIdentity'
+
 export default function DeviceManagement() {
   const [devices, setDevices] = useState<MobileDevice[]>([])
   const [bases, setBases] = useState<BaseLogistics[]>([])
@@ -25,6 +28,8 @@ export default function DeviceManagement() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editForm, setEditForm] = useState({ friendly_name: '', base_id: '' as string })
   const [serverUrl, setServerUrl] = useState(() => getServerBaseUrl())
+  const [confirmAction, setConfirmAction] = useState<{ type: ConfirmActionType; deviceId: number; deviceName: string } | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {
     api.get('/bases/').then((r) => setBases(r.data)).catch(() => {})
@@ -73,9 +78,65 @@ export default function DeviceManagement() {
     }
   }
 
-  const handleDelete = async (id: number) => {
-    await api.delete(`/devices/${id}`)
-    loadDevices()
+  const handleDeactivate = async (id: number) => {
+    try {
+      await api.delete(`/devices/${id}`)
+      loadDevices()
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur lors de la desactivation'
+      alert(msg)
+    }
+  }
+
+  const handleReactivate = async (id: number) => {
+    try {
+      await api.put(`/devices/${id}`, { is_active: true })
+      loadDevices()
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur lors de la reactivation'
+      alert(msg)
+    }
+  }
+
+  const handleHardDelete = async (id: number) => {
+    try {
+      await api.delete(`/devices/${id}`, { params: { hard: true } })
+      loadDevices()
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur lors de la suppression'
+      alert(msg)
+    }
+  }
+
+  const handleResetIdentity = async (id: number) => {
+    try {
+      await api.post(`/devices/${id}/reset-identity`)
+      loadDevices()
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur lors de la reinitialisation'
+      alert(msg)
+    }
+  }
+
+  const executeConfirmedAction = async () => {
+    if (!confirmAction) return
+    setActionLoading(true)
+    try {
+      switch (confirmAction.type) {
+        case 'deactivate':
+          await handleDeactivate(confirmAction.deviceId)
+          break
+        case 'hardDelete':
+          await handleHardDelete(confirmAction.deviceId)
+          break
+        case 'resetIdentity':
+          await handleResetIdentity(confirmAction.deviceId)
+          break
+      }
+    } finally {
+      setActionLoading(false)
+      setConfirmAction(null)
+    }
   }
 
   const startEdit = (d: MobileDevice) => {
@@ -93,6 +154,21 @@ export default function DeviceManagement() {
   }
 
   const isRegistered = (d: MobileDevice) => !!d.device_identifier
+
+  const confirmMessages: Record<ConfirmActionType, { title: string; message: string }> = {
+    deactivate: {
+      title: 'Desactiver l\'appareil',
+      message: `Desactiver "${confirmAction?.deviceName || ''}" ? L'appareil ne pourra plus se connecter. Vous pourrez le reactiver plus tard.`,
+    },
+    hardDelete: {
+      title: 'Supprimer definitivement',
+      message: `Supprimer definitivement "${confirmAction?.deviceName || ''}" ? Cette action est irreversible. Toutes les donnees liees seront perdues.`,
+    },
+    resetIdentity: {
+      title: 'Reinitialiser l\'identite',
+      message: `Reinitialiser l'identite physique de "${confirmAction?.deviceName || ''}" ? Un nouveau telephone pourra s'enregistrer avec le meme code.`,
+    },
+  }
 
   return (
     <div className="p-6">
@@ -222,7 +298,14 @@ export default function DeviceManagement() {
             </thead>
             <tbody>
               {devices.map((d) => (
-                <tr key={d.id} className="border-t" style={{ borderColor: 'var(--border-color)' }}>
+                <tr
+                  key={d.id}
+                  className="border-t"
+                  style={{
+                    borderColor: 'var(--border-color)',
+                    opacity: d.is_active ? 1 : 0.55,
+                  }}
+                >
                   {editingId === d.id ? (
                     <>
                       <td className="px-3 py-2 whitespace-nowrap">
@@ -266,14 +349,59 @@ export default function DeviceManagement() {
                         {d.is_active ? '✓' : '✗'}
                       </td>
                       <td className="px-3 py-2 text-center whitespace-nowrap">
-                        {/* Bouton QR pour afficher le code / QR button to show code */}
-                        <button onClick={() => setQrDevice(d)} className="text-xs font-semibold mr-2" style={{ color: 'var(--color-primary)' }}
-                          title="Afficher le QR code">
-                          QR
-                        </button>
-                        <button onClick={() => startEdit(d)} className="text-xs font-semibold mr-2" style={{ color: 'var(--text-secondary)' }}>Modifier</button>
-                        {d.is_active && (
-                          <button onClick={() => handleDelete(d.id)} className="text-xs font-semibold" style={{ color: 'var(--color-danger)' }}>Desactiver</button>
+                        {d.is_active ? (
+                          <>
+                            {/* Actif : QR + Modifier + (Reinitialiser si enregistre) + Desactiver/Supprimer */}
+                            <button onClick={() => setQrDevice(d)} className="text-xs font-semibold mr-2" style={{ color: 'var(--color-primary)' }}
+                              title="Afficher le QR code">
+                              QR
+                            </button>
+                            <button onClick={() => startEdit(d)} className="text-xs font-semibold mr-2" style={{ color: 'var(--text-secondary)' }}>Modifier</button>
+                            {isRegistered(d) ? (
+                              <>
+                                <button
+                                  onClick={() => setConfirmAction({ type: 'resetIdentity', deviceId: d.id, deviceName: d.friendly_name || `#${d.id}` })}
+                                  className="text-xs font-semibold mr-2"
+                                  style={{ color: '#f59e0b' }}
+                                >
+                                  Reinitialiser
+                                </button>
+                                <button
+                                  onClick={() => setConfirmAction({ type: 'deactivate', deviceId: d.id, deviceName: d.friendly_name || `#${d.id}` })}
+                                  className="text-xs font-semibold"
+                                  style={{ color: 'var(--color-danger)' }}
+                                >
+                                  Desactiver
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmAction({ type: 'hardDelete', deviceId: d.id, deviceName: d.friendly_name || `#${d.id}` })}
+                                className="text-xs font-semibold"
+                                style={{ color: 'var(--color-danger)' }}
+                              >
+                                Supprimer
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            {/* Inactif : Reactiver + Supprimer */}
+                            <button
+                              onClick={() => handleReactivate(d.id)}
+                              className="text-xs font-semibold mr-2"
+                              style={{ color: '#22c55e' }}
+                            >
+                              Reactiver
+                            </button>
+                            <button
+                              onClick={() => setConfirmAction({ type: 'hardDelete', deviceId: d.id, deviceName: d.friendly_name || `#${d.id}` })}
+                              className="text-xs font-semibold"
+                              style={{ color: 'var(--color-danger)' }}
+                            >
+                              Supprimer
+                            </button>
+                          </>
                         )}
                       </td>
                     </>
@@ -291,6 +419,17 @@ export default function DeviceManagement() {
           </table>
         </div>
       )}
+
+      {/* Modale de confirmation / Confirmation modal */}
+      <ConfirmDialog
+        open={!!confirmAction}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={executeConfirmedAction}
+        title={confirmAction ? confirmMessages[confirmAction.type].title : ''}
+        message={confirmAction ? confirmMessages[confirmAction.type].message : ''}
+        loading={actionLoading}
+        danger={confirmAction?.type !== 'resetIdentity'}
+      />
     </div>
   )
 }
