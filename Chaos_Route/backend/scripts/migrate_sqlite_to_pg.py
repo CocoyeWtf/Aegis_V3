@@ -99,13 +99,20 @@ async def migrate():
                     print(f"  [skip] {table_name}: 0 lignes")
                     continue
 
-                # Inserer par batch dans PostgreSQL / Batch insert into PostgreSQL
+                # Inserer par batch dans PostgreSQL via SQL brut (evite type mismatch asyncpg) /
+                # Batch insert into PostgreSQL via raw SQL (avoids asyncpg type mismatch)
                 batch_size = 500
+                col_names = ", ".join(f'"{c}"' for c in common_cols)
+                placeholders = ", ".join(f":{c}" for c in common_cols)
+                insert_sql = text(
+                    f'INSERT INTO "{table_name}" ({col_names}) VALUES ({placeholders})'
+                )
 
                 for i in range(0, len(rows), batch_size):
                     batch = rows[i:i + batch_size]
                     values = [dict(zip(common_cols, row)) for row in batch]
-                    await pg_conn.execute(table.insert(), values)
+                    for row_dict in values:
+                        await pg_conn.execute(insert_sql, row_dict)
 
                 total_rows += len(rows)
                 print(f"  [OK] {table_name}: {len(rows)} lignes")
