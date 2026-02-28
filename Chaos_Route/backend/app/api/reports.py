@@ -146,11 +146,11 @@ async def report_daily(
                 pdv_ids.add(s.pdv_id)
                 day_stops.append(s)
             total_eqp += t.total_eqp or 0
-            total_km += t.total_km or 0.0
-            total_cost += t.total_cost or 0.0
-            total_weight += t.total_weight_kg or 0.0
+            total_km += float(t.total_km or 0)
+            total_cost += float(t.total_cost or 0)
+            total_weight += float(t.total_weight_kg or 0)
             if t.capacity_eqp and t.total_eqp:
-                fill_rates.append(round(t.total_eqp / t.capacity_eqp * 100, 1))
+                fill_rates.append(round(t.total_eqp / float(t.capacity_eqp) * 100, 1))
 
         avg_fill = round(sum(fill_rates) / len(fill_rates), 1) if fill_rates else 0.0
         punctuality = _compute_punctuality(day_stops, pdv_map)
@@ -219,10 +219,10 @@ async def report_driver(
     for driver_name in sorted(by_driver.keys()):
         dtours = by_driver[driver_name]
         nb_tours = len(dtours)
-        total_km = sum(t.total_km or 0 for t in dtours)
+        total_km = sum(float(t.total_km or 0) for t in dtours)
         total_eqp = sum(t.total_eqp or 0 for t in dtours)
         nb_stops = sum(len(t.stops) for t in dtours)
-        total_duration = sum(t.total_duration_minutes or 0 for t in dtours)
+        total_duration = sum(float(t.total_duration_minutes or 0) for t in dtours)
         avg_duration = round(total_duration / nb_tours, 0) if nb_tours else 0
 
         all_stops = [s for t in dtours for s in t.stops]
@@ -341,15 +341,15 @@ async def report_vehicle(
             continue
         vtours = by_vehicle[vid]
         nb_tours = len(vtours)
-        total_km = sum(t.total_km or 0 for t in vtours)
+        total_km = sum(float(t.total_km or 0) for t in vtours)
         total_eqp = sum(t.total_eqp or 0 for t in vtours)
-        total_cost = sum(t.total_cost or 0 for t in vtours)
+        total_cost = sum(float(t.total_cost or 0) for t in vtours)
 
         fill_rates = []
         for t in vtours:
             cap = t.capacity_eqp or (v.capacity_eqp if v.capacity_eqp else None)
             if cap and t.total_eqp:
-                fill_rates.append(t.total_eqp / cap * 100)
+                fill_rates.append(t.total_eqp / float(cap) * 100)
         avg_fill = round(sum(fill_rates) / len(fill_rates), 1) if fill_rates else 0.0
         cost_per_km = round(total_cost / total_km, 2) if total_km > 0 else 0.0
 
