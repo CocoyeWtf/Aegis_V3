@@ -350,7 +350,7 @@ export function DataTable<T extends { id: number }>({
         style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
       >
         <div className="overflow-x-auto">
-          <table className="w-full text-sm" style={{ tableLayout: 'auto' }}>
+          <table className="text-sm" style={{ tableLayout: 'auto' }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                 {visibleColumns.map((col) => (
@@ -465,7 +465,7 @@ export function DataTable<T extends { id: number }>({
                       onClick={() => onRowClick?.(row)}
                     >
                       {visibleColumns.map((col) => (
-                        <td key={String(col.key)} className="px-4 py-2.5 truncate max-w-[300px]" style={{ color: 'var(--text-primary)' }}>
+                        <td key={String(col.key)} className="px-4 py-2.5 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                           {col.render ? col.render(row) : getCellValue(row, String(col.key))}
                         </td>
                       ))}
