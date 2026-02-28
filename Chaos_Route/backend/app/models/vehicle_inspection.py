@@ -50,8 +50,8 @@ class VehicleInspection(Base):
     km_at_inspection: Mapped[int | None] = mapped_column(Integer)
     latitude: Mapped[float | None] = mapped_column(Float)
     longitude: Mapped[float | None] = mapped_column(Float)
-    started_at: Mapped[str] = mapped_column(String(25), nullable=False)  # ISO 8601
-    completed_at: Mapped[str | None] = mapped_column(String(25))
+    started_at: Mapped[str] = mapped_column(String(32), nullable=False)  # ISO 8601
+    completed_at: Mapped[str | None] = mapped_column(String(32))
     remarks: Mapped[str | None] = mapped_column(Text)
     has_critical_defect: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -102,7 +102,7 @@ class InspectionPhoto(Base):
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)
     file_size: Mapped[int | None] = mapped_column(Integer)
     mime_type: Mapped[str | None] = mapped_column(String(50))
-    uploaded_at: Mapped[str] = mapped_column(String(25), nullable=False)  # ISO 8601
+    uploaded_at: Mapped[str] = mapped_column(String(32), nullable=False)  # ISO 8601
 
     # Relations
     inspection: Mapped["VehicleInspection"] = relationship(back_populates="photos")

@@ -25,9 +25,9 @@ class TourSurcharge(Base):
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[SurchargeStatus] = mapped_column(Enum(SurchargeStatus), default=SurchargeStatus.PENDING)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    created_at: Mapped[str] = mapped_column(String(25), nullable=False)  # ISO 8601
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False)  # ISO 8601
     validated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    validated_at: Mapped[str | None] = mapped_column(String(25), nullable=True)
+    validated_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     # Relations
     tour: Mapped["Tour"] = relationship(back_populates="surcharges")

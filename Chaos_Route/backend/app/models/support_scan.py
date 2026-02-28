@@ -16,5 +16,5 @@ class SupportScan(Base):
     barcode: Mapped[str] = mapped_column(String(100), nullable=False)
     latitude: Mapped[float | None] = mapped_column(Float)
     longitude: Mapped[float | None] = mapped_column(Float)
-    timestamp: Mapped[str] = mapped_column(String(25), nullable=False)  # ISO 8601
+    timestamp: Mapped[str] = mapped_column(String(32), nullable=False)  # ISO 8601
     expected_at_stop: Mapped[bool] = mapped_column(Boolean, default=True)

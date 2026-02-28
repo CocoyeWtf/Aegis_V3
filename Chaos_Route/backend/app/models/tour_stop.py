@@ -25,8 +25,8 @@ class TourStop(Base):
 
     # Champs suivi livraison mobile / Mobile delivery tracking fields
     delivery_status: Mapped[str | None] = mapped_column(String(20))  # PENDING | ARRIVED | DELIVERED | SKIPPED
-    actual_arrival_time: Mapped[str | None] = mapped_column(String(25))  # ISO 8601
-    actual_departure_time: Mapped[str | None] = mapped_column(String(25))  # ISO 8601
+    actual_arrival_time: Mapped[str | None] = mapped_column(String(32))  # ISO 8601
+    actual_departure_time: Mapped[str | None] = mapped_column(String(32))  # ISO 8601
     missing_supports_count: Mapped[int | None] = mapped_column(Integer, default=0)
     forced_closure: Mapped[bool] = mapped_column(Boolean, default=False)
     delivery_notes: Mapped[str | None] = mapped_column(Text)

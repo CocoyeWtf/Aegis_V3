@@ -59,7 +59,7 @@ class VehicleMaintenanceRecord(Base):
     inspection_id: Mapped[int | None] = mapped_column(ForeignKey("vehicle_inspections.id"))
 
     notes: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[str | None] = mapped_column(String(25))  # ISO 8601
+    created_at: Mapped[str | None] = mapped_column(String(32))  # ISO 8601
 
     # Relations
     vehicle: Mapped["Vehicle"] = relationship(back_populates="maintenances")

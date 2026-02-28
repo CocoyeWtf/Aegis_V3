@@ -17,7 +17,7 @@ class GPSPosition(Base):
     longitude: Mapped[float] = mapped_column(Float, nullable=False)
     accuracy: Mapped[float | None] = mapped_column(Float)
     speed: Mapped[float | None] = mapped_column(Float)
-    timestamp: Mapped[str] = mapped_column(String(25), nullable=False)  # ISO 8601
+    timestamp: Mapped[str] = mapped_column(String(32), nullable=False)  # ISO 8601
 
     __table_args__ = (
         Index("ix_gps_positions_tour_timestamp", "tour_id", "timestamp"),

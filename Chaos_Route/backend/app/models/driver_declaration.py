@@ -32,7 +32,7 @@ class DriverDeclaration(Base):
     longitude: Mapped[float | None] = mapped_column(Float)
     accuracy: Mapped[float | None] = mapped_column(Float)
     driver_name: Mapped[str | None] = mapped_column(String(100))
-    created_at: Mapped[str] = mapped_column(String(25), nullable=False)  # ISO 8601
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False)  # ISO 8601
 
 
 class DeclarationPhoto(Base):
@@ -45,4 +45,4 @@ class DeclarationPhoto(Base):
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)
     file_size: Mapped[int | None] = mapped_column(Integer)
     mime_type: Mapped[str | None] = mapped_column(String(50))
-    uploaded_at: Mapped[str] = mapped_column(String(25), nullable=False)  # ISO 8601
+    uploaded_at: Mapped[str] = mapped_column(String(32), nullable=False)  # ISO 8601

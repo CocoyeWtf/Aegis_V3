@@ -20,4 +20,4 @@ class TourManifestLine(Base):
     # Rempli au scan / Filled on scan
     scanned: Mapped[bool] = mapped_column(Boolean, default=False)
     scanned_at_stop_id: Mapped[int | None] = mapped_column(ForeignKey("tour_stops.id"))
-    scanned_at: Mapped[str | None] = mapped_column(String(25))  # ISO 8601
+    scanned_at: Mapped[str | None] = mapped_column(String(32))  # ISO 8601

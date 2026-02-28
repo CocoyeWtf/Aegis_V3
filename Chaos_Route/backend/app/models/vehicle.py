@@ -88,7 +88,7 @@ class Vehicle(Base):
 
     # --- Kilometrage / Mileage ---
     current_km: Mapped[int | None] = mapped_column(Integer)
-    last_km_update: Mapped[str | None] = mapped_column(String(25))  # ISO 8601
+    last_km_update: Mapped[str | None] = mapped_column(String(32))  # ISO 8601
 
     # --- Detention / Ownership ---
     ownership_type: Mapped[OwnershipType | None] = mapped_column(Enum(OwnershipType))

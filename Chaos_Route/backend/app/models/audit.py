@@ -15,7 +15,7 @@ class AuditLog(Base):
     action: Mapped[str] = mapped_column(String(20), nullable=False)  # CREATE, UPDATE, DELETE
     changes: Mapped[str | None] = mapped_column(Text)  # JSON des changements
     user: Mapped[str | None] = mapped_column(String(100))
-    timestamp: Mapped[str] = mapped_column(String(25), nullable=False)  # ISO 8601
+    timestamp: Mapped[str] = mapped_column(String(32), nullable=False)  # ISO 8601
 
     def __repr__(self) -> str:
         return f"<AuditLog {self.action} {self.entity_type}:{self.entity_id}>"

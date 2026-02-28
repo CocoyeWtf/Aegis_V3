@@ -64,9 +64,9 @@ class PickupLabel(Base):
     sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-based
     status: Mapped[LabelStatus] = mapped_column(Enum(LabelStatus), nullable=False, default=LabelStatus.PENDING)
     tour_stop_id: Mapped[int | None] = mapped_column(ForeignKey("tour_stops.id"))
-    picked_up_at: Mapped[str | None] = mapped_column(String(25))  # ISO 8601
+    picked_up_at: Mapped[str | None] = mapped_column(String(32))  # ISO 8601
     picked_up_device_id: Mapped[int | None] = mapped_column(ForeignKey("mobile_devices.id"))
-    received_at: Mapped[str | None] = mapped_column(String(25))  # ISO 8601
+    received_at: Mapped[str | None] = mapped_column(String(32))  # ISO 8601
 
     # Relations
     pickup_request: Mapped["PickupRequest"] = relationship(back_populates="labels")

@@ -70,7 +70,7 @@ class Tour(Base):
     # Champs suivi mobile / Mobile tracking fields
     driver_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     device_assignment_id: Mapped[int | None] = mapped_column(ForeignKey("device_assignments.id"))
-    actual_return_time: Mapped[str | None] = mapped_column(String(25))  # ISO 8601
+    actual_return_time: Mapped[str | None] = mapped_column(String(32))  # ISO 8601
 
     # Relations
     contract: Mapped["Contract | None"] = relationship(back_populates="tours")

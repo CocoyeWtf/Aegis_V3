@@ -27,7 +27,7 @@ class StopEvent(Base):
     latitude: Mapped[float | None] = mapped_column(Float)
     longitude: Mapped[float | None] = mapped_column(Float)
     accuracy: Mapped[float | None] = mapped_column(Float)
-    timestamp: Mapped[str] = mapped_column(String(25), nullable=False)  # ISO 8601
+    timestamp: Mapped[str] = mapped_column(String(32), nullable=False)  # ISO 8601
     notes: Mapped[str | None] = mapped_column(Text)
     forced: Mapped[bool] = mapped_column(Boolean, default=False)
     device_id: Mapped[int | None] = mapped_column(ForeignKey("mobile_devices.id"))

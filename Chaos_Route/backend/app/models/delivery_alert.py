@@ -38,7 +38,7 @@ class DeliveryAlert(Base):
     alert_type: Mapped[AlertType] = mapped_column(Enum(AlertType), nullable=False)
     severity: Mapped[AlertSeverity] = mapped_column(Enum(AlertSeverity), nullable=False)
     message: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[str] = mapped_column(String(25), nullable=False)  # ISO 8601
-    acknowledged_at: Mapped[str | None] = mapped_column(String(25))
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False)  # ISO 8601
+    acknowledged_at: Mapped[str | None] = mapped_column(String(32))
     acknowledged_by: Mapped[int | None] = mapped_column(Integer)  # user_id
     device_id: Mapped[int | None] = mapped_column(ForeignKey("mobile_devices.id"))

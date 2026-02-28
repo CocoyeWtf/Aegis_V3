@@ -20,8 +20,8 @@ class DeviceAssignment(Base):
     date: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD
     driver_name: Mapped[str | None] = mapped_column(String(100))  # Nom du chauffeur saisi par le postier
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    assigned_at: Mapped[str | None] = mapped_column(String(25))  # ISO 8601
-    returned_at: Mapped[str | None] = mapped_column(String(25))  # ISO 8601
+    assigned_at: Mapped[str | None] = mapped_column(String(32))  # ISO 8601
+    returned_at: Mapped[str | None] = mapped_column(String(32))  # ISO 8601
 
     # Relations
     device: Mapped["MobileDevice"] = relationship(back_populates="assignments")
