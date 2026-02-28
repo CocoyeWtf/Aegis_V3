@@ -317,7 +317,7 @@ export default function TourDetailScreen() {
       {/* Bouton flottant Declarer / Floating declare button */}
       {tour.status !== 'COMPLETED' && (
         <TouchableOpacity
-          onPress={() => router.push(`/declaration?tourId=${tourId}`)}
+          onPress={() => router.push(`/declaration?tourId=${tourId}&driverName=${encodeURIComponent(tour?.driver_name || '')}`)}
           style={styles.declareFab}
         >
           <Text style={styles.declareFabText}>! Declarer</Text>
