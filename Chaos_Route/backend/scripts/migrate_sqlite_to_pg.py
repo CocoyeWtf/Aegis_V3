@@ -154,21 +154,23 @@ async def migrate():
     # Remettre a zero les sequences PostgreSQL (compteurs autoincrement) /
     # Reset PostgreSQL sequences (autoincrement counters)
     print("[migrate] Reset des sequences...")
-    async with pg_engine.begin() as pg_conn:
-        for table_name in table_names:
-            table = Base.metadata.tables[table_name]
-            pk_cols = [c for c in table.columns if c.primary_key and c.autoincrement]
-            for pk_col in pk_cols:
-                seq_name = f"{table_name}_{pk_col.name}_seq"
-                try:
+    for table_name in table_names:
+        table = Base.metadata.tables[table_name]
+        # Seules les colonnes PK avec un seul champ autoincrement /
+        # Only single-column PK with autoincrement
+        pk_cols = [c for c in table.columns if c.primary_key and c.autoincrement]
+        if len(table.primary_key.columns) > 1:
+            continue  # Junction table, pas de sequence
+        for pk_col in pk_cols:
+            seq_name = f"{table_name}_{pk_col.name}_seq"
+            try:
+                async with pg_engine.begin() as pg_conn:
                     await pg_conn.execute(text(
                         f"SELECT setval('{seq_name}', "
                         f"COALESCE((SELECT MAX(\"{pk_col.name}\") FROM \"{table_name}\"), 0) + 1, false)"
                     ))
-                except Exception as e:
-                    # Certaines tables n'ont pas de sequence (ex: junction tables) /
-                    # Some tables have no sequence (e.g., junction tables)
-                    print(f"  [warn] Sequence {seq_name}: {e}")
+            except Exception:
+                pass  # Table vide ou pas de sequence
 
     print(f"[migrate] Sequences resetees")
 
