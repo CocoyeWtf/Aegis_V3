@@ -57,6 +57,12 @@ async def migrate():
     total_rows = 0
 
     async with sqlite_engine.connect() as sqlite_conn:
+        # Lister les tables existantes dans SQLite / List existing SQLite tables
+        sqlite_tables_result = await sqlite_conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table'")
+        )
+        sqlite_existing = {row[0] for row in sqlite_tables_result.fetchall()}
+
         async with pg_engine.begin() as pg_conn:
             # Desactiver les FK checks pendant l'import / Disable FK checks during import
             await pg_conn.execute(text("SET session_replication_role = 'replica'"))
@@ -64,8 +70,29 @@ async def migrate():
             for table_name in table_names:
                 table = Base.metadata.tables[table_name]
 
-                # Lire toutes les lignes SQLite / Read all SQLite rows
-                result = await sqlite_conn.execute(table.select())
+                # Sauter les tables absentes de SQLite / Skip tables not in SQLite
+                if table_name not in sqlite_existing:
+                    print(f"  [skip] {table_name}: n'existe pas dans SQLite")
+                    continue
+
+                # Colonnes existantes dans SQLite / Existing columns in SQLite
+                col_info = await sqlite_conn.execute(
+                    text(f"PRAGMA table_info('{table_name}')")
+                )
+                sqlite_cols = {row[1] for row in col_info.fetchall()}
+                model_cols = [c.name for c in table.columns]
+                # Intersection ordonnee / Ordered intersection
+                common_cols = [c for c in model_cols if c in sqlite_cols]
+
+                if not common_cols:
+                    print(f"  [skip] {table_name}: pas de colonnes communes")
+                    continue
+
+                # Lire les colonnes communes depuis SQLite / Read common columns from SQLite
+                col_list = ", ".join(f'"{c}"' for c in common_cols)
+                result = await sqlite_conn.execute(
+                    text(f'SELECT {col_list} FROM "{table_name}"')
+                )
                 rows = result.fetchall()
 
                 if not rows:
@@ -73,12 +100,11 @@ async def migrate():
                     continue
 
                 # Inserer par batch dans PostgreSQL / Batch insert into PostgreSQL
-                columns = [c.name for c in table.columns]
                 batch_size = 500
 
                 for i in range(0, len(rows), batch_size):
                     batch = rows[i:i + batch_size]
-                    values = [dict(zip(columns, row)) for row in batch]
+                    values = [dict(zip(common_cols, row)) for row in batch]
                     await pg_conn.execute(table.insert(), values)
 
                 total_rows += len(rows)
