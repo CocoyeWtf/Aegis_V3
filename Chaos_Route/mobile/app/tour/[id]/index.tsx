@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router'
 import api from '../../../services/api'
 import { StopCard } from '../../../components/StopCard'
@@ -13,6 +14,7 @@ import type { DriverTour, InspectionCheckResponse } from '../../../types'
 export default function TourDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const [tour, setTour] = useState<DriverTour | null>(null)
   const [loading, setLoading] = useState(true)
   const [gpsActive, setGpsActive] = useState(false)
@@ -318,7 +320,7 @@ export default function TourDetailScreen() {
       {tour.status !== 'COMPLETED' && (
         <TouchableOpacity
           onPress={() => router.push(`/declaration?tourId=${tourId}&driverName=${encodeURIComponent(tour?.driver_name || '')}`)}
-          style={styles.declareFab}
+          style={[styles.declareFab, { bottom: Math.max(insets.bottom, 16) + 12 }]}
         >
           <Text style={styles.declareFabText}>! Declarer</Text>
         </TouchableOpacity>
@@ -436,7 +438,6 @@ const styles = StyleSheet.create({
   },
   declareFab: {
     position: 'absolute',
-    bottom: 20,
     right: 16,
     backgroundColor: COLORS.danger,
     paddingHorizontal: 16,
