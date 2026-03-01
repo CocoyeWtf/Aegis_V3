@@ -835,6 +835,14 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                       {!isScheduled ? (
                         /* --- Non planifié: contrat + date + heure + bouton planifier --- */
                         <>
+                          <input
+                            type="date"
+                            value={input.deliveryDate}
+                            onChange={(e) => updateInput(tour.id, 'deliveryDate', e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="rounded border px-1.5 py-1 text-[11px] w-[120px]"
+                            style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                          />
                           <select
                             value={input.contractId ?? ''}
                             onChange={(e) => updateInput(tour.id, 'contractId', e.target.value ? Number(e.target.value) : null)}
@@ -849,14 +857,6 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                               </option>
                             ))}
                           </select>
-                          <input
-                            type="date"
-                            value={input.deliveryDate}
-                            onChange={(e) => updateInput(tour.id, 'deliveryDate', e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="rounded border px-1.5 py-1 text-[11px] w-[120px]"
-                            style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-                          />
                           <input
                             type="time"
                             value={input.time}
