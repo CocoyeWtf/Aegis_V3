@@ -75,6 +75,8 @@ export default function RootLayout() {
       await downloadAndInstallApk(downloadUrl)
     } catch (e) {
       console.error('Update download failed:', e)
+      Alert.alert('Erreur', 'Impossible de lancer la mise a jour. Contactez le support.')
+    } finally {
       setDownloading(false)
     }
   }
