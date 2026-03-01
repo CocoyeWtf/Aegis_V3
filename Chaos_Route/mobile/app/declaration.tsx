@@ -6,6 +6,7 @@ import {
   ScrollView, Image, ActivityIndicator, Platform,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Location from 'expo-location'
 import * as ImagePicker from 'expo-image-picker'
 import api from '../services/api'
@@ -34,6 +35,7 @@ export default function DeclarationScreen() {
     driverName?: string
   }>()
   const router = useRouter()
+  const insets = useSafeAreaInsets()
 
   const [type, setType] = useState<DeclarationType>('ANOMALY')
   const [description, setDescription] = useState('')
@@ -161,7 +163,7 @@ export default function DeclarationScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}>
       <Text style={styles.title}>Nouvelle declaration</Text>
 
       {/* Selecteur type / Type selector */}
@@ -255,7 +257,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-    paddingBottom: 80,
   },
   title: {
     fontSize: 20,
