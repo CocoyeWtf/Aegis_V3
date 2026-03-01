@@ -6,7 +6,9 @@
  * If different and force_update = true: blocking modal + APK download.
  */
 
-import { Platform, Linking } from 'react-native'
+import * as FileSystem from 'expo-file-system'
+import * as IntentLauncher from 'expo-intent-launcher'
+import { Platform, Alert } from 'react-native'
 import Constants from 'expo-constants'
 import { API_BASE_URL } from '../constants/config'
 
@@ -44,7 +46,23 @@ export async function checkForUpdate(): Promise<{
 export async function downloadAndInstallApk(downloadUrl: string): Promise<void> {
   if (Platform.OS !== 'android') return
 
-  // Ouvrir l'URL dans le navigateur — Android gere le telechargement et l'installation
-  // Open URL in browser — Android handles download and installation natively
-  await Linking.openURL(downloadUrl)
+  const fileUri = FileSystem.cacheDirectory + 'cmro-driver-update.apk'
+
+  // Telecharger l'APK / Download the APK
+  const downloadResult = await FileSystem.downloadAsync(downloadUrl, fileUri)
+
+  if (downloadResult.status !== 200) {
+    throw new Error(`Telechargement echoue (status ${downloadResult.status})`)
+  }
+
+  // Obtenir un content URI lisible par l'installeur / Get content URI readable by installer
+  const contentUri = await FileSystem.getContentUriAsync(fileUri)
+
+  // Lancer l'installeur Android / Launch Android installer
+  // FLAG_GRANT_READ_URI_PERMISSION (1) | FLAG_ACTIVITY_NEW_TASK (0x10000000)
+  await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+    data: contentUri,
+    flags: 1 | 0x10000000,
+    type: 'application/vnd.android.package-archive',
+  })
 }
