@@ -263,6 +263,7 @@ async def create_pickup_request(
         # Snapshots valeur au moment de la déclaration / Value snapshots at declaration time
         with_content=data.with_content,
         declared_unit_value=float(st.unit_value) if st.unit_value is not None else None,
+        declared_unit_quantity=st.unit_quantity,
         declared_content_item_value=float(st.content_item_value) if st.content_item_value is not None else None,
         declared_content_items_per_unit=st.content_items_per_unit,
     )

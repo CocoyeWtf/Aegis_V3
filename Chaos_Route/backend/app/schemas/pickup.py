@@ -107,6 +107,7 @@ class PickupRequestRead(BaseModel):
     # Consigne
     with_content: bool = False
     declared_unit_value: float | None = None
+    declared_unit_quantity: int | None = None
     declared_content_item_value: float | None = None
     declared_content_items_per_unit: int | None = None
     total_declared_value: float | None = None
@@ -132,6 +133,7 @@ class PickupRequestListRead(BaseModel):
     # Consigne
     with_content: bool = False
     declared_unit_value: float | None = None
+    declared_unit_quantity: int | None = None
     declared_content_item_value: float | None = None
     declared_content_items_per_unit: int | None = None
     total_declared_value: float | None = None

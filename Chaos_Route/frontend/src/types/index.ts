@@ -495,6 +495,7 @@ export interface PickupRequest {
   // Consigne / Consignment
   with_content?: boolean
   declared_unit_value?: number | null
+  declared_unit_quantity?: number | null
   declared_content_item_value?: number | null
   declared_content_items_per_unit?: number | null
   total_declared_value?: number | null

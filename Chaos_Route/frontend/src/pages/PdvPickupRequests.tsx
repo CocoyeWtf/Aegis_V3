@@ -81,9 +81,11 @@ export default function PdvPickupRequests() {
   const consignmentPresets = supportTypes.filter((st) => st.content_item_label && st.unit_value != null)
 
   // Valeur estimee en direct / Real-time estimated value
+  // quantity × unit_quantity × (unit_value + with_content × content_items_per_unit × content_item_value)
   const estimatedValue =
     selectedSt?.unit_value != null
       ? quantity *
+        (selectedSt.unit_quantity ?? 1) *
         (selectedSt.unit_value +
           (withContent && selectedSt.content_items_per_unit && selectedSt.content_item_value
             ? selectedSt.content_items_per_unit * selectedSt.content_item_value

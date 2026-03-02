@@ -53,6 +53,7 @@ class PickupRequest(Base):
     # Snapshots valeur au moment de la déclaration — immuables si les tarifs changent
     # Value snapshots at declaration time — immutable if rates change later
     declared_unit_value: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    declared_unit_quantity: Mapped[int | None] = mapped_column(Integer)   # nb caisses/pièces par unité
     declared_content_item_value: Mapped[float | None] = mapped_column(Numeric(10, 4))
     declared_content_items_per_unit: Mapped[int | None] = mapped_column(Integer)
 
@@ -65,16 +66,18 @@ class PickupRequest(Base):
     @property
     def total_declared_value(self) -> float | None:
         """Valeur totale de la consigne déclarée / Total declared consignment value.
-        quantity × (unit_value + with_content × content_items_per_unit × content_item_value)
+        quantity × unit_quantity × (unit_value + with_content × content_items_per_unit × content_item_value)
+        Ex: 2 palettes × 50 bacs × (2.10 + 24 × 0.10) = 2 × 50 × 4.50 = 450.00 €
         """
         if self.declared_unit_value is None:
             return None
+        unit_qty = self.declared_unit_quantity or 1  # rétrocompat si NULL/0
         content_val = 0.0
         if (self.with_content
                 and self.declared_content_item_value is not None
                 and self.declared_content_items_per_unit is not None):
             content_val = float(self.declared_content_item_value) * self.declared_content_items_per_unit
-        return round(self.quantity * (float(self.declared_unit_value) + content_val), 2)
+        return round(self.quantity * unit_qty * (float(self.declared_unit_value) + content_val), 2)
 
 
 class PickupLabel(Base):
