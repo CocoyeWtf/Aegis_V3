@@ -15,6 +15,7 @@ class CostCategory(str, enum.Enum):
     FINE = "FINE"
     TOLL = "TOLL"
     PARKING = "PARKING"
+    OPERATION = "OPERATION"   # Utilisation en tournée / Tour usage
     OTHER = "OTHER"
 
 

@@ -458,6 +458,11 @@ export interface SupportType {
   unit_label?: string | null
   is_active: boolean
   image_path?: string | null
+  // Valeur consigne / Consignment value
+  unit_value?: number | null
+  content_item_label?: string | null
+  content_items_per_unit?: number | null
+  content_item_value?: number | null
 }
 
 export type PickupTypeEnum = 'CONTAINER' | 'MERCHANDISE' | 'CARDBOARD' | 'CONSIGNMENT'
@@ -487,6 +492,13 @@ export interface PickupRequest {
   requested_at?: string | null
   requested_by_user_id?: number | null
   notes?: string | null
+  // Consigne / Consignment
+  with_content?: boolean
+  declared_unit_value?: number | null
+  declared_content_item_value?: number | null
+  declared_content_items_per_unit?: number | null
+  total_declared_value?: number | null
+  // Relations
   pdv?: { id: number; code: string; name: string } | null
   support_type?: SupportType | null
   labels?: PickupLabel[]
@@ -631,6 +643,23 @@ export interface VehicleSummary {
   fleet_vehicle_type: FleetVehicleType
   status: VehicleStatusType
   qr_code?: string
+}
+
+// Mode d'affectation dans l'ordonnancement / Assignment mode in scheduling
+export type AssignmentMode = 'preste' | 'propre' | 'mixte'
+
+// Véhicule propre disponible pour l'ordonnancement / Own fleet vehicle available for scheduling
+export interface AvailableVehicle {
+  id: number
+  code: string
+  license_plate?: string
+  fleet_vehicle_type: FleetVehicleType
+  temperature_type?: TemperatureType
+  capacity_eqp?: number
+  has_tailgate: boolean
+  tailgate_type?: TailgateType
+  is_tractor: boolean
+  label: string
 }
 
 export interface InspectionTemplate {

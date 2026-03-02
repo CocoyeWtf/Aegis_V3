@@ -93,6 +93,10 @@ export default function SupportTypes() {
         { value: 'false', label: 'Non' },
       ],
     },
+    { key: 'unit_value', label: 'Valeur unitaire (€)', type: 'number', step: 0.01 },
+    { key: 'content_item_label', label: 'Label contenu (ex: bouteille)', type: 'text' },
+    { key: 'content_items_per_unit', label: 'Nb contenu par unite', type: 'number' },
+    { key: 'content_item_value', label: 'Valeur par contenu (€)', type: 'number', step: 0.0001 },
   ]
 
   const renderFormImage = useCallback((_formData: Record<string, unknown>, initialData?: Record<string, unknown>) => {
@@ -162,6 +166,10 @@ export default function SupportTypes() {
           ...d,
           unit_quantity: Number(d.unit_quantity),
           is_active: d.is_active === 'true' || d.is_active === true,
+          unit_value: d.unit_value !== '' && d.unit_value != null ? Number(d.unit_value) : null,
+          content_items_per_unit: d.content_items_per_unit !== '' && d.content_items_per_unit != null ? Number(d.content_items_per_unit) : null,
+          content_item_value: d.content_item_value !== '' && d.content_item_value != null ? Number(d.content_item_value) : null,
+          content_item_label: d.content_item_label || null,
         })}
         formExtra={renderFormImage}
       />

@@ -10,7 +10,7 @@ import { formatDuration, parseTime, formatTime, formatDate, DEFAULT_DOCK_TIME, D
 import { VEHICLE_TYPE_DEFAULTS, TEMPERATURE_TYPE_LABELS } from '../../types'
 import api from '../../services/api'
 import { CostBreakdown } from './CostBreakdown'
-import type { Tour, BaseLogistics, Contract, DistanceEntry, PDV, VehicleType, TemperatureType, Volume } from '../../types'
+import type { Tour, BaseLogistics, Contract, DistanceEntry, PDV, VehicleType, TemperatureType, Volume, Vehicle, AssignmentMode, AvailableVehicle } from '../../types'
 
 /* Filtres activité / Activity filter options */
 const ACTIVITY_FILTERS: { key: string; label: string }[] = [
@@ -63,16 +63,33 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
 
   const contractMap = useMemo(() => new Map(allContracts.map((c) => [c.id, c])), [allContracts])
 
+  /* Véhicules propres du parc / Own fleet vehicles */
+  const { data: allVehicles } = useApi<Vehicle>('/vehicles', regionParams)
+  const vehicleMap = useMemo(() => new Map(allVehicles.map((v) => [v.id, v])), [allVehicles])
+
+  /* Type de l'input d'ordonnancement / Schedule input type */
+  interface ScheduleInput {
+    time: string
+    deliveryDate: string
+    mode: AssignmentMode
+    contractId: number | null
+    vehicleId: number | null
+    tractorId: number | null
+  }
+  const EMPTY_INPUT: ScheduleInput = { time: '', deliveryDate: '', mode: 'preste', contractId: null, vehicleId: null, tractorId: null }
+
   const [tours, setTours] = useState<Tour[]>([])
   const [timeline, setTimeline] = useState<GanttTour[]>([])
   const [highlightedTourId, setHighlightedTourId] = useState<number | null>(null)
-  const [scheduleInputs, setScheduleInputs] = useState<Record<number, { time: string; contractId: number | null; deliveryDate: string }>>({})
+  const [scheduleInputs, setScheduleInputs] = useState<Record<number, ScheduleInput>>({})
   const [scheduling, setScheduling] = useState<number | null>(null)
   const [recalculating, setRecalculating] = useState(false)
   const [costTourId, setCostTourId] = useState<number | null>(null)
   const [showPrintPlan, setShowPrintPlan] = useState(false)
-  /* Contrats disponibles par tour (chargés selon vehicle_type) / Available contracts per tour */
+  /* Contrats disponibles par tour / Available contracts per tour */
   const [availableContractsMap, setAvailableContractsMap] = useState<Record<number, Contract[]>>({})
+  /* Véhicules propres disponibles par tour / Available own vehicles per tour */
+  const [availableVehiclesMap, setAvailableVehiclesMap] = useState<Record<number, { vehicles: AvailableVehicle[]; tractors: AvailableVehicle[] }>>({})
 
   /* Filtre activité / Activity filter */
   const [activityFilter, setActivityFilter] = useState('ALL')
@@ -150,6 +167,33 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
     }
   }, [selectedDate])
 
+  /* Charger véhicules propres disponibles pour un tour / Load available own vehicles for a tour */
+  const loadVehiclesForTour = useCallback(async (tour: Tour, deliveryDate?: string) => {
+    if (!tour.base_id || !tour.vehicle_type) return
+    const checkDate = deliveryDate || tour.delivery_date || selectedDate
+    if (!checkDate) return
+    try {
+      const { data } = await api.get<AvailableVehicle[]>('/tours/available-vehicles', {
+        params: {
+          date: checkDate,
+          base_id: tour.base_id,
+          vehicle_type: tour.vehicle_type,
+          temperature_type: tour.temperature_type || undefined,
+          tour_id: tour.id,
+        },
+      })
+      setAvailableVehiclesMap((prev) => ({
+        ...prev,
+        [tour.id]: {
+          vehicles: data.filter((v) => !v.is_tractor),
+          tractors: data.filter((v) => v.is_tractor),
+        },
+      }))
+    } catch {
+      setAvailableVehiclesMap((prev) => ({ ...prev, [tour.id]: { vehicles: [], tractors: [] } }))
+    }
+  }, [selectedDate])
+
   /* Calculer la date de livraison par défaut (dispatch_date + 1 jour le plus fréquent) /
      Compute default delivery date (most frequent dispatch_date + 1 day) */
   const computeDefaultDeliveryDate = useCallback((tour: Tour): string => {
@@ -178,7 +222,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
     })
   }, [tours, loadContractsForTour])
 
-  /* Auto-init deliveryDate pour les tours non-planifiés / Auto-init deliveryDate for unscheduled tours */
+  /* Auto-init inputs pour les tours non-planifiés / Auto-init inputs for unscheduled tours */
   useEffect(() => {
     const unscheduled = tours.filter((t) => !t.departure_time && !t.contract_id)
     setScheduleInputs((prev) => {
@@ -186,8 +230,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
       for (const tour of unscheduled) {
         if (!next[tour.id]?.deliveryDate) {
           next[tour.id] = {
-            time: next[tour.id]?.time ?? '',
-            contractId: next[tour.id]?.contractId ?? null,
+            ...(next[tour.id] ?? EMPTY_INPUT),
             deliveryDate: computeDefaultDeliveryDate(tour),
           }
         }
@@ -289,11 +332,17 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
   /* Planifier un tour / Schedule a tour */
   const handleSchedule = async (tourId: number, force = false) => {
     const input = scheduleInputs[tourId]
-    if (!input?.time || !input?.contractId) return
+    if (!input?.time) return
+    // Validation selon mode / Validate by mode
+    if (input.mode === 'preste' && !input.contractId) return
+    if (input.mode === 'propre' && !input.vehicleId) return
+    if (input.mode === 'mixte' && (!input.contractId || !input.vehicleId)) return
     setScheduling(tourId)
     try {
       await api.put(`/tours/${tourId}/schedule`, {
-        contract_id: input.contractId,
+        contract_id: input.contractId ?? null,
+        vehicle_id: input.vehicleId ?? null,
+        tractor_id: input.tractorId ?? null,
         departure_time: input.time,
         delivery_date: input.deliveryDate || null,
       }, { params: force ? { force: true } : undefined })
@@ -442,19 +491,40 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
     }
   }
 
-  const updateInput = (tourId: number, field: 'time' | 'contractId' | 'deliveryDate', value: string | number | null) => {
-    setScheduleInputs((prev) => ({
-      ...prev,
-      [tourId]: {
-        time: field === 'time' ? (value as string) : (prev[tourId]?.time ?? ''),
-        contractId: field === 'deliveryDate' ? null : (field === 'contractId' ? (value as number | null) : (prev[tourId]?.contractId ?? null)),
-        deliveryDate: field === 'deliveryDate' ? (value as string) : (prev[tourId]?.deliveryDate ?? ''),
-      },
-    }))
-    // Recharger contrats si la date de livraison change / Reload contracts when delivery date changes
+  const updateInput = (
+    tourId: number,
+    field: 'time' | 'contractId' | 'deliveryDate' | 'mode' | 'vehicleId' | 'tractorId',
+    value: string | number | null
+  ) => {
+    setScheduleInputs((prev) => {
+      const cur: ScheduleInput = prev[tourId] ?? EMPTY_INPUT
+      const next: ScheduleInput = { ...cur, [field]: value }
+      // Changer de mode : reset champs de l'ancien mode / Switch mode: reset previous mode fields
+      if (field === 'mode') {
+        if (value === 'preste') { next.vehicleId = null; next.tractorId = null }
+        if (value === 'propre') { next.contractId = null }
+        // mixte : on garde les deux possibles
+      }
+      // Changer la date de livraison : reset sélections / Change delivery date: reset selections
+      if (field === 'deliveryDate') {
+        next.contractId = null; next.vehicleId = null; next.tractorId = null
+      }
+      return { ...prev, [tourId]: next }
+    })
+    // Recharger les contrats et véhicules selon le contexte / Reload contracts/vehicles as needed
     if (field === 'deliveryDate' && value) {
       const tour = tours.find(t => t.id === tourId)
-      if (tour) loadContractsForTour(tour, value as string)
+      if (tour) {
+        loadContractsForTour(tour, value as string)
+        loadVehiclesForTour(tour, value as string)
+      }
+    }
+    if (field === 'mode' && (value === 'propre' || value === 'mixte')) {
+      const tour = tours.find(t => t.id === tourId)
+      if (tour) {
+        const dd = scheduleInputs[tourId]?.deliveryDate
+        loadVehiclesForTour(tour, dd)
+      }
     }
   }
 
@@ -728,10 +798,17 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                 const tourContract = tour.contract_id ? contractMap.get(tour.contract_id) : null
 
                 /* Inputs pour les non-planifiés / Inputs for unscheduled */
-                const input = scheduleInputs[tour.id] ?? { time: '', contractId: null, deliveryDate: '' }
+                const input: ScheduleInput = scheduleInputs[tour.id] ?? EMPTY_INPUT
                 const contracts = availableContractsMap[tour.id] ?? []
+                const ownVehicles = availableVehiclesMap[tour.id]?.vehicles ?? []
+                const ownTractors = availableVehiclesMap[tour.id]?.tractors ?? []
                 const selectedContract = contracts.find((c) => c.id === input.contractId)
-                const estReturn = !isScheduled && input.time && input.contractId ? estimateReturn(tour, input.time) : null
+                const canSchedule = input.time && (
+                  (input.mode === 'preste' && !!input.contractId) ||
+                  (input.mode === 'propre' && !!input.vehicleId) ||
+                  (input.mode === 'mixte' && !!input.contractId && !!input.vehicleId)
+                )
+                const estReturn = !isScheduled && input.time && canSchedule ? estimateReturn(tour, input.time) : null
                 const overlap = !isScheduled && input.time && input.contractId ? detectOverlap(tour, input.time, input.contractId) : null
 
                 return (
@@ -833,57 +910,116 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                     {/* === Ligne 2 — Actions inline (no wrap) / Line 2 — Inline actions (no wrap) === */}
                     <div className="flex items-center gap-2 px-3 pb-1.5 overflow-hidden">
                       {!isScheduled ? (
-                        /* --- Non planifié: contrat + date + heure + bouton planifier --- */
+                        /* --- Non planifié: toggle mode + sélecteurs + planifier --- */
                         <>
+                          {/* Date livraison */}
                           <input
                             type="date"
                             value={input.deliveryDate}
                             onChange={(e) => updateInput(tour.id, 'deliveryDate', e.target.value)}
                             onClick={(e) => e.stopPropagation()}
-                            className="rounded border px-1.5 py-1 text-[11px] w-[120px]"
+                            className="rounded border px-1.5 py-1 text-[11px] w-[120px] shrink-0"
                             style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                           />
-                          <select
-                            value={input.contractId ?? ''}
-                            onChange={(e) => updateInput(tour.id, 'contractId', e.target.value ? Number(e.target.value) : null)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="rounded border px-1.5 py-1 text-[11px] min-w-0"
-                            style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', maxWidth: '150px' }}
-                          >
-                            <option value="">{t('tourPlanning.selectContract')}</option>
-                            {contracts.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.code} — {c.transporter_name}
-                              </option>
+
+                          {/* Toggle mode : Presté / Propre / Mixte */}
+                          <div className="flex rounded border overflow-hidden text-[10px] shrink-0" style={{ borderColor: 'var(--border-color)' }}>
+                            {(['preste', 'propre', 'mixte'] as AssignmentMode[]).map((m) => (
+                              <button
+                                key={m}
+                                className="px-2 py-1 transition-all"
+                                style={{
+                                  backgroundColor: input.mode === m ? 'var(--color-primary)' : 'var(--bg-primary)',
+                                  color: input.mode === m ? '#fff' : 'var(--text-secondary)',
+                                }}
+                                onClick={(e) => { e.stopPropagation(); updateInput(tour.id, 'mode', m) }}
+                              >
+                                {m === 'preste' ? 'Presté' : m === 'propre' ? 'Propre' : 'Mixte'}
+                              </button>
                             ))}
-                          </select>
+                          </div>
+
+                          {/* Sélecteurs selon mode / Mode-specific selectors */}
+                          {(input.mode === 'preste' || input.mode === 'mixte') && (
+                            <select
+                              value={input.contractId ?? ''}
+                              onChange={(e) => updateInput(tour.id, 'contractId', e.target.value ? Number(e.target.value) : null)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="rounded border px-1.5 py-1 text-[11px] min-w-0"
+                              style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', maxWidth: '140px' }}
+                            >
+                              <option value="">{input.mode === 'mixte' ? 'Tracteur presté' : t('tourPlanning.selectContract')}</option>
+                              {contracts.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.code} — {c.transporter_name}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+
+                          {(input.mode === 'propre' || input.mode === 'mixte') && (
+                            <>
+                              <select
+                                value={input.vehicleId ?? ''}
+                                onChange={(e) => updateInput(tour.id, 'vehicleId', e.target.value ? Number(e.target.value) : null)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="rounded border px-1.5 py-1 text-[11px] min-w-0"
+                                style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', maxWidth: '140px' }}
+                              >
+                                <option value="">{input.mode === 'mixte' ? 'Remorque propre' : 'Véhicule propre'}</option>
+                                {ownVehicles.map((v) => (
+                                  <option key={v.id} value={v.id}>{v.label}</option>
+                                ))}
+                              </select>
+                              {/* Tracteur propre uniquement si SEMI en mode propre pur */}
+                              {tour.vehicle_type === 'SEMI' && input.mode === 'propre' && (
+                                <select
+                                  value={input.tractorId ?? ''}
+                                  onChange={(e) => updateInput(tour.id, 'tractorId', e.target.value ? Number(e.target.value) : null)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="rounded border px-1.5 py-1 text-[11px] min-w-0"
+                                  style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', maxWidth: '130px' }}
+                                >
+                                  <option value="">Tracteur propre</option>
+                                  {ownTractors.map((v) => (
+                                    <option key={v.id} value={v.id}>{v.label}</option>
+                                  ))}
+                                </select>
+                              )}
+                            </>
+                          )}
+
+                          {/* Heure départ */}
                           <input
                             type="time"
                             value={input.time}
                             onChange={(e) => updateInput(tour.id, 'time', e.target.value)}
                             onClick={(e) => e.stopPropagation()}
-                            className="rounded border px-1.5 py-1 text-[11px] w-[90px]"
+                            className="rounded border px-1.5 py-1 text-[11px] w-[90px] shrink-0"
                             style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                           />
+
+                          {/* Bouton planifier */}
                           <button
-                            className="px-2 py-1 rounded text-[11px] font-semibold transition-all disabled:opacity-40"
+                            className="px-2 py-1 rounded text-[11px] font-semibold transition-all disabled:opacity-40 shrink-0"
                             style={{
-                              backgroundColor: input.time && input.contractId && !overlap ? 'var(--color-primary)' : 'var(--bg-tertiary)',
-                              color: input.time && input.contractId && !overlap ? '#fff' : 'var(--text-muted)',
+                              backgroundColor: canSchedule && !overlap ? 'var(--color-primary)' : 'var(--bg-tertiary)',
+                              color: canSchedule && !overlap ? '#fff' : 'var(--text-muted)',
                             }}
-                            disabled={!input.time || !input.contractId || !!overlap || scheduling === tour.id}
+                            disabled={!canSchedule || !!overlap || scheduling === tour.id}
                             onClick={(e) => { e.stopPropagation(); handleSchedule(tour.id) }}
                           >
                             {scheduling === tour.id ? '...' : 'Planifier'}
                           </button>
-                          {/* Retour estimé inline / Inline estimated return */}
+
+                          {/* Retour estimé inline */}
                           {estReturn && (
-                            <span className="text-[10px]" style={{ color: estReturn > '22:00' ? 'var(--color-danger)' : 'var(--text-muted)' }}>
+                            <span className="text-[10px] shrink-0" style={{ color: estReturn > '22:00' ? 'var(--color-danger)' : 'var(--text-muted)' }}>
                               Ret: <span className="font-bold">{estReturn}</span>
                             </span>
                           )}
                           {overlap && (
-                            <span className="text-[10px] font-bold" style={{ color: 'var(--color-danger)' }}>
+                            <span className="text-[10px] font-bold shrink-0" style={{ color: 'var(--color-danger)' }}>
                               Chevauche {overlap.code}
                             </span>
                           )}
@@ -909,6 +1045,13 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                           {tourContract && (
                             <span className="text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--color-success)' }}>
                               {tourContract.code}
+                            </span>
+                          )}
+                          {/* Véhicule propre (mode propre ou mixte) / Own vehicle (own or mixed mode) */}
+                          {tour.vehicle_id && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>
+                              {vehicleMap.get(tour.vehicle_id)?.license_plate ?? vehicleMap.get(tour.vehicle_id)?.code ?? `V#${tour.vehicle_id}`}
+                              {tour.tractor_id && ` + ${vehicleMap.get(tour.tractor_id)?.license_plate ?? vehicleMap.get(tour.tractor_id)?.code ?? `T#${tour.tractor_id}`}`}
                             </span>
                           )}
                           <span className="text-[11px] font-mono" style={{ color: 'var(--text-primary)' }}>
@@ -1005,6 +1148,20 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                             {tourContract.vehicle_name && ` (${tourContract.vehicle_name})`}
                           </div>
                         )}
+
+                        {/* Info véhicule propre pour planifié / Own vehicle info for scheduled */}
+                        {isScheduled && tour.vehicle_id && (() => {
+                          const v = vehicleMap.get(tour.vehicle_id)
+                          const tractor = tour.tractor_id ? vehicleMap.get(tour.tractor_id) : null
+                          if (!v) return null
+                          return (
+                            <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                              <span style={{ color: '#3b82f6' }}>Parc propre :</span>{' '}
+                              {v.license_plate ?? v.code}{v.name ? ` — ${v.name}` : ''}
+                              {tractor && ` | Tracteur : ${tractor.license_plate ?? tractor.code}${tractor.name ? ` — ${tractor.name}` : ''}`}
+                            </div>
+                          )
+                        })()}
 
                         {/* Retour estimé détaillé pour non-planifié / Detailed estimated return for unscheduled */}
                         {!isScheduled && estReturn && (

@@ -3,6 +3,7 @@
 import json
 import logging
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ from app.models.volume import Volume
 from app.models.base_logistics import BaseLogistics
 from app.models.user import User
 from app.models.pickup_request import PickupRequest, PickupLabel, PickupStatus, PickupType, LabelStatus
+from app.models.vehicle import Vehicle, FleetVehicleType, VehicleStatus
 from app.models.tour_manifest_line import TourManifestLine
 from app.schemas.tour import ManifestLineRead, TourCreate, TourGateUpdate, TourOperationsUpdate, TourRead, TourSchedule, TourUpdate
 from app.api.deps import require_permission, get_user_region_ids
@@ -494,6 +496,120 @@ async def available_contracts_for_tours(
             "region_id": c.region_id,
         }
         for c in available
+    ]
+
+
+# Mapping type de tour → fleet_vehicle_type(s) attendu(s)
+# Tour vehicle_type → expected fleet_vehicle_type(s) for own vehicles
+VEHICLE_TYPE_TO_FLEET: dict[str, list[str]] = {
+    "SEMI": ["SEMI_REMORQUE"],
+    "PORTEUR": ["PORTEUR", "PORTEUR_SURBAISSE"],
+    "PORTEUR_SURBAISSE": ["PORTEUR_SURBAISSE"],
+    "PORTEUR_REMORQUE": ["PORTEUR", "PORTEUR_SURBAISSE"],
+    "CITY": ["PORTEUR", "PORTEUR_SURBAISSE", "VL"],
+    "VL": ["VL"],
+}
+
+
+@router.get("/available-vehicles", response_model=list)
+async def available_vehicles_for_tours(
+    date: str = Query(...),
+    base_id: int = Query(...),
+    vehicle_type: str = Query(...),
+    temperature_type: str | None = Query(default=None),
+    tour_id: int | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("tour-planning", "read")),
+):
+    """Véhicules propres disponibles pour un tour / Own fleet vehicles available for a tour."""
+    from app.models.contract import TemperatureType as TempType
+
+    base_result = await db.execute(select(BaseLogistics).where(BaseLogistics.id == base_id))
+    base = base_result.scalar_one_or_none()
+    if not base:
+        raise HTTPException(status_code=404, detail="Base not found")
+
+    # Scope région / Region scope
+    user_region_ids = get_user_region_ids(user)
+    region_ids = user_region_ids if user_region_ids is not None else [base.region_id]
+
+    # Charger tous les véhicules ACTIVE de la région / Load all ACTIVE vehicles in region
+    vehicles_result = await db.execute(
+        select(Vehicle).where(
+            Vehicle.status == VehicleStatus.ACTIVE,
+            Vehicle.region_id.in_(region_ids),
+        )
+    )
+    all_vehicles = list(vehicles_result.scalars().all())
+
+    # Filtrer par type compatible avec le tour / Filter by types compatible with tour
+    expected_types = VEHICLE_TYPE_TO_FLEET.get(vehicle_type, [])
+    # Ajouter TRACTEUR à la liste pour les ensembles SEMI / Add TRACTEUR for SEMI ensembles
+    if vehicle_type == "SEMI":
+        expected_types = expected_types + ["TRACTEUR"]
+
+    available = [
+        v for v in all_vehicles
+        if (v.fleet_vehicle_type.value if hasattr(v.fleet_vehicle_type, 'value') else v.fleet_vehicle_type) in expected_types
+    ]
+
+    # Filtre température / Temperature filter
+    if temperature_type:
+        compatible_temps = {temperature_type, "BI_TEMP", "TRI_TEMP"}
+        available = [
+            v for v in available
+            if not v.temperature_type
+            or (v.temperature_type.value if hasattr(v.temperature_type, 'value') else v.temperature_type) in compatible_temps
+            # Les tracteurs n'ont pas de température — toujours inclus
+            or (v.fleet_vehicle_type.value if hasattr(v.fleet_vehicle_type, 'value') else v.fleet_vehicle_type) == "TRACTEUR"
+        ]
+
+    # Exclure les véhicules déjà affectés à un autre tour le même jour
+    # Exclude vehicles already assigned to another tour on the same date
+    already_assigned_result = await db.execute(
+        select(Tour.vehicle_id, Tour.tractor_id).where(
+            Tour.date == date,
+            Tour.status != TourStatus.COMPLETED,
+        ).where(
+            (Tour.vehicle_id.isnot(None)) | (Tour.tractor_id.isnot(None))
+        )
+    )
+    assigned_ids: set[int] = set()
+    for row in already_assigned_result.all():
+        if row[0] is not None:
+            assigned_ids.add(row[0])
+        if row[1] is not None:
+            assigned_ids.add(row[1])
+
+    # Permettre la réaffectation au tour courant (s'il était déjà assigné)
+    # Allow re-assignment to the current tour if already assigned
+    if tour_id is not None:
+        current_tour_result = await db.execute(
+            select(Tour.vehicle_id, Tour.tractor_id).where(Tour.id == tour_id)
+        )
+        current = current_tour_result.first()
+        if current:
+            if current[0] is not None:
+                assigned_ids.discard(current[0])
+            if current[1] is not None:
+                assigned_ids.discard(current[1])
+
+    available = [v for v in available if v.id not in assigned_ids]
+
+    return [
+        {
+            "id": v.id,
+            "code": v.code,
+            "license_plate": v.license_plate,
+            "fleet_vehicle_type": v.fleet_vehicle_type.value if hasattr(v.fleet_vehicle_type, 'value') else v.fleet_vehicle_type,
+            "temperature_type": v.temperature_type.value if (v.temperature_type and hasattr(v.temperature_type, 'value')) else v.temperature_type,
+            "capacity_eqp": v.capacity_eqp,
+            "has_tailgate": v.has_tailgate,
+            "tailgate_type": v.tailgate_type.value if (v.tailgate_type and hasattr(v.tailgate_type, 'value')) else v.tailgate_type,
+            "is_tractor": (v.fleet_vehicle_type.value if hasattr(v.fleet_vehicle_type, 'value') else v.fleet_vehicle_type) == "TRACTEUR",
+            "label": f"{v.license_plate or v.code}" + (f" — {v.name}" if v.name else ""),
+        }
+        for v in available
     ]
 
 
@@ -1220,7 +1336,9 @@ async def schedule_tour(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("tour-planning", "update")),
 ):
-    """Planifier un tour : assigner contrat + heure de départ / Schedule: assign contract + departure time."""
+    """Planifier un tour : contrat presté, parc propre ou mixte.
+    Schedule: contract (rented), own fleet, or mixed (own semi + rented tractor).
+    """
     result = await db.execute(
         select(Tour).where(Tour.id == tour_id).options(selectinload(Tour.stops))
     )
@@ -1237,39 +1355,99 @@ async def schedule_tour(
         data.departure_time, stops_data, tour.base_id, db
     )
 
-    # Vérification chevauchement / Overlap check
-    other_tours_result = await db.execute(
-        select(Tour).where(
-            Tour.date == tour.date,
-            Tour.contract_id == data.contract_id,
-            Tour.id != tour.id,
-            Tour.departure_time.isnot(None),
-            Tour.return_time.isnot(None),
+    # ── Validation véhicule propre / Own vehicle validation ──────────────────
+    own_vehicle: Vehicle | None = None
+    own_tractor: Vehicle | None = None
+    if data.vehicle_id:
+        own_vehicle = await db.get(Vehicle, data.vehicle_id)
+        if not own_vehicle:
+            raise HTTPException(status_code=422, detail=f"Véhicule propre introuvable (id={data.vehicle_id})")
+        if own_vehicle.status != VehicleStatus.ACTIVE:
+            raise HTTPException(status_code=422, detail=f"Véhicule propre non disponible : {own_vehicle.code} ({own_vehicle.status.value})")
+        if tour.vehicle_type:
+            expected_fleet = VEHICLE_TYPE_TO_FLEET.get(tour.vehicle_type, [])
+            fvt = own_vehicle.fleet_vehicle_type.value if hasattr(own_vehicle.fleet_vehicle_type, 'value') else own_vehicle.fleet_vehicle_type
+            if expected_fleet and fvt not in expected_fleet:
+                raise HTTPException(status_code=422, detail=f"Type de véhicule propre incompatible : {fvt} (attendu {', '.join(expected_fleet)})")
+
+    if data.tractor_id:
+        own_tractor = await db.get(Vehicle, data.tractor_id)
+        if not own_tractor:
+            raise HTTPException(status_code=422, detail=f"Tracteur propre introuvable (id={data.tractor_id})")
+        if own_tractor.status != VehicleStatus.ACTIVE:
+            raise HTTPException(status_code=422, detail=f"Tracteur propre non disponible : {own_tractor.code} ({own_tractor.status.value})")
+        tractor_fvt = own_tractor.fleet_vehicle_type.value if hasattr(own_tractor.fleet_vehicle_type, 'value') else own_tractor.fleet_vehicle_type
+        if tractor_fvt != "TRACTEUR":
+            raise HTTPException(status_code=422, detail=f"Le véhicule tractor_id n'est pas un tracteur : {tractor_fvt}")
+
+    # Mode parc propre pur (SEMI) → tracteur obligatoire / Pure own fleet SEMI → tractor required
+    if data.vehicle_id and not data.contract_id and tour.vehicle_type == "SEMI" and not data.tractor_id:
+        raise HTTPException(status_code=422, detail="Mode parc propre SEMI : tracteur propre (tractor_id) obligatoire")
+
+    # ── Vérification chevauchement contrat / Contract overlap check ───────────
+    if data.contract_id:
+        other_contract_tours_result = await db.execute(
+            select(Tour).where(
+                Tour.date == tour.date,
+                Tour.contract_id == data.contract_id,
+                Tour.id != tour.id,
+                Tour.departure_time.isnot(None),
+                Tour.return_time.isnot(None),
+            )
         )
-    )
-    other_tours = list(other_tours_result.scalars().all())
-    for other in other_tours:
-        if other.departure_time and other.return_time:
+        other_contract_tours = list(other_contract_tours_result.scalars().all())
+        for other in other_contract_tours:
             if data.departure_time < other.return_time and return_time > other.departure_time:
                 raise HTTPException(
                     status_code=409,
                     detail=f"Overlap with tour {other.code} ({other.departure_time}-{other.return_time})",
                 )
 
-    # Vérification dépassement 10h journalières du contrat / Check contract daily 10h limit
-    MAX_CONTRACT_DAILY_MINUTES = 600  # 10h
-    if not force:
-        existing_minutes = sum(t.total_duration_minutes or 0 for t in other_tours)
-        projected_total = existing_minutes + (total_duration or 0)
-        if projected_total > MAX_CONTRACT_DAILY_MINUTES:
-            hours = projected_total // 60
-            mins = projected_total % 60
-            raise HTTPException(
-                status_code=422,
-                detail=f"OVER_10H:{hours}h{mins:02d}",
-            )
+        # Vérification dépassement 10h / Check 10h daily limit
+        MAX_CONTRACT_DAILY_MINUTES = 600
+        if not force:
+            existing_minutes = sum(t.total_duration_minutes or 0 for t in other_contract_tours)
+            projected_total = existing_minutes + (total_duration or 0)
+            if projected_total > MAX_CONTRACT_DAILY_MINUTES:
+                hours = projected_total // 60
+                mins = projected_total % 60
+                raise HTTPException(status_code=422, detail=f"OVER_10H:{hours}h{mins:02d}")
+    else:
+        other_contract_tours = []
 
-    # Vérification fenêtres de livraison PDV / Check PDV delivery windows
+    # ── Vérification chevauchement véhicule propre / Own vehicle overlap check ─
+    if data.vehicle_id:
+        overlap_q = select(Tour).where(
+            Tour.date == tour.date,
+            Tour.id != tour.id,
+            Tour.departure_time.isnot(None),
+            Tour.return_time.isnot(None),
+            Tour.vehicle_id == data.vehicle_id,
+        )
+        overlap_result = await db.execute(overlap_q)
+        for other in overlap_result.scalars().all():
+            if data.departure_time < other.return_time and return_time > other.departure_time:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Overlap (véhicule propre) with tour {other.code} ({other.departure_time}-{other.return_time})",
+                )
+    if data.tractor_id:
+        tractor_overlap_q = select(Tour).where(
+            Tour.date == tour.date,
+            Tour.id != tour.id,
+            Tour.departure_time.isnot(None),
+            Tour.return_time.isnot(None),
+            Tour.tractor_id == data.tractor_id,
+        )
+        tractor_overlap_result = await db.execute(tractor_overlap_q)
+        for other in tractor_overlap_result.scalars().all():
+            if data.departure_time < other.return_time and return_time > other.departure_time:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Overlap (tracteur propre) with tour {other.code} ({other.departure_time}-{other.return_time})",
+                )
+
+    # ── Vérification fenêtres de livraison PDV / PDV delivery windows ────────
     if not force and enriched_stops:
         pdv_ids = [s["pdv_id"] for s in enriched_stops]
         pdv_result = await db.execute(select(PDV).where(PDV.id.in_(pdv_ids)))
@@ -1279,53 +1457,56 @@ async def schedule_tour(
             pdv = pdv_windows.get(stop["pdv_id"])
             if not pdv or not stop.get("arrival_time"):
                 continue
-            arrival = stop["arrival_time"]  # HH:MM
+            arrival = stop["arrival_time"]
             if pdv.delivery_window_start and arrival < pdv.delivery_window_start:
                 violations.append(f"{pdv.code} {pdv.name}: {arrival} < {pdv.delivery_window_start}")
             if pdv.delivery_window_end and arrival > pdv.delivery_window_end:
                 violations.append(f"{pdv.code} {pdv.name}: {arrival} > {pdv.delivery_window_end}")
         if violations:
-            raise HTTPException(
-                status_code=422,
-                detail=f"DELIVERY_WINDOW:{' | '.join(violations)}",
+            raise HTTPException(status_code=422, detail=f"DELIVERY_WINDOW:{' | '.join(violations)}")
+
+    # ── Chargement du contrat / Load contract ─────────────────────────────────
+    contract: Contract | None = None
+    if data.contract_id:
+        contract = await db.get(Contract, data.contract_id)
+
+        # Disponibilité contrat / Contract availability
+        from app.models.contract_schedule import ContractSchedule
+        check_date = data.delivery_date or tour.delivery_date or tour.date
+        sched_check = await db.execute(
+            select(ContractSchedule).where(
+                ContractSchedule.contract_id == data.contract_id,
+                ContractSchedule.date == check_date,
+                ContractSchedule.is_available == False,
             )
-
-    contract = await db.get(Contract, data.contract_id)
-
-    # Vérification disponibilité contrat à la date de livraison / Check contract availability on delivery date
-    from app.models.contract_schedule import ContractSchedule
-    check_date = data.delivery_date or tour.delivery_date or tour.date
-    sched_check = await db.execute(
-        select(ContractSchedule).where(
-            ContractSchedule.contract_id == data.contract_id,
-            ContractSchedule.date == check_date,
-            ContractSchedule.is_available == False,
         )
-    )
-    if sched_check.scalar_one_or_none():
-        raise HTTPException(
-            status_code=422,
-            detail=f"CONTRACT_UNAVAILABLE:{check_date}",
-        )
+        if sched_check.scalar_one_or_none():
+            raise HTTPException(status_code=422, detail=f"CONTRACT_UNAVAILABLE:{check_date}")
 
-    # Vérification compatibilité quai/hayon (blocage dur) / Dock/tailgate compatibility (hard block)
-    if contract and stops_data:
-        dock_violations = await _check_dock_tailgate_compatibility(db, stops_data, contract)
-        if dock_violations:
-            raise HTTPException(
-                status_code=422,
-                detail=f"DOCK_TAILGATE:{' | '.join(dock_violations)}",
+    # ── Compatibilité quai/hayon et type véhicule / Dock, tailgate, vehicle type ─
+    # Construire un objet "vehicle_props" pour les helpers (contract ou véhicule propre)
+    # Build a "vehicle_props" duck-typed object for the compatibility helpers
+    if stops_data:
+        if contract:
+            vehicle_props = contract
+        elif own_vehicle:
+            vehicle_props = SimpleNamespace(
+                vehicle_type=tour.vehicle_type,
+                has_tailgate=own_vehicle.has_tailgate,
+                tailgate_type=own_vehicle.tailgate_type,
             )
+        else:
+            vehicle_props = None
 
-    # Vérification compatibilité type véhicule / Vehicle type compatibility check
-    if contract and stops_data:
-        vt_violations = await _check_vehicle_type_compatibility(db, stops_data, contract)
-        if vt_violations:
-            raise HTTPException(
-                status_code=422,
-                detail=f"VEHICLE_TYPE:{' | '.join(vt_violations)}",
-            )
+        if vehicle_props:
+            dock_violations = await _check_dock_tailgate_compatibility(db, stops_data, vehicle_props)  # type: ignore[arg-type]
+            if dock_violations:
+                raise HTTPException(status_code=422, detail=f"DOCK_TAILGATE:{' | '.join(dock_violations)}")
+            vt_violations = await _check_vehicle_type_compatibility(db, stops_data, vehicle_props)  # type: ignore[arg-type]
+            if vt_violations:
+                raise HTTPException(status_code=422, detail=f"VEHICLE_TYPE:{' | '.join(vt_violations)}")
 
+    # ── Calcul km et sauvegarde / Km calculation and save ────────────────────
     total_km = sum(s.get("distance_from_previous_km", 0) for s in enriched_stops)
     if enriched_stops:
         last_pdv_id = enriched_stops[-1]["pdv_id"]
@@ -1335,6 +1516,8 @@ async def schedule_tour(
     total_km = round(total_km, 2)
 
     tour.contract_id = data.contract_id
+    tour.vehicle_id = data.vehicle_id
+    tour.tractor_id = data.tractor_id
     tour.departure_time = data.departure_time
     tour.return_time = return_time
     if data.delivery_date:
@@ -1344,10 +1527,11 @@ async def schedule_tour(
 
     # Flush d'abord pour que nb_tours soit correct / Flush first so nb_tours count is correct
     await db.flush()
-    total_cost, _ = await _calculate_cost(
-        db, total_km, contract, tour.date, tour.base_id, stops_data,
-    ) if contract else (0, [])
-    tour.total_cost = total_cost
+    if contract:
+        total_cost, _ = await _calculate_cost(db, total_km, contract, tour.date, tour.base_id, stops_data)
+        tour.total_cost = total_cost
+    else:
+        tour.total_cost = None  # Parc propre : coût géré par VehicleCostEntry / Own fleet: cost via VehicleCostEntry
 
     for stop in tour.stops:
         for enriched in enriched_stops:
@@ -1358,12 +1542,16 @@ async def schedule_tour(
                 stop.duration_from_previous_minutes = enriched.get("duration_from_previous_minutes")
                 break
 
-    # Recalculer les tours frères / Recalculate sibling tours
-    await _recalculate_sibling_tours(db, data.contract_id, tour.date)
+    # Recalculer les tours frères (seulement si contrat) / Recalculate sibling tours (contract only)
+    if data.contract_id:
+        await _recalculate_sibling_tours(db, data.contract_id, tour.date)
 
     # Audit log
     await _log_audit(db, "tour", tour.id, "SCHEDULE", user, {
-        "contract_id": data.contract_id, "departure_time": data.departure_time,
+        "contract_id": data.contract_id,
+        "vehicle_id": data.vehicle_id,
+        "tractor_id": data.tractor_id,
+        "departure_time": data.departure_time,
         "total_cost": float(tour.total_cost) if tour.total_cost else None,
     })
 
@@ -1397,7 +1585,12 @@ async def unschedule_tour(
     old_contract_id = tour.contract_id
     old_date = tour.date
 
+    old_vehicle_id = tour.vehicle_id
+    old_tractor_id = tour.tractor_id
+
     tour.contract_id = None
+    tour.vehicle_id = None     # Libérer le véhicule propre / Release own vehicle
+    tour.tractor_id = None     # Libérer le tracteur propre / Release own tractor
     tour.departure_time = None
     tour.return_time = None
     tour.total_duration_minutes = None
@@ -1414,6 +1607,8 @@ async def unschedule_tour(
     # Audit log
     await _log_audit(db, "tour", tour.id, "UNSCHEDULE", user, {
         "old_contract_id": old_contract_id,
+        "old_vehicle_id": old_vehicle_id,
+        "old_tractor_id": old_tractor_id,
     })
 
     await db.flush()
@@ -1612,6 +1807,50 @@ async def update_tour_gate(
             "status": "COMPLETED",
             "barrier_entry_time": changes["barrier_entry_time"],
         })
+
+        # ── Mise à jour flotte parc propre / Own fleet update on completion ──
+        from app.models.vehicle_cost_entry import VehicleCostEntry, CostCategory
+        km_parcourus: int | None = None
+        if tour.km_return is not None and tour.km_departure is not None and tour.km_return > tour.km_departure:
+            km_parcourus = tour.km_return - tour.km_departure
+
+        async def _update_vehicle_on_completion(vehicle_id: int, is_tractor: bool) -> None:
+            """Met à jour le kilométrage et trace l'utilisation en tournée.
+            Updates mileage and logs tour usage for an own fleet vehicle.
+            """
+            vehicle = await db.get(Vehicle, vehicle_id)
+            if not vehicle:
+                return
+            # Mise à jour kilométrage / Update mileage
+            if tour.km_return is not None:
+                vehicle.current_km = tour.km_return
+                vehicle.last_km_update = datetime.utcnow().isoformat()
+
+            # Entrée de coût OPERATION (montant 0 — sert de journal d'utilisation)
+            # OPERATION cost entry (amount 0 — serves as usage log, actual costs tracked via fuel/maintenance)
+            desc_parts = [f"Tour {tour.code} — {tour.date}"]
+            if tour.driver_name:
+                desc_parts.append(f"Chauffeur : {tour.driver_name}")
+            if km_parcourus is not None:
+                desc_parts.append(f"{km_parcourus} km")
+            if is_tractor:
+                desc_parts.append("(tracteur)")
+            cost_entry = VehicleCostEntry(
+                vehicle_id=vehicle_id,
+                category=CostCategory.OPERATION,
+                date=tour.date,
+                description=" | ".join(desc_parts),
+                amount=0.0,
+                notes=f"Tour {tour.code} | départ {tour.departure_time} → retour {tour.return_time or tour.actual_return_time or '?'}"
+                      + (f" | km départ {tour.km_departure} → retour {tour.km_return}" if tour.km_departure and tour.km_return else ""),
+            )
+            db.add(cost_entry)
+
+        if tour.vehicle_id:
+            await _update_vehicle_on_completion(tour.vehicle_id, is_tractor=False)
+        if tour.tractor_id:
+            await _update_vehicle_on_completion(tour.tractor_id, is_tractor=True)
+
     await _log_audit(db, "tour", tour.id, "UPDATE_GATE", user, changes)
     await db.flush()
     result = await db.execute(

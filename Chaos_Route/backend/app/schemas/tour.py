@@ -1,6 +1,6 @@
 """Schémas Tour / Tour schemas."""
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.models.contract import VehicleType
 from app.models.tour import TourStatus
@@ -146,10 +146,24 @@ class TourGateUpdate(BaseModel):
 
 
 class TourSchedule(BaseModel):
-    """Planification : contrat + heure de départ / Schedule: contract + departure time."""
-    contract_id: int
-    departure_time: str  # HH:MM
-    delivery_date: str | None = None  # YYYY-MM-DD
+    """Planification : contrat ou véhicule propre + heure de départ.
+
+    Modes :
+    - Presté  : contract_id seul
+    - Propre  : vehicle_id (+ tractor_id si SEMI)
+    - Mixte   : vehicle_id (semi propre) + contract_id (tracteur presté)
+    """
+    contract_id: int | None = None          # presté ou mixte (tracteur presté)
+    vehicle_id: int | None = None           # propre ou mixte (semi/porteur propre)
+    tractor_id: int | None = None           # propre SEMI : tracteur propre
+    departure_time: str                     # HH:MM
+    delivery_date: str | None = None        # YYYY-MM-DD
+
+    @model_validator(mode="after")
+    def check_assignment(self) -> "TourSchedule":
+        if not self.contract_id and not self.vehicle_id:
+            raise ValueError("Au moins un contrat ou un véhicule propre doit être fourni")
+        return self
 
 
 class TourRead(TourBase):

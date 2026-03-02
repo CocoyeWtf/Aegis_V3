@@ -13,6 +13,11 @@ class SupportTypeCreate(BaseModel):
     unit_label: str | None = None
     is_active: bool = True
     image_path: str | None = None
+    # Valeur consigne / Consignment value
+    unit_value: float | None = None
+    content_item_label: str | None = None
+    content_items_per_unit: int | None = None
+    content_item_value: float | None = None
 
 
 class SupportTypeUpdate(BaseModel):
@@ -22,6 +27,11 @@ class SupportTypeUpdate(BaseModel):
     unit_label: str | None = None
     is_active: bool | None = None
     image_path: str | None = None
+    # Valeur consigne / Consignment value
+    unit_value: float | None = None
+    content_item_label: str | None = None
+    content_items_per_unit: int | None = None
+    content_item_value: float | None = None
 
 
 class SupportTypeRead(BaseModel):
@@ -33,6 +43,11 @@ class SupportTypeRead(BaseModel):
     unit_label: str | None
     is_active: bool
     image_path: str | None = None
+    # Valeur consigne / Consignment value
+    unit_value: float | None = None
+    content_item_label: str | None = None
+    content_items_per_unit: int | None = None
+    content_item_value: float | None = None
 
 
 # --- PickupLabel ---
@@ -57,6 +72,9 @@ class PickupRequestCreate(BaseModel):
     availability_date: str  # YYYY-MM-DD
     pickup_type: str = "CONTAINER"
     notes: str | None = None
+    # Consigne : contenu inclus (ex: bouteilles vides dans les bacs)
+    # Consignment: content included (e.g., empty bottles in crates)
+    with_content: bool = False
 
 
 class PickupRequestUpdate(BaseModel):
@@ -64,6 +82,7 @@ class PickupRequestUpdate(BaseModel):
     notes: str | None = None
     availability_date: str | None = None
     quantity: int | None = None
+    with_content: bool | None = None
 
 
 class PDVBrief(BaseModel):
@@ -85,6 +104,13 @@ class PickupRequestRead(BaseModel):
     requested_at: datetime | None
     requested_by_user_id: int | None
     notes: str | None
+    # Consigne
+    with_content: bool = False
+    declared_unit_value: float | None = None
+    declared_content_item_value: float | None = None
+    declared_content_items_per_unit: int | None = None
+    total_declared_value: float | None = None
+    # Relations
     pdv: PDVBrief | None = None
     support_type: SupportTypeRead | None = None
     labels: list[PickupLabelRead] = []
@@ -103,6 +129,13 @@ class PickupRequestListRead(BaseModel):
     requested_at: datetime | None
     requested_by_user_id: int | None
     notes: str | None
+    # Consigne
+    with_content: bool = False
+    declared_unit_value: float | None = None
+    declared_content_item_value: float | None = None
+    declared_content_items_per_unit: int | None = None
+    total_declared_value: float | None = None
+    # Relations
     pdv: PDVBrief | None = None
     support_type: SupportTypeRead | None = None
 

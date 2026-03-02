@@ -2,7 +2,7 @@
 
 import enum
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -47,11 +47,34 @@ class PickupRequest(Base):
     requested_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     notes: Mapped[str | None] = mapped_column(Text)
 
+    # Consigne : contenu inclus (ex: bouteilles vides dans les bacs)
+    # Consignment: content included (e.g., empty bottles in the crates)
+    with_content: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Snapshots valeur au moment de la déclaration — immuables si les tarifs changent
+    # Value snapshots at declaration time — immutable if rates change later
+    declared_unit_value: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    declared_content_item_value: Mapped[float | None] = mapped_column(Numeric(10, 4))
+    declared_content_items_per_unit: Mapped[int | None] = mapped_column(Integer)
+
     # Relations
     pdv: Mapped["PDV"] = relationship()
     support_type: Mapped["SupportType"] = relationship()
     requested_by: Mapped["User | None"] = relationship()
     labels: Mapped[list["PickupLabel"]] = relationship(back_populates="pickup_request", cascade="all, delete-orphan")
+
+    @property
+    def total_declared_value(self) -> float | None:
+        """Valeur totale de la consigne déclarée / Total declared consignment value.
+        quantity × (unit_value + with_content × content_items_per_unit × content_item_value)
+        """
+        if self.declared_unit_value is None:
+            return None
+        content_val = 0.0
+        if (self.with_content
+                and self.declared_content_item_value is not None
+                and self.declared_content_items_per_unit is not None):
+            content_val = float(self.declared_content_item_value) * self.declared_content_items_per_unit
+        return round(self.quantity * (float(self.declared_unit_value) + content_val), 2)
 
 
 class PickupLabel(Base):

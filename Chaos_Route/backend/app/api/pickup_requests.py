@@ -1,8 +1,11 @@
 """Routes Demandes de reprise / Pickup Request API routes."""
 
+import csv
+import io
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -142,6 +145,75 @@ async def receive_label(
     return label
 
 
+@router.get("/export/csv")
+async def export_pickup_requests_csv(
+    pdv_id: int | None = Query(default=None),
+    status: str | None = Query(default=None),
+    pickup_type: str | None = Query(default=None),
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("pickup-requests", "read")),
+):
+    """Export CSV des demandes de reprise / CSV export of pickup requests."""
+    query = select(PickupRequest).options(
+        selectinload(PickupRequest.pdv),
+        selectinload(PickupRequest.support_type),
+    ).order_by(PickupRequest.availability_date.desc(), PickupRequest.id.desc())
+
+    if pdv_id is not None:
+        query = query.where(PickupRequest.pdv_id == pdv_id)
+    if status is not None:
+        query = query.where(PickupRequest.status == status)
+    if pickup_type is not None:
+        query = query.where(PickupRequest.pickup_type == pickup_type)
+    if date_from is not None:
+        query = query.where(PickupRequest.availability_date >= date_from)
+    if date_to is not None:
+        query = query.where(PickupRequest.availability_date <= date_to)
+
+    result = await db.execute(query)
+    requests = result.scalars().all()
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";", quoting=csv.QUOTE_ALL)
+
+    # En-têtes / Headers
+    writer.writerow([
+        "PDV code", "PDV nom", "Type reprise", "Support", "Qté",
+        "Avec contenu", "Date disponibilité",
+        "Valeur unitaire (€)", "Valeur contenu/unité (€)", "Valeur totale (€)",
+        "Statut", "Demandé le", "Notes",
+    ])
+
+    for req in requests:
+        pdv_code = req.pdv.code if req.pdv else ""
+        pdv_name = req.pdv.name if req.pdv else ""
+        support_name = req.support_type.name if req.support_type else ""
+        avec_contenu = "Oui" if req.with_content else "Non"
+        val_unitaire = f"{req.declared_unit_value:.2f}".replace(".", ",") if req.declared_unit_value is not None else ""
+        val_contenu = ""
+        if req.declared_content_item_value is not None and req.declared_content_items_per_unit is not None:
+            val_contenu = f"{float(req.declared_content_item_value) * req.declared_content_items_per_unit:.4f}".replace(".", ",")
+        val_totale = f"{req.total_declared_value:.2f}".replace(".", ",") if req.total_declared_value is not None else ""
+        demande_le = req.requested_at.strftime("%Y-%m-%d %H:%M") if isinstance(req.requested_at, datetime) else (str(req.requested_at)[:16] if req.requested_at else "")
+
+        writer.writerow([
+            pdv_code, pdv_name, req.pickup_type, support_name, req.quantity,
+            avec_contenu, req.availability_date,
+            val_unitaire, val_contenu, val_totale,
+            req.status, demande_le, req.notes or "",
+        ])
+
+    output.seek(0)
+    filename = f"reprises_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv; charset=utf-8-sig",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/{request_id}", response_model=PickupRequestRead)
 async def get_pickup_request(
     request_id: int,
@@ -188,6 +260,11 @@ async def create_pickup_request(
         status=PickupStatus.REQUESTED,
         requested_by_user_id=user.id,
         notes=data.notes,
+        # Snapshots valeur au moment de la déclaration / Value snapshots at declaration time
+        with_content=data.with_content,
+        declared_unit_value=float(st.unit_value) if st.unit_value is not None else None,
+        declared_content_item_value=float(st.content_item_value) if st.content_item_value is not None else None,
+        declared_content_items_per_unit=st.content_items_per_unit,
     )
     db.add(req)
     await db.flush()

@@ -55,6 +55,7 @@ const COST_CATEGORY_LABELS: Record<string, string> = {
   FINE: 'Amende',
   TOLL: 'Peage',
   PARKING: 'Parking',
+  OPERATION: 'Utilisation tournée',
   OTHER: 'Autre',
 }
 
@@ -69,6 +70,9 @@ const VEHICLE_TYPE_LABELS: Record<string, string> = {
 const MAINTENANCE_TYPE_OPTIONS = Object.entries(MAINTENANCE_TYPE_LABELS).map(([value, label]) => ({ value, label }))
 const MAINTENANCE_STATUS_OPTIONS = Object.entries(MAINTENANCE_STATUS_LABELS).map(([value, label]) => ({ value, label }))
 const COST_CATEGORY_OPTIONS = Object.entries(COST_CATEGORY_LABELS).map(([value, label]) => ({ value, label }))
+// Options de saisie manuelle : exclut OPERATION (généré automatiquement)
+// Manual entry options: excludes OPERATION (auto-generated on tour completion)
+const COST_CATEGORY_MANUAL_OPTIONS = COST_CATEGORY_OPTIONS.filter(o => o.value !== 'OPERATION')
 
 type TabKey = 'maintenance' | 'fuel' | 'modifications' | 'costs' | 'rules' | 'tco'
 
@@ -360,7 +364,7 @@ function CostsCrud({ vehicleOptions }: { vehicleOptions: { value: string; label:
   const fields: FieldDef[] = [
     // Identification
     { key: 'vehicle_id', label: 'Vehicule', type: 'select', required: true, options: vehicleOptions },
-    { key: 'category', label: 'Categorie', type: 'select', required: true, options: COST_CATEGORY_OPTIONS },
+    { key: 'category', label: 'Categorie', type: 'select', required: true, options: COST_CATEGORY_MANUAL_OPTIONS },
     // Date + Montant
     { key: 'date', label: 'Date', type: 'date', required: true },
     { key: 'amount', label: 'Montant (EUR)', type: 'number', step: 0.01, required: true },
