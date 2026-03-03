@@ -1,6 +1,6 @@
 /* Page demandes de reprise PDV / PDV pickup requests page */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { formatDate } from '../utils/tourTimeUtils'
 import { useApi } from '../hooks/useApi'
 import { useAuthStore } from '../stores/useAuthStore'
@@ -66,7 +66,7 @@ export default function PdvPickupRequests() {
     d.setDate(d.getDate() + 1)
     return d.toISOString().split('T')[0]
   })
-  const [pickupType, setPickupType] = useState<PickupTypeEnum>('CONTAINER')
+  const [pickupType, setPickupType] = useState<string>('')
   const [withContent, setWithContent] = useState(false)
   const [notes, setNotes] = useState<string>('')
   const [submitting, setSubmitting] = useState(false)
@@ -76,6 +76,32 @@ export default function PdvPickupRequests() {
 
   const selectedSt = supportTypes.find((st) => String(st.id) === supportTypeId)
   const showWithContent = pickupType === 'CONSIGNMENT' && !!selectedSt?.content_item_label
+
+  // Recherche PDV / PDV search
+  const [pdvSearch, setPdvSearch] = useState('')
+  const [pdvDropdownOpen, setPdvDropdownOpen] = useState(false)
+  const pdvSearchRef = useRef<HTMLDivElement>(null)
+
+  const selectedPdv = pdvs.find((p) => String(p.id) === pdvId)
+
+  const filteredPdvs = useMemo(() => {
+    if (!pdvSearch.trim()) return pdvs
+    const q = pdvSearch.toLowerCase()
+    return pdvs.filter(
+      (p) => p.code?.toLowerCase().includes(q) || p.name?.toLowerCase().includes(q),
+    )
+  }, [pdvs, pdvSearch])
+
+  // Fermer dropdown au clic exterieur / Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (pdvSearchRef.current && !pdvSearchRef.current.contains(e.target as Node)) {
+        setPdvDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   // Presets rapides : supports avec contenu consigne / Quick presets: supports with consignment content
   const consignmentPresets = supportTypes.filter((st) => st.content_item_label && st.unit_value != null)
@@ -103,7 +129,7 @@ export default function PdvPickupRequests() {
     async (e: React.FormEvent) => {
       e.preventDefault()
       const finalPdvId = isPdvUser ? user!.pdv_id : Number(pdvId)
-      if (!finalPdvId || !supportTypeId) return
+      if (!finalPdvId || !supportTypeId || !pickupType) return
 
       setSubmitting(true)
       try {
@@ -120,6 +146,8 @@ export default function PdvPickupRequests() {
         setQuantity(1)
         setSupportTypeId('')
         setPdvId('')
+        setPdvSearch('')
+        setPickupType('')
         setWithContent(false)
         refetch()
       } catch (err: unknown) {
@@ -236,33 +264,87 @@ export default function PdvPickupRequests() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* PDV select (mode dispatcher) */}
+          {/* PDV recherche (mode dispatcher) / PDV search (dispatcher mode) */}
           {!isPdvUser && (
-            <div>
+            <div ref={pdvSearchRef} className="relative">
               <label
                 className="block text-sm font-medium mb-1"
                 style={{ color: 'var(--text-secondary)' }}
               >
-                PDV
+                PDV *
               </label>
-              <select
-                value={pdvId}
-                onChange={(e) => setPdvId(e.target.value)}
-                required
+              {/* Champ caché pour validation HTML / Hidden input for HTML validation */}
+              <input type="hidden" required value={pdvId} />
+              <input
+                type="text"
+                value={pdvDropdownOpen ? pdvSearch : selectedPdv ? `${selectedPdv.code} - ${selectedPdv.name}` : ''}
+                onChange={(e) => {
+                  setPdvSearch(e.target.value)
+                  setPdvDropdownOpen(true)
+                  if (pdvId) setPdvId('')
+                }}
+                onFocus={() => {
+                  setPdvDropdownOpen(true)
+                  setPdvSearch('')
+                }}
+                placeholder="Rechercher par numero ou nom..."
                 className="w-full px-3 py-2 rounded-lg border text-sm"
                 style={{
                   backgroundColor: 'var(--bg-tertiary)',
-                  borderColor: 'var(--border-color)',
+                  borderColor: !pdvId && pdvSearch ? '#ef4444' : 'var(--border-color)',
                   color: 'var(--text-primary)',
                 }}
-              >
-                <option value="">-- Selectionner --</option>
-                {pdvs.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.code} - {p.name}
-                  </option>
-                ))}
-              </select>
+              />
+              {selectedPdv && !pdvDropdownOpen && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPdvId('')
+                    setPdvSearch('')
+                    setPdvDropdownOpen(true)
+                  }}
+                  className="absolute right-2 top-[34px] text-xs px-1.5 py-0.5 rounded"
+                  style={{ color: 'var(--text-muted)' }}
+                  title="Effacer la selection"
+                >
+                  ✕
+                </button>
+              )}
+              {pdvDropdownOpen && (
+                <div
+                  className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border shadow-lg"
+                  style={{
+                    backgroundColor: 'var(--bg-secondary)',
+                    borderColor: 'var(--border-color)',
+                  }}
+                >
+                  {filteredPdvs.length === 0 ? (
+                    <div className="px-3 py-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+                      Aucun PDV trouve
+                    </div>
+                  ) : (
+                    filteredPdvs.slice(0, 50).map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          setPdvId(String(p.id))
+                          setPdvSearch('')
+                          setPdvDropdownOpen(false)
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm hover:brightness-125 cursor-pointer"
+                        style={{
+                          backgroundColor: String(p.id) === pdvId ? 'var(--bg-tertiary)' : 'transparent',
+                          color: 'var(--text-primary)',
+                        }}
+                      >
+                        <span className="font-medium">{p.code}</span>
+                        <span className="ml-2">{p.name}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -272,7 +354,7 @@ export default function PdvPickupRequests() {
               className="block text-sm font-medium mb-1"
               style={{ color: 'var(--text-secondary)' }}
             >
-              Type de reprise
+              Type de reprise *
             </label>
             <select
               value={pickupType}
@@ -280,6 +362,7 @@ export default function PdvPickupRequests() {
                 setPickupType(e.target.value as PickupTypeEnum)
                 setWithContent(false)
               }}
+              required
               className="w-full px-3 py-2 rounded-lg border text-sm"
               style={{
                 backgroundColor: 'var(--bg-tertiary)',
@@ -287,6 +370,7 @@ export default function PdvPickupRequests() {
                 color: 'var(--text-primary)',
               }}
             >
+              <option value="">-- Selectionner --</option>
               {PICKUP_TYPE_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
@@ -301,7 +385,7 @@ export default function PdvPickupRequests() {
               className="block text-sm font-medium mb-1"
               style={{ color: 'var(--text-secondary)' }}
             >
-              Type de support
+              Type de support *
             </label>
             <select
               value={supportTypeId}
