@@ -833,3 +833,54 @@ export interface Declaration {
   created_at: string
   photos: DeclarationPhoto[]
 }
+
+/* ─── Consignment Tracking (Zèbre) ─── */
+
+export interface ConsignmentMovement {
+  id: number
+  batch_id: string
+  pdv_code: string
+  pdv_name?: string | null
+  base: string
+  waybill_number?: number | null
+  flux_date: string
+  consignment_code: string
+  consignment_label?: string | null
+  consignment_type?: string | null
+  quantity: number
+  value?: number | null
+  flux_type: string
+  unit_value?: number | null
+  year?: number | null
+  month?: number | null
+}
+
+export interface ConsignmentBalance {
+  pdv_code: string
+  pdv_name?: string | null
+  consignment_code: string
+  consignment_label?: string | null
+  total_quantity: number
+  total_value?: number | null
+}
+
+export interface ConsignmentImportResult {
+  created: number
+  skipped: number
+  total_rows: number
+  errors: string[]
+  batch_id: string
+}
+
+export interface ConsignmentImportInfo {
+  batch_id?: string | null
+  total_rows: number
+  imported_at?: string | null
+}
+
+export interface ConsignmentFilters {
+  bases: string[]
+  consignment_types: string[]
+  consignment_codes: string[]
+  flux_types: string[]
+}

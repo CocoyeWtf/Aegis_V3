@@ -47,6 +47,7 @@ from app.models.vehicle_maintenance import (
 from app.models.vehicle_fuel import VehicleFuelEntry
 from app.models.vehicle_modification import VehicleModification
 from app.models.vehicle_cost_entry import VehicleCostEntry, CostCategory
+from app.models.consignment_movement import ConsignmentMovement
 
 __all__ = [
     "Country",
@@ -115,4 +116,5 @@ __all__ = [
     "VehicleModification",
     "VehicleCostEntry",
     "CostCategory",
+    "ConsignmentMovement",
 ]

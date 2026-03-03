@@ -43,6 +43,7 @@ RESOURCES = [
     "inspections",
     "fleet",
     "reports",
+    "consignment-movements",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 
