@@ -5,7 +5,7 @@ Auth par appareil (X-Device-ID header) — pas de JWT pour le chauffeur.
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.config import settings
 from app.rate_limit import limiter
@@ -975,10 +975,13 @@ async def list_tour_pickups(
 @router.post("/pickup-labels/{label_code}/scan", response_model=PickupLabelRead)
 async def scan_pickup_label(
     label_code: str,
+    stop_id: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
     device: MobileDevice = Depends(get_authenticated_device),
 ):
-    """Scan etiquette reprise → PICKED_UP / Scan pickup label → PICKED_UP."""
+    """Scan etiquette reprise → PICKED_UP / Scan pickup label → PICKED_UP.
+    stop_id optionnel : lie automatiquement un label hors-planning au stop.
+    """
     result = await db.execute(
         select(PickupLabel)
         .where(PickupLabel.label_code == label_code)
@@ -988,8 +991,33 @@ async def scan_pickup_label(
     if not label:
         raise HTTPException(status_code=404, detail="Label not found")
 
+    # Label non-assigne + stop_id fourni → auto-lier au stop / Unassigned label + stop_id → auto-link
+    if not label.tour_stop_id and stop_id:
+        stop = await db.get(TourStop, stop_id)
+        if not stop:
+            raise HTTPException(status_code=404, detail="Stop not found")
+        assign_check = await db.execute(
+            select(DeviceAssignment).where(
+                DeviceAssignment.tour_id == stop.tour_id,
+                DeviceAssignment.device_id == device.id,
+            ).limit(1)
+        )
+        if not assign_check.scalar_one_or_none():
+            raise HTTPException(status_code=403, detail="Device not assigned to this tour")
+        label.tour_stop_id = stop_id
+        # Activer le flag reprise correspondant sur le stop / Activate matching pickup flag on stop
+        _PICKUP_TYPE_FLAG = {
+            PickupType.CONTAINER: "pickup_containers",
+            PickupType.CARDBOARD: "pickup_cardboard",
+            PickupType.MERCHANDISE: "pickup_returns",
+            PickupType.CONSIGNMENT: "pickup_consignment",
+        }
+        flag = _PICKUP_TYPE_FLAG.get(label.pickup_request.pickup_type)
+        if flag and not getattr(stop, flag, False):
+            setattr(stop, flag, True)
+
     # Verifier que l'appareil a acces via label → stop → tour → DeviceAssignment
-    if label.tour_stop_id:
+    elif label.tour_stop_id:
         stop = await db.get(TourStop, label.tour_stop_id)
         if stop:
             assign_check = await db.execute(

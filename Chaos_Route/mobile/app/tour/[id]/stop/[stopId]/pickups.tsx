@@ -24,6 +24,7 @@ export default function PickupScanScreen() {
 
   const [labels, setLabels] = useState<PickupLabelMobile[]>([])
   const [scannedLabels, setScannedLabels] = useState<PickupLabelMobile[]>([])
+  const [hpLabels, setHpLabels] = useState<PickupLabelMobile[]>([])  // hors-planning
   const [scanning, setScanning] = useState(true)
   const [lastScanned, setLastScanned] = useState('')
   const [torchOn, setTorchOn] = useState(false)
@@ -57,23 +58,33 @@ export default function PickupScanScreen() {
     setLastScanned(data)
     setTimeout(() => setLastScanned(''), 2000)
 
-    // Envoyer au serveur
-    api.post<PickupLabelMobile>(`/driver/pickup-labels/${encodeURIComponent(data)}/scan`)
+    // Envoyer au serveur avec stop_id pour lier les labels hors-planning
+    api.post<PickupLabelMobile>(`/driver/pickup-labels/${encodeURIComponent(data)}/scan?stop_id=${stopId}`)
       .then(({ data: label }) => {
-        setScannedLabels((prev) => {
-          if (prev.find((l) => l.id === label.id)) return prev
-          return [label, ...prev]
-        })
+        // Verifier si c'est un label hors-planning (pas dans la liste initiale)
+        const isPlanned = labels.some((l) => l.id === label.id)
+        if (isPlanned) {
+          setScannedLabels((prev) => {
+            if (prev.find((l) => l.id === label.id)) return prev
+            return [label, ...prev]
+          })
+        } else {
+          setHpLabels((prev) => {
+            if (prev.find((l) => l.id === label.id)) return prev
+            return [label, ...prev]
+          })
+        }
       })
       .catch((err) => {
         const detail = err?.response?.data?.detail || 'Erreur scan'
         Alert.alert('Erreur', detail)
       })
-  }, [scanning])
+  }, [scanning, labels, stopId])
 
   const totalExpected = labels.length
   const scannedCount = scannedLabels.length
-  const allScanned = totalExpected > 0 && scannedCount >= totalExpected
+  const hpCount = hpLabels.length
+  const allPlannedScanned = totalExpected > 0 && scannedCount >= totalExpected
 
   /* Permission camera / Camera permission */
   if (!permission) {
@@ -93,7 +104,7 @@ export default function PickupScanScreen() {
   return (
     <View style={styles.container}>
       {/* Camera */}
-      {scanning && !allScanned ? (
+      {scanning ? (
         <View style={styles.cameraSection}>
           <CameraView
             style={styles.camera}
@@ -110,14 +121,18 @@ export default function PickupScanScreen() {
             {lastScanned ? (
               <Text style={styles.scanSuccess}>{lastScanned}</Text>
             ) : (
-              <Text style={styles.scanHint}>Pointez une etiquette reprise</Text>
+              <Text style={styles.scanHint}>
+                {allPlannedScanned
+                  ? 'Scannez les reprises hors planning'
+                  : 'Pointez une etiquette reprise'}
+              </Text>
             )}
           </View>
         </View>
       ) : (
-        <View style={[styles.cameraDone, allScanned && { backgroundColor: COLORS.success }]}>
+        <View style={[styles.cameraDone, allPlannedScanned && { backgroundColor: COLORS.success }]}>
           <Text style={styles.cameraDoneText}>
-            {allScanned ? 'Toutes les reprises scannees !' : 'Scan termine'}
+            {allPlannedScanned ? 'Toutes les reprises scannees !' : 'Scan termine'}
           </Text>
         </View>
       )}
@@ -125,26 +140,38 @@ export default function PickupScanScreen() {
       {/* Compteur / Counter */}
       <View style={styles.counter}>
         <Text style={styles.counterText}>
-          {scannedCount} / {totalExpected} etiquettes scannees
+          {scannedCount}/{totalExpected}
+          {hpCount > 0 ? ` + ${hpCount} hors planning` : ''} scannees
         </Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backBtnText}>Retour</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {scanning && (
+            <TouchableOpacity onPress={() => setScanning(false)} style={styles.backBtn}>
+              <Text style={styles.backBtnText}>Stop</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Text style={styles.backBtnText}>Retour</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Liste scannee / Scanned list */}
+      {/* Liste scannee / Scanned list (planned + hors-planning) */}
       <FlatList
-        data={scannedLabels}
+        data={[...hpLabels.map((l) => ({ ...l, _hp: true })), ...scannedLabels.map((l) => ({ ...l, _hp: false }))]}
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item, index }) => (
-          <View style={styles.scanRow}>
-            <Text style={styles.scanIndex}>{scannedLabels.length - index}</Text>
-            <Text style={styles.scanBarcode}>{item.label_code}</Text>
-            <Text style={styles.scanStatus}>
-              {item.status === 'PICKED_UP' ? 'OK' : item.status}
-            </Text>
-          </View>
-        )}
+        renderItem={({ item, index }) => {
+          const allCount = hpLabels.length + scannedLabels.length
+          return (
+            <View style={styles.scanRow}>
+              <Text style={styles.scanIndex}>{allCount - index}</Text>
+              {item._hp && <Text style={styles.hpBadge}>HP</Text>}
+              <Text style={styles.scanBarcode}>{item.label_code}</Text>
+              <Text style={styles.scanStatus}>
+                {item.status === 'PICKED_UP' ? 'OK' : item.status}
+              </Text>
+            </View>
+          )
+        }}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <Text style={styles.emptyText}>Scannez les etiquettes de reprise...</Text>
@@ -274,6 +301,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: COLORS.textMuted,
+  },
+  hpBadge: {
+    backgroundColor: '#f97316',
+    color: COLORS.white,
+    fontSize: 9,
+    fontWeight: '700',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    marginRight: 6,
+    overflow: 'hidden',
   },
   scanBarcode: {
     flex: 1,

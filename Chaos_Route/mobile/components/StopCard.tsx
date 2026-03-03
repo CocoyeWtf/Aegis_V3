@@ -99,6 +99,12 @@ export function StopCard({ stop, onScanPdv, onScanSupports, onScanPickups, onClo
           </TouchableOpacity>
         )}
 
+        {isArrived && (stop.pending_pickup_labels_count ?? 0) === 0 && (
+          <TouchableOpacity onPress={onScanPickups} style={styles.pickupHpBtn}>
+            <Text style={styles.pickupHpBtnText}>Reprise hors planning</Text>
+          </TouchableOpacity>
+        )}
+
         {isArrived && (stop.pending_pickup_labels_count ?? 0) > 0 && onRefusePickup && (
           <TouchableOpacity onPress={onRefusePickup} style={styles.refuseBtn}>
             <Text style={styles.refuseBtnText}>Refuser</Text>
@@ -238,6 +244,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pickupBtnText: {
+    fontSize: 12,
+    color: COLORS.white,
+    fontWeight: '700',
+  },
+  pickupHpBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#f97316',
+    flex: 1,
+    alignItems: 'center',
+  },
+  pickupHpBtnText: {
     fontSize: 12,
     color: COLORS.white,
     fontWeight: '700',
