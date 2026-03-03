@@ -123,7 +123,7 @@ function ImportTab() {
       const { data } = await api.post<ConsignmentImportResult>(
         `/consignments/import/?mode=${mode}`,
         form,
-        { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 },
+        { headers: { 'Content-Type': undefined }, timeout: 300000 },
       )
       setResult(data)
       // Rafraîchir info import / Refresh import info

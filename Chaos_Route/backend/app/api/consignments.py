@@ -28,16 +28,18 @@ router = APIRouter()
 HEADER_MAP = {
     "CODE_PDV": "pdv_code",
     "NOM_PDV": "pdv_name",
+    "LIB_PDV": "pdv_name",           # alias Zèbre
     "BASE": "base",
     "NUM_BORDEREAU": "waybill_number",
     "DATE_FLUX": "flux_date",
     "CODE_CONSIGNE": "consignment_code",
     "LIBELLE_CONSIGNE": "consignment_label",
+    "LIBELLE": "consignment_label",   # alias Zèbre
     "TYPE_CONSIGNE": "consignment_type",
     "QUANTITE": "quantity",
     "VALEUR": "value",
     "TYPE_FLUX": "flux_type",
-    "VALEUR_UNITAIRE": "unit_value",
+    "VALEUR_UNITAIRE": "unit_value",  # "VALEUR UNITAIRE" → normalisé via _normalize_header
     "ANNEE": "year",
     "MOIS": "month",
 }
