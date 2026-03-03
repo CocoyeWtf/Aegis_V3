@@ -846,7 +846,17 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                         {tour.code}
                       </span>
 
-                      {/* Badge véhicule */}
+                      {/* Badge reprise / Pickup tour badge */}
+                      {tour.is_pickup_tour && (
+                        <span
+                          className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
+                          style={{ backgroundColor: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}
+                        >
+                          Reprise
+                        </span>
+                      )}
+
+                      {/* Badge vehicule */}
                       <span
                         className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
                         style={{ backgroundColor: 'rgba(249,115,22,0.15)', color: 'var(--color-primary)' }}

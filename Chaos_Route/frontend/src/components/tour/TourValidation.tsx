@@ -12,6 +12,8 @@ interface TourValidationProps {
   onValidate: () => void
   onReset: () => void
   temperatureType?: TemperatureType | null
+  isPickupTour?: boolean
+  baseId?: number | null
 }
 
 interface ValidationMessage {
@@ -19,7 +21,7 @@ interface ValidationMessage {
   message: string
 }
 
-export function TourValidation({ stops, vehicleType, capacityEqp, totalEqp, onValidate, onReset, temperatureType }: TourValidationProps) {
+export function TourValidation({ stops, vehicleType, capacityEqp, totalEqp, onValidate, onReset, temperatureType, isPickupTour, baseId }: TourValidationProps) {
   const { t } = useTranslation()
 
   const messages: ValidationMessage[] = []
@@ -32,7 +34,11 @@ export function TourValidation({ stops, vehicleType, capacityEqp, totalEqp, onVa
     messages.push({ type: 'error', message: t('tourPlanning.validation.noStops') })
   }
 
-  if (capacityEqp > 0 && totalEqp > capacityEqp) {
+  if (isPickupTour && !baseId) {
+    messages.push({ type: 'error', message: 'Base non selectionnee' })
+  }
+
+  if (!isPickupTour && capacityEqp > 0 && totalEqp > capacityEqp) {
     messages.push({
       type: 'error',
       message: t('tourPlanning.validation.overCapacity', {
@@ -41,7 +47,7 @@ export function TourValidation({ stops, vehicleType, capacityEqp, totalEqp, onVa
     })
   }
 
-  if (capacityEqp > 0 && totalEqp > 0 && totalEqp < capacityEqp * 0.5) {
+  if (!isPickupTour && capacityEqp > 0 && totalEqp > 0 && totalEqp < capacityEqp * 0.5) {
     messages.push({
       type: 'warning',
       message: t('tourPlanning.validation.lowFillRate', {
@@ -50,15 +56,17 @@ export function TourValidation({ stops, vehicleType, capacityEqp, totalEqp, onVa
     })
   }
 
-  if (vehicleType && !temperatureType) {
-    messages.push({ type: 'warning', message: 'Température non sélectionnée' })
+  if (!isPickupTour && vehicleType && !temperatureType) {
+    messages.push({ type: 'warning', message: 'Temperature non selectionnee' })
   }
 
-  if (temperatureType) {
-    messages.push({ type: 'info', message: `Température: ${TEMPERATURE_TYPE_LABELS[temperatureType]}` })
+  if (!isPickupTour && temperatureType) {
+    messages.push({ type: 'info', message: `Temperature: ${TEMPERATURE_TYPE_LABELS[temperatureType]}` })
   }
 
-  if (vehicleType && stops.length > 0 && totalEqp <= capacityEqp) {
+  if (isPickupTour && vehicleType && stops.length > 0 && baseId) {
+    messages.push({ type: 'info', message: t('tourPlanning.validation.readyDraft') })
+  } else if (!isPickupTour && vehicleType && stops.length > 0 && totalEqp <= capacityEqp) {
     messages.push({ type: 'info', message: t('tourPlanning.validation.readyDraft') })
   }
 

@@ -47,9 +47,18 @@ interface TourSummaryProps {
   totalDurationMinutes?: number
   temperatureType?: TemperatureType | null
   tourTemperatures?: Set<TemperatureClass>
+  isPickupTour?: boolean
 }
 
 /* Ligne d'arrêt glissable / Sortable stop row */
+/* Labels badge reprise / Pickup badge labels */
+const PICKUP_BADGE_MAP: { key: keyof TourStop; label: string }[] = [
+  { key: 'pickup_cardboard', label: 'B' },
+  { key: 'pickup_containers', label: 'C' },
+  { key: 'pickup_returns', label: 'M' },
+  { key: 'pickup_consignment', label: 'K' },
+]
+
 function SortableStopRow({
   stop,
   idx,
@@ -58,6 +67,7 @@ function SortableStopRow({
   onRemove,
   onUpdate,
   t,
+  isPickupTour,
 }: {
   stop: TourStop
   idx: number
@@ -66,6 +76,7 @@ function SortableStopRow({
   onRemove: (pdvId: number) => void
   onUpdate?: (pdvId: number, data: Partial<TourStop>) => void
   t: (key: string) => string
+  isPickupTour?: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `stop-${stop.pdv_id}`,
@@ -112,7 +123,21 @@ function SortableStopRow({
           </div>
           <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
             {pdv?.city && <span>{pdv.city}</span>}
-            <span>{stop.eqp_count} EQC</span>
+            {isPickupTour ? (
+              <span className="inline-flex gap-0.5">
+                {PICKUP_BADGE_MAP.filter(({ key }) => stop[key]).map(({ label }) => (
+                  <span
+                    key={label}
+                    className="px-1 py-0.5 rounded text-[9px] font-bold"
+                    style={{ backgroundColor: '#f59e0b', color: '#000' }}
+                  >
+                    {label}
+                  </span>
+                ))}
+              </span>
+            ) : (
+              <span>{stop.eqp_count} EQC</span>
+            )}
           </div>
         </div>
 
@@ -195,7 +220,7 @@ function SortableStopRow({
 export function TourSummary({
   stops, pdvs, vehicleType, capacityEqp, totalEqp, totalKm, totalCost, onRemoveStop, onReorderStops,
   onUpdateStop, stopTimelines = [], returnTime, departureTime, totalDurationMinutes = 0,
-  temperatureType, tourTemperatures,
+  temperatureType, tourTemperatures, isPickupTour,
 }: TourSummaryProps) {
   const { t } = useTranslation()
   const pdvMap = new Map(pdvs.map((p) => [p.id, p]))
@@ -274,18 +299,22 @@ export function TourSummary({
               </span>
             )}
           </h3>
-          {hasVehicle ? (
+          {isPickupTour ? (
+            <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
+              Reprise vide
+            </span>
+          ) : hasVehicle ? (
             <span className="text-xs font-bold" style={{ color: capacityColor }}>
               {totalEqp} / {capacityEqp > 0 ? capacityEqp : '—'} EQC ({capacityPct}%)
             </span>
           ) : (
             <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-              Véhicule non sélectionné
+              Vehicule non selectionne
             </span>
           )}
         </div>
         {/* Barre de progression / Progress bar */}
-        {hasVehicle && (
+        {hasVehicle && !isPickupTour && (
           <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
             <div
               className="h-full rounded-full transition-all duration-300"
@@ -327,8 +356,9 @@ export function TourSummary({
                   pdv={pdvMap.get(stop.pdv_id)}
                   timeline={timelineMap.get(stop.pdv_id)}
                   onRemove={onRemoveStop}
-                  onUpdate={onUpdateStop}
+                  onUpdate={isPickupTour ? undefined : onUpdateStop}
                   t={t}
+                  isPickupTour={isPickupTour}
                 />
               ))}
             </SortableContext>
@@ -358,21 +388,25 @@ export function TourSummary({
 
       {/* Résumé bas / Bottom summary */}
       {stops.length > 0 && (
-        <div className="px-4 py-3 border-t text-xs grid grid-cols-5 gap-2" style={{ borderColor: 'var(--border-color)', color: 'var(--text-muted)' }}>
+        <div className={`px-4 py-3 border-t text-xs grid gap-2 ${isPickupTour ? 'grid-cols-3' : 'grid-cols-5'}`} style={{ borderColor: 'var(--border-color)', color: 'var(--text-muted)' }}>
           <div>
             <span className="block font-semibold" style={{ color: 'var(--text-primary)' }}>{stops.length}</span>
             {t('tourPlanning.stops')}
           </div>
-          <div>
-            <span className="block font-semibold" style={{ color: 'var(--text-primary)' }}>{totalEqp}</span>
-            EQC
-          </div>
-          <div>
-            <span className="block font-semibold" style={{ color: 'var(--text-primary)' }}>
-              {hasVehicle && capacityEqp > 0 ? `${Math.round((totalEqp / capacityEqp) * 100)}%` : '—'}
-            </span>
-            {t('tourPlanning.fillRate')}
-          </div>
+          {!isPickupTour && (
+            <>
+              <div>
+                <span className="block font-semibold" style={{ color: 'var(--text-primary)' }}>{totalEqp}</span>
+                EQC
+              </div>
+              <div>
+                <span className="block font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  {hasVehicle && capacityEqp > 0 ? `${Math.round((totalEqp / capacityEqp) * 100)}%` : '—'}
+                </span>
+                {t('tourPlanning.fillRate')}
+              </div>
+            </>
+          )}
           <div>
             <span className="block font-semibold" style={{ color: 'var(--text-primary)' }}>
               {totalKm > 0 ? `${totalKm}` : '—'}

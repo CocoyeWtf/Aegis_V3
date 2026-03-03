@@ -8,6 +8,7 @@ import { useAppStore } from '../../stores/useAppStore'
 import { Group, Panel, useDefaultLayout } from 'react-resizable-panels'
 import { VehicleSelector } from './VehicleSelector'
 import { VolumePanel } from './VolumePanel'
+import { PickupPanel } from './PickupPanel'
 import { TourSummary } from './TourSummary'
 import { TourValidation } from './TourValidation'
 import { ResizeHandle } from './ResizeHandle'
@@ -40,6 +41,11 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     resetTour,
     totalEqp,
   } = useTour()
+
+  /* Mode livraison ou reprise vide / Delivery or pickup-only mode */
+  type TourMode = 'delivery' | 'pickup'
+  const [tourMode, setTourMode] = useState<TourMode>('delivery')
+  const [manualBaseId, setManualBaseId] = useState<number | null>(null)
 
   const [selectedVehicleType, setSelectedVehicleType] = useState<VehicleType | null>(null)
   const [capacityEqp, setCapacityEqp] = useState(0)
@@ -172,8 +178,9 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     return vol?.base_origin_id ?? null
   }, [currentStops, volumes, allVolumes])
 
-  /* Utiliser autoBaseId comme base effective / Use autoBaseId as effective base */
-  const effectiveBaseId = autoBaseId ?? selectedBaseId
+  /* Utiliser autoBaseId comme base effective, ou manualBaseId en mode pickup /
+     Use autoBaseId as effective base, or manualBaseId in pickup mode */
+  const effectiveBaseId = tourMode === 'pickup' ? manualBaseId : (autoBaseId ?? selectedBaseId)
 
   /* Températures des volumes dans le tour / Temperature classes of volumes in tour */
   const tourTemperatures = useMemo(() => {
@@ -405,7 +412,26 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     setSplitDialog(null)
   }
 
+  /* Ajouter un PDV en mode reprise / Add a PDV in pickup mode */
+  const handleAddPickupPdv = (pdvId: number) => {
+    if (assignedPdvIds.has(pdvId)) return
+    addStop({
+      id: 0,
+      tour_id: 0,
+      pdv_id: pdvId,
+      sequence_order: currentStops.length + 1,
+      eqp_count: 0,
+      ...getPickupFlags(pdvId),
+    })
+  }
+
   const handlePdvClick = (pdv: PDV) => {
+    if (tourMode === 'pickup') {
+      const summary = pickupByPdv.get(pdv.id)
+      if (!summary || summary.pending_count === 0) return
+      handleAddPickupPdv(pdv.id)
+      return
+    }
     const vol = filteredVolumes.find((v) => v.pdv_id === pdv.id && !consumedVolumeIds.has(v.id))
     if (!vol) return
     handleAddVolume(vol)
@@ -426,18 +452,20 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   /* Sauvegarder comme brouillon (sans contrat) / Save as draft (no contract) */
   const handleValidate = async () => {
     if (!selectedVehicleType || currentStops.length === 0) return
+    if (tourMode === 'pickup' && !effectiveBaseId) return
     setSaving(true)
     try {
       await create<Tour>('/tours', {
         date: selectedDate,
-        code: `T-${Date.now()}`,
+        code: tourMode === 'pickup' ? `R-${Date.now()}` : `T-${Date.now()}`,
         vehicle_type: selectedVehicleType,
         capacity_eqp: capacityEqp,
         base_id: effectiveBaseId ?? 0,
         status: 'DRAFT',
         total_eqp: totalEqp,
         total_km: totalKm,
-        temperature_type: selectedTemperatureType ?? undefined,
+        is_pickup_tour: tourMode === 'pickup',
+        temperature_type: tourMode === 'pickup' ? undefined : (selectedTemperatureType ?? undefined),
         stops: currentStops.map((s, i) => ({
           pdv_id: s.pdv_id,
           sequence_order: i + 1,
@@ -465,6 +493,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     setSelectedVehicleType(null)
     setCapacityEqp(0)
     setSelectedTemperatureType(null)
+    setManualBaseId(null)
   }
 
   /* Bandeau véhicule inline / Inline vehicle banner — shown after first stop, before vehicle selection */
@@ -474,20 +503,20 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
       style={{ borderColor: 'var(--color-primary)', backgroundColor: 'rgba(249,115,22,0.05)' }}
     >
       <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-        Sélectionnez la température puis le véhicule
+        {tourMode === 'pickup' ? 'Selectionnez le vehicule' : 'Selectionnez la temperature puis le vehicule'}
       </h3>
-      {autoBaseName && (
+      {autoBaseName && tourMode !== 'pickup' && (
         <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
-          Base détectée: <span className="font-semibold" style={{ color: 'var(--color-primary)' }}>{autoBaseName}</span>
+          Base detectee: <span className="font-semibold" style={{ color: 'var(--color-primary)' }}>{autoBaseName}</span>
         </p>
       )}
       <VehicleSelector
         selectedType={null}
         onSelect={handleSelectVehicleType}
-        selectedTemperature={selectedTemperatureType}
-        onTemperatureSelect={setSelectedTemperatureType}
-        suggestedTemperature={suggestedTemperature}
-        tourTemperatures={tourTemperatures}
+        selectedTemperature={tourMode === 'pickup' ? undefined : selectedTemperatureType}
+        onTemperatureSelect={tourMode === 'pickup' ? undefined : setSelectedTemperatureType}
+        suggestedTemperature={tourMode === 'pickup' ? undefined : suggestedTemperature}
+        tourTemperatures={tourMode === 'pickup' ? undefined : tourTemperatures}
       />
     </div>
   ) : null
@@ -517,8 +546,57 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
           />
         </div>
 
-        {/* Base auto-détectée / Auto-detected base */}
-        {autoBaseName && (
+        {/* Toggle mode Livraison / Reprise vide */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+            Mode
+          </label>
+          <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border-color)' }}>
+            <button
+              className="px-3 py-2 text-xs font-semibold transition-all"
+              style={{
+                backgroundColor: tourMode === 'delivery' ? 'var(--color-primary)' : 'var(--bg-primary)',
+                color: tourMode === 'delivery' ? '#fff' : 'var(--text-muted)',
+              }}
+              onClick={() => { if (tourMode !== 'delivery') { handleReset(); setTourMode('delivery') } }}
+            >
+              Livraison
+            </button>
+            <button
+              className="px-3 py-2 text-xs font-semibold transition-all"
+              style={{
+                backgroundColor: tourMode === 'pickup' ? '#f59e0b' : 'var(--bg-primary)',
+                color: tourMode === 'pickup' ? '#000' : 'var(--text-muted)',
+              }}
+              onClick={() => { if (tourMode !== 'pickup') { handleReset(); setTourMode('pickup') } }}
+            >
+              Reprise vide
+            </button>
+          </div>
+        </div>
+
+        {/* Selecteur base en mode pickup / Base selector in pickup mode */}
+        {tourMode === 'pickup' && (
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+              Base
+            </label>
+            <select
+              value={manualBaseId ?? ''}
+              onChange={(e) => setManualBaseId(e.target.value ? Number(e.target.value) : null)}
+              className="rounded-lg border px-3 py-2 text-sm"
+              style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+            >
+              <option value="">-- Base --</option>
+              {bases.map((b) => (
+                <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Base auto-detectee / Auto-detected base */}
+        {tourMode === 'delivery' && autoBaseName && (
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
               Base (auto)
@@ -570,10 +648,12 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
           )}
           <div className="text-right">
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              {t('tourPlanning.availableVolumes')}
+              {tourMode === 'pickup' ? 'PDVs a reprendre' : t('tourPlanning.availableVolumes')}
             </span>
-            <p className="text-lg font-bold" style={{ color: 'var(--color-primary)' }}>
-              {filteredVolumes.filter((v) => !consumedVolumeIds.has(v.id)).length}
+            <p className="text-lg font-bold" style={{ color: tourMode === 'pickup' ? '#f59e0b' : 'var(--color-primary)' }}>
+              {tourMode === 'pickup'
+                ? pickupSummaries.filter((s) => s.pending_count > 0 && !assignedPdvIds.has(s.pdv_id)).length
+                : filteredVolumes.filter((v) => !consumedVolumeIds.has(v.id)).length}
             </p>
           </div>
         </div>
@@ -607,21 +687,32 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                 <Group orientation="horizontal" defaultLayout={innerLayout.defaultLayout} onLayoutChanged={innerLayout.onLayoutChanged}>
                   <Panel defaultSize={50} minSize={25}>
                     <div className="h-full overflow-y-auto">
-                      <VolumePanel
-                        volumes={filteredVolumes}
-                        pdvs={pdvs}
-
-                        consumedVolumeIds={consumedVolumeIds}
-                        onAddVolume={handleAddVolume}
-                        vehicleCapacity={capacityEqp}
-                        currentEqp={totalEqp}
-                        lastStopPdvId={lastStopPdvId}
-                        baseId={effectiveBaseId}
-                        distanceIndex={distanceIndex}
-                        pickupSummaries={pickupSummaries}
-                        tempFilters={tempFilters}
-                        onTempFiltersChange={setTempFilters}
-                      />
+                      {tourMode === 'pickup' ? (
+                        <PickupPanel
+                          pickupSummaries={pickupSummaries}
+                          pdvs={pdvs}
+                          assignedPdvIds={assignedPdvIds}
+                          onAddPdv={handleAddPickupPdv}
+                          lastStopPdvId={lastStopPdvId}
+                          baseId={effectiveBaseId}
+                          distanceIndex={distanceIndex}
+                        />
+                      ) : (
+                        <VolumePanel
+                          volumes={filteredVolumes}
+                          pdvs={pdvs}
+                          consumedVolumeIds={consumedVolumeIds}
+                          onAddVolume={handleAddVolume}
+                          vehicleCapacity={capacityEqp}
+                          currentEqp={totalEqp}
+                          lastStopPdvId={lastStopPdvId}
+                          baseId={effectiveBaseId}
+                          distanceIndex={distanceIndex}
+                          pickupSummaries={pickupSummaries}
+                          tempFilters={tempFilters}
+                          onTempFiltersChange={setTempFilters}
+                        />
+                      )}
                     </div>
                   </Panel>
 
@@ -641,9 +732,10 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                           totalCost={estimatedCost}
                           onRemoveStop={removeStop}
                           onReorderStops={reorderStops}
-                          onUpdateStop={updateStop}
+                          onUpdateStop={tourMode === 'pickup' ? undefined : updateStop}
                           temperatureType={selectedTemperatureType}
                           tourTemperatures={tourTemperatures}
+                          isPickupTour={tourMode === 'pickup'}
                         />
                       </div>
                       <TourValidation
@@ -654,6 +746,8 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                         onValidate={handleValidate}
                         onReset={handleReset}
                         temperatureType={selectedTemperatureType}
+                        isPickupTour={tourMode === 'pickup'}
+                        baseId={effectiveBaseId}
                       />
                       {saving && (
                         <p className="text-xs text-center" style={{ color: 'var(--color-primary)' }}>
@@ -709,30 +803,41 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                 <div className="flex flex-col h-full gap-2">
                   <div className="flex-1 min-h-0">
                     <Group orientation="horizontal" defaultLayout={innerLayout.defaultLayout} onLayoutChanged={innerLayout.onLayoutChanged}>
-                      {/* Volumes disponibles / Available volumes */}
+                      {/* Volumes disponibles ou PDVs reprise / Available volumes or pickup PDVs */}
                       <Panel defaultSize={50} minSize={25}>
                         <div className="h-full overflow-y-auto">
-                          <VolumePanel
-                            volumes={filteredVolumes}
-                            pdvs={pdvs}
-    
-                            consumedVolumeIds={consumedVolumeIds}
-                            onAddVolume={handleAddVolume}
-                            vehicleCapacity={capacityEqp}
-                            currentEqp={totalEqp}
-                            lastStopPdvId={lastStopPdvId}
-                            baseId={effectiveBaseId}
-                            distanceIndex={distanceIndex}
-                            pickupSummaries={pickupSummaries}
-                            tempFilters={tempFilters}
-                            onTempFiltersChange={setTempFilters}
-                          />
+                          {tourMode === 'pickup' ? (
+                            <PickupPanel
+                              pickupSummaries={pickupSummaries}
+                              pdvs={pdvs}
+                              assignedPdvIds={assignedPdvIds}
+                              onAddPdv={handleAddPickupPdv}
+                              lastStopPdvId={lastStopPdvId}
+                              baseId={effectiveBaseId}
+                              distanceIndex={distanceIndex}
+                            />
+                          ) : (
+                            <VolumePanel
+                              volumes={filteredVolumes}
+                              pdvs={pdvs}
+                              consumedVolumeIds={consumedVolumeIds}
+                              onAddVolume={handleAddVolume}
+                              vehicleCapacity={capacityEqp}
+                              currentEqp={totalEqp}
+                              lastStopPdvId={lastStopPdvId}
+                              baseId={effectiveBaseId}
+                              distanceIndex={distanceIndex}
+                              pickupSummaries={pickupSummaries}
+                              tempFilters={tempFilters}
+                              onTempFiltersChange={setTempFilters}
+                            />
+                          )}
                         </div>
                       </Panel>
 
                       <ResizeHandle id="handle-inner" />
 
-                      {/* Résumé + validation / Tour summary + validation */}
+                      {/* Resume + validation / Tour summary + validation */}
                       <Panel defaultSize={50} minSize={25}>
                         <div className="flex flex-col h-full gap-2 overflow-y-auto">
                           {vehicleBanner}
@@ -747,9 +852,10 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                               totalCost={estimatedCost}
                               onRemoveStop={removeStop}
                               onReorderStops={reorderStops}
-                              onUpdateStop={updateStop}
+                              onUpdateStop={tourMode === 'pickup' ? undefined : updateStop}
                               temperatureType={selectedTemperatureType}
                               tourTemperatures={tourTemperatures}
+                              isPickupTour={tourMode === 'pickup'}
                             />
                           </div>
                           <TourValidation
@@ -760,6 +866,8 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                             onValidate={handleValidate}
                             onReset={handleReset}
                             temperatureType={selectedTemperatureType}
+                            isPickupTour={tourMode === 'pickup'}
+                            baseId={effectiveBaseId}
                           />
                           {saving && (
                             <p className="text-xs text-center" style={{ color: 'var(--color-primary)' }}>
@@ -789,20 +897,32 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
               height="400px"
             />
           </div>
-          <VolumePanel
-            volumes={filteredVolumes}
-            pdvs={pdvs}
-            consumedVolumeIds={consumedVolumeIds}
-            onAddVolume={handleAddVolume}
-            vehicleCapacity={capacityEqp}
-            currentEqp={totalEqp}
-            lastStopPdvId={lastStopPdvId}
-            baseId={effectiveBaseId}
-            distanceIndex={distanceIndex}
-            pickupSummaries={pickupSummaries}
-            tempFilters={tempFilters}
-            onTempFiltersChange={setTempFilters}
-          />
+          {tourMode === 'pickup' ? (
+            <PickupPanel
+              pickupSummaries={pickupSummaries}
+              pdvs={pdvs}
+              assignedPdvIds={assignedPdvIds}
+              onAddPdv={handleAddPickupPdv}
+              lastStopPdvId={lastStopPdvId}
+              baseId={effectiveBaseId}
+              distanceIndex={distanceIndex}
+            />
+          ) : (
+            <VolumePanel
+              volumes={filteredVolumes}
+              pdvs={pdvs}
+              consumedVolumeIds={consumedVolumeIds}
+              onAddVolume={handleAddVolume}
+              vehicleCapacity={capacityEqp}
+              currentEqp={totalEqp}
+              lastStopPdvId={lastStopPdvId}
+              baseId={effectiveBaseId}
+              distanceIndex={distanceIndex}
+              pickupSummaries={pickupSummaries}
+              tempFilters={tempFilters}
+              onTempFiltersChange={setTempFilters}
+            />
+          )}
           {vehicleBanner}
           <TourSummary
             stops={currentStops}
@@ -814,9 +934,10 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
             totalCost={estimatedCost}
             onRemoveStop={removeStop}
             onReorderStops={reorderStops}
-            onUpdateStop={updateStop}
+            onUpdateStop={tourMode === 'pickup' ? undefined : updateStop}
             temperatureType={selectedTemperatureType}
             tourTemperatures={tourTemperatures}
+            isPickupTour={tourMode === 'pickup'}
           />
           <TourValidation
             stops={currentStops}
@@ -826,6 +947,8 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
             onValidate={handleValidate}
             onReset={handleReset}
             temperatureType={selectedTemperatureType}
+            isPickupTour={tourMode === 'pickup'}
+            baseId={effectiveBaseId}
           />
           {saving && (
             <p className="text-xs text-center" style={{ color: 'var(--color-primary)' }}>

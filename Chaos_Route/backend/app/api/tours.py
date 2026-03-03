@@ -1219,6 +1219,7 @@ async def create_tour(
         status=data.status,
         base_id=data.base_id,
         temperature_type=data.temperature_type,
+        is_pickup_tour=data.is_pickup_tour,
     )
     db.add(tour)
     await db.flush()
