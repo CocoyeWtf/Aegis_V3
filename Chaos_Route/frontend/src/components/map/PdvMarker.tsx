@@ -164,7 +164,7 @@ export function PdvMarker({ pdv, onClick, selected, volumeStatus = 'none', picku
   const icon = useMemo(() => {
     const s = zoomScale(zoomLevel)
     /* Mode label / Label mode */
-    if (showLabel && eqpCount != null && eqpCount > 0 && volumeStatus !== 'none') {
+    if (showLabel && eqpCount != null && eqpCount > 0 && volumeStatus === 'unassigned') {
       /* Multi-température : en-tête PDV + carrés colorés / Multi-temp: PDV header + colored squares */
       if (tempKeys.length > 1 && eqpByTemp) {
         return makeMultiTempLabelIcon(pdv.code, eqpByTemp, hasPickup, s)
