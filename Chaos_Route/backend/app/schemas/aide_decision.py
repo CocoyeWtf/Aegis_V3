@@ -34,7 +34,7 @@ class SuggestedStop(BaseModel):
     pdv_code: str
     pdv_name: str
     pdv_city: str | None = None
-    eqp_count: int
+    eqp_count: float
     weight_kg: float
     nb_colis: int
     has_sas: bool
@@ -67,7 +67,7 @@ class SuggestedTour(BaseModel):
     tour_number: int
     contract: SuggestedContract | None = None
     stops: list[SuggestedStop] = []
-    total_eqp: int
+    total_eqp: float
     total_weight_kg: float
     total_km: float
     total_cost: float
@@ -83,14 +83,14 @@ class UnassignedPDV(BaseModel):
     pdv_code: str
     pdv_name: str
     pdv_city: str | None = None
-    eqp_count: int
+    eqp_count: float
     reason: str
 
 
 class AideDecisionSummary(BaseModel):
     """Résumé global / Global summary."""
     total_tours: int
-    total_eqp: int
+    total_eqp: float
     total_weight_kg: float
     total_km: float
     total_cost: float

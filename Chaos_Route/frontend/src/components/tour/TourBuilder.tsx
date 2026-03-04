@@ -1063,15 +1063,16 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
               </label>
               <input
                 type="number"
-                min={1}
+                min={0.01}
                 max={splitDialog.maxEqp}
+                step={0.01}
                 value={splitEqp}
-                onChange={(e) => setSplitEqp(Math.min(Math.max(1, Number(e.target.value)), splitDialog.maxEqp))}
+                onChange={(e) => setSplitEqp(Math.min(Math.max(0.01, Number(e.target.value)), splitDialog.maxEqp))}
                 className="rounded-lg border px-3 py-2 text-sm w-full"
                 style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               />
               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                → {splitDialog.volume.eqp_count - splitEqp} EQC {t('tourPlanning.splitRemainder')}
+                → {Math.round((splitDialog.volume.eqp_count - splitEqp) * 100) / 100} EQC {t('tourPlanning.splitRemainder')}
               </span>
             </div>
 

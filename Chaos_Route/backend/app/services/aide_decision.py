@@ -981,7 +981,7 @@ class AideDecisionService:
         agg: dict = {}
         for row in rows:
             agg[row.pdv_id] = {
-                "eqp_count": int(row.eqp_count or 0),
+                "eqp_count": float(row.eqp_count or 0),
                 "weight_kg": float(row.weight_kg or 0),
                 "nb_colis": int(row.nb_colis or 0),
             }

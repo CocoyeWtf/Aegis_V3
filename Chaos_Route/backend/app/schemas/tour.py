@@ -9,7 +9,7 @@ from app.models.tour import TourStatus
 class TourStopBase(BaseModel):
     pdv_id: int
     sequence_order: int
-    eqp_count: int
+    eqp_count: float
     arrival_time: str | None = None
     departure_time: str | None = None
     distance_from_previous_km: float | None = None

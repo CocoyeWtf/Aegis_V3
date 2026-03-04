@@ -153,7 +153,7 @@ class DriverTourStopRead(BaseModel):
     """Vue stop pour le chauffeur / Driver stop view."""
     id: int
     sequence_order: int
-    eqp_count: int
+    eqp_count: float
     pdv_code: str | None = None
     pdv_name: str | None = None
     pdv_address: str | None = None

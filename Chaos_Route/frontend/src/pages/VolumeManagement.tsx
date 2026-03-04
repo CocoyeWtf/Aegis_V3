@@ -68,7 +68,7 @@ export default function VolumeManagement() {
       key: 'pdv_id', label: t('volumes.pdv'), type: 'select', required: true,
       options: pdvs.map((p) => ({ value: String(p.id), label: `${p.code} — ${p.name}` })),
     },
-    { key: 'eqp_count', label: t('volumes.eqpCount'), type: 'number', required: true, min: 1 },
+    { key: 'eqp_count', label: t('volumes.eqpCount'), type: 'number', required: true, min: 0.01, step: 0.01 },
     { key: 'weight_kg', label: t('volumes.weightKg'), type: 'number', step: 0.01 },
     { key: 'temperature_class', label: t('volumes.temperatureClass'), type: 'select', required: true, options: tempClassOptions },
     {

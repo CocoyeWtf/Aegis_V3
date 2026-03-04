@@ -93,7 +93,7 @@ def _coerce_value(val, field_name: str):
         return s.lower() in ("true", "1", "yes", "oui", "vrai")
 
     int_fields = {"country_id", "region_id", "pdv_id", "base_origin_id", "contract_id",
-                  "capacity_eqp", "capacity_weight_kg", "eqp_count", "nb_colis", "nb_supports",
+                  "capacity_eqp", "capacity_weight_kg", "nb_colis", "nb_supports",
                   "dock_time_minutes", "unload_time_per_eqp_minutes",
                   "sas_sec_capacity_eqc", "sas_frais_capacity_eqc", "sas_gel_capacity_eqc",
                   "origin_id", "destination_id",
@@ -107,7 +107,8 @@ def _coerce_value(val, field_name: str):
     float_fields = {"latitude", "longitude", "fixed_cost", "cost_per_km", "cost_per_hour",
                     "fixed_daily_cost", "min_hours_per_day", "min_km_per_day", "consumption_coefficient",
                     "weight_kg", "volume_m3", "distance_km", "total_km", "total_cost", "tax_per_km",
-                    "sas_sec_surface_m2", "sas_frais_surface_m2", "sas_gel_surface_m2"}
+                    "sas_sec_surface_m2", "sas_frais_surface_m2", "sas_gel_surface_m2",
+                    "eqp_count"}
     if field_name in float_fields:
         try:
             return float(s.replace(",", "."))
@@ -559,7 +560,7 @@ async def import_manifest(
                     sa_update(TourStop).where(
                         TourStop.tour_id == tour_id,
                         TourStop.pdv_id.in_(pdv_ids),
-                    ).values(eqp_count=int(round(float(eqc_total))))
+                    ).values(eqp_count=round(float(eqc_total), 2))
                 )
 
         await db.flush()

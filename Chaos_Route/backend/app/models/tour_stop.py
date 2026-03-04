@@ -13,7 +13,7 @@ class TourStop(Base):
     tour_id: Mapped[int] = mapped_column(ForeignKey("tours.id"), nullable=False)
     pdv_id: Mapped[int] = mapped_column(ForeignKey("pdvs.id"), nullable=False)
     sequence_order: Mapped[int] = mapped_column(Integer, nullable=False)
-    eqp_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    eqp_count: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     arrival_time: Mapped[str | None] = mapped_column(String(5))  # HH:MM
     departure_time: Mapped[str | None] = mapped_column(String(5))  # HH:MM
     distance_from_previous_km: Mapped[float | None] = mapped_column(Numeric(10, 2))

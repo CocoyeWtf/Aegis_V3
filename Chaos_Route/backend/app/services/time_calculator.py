@@ -17,7 +17,7 @@ class TimeCalculatorService:
     @staticmethod
     def calculate_stop_duration(
         dock_time_minutes: int,
-        eqp_count: int,
+        eqp_count: float,
         unload_time_per_eqp_minutes: int,
     ) -> int:
         """

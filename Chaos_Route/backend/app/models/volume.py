@@ -22,7 +22,7 @@ class Volume(Base):
     pdv_id: Mapped[int] = mapped_column(ForeignKey("pdvs.id"), nullable=False)
     date: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD
     nb_colis: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    eqp_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    eqp_count: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     weight_kg: Mapped[float | None] = mapped_column(Numeric(10, 2))
     temperature_class: Mapped[TemperatureClass] = mapped_column(Enum(TemperatureClass), nullable=False)
     base_origin_id: Mapped[int] = mapped_column(ForeignKey("bases_logistics.id"), nullable=False)

@@ -207,7 +207,7 @@ class ImportService:
                 "nb_colis": int(data["nb_colis"]),
                 "weight_kg": round(data["weight_kg"], 2),
                 "volume_m3": round(data["volume_m3"], 4),
-                "eqp_count": math.ceil(data["_eqc"]),
+                "eqp_count": round(data["_eqc"], 2),
                 "nb_supports": int(data["nb_supports"]),
             })
         return result

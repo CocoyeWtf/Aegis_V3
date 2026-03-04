@@ -9,7 +9,7 @@ class VolumeBase(BaseModel):
     pdv_id: int
     date: str
     nb_colis: int | None = None
-    eqp_count: int
+    eqp_count: float
     weight_kg: float | None = None
     temperature_class: TemperatureClass
     base_origin_id: int
@@ -31,7 +31,7 @@ class VolumeUpdate(BaseModel):
     pdv_id: int | None = None
     date: str | None = None
     nb_colis: int | None = None
-    eqp_count: int | None = None
+    eqp_count: float | None = None
     weight_kg: float | None = None
     temperature_class: TemperatureClass | None = None
     base_origin_id: int | None = None
@@ -54,4 +54,4 @@ class VolumeRead(VolumeBase):
 
 class VolumeSplit(BaseModel):
     """Quantité EQP à garder dans ce volume / EQP count to keep in this volume."""
-    eqp_count: int
+    eqp_count: float
