@@ -52,6 +52,19 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   const [saving, setSaving] = useState(false)
   const [splitDialog, setSplitDialog] = useState<{ volume: Volume; maxEqp: number; existingStop?: boolean } | null>(null)
   const [splitEqp, setSplitEqp] = useState(0)
+  /* Sélecteur de magasin à couper / Stop picker for split target */
+  interface SplitCandidate {
+    pdvId: number
+    label: string
+    eqpCount: number
+    maxKeep: number
+    volume: Volume
+    isExisting: boolean
+  }
+  const [splitPickerDialog, setSplitPickerDialog] = useState<{
+    candidates: SplitCandidate[]
+    newVolume?: Volume
+  } | null>(null)
   const [mapResizeSignal, setMapResizeSignal] = useState(0)
   const handlePanelLayout = useCallback(() => setMapResizeSignal((n) => n + 1), [])
 
@@ -296,21 +309,32 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
       setSelectedTemperatureType(suggestedTemperature)
     }
 
-    /* Détecter dépassement capacité sur les stops existants → proposer split /
-       Detect capacity overage on existing stops → offer split */
+    /* Détecter dépassement capacité sur les stops existants → proposer choix du magasin à couper /
+       Detect capacity overage on existing stops → let user choose which stop to split */
     if (totalEqp > defaultCapacity) {
-      const otherStopsEqp = (pid: number) => currentStops.reduce((s, st) => s + (st.pdv_id === pid ? 0 : st.eqp_count), 0)
-      const sorted = [...currentStops].sort((a, b) => b.eqp_count - a.eqp_count)
-      for (const stop of sorted) {
-        const maxKeep = defaultCapacity - otherStopsEqp(stop.pdv_id)
-        if (maxKeep > 0 && stop.eqp_count > maxKeep) {
-          const vol = allVolumes.find(v => v.pdv_id === stop.pdv_id && v.dispatch_date === selectedDate && !v.tour_id)
-          if (vol) {
-            setSplitDialog({ volume: vol, maxEqp: maxKeep, existingStop: true })
-            setSplitEqp(maxKeep)
-            break
-          }
+      const overflow = totalEqp - defaultCapacity
+      const candidates: SplitCandidate[] = []
+      for (const stop of currentStops) {
+        if (stop.eqp_count <= overflow) continue
+        const vol = allVolumes.find(v => v.pdv_id === stop.pdv_id && v.dispatch_date === selectedDate && !v.tour_id && v.eqp_count === stop.eqp_count)
+          || allVolumes.find(v => v.pdv_id === stop.pdv_id && v.dispatch_date === selectedDate && !v.tour_id)
+        if (vol) {
+          const pdv = pdvMap.get(stop.pdv_id)
+          candidates.push({
+            pdvId: stop.pdv_id,
+            label: pdv ? `${pdv.code} — ${pdv.name}` : `PDV #${stop.pdv_id}`,
+            eqpCount: stop.eqp_count,
+            maxKeep: stop.eqp_count - overflow,
+            volume: vol,
+            isExisting: true,
+          })
         }
+      }
+      if (candidates.length === 1) {
+        setSplitDialog({ volume: candidates[0].volume, maxEqp: candidates[0].maxKeep, existingStop: true })
+        setSplitEqp(candidates[0].maxKeep)
+      } else if (candidates.length > 1) {
+        setSplitPickerDialog({ candidates })
       }
     }
   }
@@ -359,8 +383,47 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         ...getPickupFlags(vol.pdv_id),
       })
     } else {
-      setSplitDialog({ volume: vol, maxEqp: remaining })
-      setSplitEqp(remaining)
+      /* Overflow : laisser l'utilisateur choisir quel magasin couper /
+         Overflow: let user choose which stop to split */
+      const overflow = vol.eqp_count - remaining
+      const candidates: SplitCandidate[] = []
+
+      /* Stops existants dont on peut réduire le volume / Existing stops that can be reduced */
+      for (const stop of currentStops) {
+        if (stop.eqp_count <= overflow) continue
+        const matchVol = allVolumes.find(v => v.pdv_id === stop.pdv_id && v.dispatch_date === selectedDate && !v.tour_id && v.eqp_count === stop.eqp_count)
+          || allVolumes.find(v => v.pdv_id === stop.pdv_id && v.dispatch_date === selectedDate && !v.tour_id)
+        if (matchVol) {
+          const pdv = pdvMap.get(stop.pdv_id)
+          candidates.push({
+            pdvId: stop.pdv_id,
+            label: pdv ? `${pdv.code} — ${pdv.name}` : `PDV #${stop.pdv_id}`,
+            eqpCount: stop.eqp_count,
+            maxKeep: stop.eqp_count - overflow,
+            volume: matchVol,
+            isExisting: true,
+          })
+        }
+      }
+
+      /* Le nouveau volume lui-même / The new volume itself */
+      const newPdv = pdvMap.get(vol.pdv_id)
+      candidates.push({
+        pdvId: vol.pdv_id,
+        label: newPdv ? `${newPdv.code} — ${newPdv.name}` : `PDV #${vol.pdv_id}`,
+        eqpCount: vol.eqp_count,
+        maxKeep: remaining,
+        volume: vol,
+        isExisting: false,
+      })
+
+      /* Si un seul candidat (le nouveau), ouvrir directement le split dialog / If only one candidate, go straight to split */
+      if (candidates.length === 1) {
+        setSplitDialog({ volume: vol, maxEqp: remaining })
+        setSplitEqp(remaining)
+      } else {
+        setSplitPickerDialog({ candidates, newVolume: vol })
+      }
     }
   }
 
@@ -410,6 +473,26 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
       console.error('Failed to split volume', e)
     }
     setSplitDialog(null)
+  }
+
+  /* Utilisateur choisit quel magasin couper / User picks which stop to split */
+  const handlePickSplitTarget = (candidate: SplitCandidate) => {
+    if (candidate.isExisting && splitPickerDialog?.newVolume) {
+      /* Couper un stop existant → ajouter le nouveau volume en entier d'abord /
+         Split existing stop → add new volume fully first */
+      const newVol = splitPickerDialog.newVolume
+      addStop({
+        id: 0,
+        tour_id: 0,
+        pdv_id: newVol.pdv_id,
+        sequence_order: currentStops.length + 1,
+        eqp_count: newVol.eqp_count,
+        ...getPickupFlags(newVol.pdv_id),
+      })
+    }
+    setSplitDialog({ volume: candidate.volume, maxEqp: candidate.maxKeep, existingStop: candidate.isExisting })
+    setSplitEqp(candidate.maxKeep)
+    setSplitPickerDialog(null)
   }
 
   /* Ajouter un PDV en mode reprise / Add a PDV in pickup mode */
@@ -1008,6 +1091,51 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                 {t('common.cancel')}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog choix du magasin à couper / Split target picker dialog */}
+      {splitPickerDialog && (
+        <div className="fixed inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999 }}>
+          <div
+            className="rounded-xl border shadow-2xl p-6 w-[420px] space-y-4"
+            style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
+          >
+            <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+              Quel magasin couper ?
+            </h3>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              La capacité du camion est dépassée. Choisissez le magasin dont vous souhaitez réduire le volume.
+            </p>
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {splitPickerDialog.candidates.map((c, i) => (
+                <button
+                  key={`${c.pdvId}-${c.isExisting}-${i}`}
+                  onClick={() => handlePickSplitTarget(c)}
+                  className="w-full text-left rounded-lg border p-3 text-xs transition-all hover:brightness-110"
+                  style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-primary)' }}
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+                      {c.label}
+                      {!c.isExisting && <span className="ml-1.5 text-[10px] font-normal" style={{ color: 'var(--color-primary)' }}>(nouveau)</span>}
+                    </span>
+                    <span className="font-bold" style={{ color: 'var(--text-primary)' }}>{c.eqpCount} EQC</span>
+                  </div>
+                  <div className="mt-1" style={{ color: 'var(--text-muted)' }}>
+                    Garder max {c.maxKeep} EQC — renvoyer {c.eqpCount - c.maxKeep} en disponible
+                  </div>
+                </button>
+              ))}
+            </div>
+            <button
+              className="w-full px-4 py-2 rounded-lg text-sm border transition-all hover:opacity-80"
+              style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}
+              onClick={() => setSplitPickerDialog(null)}
+            >
+              {t('common.cancel')}
+            </button>
           </div>
         </div>
       )}
