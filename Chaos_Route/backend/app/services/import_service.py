@@ -9,6 +9,7 @@ import math
 from collections import defaultdict
 from typing import Any
 
+import xlrd
 from openpyxl import load_workbook
 
 
@@ -29,7 +30,10 @@ class ImportService:
 
     @staticmethod
     def parse_excel(content: bytes) -> list[dict[str, Any]]:
-        """Parser un fichier Excel / Parse an Excel file."""
+        """Parser un fichier Excel (.xlsx ou .xls) / Parse an Excel file (.xlsx or .xls)."""
+        if ImportService._is_xls(content):
+            return ImportService._parse_excel_xls(content)
+
         wb = load_workbook(filename=io.BytesIO(content), read_only=True)
         ws = wb.active
         if ws is None:
@@ -66,17 +70,57 @@ class ImportService:
         return result
 
     @staticmethod
+    def _parse_excel_xls(content: bytes) -> list[dict[str, Any]]:
+        """Parser un fichier .xls via xlrd / Parse a .xls file via xlrd."""
+        wb = xlrd.open_workbook(file_contents=content)
+        ws = wb.sheet_by_index(0)
+        if ws.nrows < 2:
+            return []
+
+        _COL_ALIASES = {
+            "distance": "distance_km",
+        }
+        clean_headers = []
+        for c in range(ws.ncols):
+            h = ws.cell_value(0, c)
+            if h:
+                key = str(h).strip().lower().replace(" ", "_")
+                key = _COL_ALIASES.get(key, key)
+            else:
+                key = f"col_{c}"
+            clean_headers.append(key)
+
+        result = []
+        for r in range(1, ws.nrows):
+            record = {}
+            for c in range(ws.ncols):
+                key = clean_headers[c] if c < len(clean_headers) else f"col_{c}"
+                record[key] = ws.cell_value(r, c)
+            if any(v is not None and v != "" for v in record.values()):
+                result.append(record)
+
+        return result
+
+    @staticmethod
+    def _is_xls(content: bytes) -> bool:
+        """Détecter le format .xls (BIFF) vs .xlsx (ZIP) / Detect .xls vs .xlsx format."""
+        # Les fichiers .xls commencent par la signature OLE2 (D0 CF 11 E0)
+        # Les fichiers .xlsx commencent par PK (50 4B) — c'est un ZIP
+        return content[:4] == b"\xd0\xcf\x11\xe0" or not content[:2] == b"PK"
+
+    @staticmethod
     def is_superlog(content: bytes) -> bool:
         """Détecter le format SUPERLOG / Detect SUPERLOG format.
         Critères : cellule A1 contient "Attendre" OU ligne 5 contient "Lieu final de livraison".
         """
         try:
+            if ImportService._is_xls(content):
+                return ImportService._is_superlog_xls(content)
             wb = load_workbook(filename=io.BytesIO(content), read_only=True)
             ws = wb["in"] if "in" in wb.sheetnames else wb.active
             if ws is None:
                 wb.close()
                 return False
-            # Vérifier A1 / Check A1
             a1 = None
             row5_vals = []
             for i, row in enumerate(ws.iter_rows(max_row=5, values_only=True), 1):
@@ -95,46 +139,42 @@ class ImportService:
         return False
 
     @staticmethod
-    def parse_superlog_excel(content: bytes) -> list[dict[str, Any]]:
-        """Parser un fichier SUPERLOG et agréger par PDV / Parse SUPERLOG file and aggregate by PDV.
-        Headers en ligne 5, données ligne 6+. Agrège par pdv_id : sum(colis, weight, volume_m3, EQP), count(supports).
-        """
-        wb = load_workbook(filename=io.BytesIO(content), read_only=True)
-        ws = wb["in"] if "in" in wb.sheetnames else wb.active
-        if ws is None:
-            wb.close()
-            return []
+    def _is_superlog_xls(content: bytes) -> bool:
+        """Détecter SUPERLOG dans un .xls / Detect SUPERLOG in .xls file."""
+        try:
+            wb = xlrd.open_workbook(file_contents=content)
+            ws = wb.sheet_by_name("in") if "in" in wb.sheet_names() else wb.sheet_by_index(0)
+            a1 = ws.cell_value(0, 0) if ws.nrows > 0 else None
+            if a1 and "attendre" in str(a1).lower():
+                return True
+            if ws.nrows >= 5:
+                for c in range(ws.ncols):
+                    v = ws.cell_value(4, c)
+                    if v and "lieu final" in str(v).lower():
+                        return True
+        except Exception:
+            pass
+        return False
 
-        # Mapping colonnes SUPERLOG → noms internes / SUPERLOG column mapping
-        col_map = {
-            "lieu final de livraison": "pdv_id",
-            "colis": "nb_colis",
-            "poids brut (kg)": "weight_kg",
-            "volume (m3)": "volume_m3",
-            "eqc": "_eqc",
-            "eqp": "_eqp",
-        }
+    # Mapping colonnes SUPERLOG → noms internes / SUPERLOG column mapping
+    _SUPERLOG_COL_MAP = {
+        "lieu final de livraison": "pdv_id",
+        "colis": "nb_colis",
+        "poids brut (kg)": "weight_kg",
+        "volume (m3)": "volume_m3",
+        "eqc": "_eqc",
+        "eqp": "_eqp",
+    }
 
-        # Lire headers ligne 5 / Read headers at row 5
-        headers: list[str | None] = []
-        for i, row in enumerate(ws.iter_rows(max_row=5, values_only=True), 1):
-            if i == 5:
-                for h in row:
-                    if h:
-                        key = str(h).strip().lower()
-                        headers.append(col_map.get(key))
-                    else:
-                        headers.append(None)
-
-        # Agréger par PDV / Aggregate by PDV
-        # Référence = EQC (espace physique). Somme EQC par PDV puis ceil.
-        # Reference = EQC (physical space). Sum EQC per PDV then ceil.
+    @staticmethod
+    def _aggregate_superlog(headers: list[str | None], rows: list[list]) -> list[dict[str, Any]]:
+        """Agréger des lignes SUPERLOG par PDV / Aggregate SUPERLOG rows by PDV."""
         agg: dict[str, dict[str, float]] = defaultdict(lambda: {
             "nb_colis": 0.0, "weight_kg": 0.0, "volume_m3": 0.0,
             "_eqc": 0.0, "nb_supports": 0,
         })
 
-        for i, row in enumerate(ws.iter_rows(min_row=6, values_only=True), 6):
+        for row in rows:
             pdv_code = None
             row_data: dict[str, float] = {}
             for col_idx, val in enumerate(row):
@@ -160,9 +200,6 @@ class ImportService:
             bucket["_eqc"] += row_data.get("_eqc", 0.0)
             bucket["nb_supports"] += 1
 
-        wb.close()
-
-        # Construire la liste résultat / Build result list
         result: list[dict[str, Any]] = []
         for pdv_code, data in agg.items():
             result.append({
@@ -173,8 +210,67 @@ class ImportService:
                 "eqp_count": math.ceil(data["_eqc"]),
                 "nb_supports": int(data["nb_supports"]),
             })
-
         return result
+
+    @staticmethod
+    def parse_superlog_excel(content: bytes) -> list[dict[str, Any]]:
+        """Parser un fichier SUPERLOG et agréger par PDV / Parse SUPERLOG file and aggregate by PDV.
+        Headers en ligne 5, données ligne 6+. Agrège par pdv_id : sum(colis, weight, volume_m3, EQP), count(supports).
+        Supporte .xlsx (openpyxl) et .xls (xlrd).
+        """
+        if ImportService._is_xls(content):
+            return ImportService._parse_superlog_xls(content)
+
+        wb = load_workbook(filename=io.BytesIO(content), read_only=True)
+        ws = wb["in"] if "in" in wb.sheetnames else wb.active
+        if ws is None:
+            wb.close()
+            return []
+
+        col_map = ImportService._SUPERLOG_COL_MAP
+
+        # Lire headers ligne 5 / Read headers at row 5
+        headers: list[str | None] = []
+        for i, row in enumerate(ws.iter_rows(max_row=5, values_only=True), 1):
+            if i == 5:
+                for h in row:
+                    if h:
+                        key = str(h).strip().lower()
+                        headers.append(col_map.get(key))
+                    else:
+                        headers.append(None)
+
+        # Lire toutes les lignes de données / Read all data rows
+        data_rows = [list(row) for row in ws.iter_rows(min_row=6, values_only=True)]
+        wb.close()
+
+        return ImportService._aggregate_superlog(headers, data_rows)
+
+    @staticmethod
+    def _parse_superlog_xls(content: bytes) -> list[dict[str, Any]]:
+        """Parser un fichier SUPERLOG .xls via xlrd / Parse SUPERLOG .xls file via xlrd."""
+        wb = xlrd.open_workbook(file_contents=content)
+        ws = wb.sheet_by_name("in") if "in" in wb.sheet_names() else wb.sheet_by_index(0)
+
+        col_map = ImportService._SUPERLOG_COL_MAP
+
+        # Headers ligne 5 (index 4) / Headers at row 5 (index 4)
+        headers: list[str | None] = []
+        if ws.nrows >= 5:
+            for c in range(ws.ncols):
+                h = ws.cell_value(4, c)
+                if h:
+                    key = str(h).strip().lower()
+                    headers.append(col_map.get(key))
+                else:
+                    headers.append(None)
+
+        # Données ligne 6+ (index 5+) / Data from row 6+ (index 5+)
+        data_rows = []
+        for r in range(5, ws.nrows):
+            data_rows.append([ws.cell_value(r, c) for c in range(ws.ncols)])
+
+        return ImportService._aggregate_superlog(headers, data_rows)
 
     @staticmethod
     def parse_file(content: bytes, filename: str) -> list[dict[str, Any]]:
