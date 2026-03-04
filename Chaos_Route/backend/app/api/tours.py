@@ -502,11 +502,11 @@ async def available_contracts_for_tours(
 # Mapping type de tour → fleet_vehicle_type(s) attendu(s)
 # Tour vehicle_type → expected fleet_vehicle_type(s) for own vehicles
 VEHICLE_TYPE_TO_FLEET: dict[str, list[str]] = {
-    "SEMI": ["SEMI_REMORQUE"],
+    "SEMI": ["SEMI_REMORQUE", "SEMI"],
     "PORTEUR": ["PORTEUR", "PORTEUR_SURBAISSE"],
     "PORTEUR_SURBAISSE": ["PORTEUR_SURBAISSE"],
-    "PORTEUR_REMORQUE": ["PORTEUR", "PORTEUR_SURBAISSE"],
-    "CITY": ["PORTEUR", "PORTEUR_SURBAISSE", "VL"],
+    "PORTEUR_REMORQUE": ["PORTEUR", "PORTEUR_SURBAISSE", "PORTEUR_REMORQUE", "REMORQUE"],
+    "CITY": ["PORTEUR", "PORTEUR_SURBAISSE", "VL", "CITY"],
     "VL": ["VL"],
 }
 
@@ -533,11 +533,12 @@ async def available_vehicles_for_tours(
     user_region_ids = get_user_region_ids(user)
     region_ids = user_region_ids if user_region_ids is not None else [base.region_id]
 
-    # Charger tous les véhicules ACTIVE de la région / Load all ACTIVE vehicles in region
+    # Charger tous les véhicules ACTIVE de la région (ou sans région = dispo partout)
+    # Load all ACTIVE vehicles in region (or without region = available everywhere)
     vehicles_result = await db.execute(
         select(Vehicle).where(
             Vehicle.status == VehicleStatus.ACTIVE,
-            Vehicle.region_id.in_(region_ids),
+            (Vehicle.region_id.in_(region_ids)) | (Vehicle.region_id.is_(None)),
         )
     )
     all_vehicles = list(vehicles_result.scalars().all())
