@@ -65,6 +65,8 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     candidates: SplitCandidate[]
     newVolume?: Volume
   } | null>(null)
+  /* Dialog confirmation surbooking / Overbooking confirmation dialog */
+  const [overbookingDialog, setOverbookingDialog] = useState<{ volume: Volume; overPct: number } | null>(null)
   const [mapResizeSignal, setMapResizeSignal] = useState(0)
   const handlePanelLayout = useCallback(() => setMapResizeSignal((n) => n + 1), [])
 
@@ -292,6 +294,10 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   }, [totalKm, avgCostPerKm, avgFixedCost])
 
   const remaining = selectedVehicleType ? (capacityEqp - totalEqp) : Infinity
+  /* Surbooking 15% — capacité étendue / 15% overbooking — extended capacity */
+  const OVERBOOKING_PCT = 0.15
+  const maxCapacityWithOverbooking = capacityEqp * (1 + OVERBOOKING_PCT)
+  const remaining115 = selectedVehicleType ? (maxCapacityWithOverbooking - totalEqp) : Infinity
 
   /* Nom de la base auto-détectée / Auto-detected base name */
   const autoBaseName = useMemo(() => {
@@ -309,10 +315,11 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
       setSelectedTemperatureType(suggestedTemperature)
     }
 
-    /* Détecter dépassement capacité sur les stops existants → proposer choix du magasin à couper /
-       Detect capacity overage on existing stops → let user choose which stop to split */
-    if (totalEqp > defaultCapacity) {
-      const overflow = totalEqp - defaultCapacity
+    /* Détecter dépassement > 115% sur les stops existants → proposer split /
+       Detect overage > 115% on existing stops → offer split (100-115% = surbooking OK) */
+    const maxWithOverbooking = defaultCapacity * (1 + OVERBOOKING_PCT)
+    if (totalEqp > maxWithOverbooking) {
+      const overflow = totalEqp - maxWithOverbooking
       const candidates: SplitCandidate[] = []
       for (const stop of currentStops) {
         if (stop.eqp_count <= overflow) continue
@@ -371,9 +378,10 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
       }
     }
 
-    if (remaining <= 0) return
+    if (remaining115 <= 0) return
 
     if (vol.eqp_count <= remaining) {
+      /* Dans la capacité normale → ajout direct / Within normal capacity → add directly */
       addStop({
         id: 0,
         tour_id: 0,
@@ -382,10 +390,14 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         eqp_count: vol.eqp_count,
         ...getPickupFlags(vol.pdv_id),
       })
+    } else if (vol.eqp_count <= remaining115) {
+      /* Surbooking ≤ 15% → confirmation avant ajout / Overbooking ≤ 15% → confirm before adding */
+      const newTotal = totalEqp + vol.eqp_count
+      const overPct = Math.round(((newTotal - capacityEqp) / capacityEqp) * 100)
+      setOverbookingDialog({ volume: vol, overPct })
     } else {
-      /* Overflow : laisser l'utilisateur choisir quel magasin couper /
-         Overflow: let user choose which stop to split */
-      const overflow = vol.eqp_count - remaining
+      /* Au-delà de 115% → proposer de couper / Beyond 115% → offer split */
+      const overflow = vol.eqp_count - remaining115
       const candidates: SplitCandidate[] = []
 
       /* Stops existants dont on peut réduire le volume / Existing stops that can be reduced */
@@ -412,15 +424,14 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         pdvId: vol.pdv_id,
         label: newPdv ? `${newPdv.code} — ${newPdv.name}` : `PDV #${vol.pdv_id}`,
         eqpCount: vol.eqp_count,
-        maxKeep: remaining,
+        maxKeep: Math.max(remaining115, 0),
         volume: vol,
         isExisting: false,
       })
 
-      /* Si un seul candidat (le nouveau), ouvrir directement le split dialog / If only one candidate, go straight to split */
       if (candidates.length === 1) {
-        setSplitDialog({ volume: vol, maxEqp: remaining })
-        setSplitEqp(remaining)
+        setSplitDialog({ volume: vol, maxEqp: Math.max(remaining115, 0) })
+        setSplitEqp(Math.max(remaining115, 0))
       } else {
         setSplitPickerDialog({ candidates, newVolume: vol })
       }
@@ -434,8 +445,8 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     const vol = tempUpgradeDialog.volume
     setTempUpgradeDialog(null)
     /* Re-add le volume maintenant compatible / Re-add the now-compatible volume */
-    if (remaining <= 0 && selectedVehicleType) return
-    if (!selectedVehicleType || vol.eqp_count <= remaining) {
+    if (remaining115 <= 0 && selectedVehicleType) return
+    if (!selectedVehicleType || vol.eqp_count <= remaining115) {
       addStop({
         id: 0,
         tour_id: 0,
@@ -445,8 +456,8 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         ...getPickupFlags(vol.pdv_id),
       })
     } else {
-      setSplitDialog({ volume: vol, maxEqp: remaining })
-      setSplitEqp(remaining)
+      setSplitDialog({ volume: vol, maxEqp: Math.max(remaining115, 0) })
+      setSplitEqp(Math.max(remaining115, 0))
     }
   }
 
@@ -493,6 +504,21 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     setSplitDialog({ volume: candidate.volume, maxEqp: candidate.maxKeep, existingStop: candidate.isExisting })
     setSplitEqp(candidate.maxKeep)
     setSplitPickerDialog(null)
+  }
+
+  /* Confirmer surbooking / Confirm overbooking */
+  const handleConfirmOverbooking = () => {
+    if (!overbookingDialog) return
+    const vol = overbookingDialog.volume
+    addStop({
+      id: 0,
+      tour_id: 0,
+      pdv_id: vol.pdv_id,
+      sequence_order: currentStops.length + 1,
+      eqp_count: vol.eqp_count,
+      ...getPickupFlags(vol.pdv_id),
+    })
+    setOverbookingDialog(null)
   }
 
   /* Ajouter un PDV en mode reprise / Add a PDV in pickup mode */
@@ -1088,6 +1114,44 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                 className="px-4 py-2 rounded-lg text-sm border transition-all hover:opacity-80"
                 style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}
                 onClick={() => setSplitDialog(null)}
+              >
+                {t('common.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog confirmation surbooking / Overbooking confirmation dialog */}
+      {overbookingDialog && (
+        <div className="fixed inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999 }}>
+          <div
+            className="rounded-xl border shadow-2xl p-6 w-[400px] space-y-4"
+            style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
+          >
+            <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--color-warning)' }}>
+              Surbooking ({overbookingDialog.overPct}% au-delà)
+            </h3>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              L'ajout de ce volume portera le tour à{' '}
+              <strong>{Math.round((totalEqp + overbookingDialog.volume.eqp_count) * 100) / 100} EQC</strong>{' '}
+              pour une capacité de <strong>{capacityEqp} EQC</strong>.
+            </p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Le dépassement reste dans la marge de 15% autorisée. Confirmer le surbooking ?
+            </p>
+            <div className="flex gap-2">
+              <button
+                className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                style={{ backgroundColor: 'var(--color-warning)', color: '#fff' }}
+                onClick={handleConfirmOverbooking}
+              >
+                Confirmer le surbooking
+              </button>
+              <button
+                className="px-4 py-2 rounded-lg text-sm border transition-all hover:opacity-80"
+                style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}
+                onClick={() => setOverbookingDialog(null)}
               >
                 {t('common.cancel')}
               </button>

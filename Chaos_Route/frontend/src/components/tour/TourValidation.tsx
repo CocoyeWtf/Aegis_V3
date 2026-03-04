@@ -38,12 +38,15 @@ export function TourValidation({ stops, vehicleType, capacityEqp, totalEqp, onVa
     messages.push({ type: 'error', message: 'Base non selectionnee' })
   }
 
-  if (!isPickupTour && capacityEqp > 0 && totalEqp > capacityEqp) {
+  if (!isPickupTour && capacityEqp > 0 && totalEqp > capacityEqp * 1.15) {
     messages.push({
       type: 'error',
-      message: t('tourPlanning.validation.overCapacity', {
-        over: totalEqp - capacityEqp,
-      }),
+      message: `Dépassement critique : +${Math.round(((totalEqp - capacityEqp) / capacityEqp) * 100)}% (max 15% autorisé)`,
+    })
+  } else if (!isPickupTour && capacityEqp > 0 && totalEqp > capacityEqp) {
+    messages.push({
+      type: 'warning',
+      message: `Surbooking : +${Math.round(((totalEqp - capacityEqp) / capacityEqp) * 100)}% au-delà de la capacité`,
     })
   }
 
@@ -66,7 +69,7 @@ export function TourValidation({ stops, vehicleType, capacityEqp, totalEqp, onVa
 
   if (isPickupTour && vehicleType && stops.length > 0 && baseId) {
     messages.push({ type: 'info', message: t('tourPlanning.validation.readyDraft') })
-  } else if (!isPickupTour && vehicleType && stops.length > 0 && totalEqp <= capacityEqp) {
+  } else if (!isPickupTour && vehicleType && stops.length > 0 && totalEqp <= capacityEqp * 1.15) {
     messages.push({ type: 'info', message: t('tourPlanning.validation.readyDraft') })
   }
 
