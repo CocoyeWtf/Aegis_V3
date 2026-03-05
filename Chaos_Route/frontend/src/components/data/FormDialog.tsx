@@ -66,39 +66,59 @@ function SearchableSelect({
   inputStyle: React.CSSProperties
 }) {
   const [search, setSearch] = useState('')
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 })
 
-  const selectedLabel = options.find((o) => o.value === value)?.label ?? ''
+  // Normaliser la comparaison string/number / Normalize string/number comparison
+  const strValue = String(value ?? '')
+  const selectedLabel = options.find((o) => o.value === strValue)?.label ?? ''
+
+  // Calculer la position du dropdown / Calculate dropdown position
+  const updatePosition = () => {
+    if (inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect()
+      setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+    }
+  }
 
   useEffect(() => {
-    if (!open) return
+    if (!isOpen) return
+    updatePosition()
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      if (
+        wrapperRef.current && !wrapperRef.current.contains(e.target as Node) &&
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false)
+      }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [open])
+  }, [isOpen])
 
-  const filtered = options.filter((o) =>
-    o.label.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = search
+    ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
+    : options
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={wrapperRef}>
       <div className="flex items-center gap-1">
         <input
+          ref={inputRef}
           type="text"
-          value={open ? search : selectedLabel}
-          onChange={(e) => { setSearch(e.target.value); if (!open) setOpen(true) }}
-          onFocus={() => { setOpen(true); setSearch('') }}
-          placeholder={placeholder || '—'}
-          required={required && !value}
+          value={isOpen ? search : selectedLabel}
+          onChange={(e) => { setSearch(e.target.value); if (!isOpen) { setIsOpen(true) } }}
+          onFocus={() => { setIsOpen(true); setSearch(''); updatePosition() }}
+          placeholder={placeholder || 'Rechercher...'}
+          required={required && !strValue}
           className="w-full px-3 py-2 rounded-lg text-sm border outline-none focus:ring-1"
           style={inputStyle}
           autoComplete="off"
         />
-        {value && (
+        {strValue && (
           <button
             type="button"
             onClick={() => { onChange(''); setSearch('') }}
@@ -109,10 +129,17 @@ function SearchableSelect({
           </button>
         )}
       </div>
-      {open && filtered.length > 0 && (
+      {isOpen && filtered.length > 0 && (
         <div
-          className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto rounded-lg border shadow-lg"
-          style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
+          ref={dropdownRef}
+          className="fixed z-[9999] max-h-48 overflow-y-auto rounded-lg border shadow-lg"
+          style={{
+            top: `${dropdownPos.top}px`,
+            left: `${dropdownPos.left}px`,
+            width: `${dropdownPos.width}px`,
+            backgroundColor: 'var(--bg-secondary)',
+            borderColor: 'var(--border-color)',
+          }}
         >
           {filtered.map((opt) => (
             <button
@@ -120,10 +147,10 @@ function SearchableSelect({
               type="button"
               className="w-full text-left px-3 py-1.5 text-sm hover:opacity-80 transition-colors"
               style={{
-                color: opt.value === value ? 'var(--color-primary)' : 'var(--text-primary)',
-                backgroundColor: opt.value === value ? 'rgba(249,115,22,0.08)' : 'transparent',
+                color: opt.value === strValue ? 'var(--color-primary)' : 'var(--text-primary)',
+                backgroundColor: opt.value === strValue ? 'rgba(249,115,22,0.08)' : 'transparent',
               }}
-              onClick={() => { onChange(opt.value); setSearch(''); setOpen(false) }}
+              onClick={() => { onChange(opt.value); setSearch(''); setIsOpen(false) }}
             >
               {opt.label}
             </button>
