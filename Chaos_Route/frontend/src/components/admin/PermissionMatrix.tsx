@@ -34,6 +34,7 @@ const RESOURCES = [
   'fleet',
   'reports',
   'consignment-movements',
+  'carriers',
 ]
 
 const ACTIONS = ['read', 'create', 'update', 'delete'] as const
@@ -81,6 +82,7 @@ const RESOURCE_I18N: Record<string, string> = {
   'fleet': 'Gestion de flotte',
   'reports': 'Rapports',
   'consignment-movements': 'Suivi consignes',
+  'carriers': 'Transporteurs',
 }
 
 export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {

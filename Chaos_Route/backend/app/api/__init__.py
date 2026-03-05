@@ -6,6 +6,7 @@ from app.api import (
     aide_decision,
     audit,
     auth,
+    carriers,
     countries,
     regions,
     base_activities,
@@ -80,3 +81,4 @@ api_router.include_router(inspections.router, prefix="/inspections", tags=["insp
 api_router.include_router(fleet.router, prefix="/fleet", tags=["fleet"])
 api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
 api_router.include_router(consignments.router, prefix="/consignments", tags=["consignments"])
+api_router.include_router(carriers.router, prefix="/carriers", tags=["carriers"])

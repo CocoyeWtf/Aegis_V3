@@ -19,6 +19,7 @@ class Region(Base):
     pdvs: Mapped[list["PDV"]] = relationship(back_populates="region", cascade="all, delete-orphan")
     suppliers: Mapped[list["Supplier"]] = relationship(back_populates="region", cascade="all, delete-orphan")
     contracts: Mapped[list["Contract"]] = relationship(back_populates="region", cascade="all, delete-orphan")
+    carriers: Mapped[list["Carrier"]] = relationship(back_populates="region", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<Region {self.name}>"

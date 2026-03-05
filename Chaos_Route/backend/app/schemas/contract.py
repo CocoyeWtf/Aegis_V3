@@ -3,6 +3,7 @@
 from pydantic import BaseModel, ConfigDict
 
 from app.models.contract import TailgateType, TemperatureType, VehicleType
+from app.schemas.carrier import CarrierRead
 
 
 class ContractScheduleBase(BaseModel):
@@ -39,6 +40,7 @@ class ContractBase(BaseModel):
     has_tailgate: bool = False
     tailgate_type: TailgateType | None = None
     vehicle_id: int | None = None
+    carrier_id: int | None = None
 
 
 class ContractCreate(ContractBase):
@@ -67,9 +69,11 @@ class ContractUpdate(BaseModel):
     has_tailgate: bool | None = None
     tailgate_type: TailgateType | None = None
     vehicle_id: int | None = None
+    carrier_id: int | None = None
 
 
 class ContractRead(ContractBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
     schedules: list[ContractScheduleRead] = []
+    carrier: CarrierRead | None = None

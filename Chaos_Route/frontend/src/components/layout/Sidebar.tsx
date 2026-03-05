@@ -41,6 +41,7 @@ const navGroups: NavGroup[] = [
       { path: '/distances', label: 'nav.distances', icon: '📏', resource: 'distances' },
       { path: '/km-tax', label: 'nav.kmTax', icon: '💰', resource: 'distances' },
       { path: '/devices', label: 'Appareils', icon: '📱', resource: 'devices' },
+      { path: '/carriers', label: 'Transporteurs', icon: '🏢', resource: 'carriers' },
       { path: '/suppliers', label: 'nav.suppliers', icon: '📦', resource: 'suppliers' },
     ],
   },

@@ -44,6 +44,7 @@ RESOURCES = [
     "fleet",
     "reports",
     "consignment-movements",
+    "carriers",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

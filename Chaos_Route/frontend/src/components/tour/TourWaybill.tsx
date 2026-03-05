@@ -116,9 +116,24 @@ export function TourWaybill({ tourId, onClose }: TourWaybillProps) {
                     {data.contract ? (
                       <>
                         <strong>{data.contract.transporter_name}</strong>
-                        {' — '}{t('waybill.contractCode')}: {data.contract.code}
+                        {data.contract.carrier_address && (
+                          <>
+                            <br />
+                            {data.contract.carrier_address}
+                            {data.contract.carrier_postal_code && `, ${data.contract.carrier_postal_code}`}
+                            {data.contract.carrier_city && ` ${data.contract.carrier_city}`}
+                          </>
+                        )}
+                        {data.contract.carrier_transport_license && (
+                          <>
+                            <br />
+                            Licence transport : {data.contract.carrier_transport_license}
+                            {data.contract.carrier_vat_number && ` — TVA : ${data.contract.carrier_vat_number}`}
+                          </>
+                        )}
                         <br />
-                        {t('waybill.vehicle')}: {data.contract.vehicle_name ?? data.contract.vehicle_code ?? '—'}
+                        {t('waybill.contractCode')}: {data.contract.code}
+                        {' — '}{t('waybill.vehicle')}: {data.contract.vehicle_name ?? data.contract.vehicle_code ?? '—'}
                         {data.contract.temperature_type && ` (${data.contract.temperature_type})`}
                       </>
                     ) : '—'}

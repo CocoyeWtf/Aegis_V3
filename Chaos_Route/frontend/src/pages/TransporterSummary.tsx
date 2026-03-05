@@ -97,6 +97,8 @@ interface ContractGroup {
 
 interface TransporterGroup {
   transporter_name: string
+  carrier_id?: number
+  carrier_code?: string
   contracts: ContractGroup[]
   grand_total: Subtotal & { nb_contracts: number }
 }

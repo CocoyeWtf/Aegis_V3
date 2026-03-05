@@ -8,12 +8,13 @@ import type { Column } from '../components/data/DataTable'
 import type { FieldDef } from '../components/data/FormDialog'
 import { useApi } from '../hooks/useApi'
 import api from '../services/api'
-import type { Contract, Region } from '../types'
+import type { Contract, Region, Carrier } from '../types'
 import { formatDate } from '../utils/tourTimeUtils'
 
 export default function ContractManagement() {
   const { t } = useTranslation()
   const { data: regions } = useApi<Region>('/regions')
+  const { data: carriers } = useApi<Carrier>('/carriers')
   const [scheduleContract, setScheduleContract] = useState<Contract | null>(null)
   const [savingSchedule, setSavingSchedule] = useState(false)
 
@@ -41,7 +42,11 @@ export default function ContractManagement() {
 
   const columns: Column<Contract>[] = [
     { key: 'code', label: t('common.code'), width: '90px', filterable: true },
-    { key: 'transporter_name', label: t('contracts.transporterName'), width: '140px', filterable: true },
+    {
+      key: 'carrier_id' as keyof Contract, label: t('contracts.transporterName'), width: '140px', filterable: true,
+      render: (row) => row.carrier?.name ?? row.transporter_name ?? '—',
+      filterValue: (row) => row.carrier?.name ?? row.transporter_name ?? '',
+    },
     { key: 'vehicle_code' as keyof Contract, label: t('contracts.vehicleCode'), width: '100px', filterable: true },
     { key: 'vehicle_name' as keyof Contract, label: t('contracts.vehicleName'), width: '130px', filterable: true },
     {
@@ -98,7 +103,11 @@ export default function ContractManagement() {
   const fields: FieldDef[] = [
     // Identification
     { key: 'code', label: t('common.code'), type: 'text', required: true },
-    { key: 'transporter_name', label: t('contracts.transporterName'), type: 'text', required: true },
+    { key: 'transporter_name', label: t('contracts.transporterName'), type: 'text' },
+    {
+      key: 'carrier_id', label: 'Transporteur (fiche)', type: 'searchable-select',
+      options: carriers.map((c) => ({ value: String(c.id), label: `${c.code} — ${c.name}` })),
+    },
     // Véhicule
     { key: 'vehicle_code', label: t('contracts.vehicleCode'), type: 'text' },
     { key: 'vehicle_name', label: t('contracts.vehicleName'), type: 'text' },
@@ -164,7 +173,11 @@ export default function ContractManagement() {
         importEntity="contracts"
         exportEntity="contracts"
         allowDuplicate
-        transformPayload={(d) => ({ ...d, region_id: Number(d.region_id) })}
+        transformPayload={(d) => ({
+          ...d,
+          region_id: Number(d.region_id),
+          carrier_id: d.carrier_id ? Number(d.carrier_id) : null,
+        })}
         formSize="lg"
       />
 

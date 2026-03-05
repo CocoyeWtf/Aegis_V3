@@ -1,12 +1,12 @@
 /* Dialogue de formulaire réutilisable / Reusable form dialog component */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface FieldDef {
   key: string
   label: string
-  type: 'text' | 'number' | 'select' | 'checkbox' | 'textarea' | 'time' | 'date' | 'datetime-local' | 'multicheck' | 'password'
+  type: 'text' | 'number' | 'select' | 'checkbox' | 'textarea' | 'time' | 'date' | 'datetime-local' | 'multicheck' | 'password' | 'searchable-select'
   required?: boolean
   options?: { value: string; label: string }[]
   placeholder?: string
@@ -47,6 +47,91 @@ interface FormDialogProps {
   renderExtra?: (formData: Record<string, unknown>, initialData?: Record<string, unknown>) => React.ReactNode
   /** Taille du dialogue : sm (1 col), md (2 cols), lg (2 cols large), xl (3 cols) / Dialog size */
   size?: FormDialogSize
+}
+
+/* Select avec recherche / Searchable select input */
+function SearchableSelect({
+  value,
+  options,
+  onChange,
+  required,
+  placeholder,
+  inputStyle,
+}: {
+  value: string
+  options: { value: string; label: string }[]
+  onChange: (value: string) => void
+  required?: boolean
+  placeholder?: string
+  inputStyle: React.CSSProperties
+}) {
+  const [search, setSearch] = useState('')
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  const selectedLabel = options.find((o) => o.value === value)?.label ?? ''
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const filtered = options.filter((o) =>
+    o.label.toLowerCase().includes(search.toLowerCase())
+  )
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="flex items-center gap-1">
+        <input
+          type="text"
+          value={open ? search : selectedLabel}
+          onChange={(e) => { setSearch(e.target.value); if (!open) setOpen(true) }}
+          onFocus={() => { setOpen(true); setSearch('') }}
+          placeholder={placeholder || '—'}
+          required={required && !value}
+          className="w-full px-3 py-2 rounded-lg text-sm border outline-none focus:ring-1"
+          style={inputStyle}
+          autoComplete="off"
+        />
+        {value && (
+          <button
+            type="button"
+            onClick={() => { onChange(''); setSearch('') }}
+            className="shrink-0 text-sm px-1"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            ×
+          </button>
+        )}
+      </div>
+      {open && filtered.length > 0 && (
+        <div
+          className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto rounded-lg border shadow-lg"
+          style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
+        >
+          {filtered.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className="w-full text-left px-3 py-1.5 text-sm hover:opacity-80 transition-colors"
+              style={{
+                color: opt.value === value ? 'var(--color-primary)' : 'var(--text-primary)',
+                backgroundColor: opt.value === value ? 'rgba(249,115,22,0.08)' : 'transparent',
+              }}
+              onClick={() => { onChange(opt.value); setSearch(''); setOpen(false) }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function FormDialog({ open, onClose, onSubmit, title, fields, initialData, loading, error, renderExtra, size = 'sm' }: FormDialogProps) {
@@ -151,7 +236,16 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
                   {field.required && <span style={{ color: 'var(--color-danger)' }}> *</span>}
                 </label>
 
-                {field.type === 'select' ? (
+                {field.type === 'searchable-select' ? (
+                  <SearchableSelect
+                    value={form[field.key] as string ?? ''}
+                    options={options ?? []}
+                    onChange={(v) => handleChange(field.key, v)}
+                    required={field.required}
+                    placeholder={field.placeholder}
+                    inputStyle={inputStyle}
+                  />
+                ) : field.type === 'select' ? (
                   <select
                     value={String(form[field.key] ?? '')}
                     onChange={(e) => handleChange(field.key, e.target.value)}

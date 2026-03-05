@@ -65,9 +65,12 @@ class Contract(Base):
 
     # Lien vers vehicule autonome (si applicable) / Link to standalone vehicle
     vehicle_id: Mapped[int | None] = mapped_column(ForeignKey("vehicles.id"))
+    # Lien vers transporteur / Link to carrier
+    carrier_id: Mapped[int | None] = mapped_column(ForeignKey("carriers.id"))
 
     # Relations
     region: Mapped["Region"] = relationship(back_populates="contracts")
+    carrier: Mapped["Carrier | None"] = relationship(back_populates="contracts")
     tours: Mapped[list["Tour"]] = relationship(back_populates="contract")
     schedules: Mapped[list["ContractSchedule"]] = relationship(
         back_populates="contract", cascade="all, delete-orphan"

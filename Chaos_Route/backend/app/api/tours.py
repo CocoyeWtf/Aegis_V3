@@ -769,14 +769,26 @@ async def transporter_summary(
         for p in p_result.scalars().all():
             pdvs_map[p.id] = p
 
+    # 2b. Batch-load carriers / Charger les transporteurs
+    from app.models.carrier import Carrier as CarrierModel
+    carrier_ids = list({c.carrier_id for c in contracts_map.values() if c.carrier_id})
+    carriers_map: dict[int, CarrierModel] = {}
+    if carrier_ids:
+        cr_result = await db.execute(select(CarrierModel).where(CarrierModel.id.in_(carrier_ids)))
+        for cr in cr_result.scalars().all():
+            carriers_map[cr.id] = cr
+
     # Filtre transporteur / Transporter filter
     if transporter_name:
         name_lower = transporter_name.lower()
-        tours = [
-            t for t in tours
-            if t.contract_id and contracts_map.get(t.contract_id)
-            and name_lower in (contracts_map[t.contract_id].transporter_name or "").lower()
-        ]
+        def _matches_transporter(t):
+            contract = contracts_map.get(t.contract_id)
+            if not contract:
+                return False
+            if contract.carrier_id and contract.carrier_id in carriers_map:
+                return name_lower in carriers_map[contract.carrier_id].name.lower()
+            return name_lower in (contract.transporter_name or "").lower()
+        tours = [t for t in tours if t.contract_id and _matches_transporter(t)]
 
     # 3. Calculer le cost breakdown par tour / Calculate cost breakdown per tour
     # Pré-charger nb_tours par (contract_id, date) / Pre-load nb_tours per (contract_id, date)
@@ -913,8 +925,18 @@ async def transporter_summary(
                 }
                 for s in sorted_stops
             ],
-            # Pour le groupement / For grouping
-            "_transporter_name": contract.transporter_name or "",
+            # Pour le groupement / For grouping — carrier.name prioritaire si carrier_id
+            "_transporter_name": (
+                carriers_map[contract.carrier_id].name
+                if contract.carrier_id and contract.carrier_id in carriers_map
+                else contract.transporter_name or ""
+            ),
+            "_carrier_id": contract.carrier_id,
+            "_carrier_code": (
+                carriers_map[contract.carrier_id].code
+                if contract.carrier_id and contract.carrier_id in carriers_map
+                else None
+            ),
             "_contract_id": contract.id,
             "_contract_code": contract.code,
             "_vehicle_code": contract.vehicle_code,
@@ -993,8 +1015,12 @@ async def transporter_summary(
             grand_surcharges += sub_surcharges
             grand_cost += sub_cost
 
+        # Extraire carrier_id/code depuis le 1er tour du groupe / Extract from first tour
+        first_row = next(iter(next(iter(contracts_group.values()))), None)
         transporters_result.append({
             "transporter_name": t_name,
+            "carrier_id": first_row["_carrier_id"] if first_row else None,
+            "carrier_code": first_row["_carrier_code"] if first_row else None,
             "contracts": contracts_result,
             "grand_total": {
                 "nb_contracts": len(contracts_result),
@@ -1877,6 +1903,11 @@ async def get_tour_waybill(
 
     base = await db.get(BaseLogistics, tour.base_id)
     contract = await db.get(Contract, tour.contract_id) if tour.contract_id else None
+    # Charger le carrier via le contrat / Load carrier through contract
+    carrier = None
+    if contract and contract.carrier_id:
+        from app.models.carrier import Carrier
+        carrier = await db.get(Carrier, contract.carrier_id)
 
     # Charger PDVs et volumes des stops / Load PDVs and volumes for stops
     pdv_ids = [s.pdv_id for s in tour.stops]
@@ -1956,12 +1987,19 @@ async def get_tour_waybill(
         } if base else None,
         "contract": {
             "code": contract.code,
-            "transporter_name": contract.transporter_name,
+            "transporter_name": carrier.name if carrier else contract.transporter_name,
             "vehicle_code": contract.vehicle_code,
             "vehicle_name": contract.vehicle_name,
             "temperature_type": contract.temperature_type.value if contract.temperature_type else None,
             "vehicle_type": contract.vehicle_type.value if contract.vehicle_type else None,
             "capacity_weight_kg": contract.capacity_weight_kg,
+            "carrier_address": carrier.address if carrier else None,
+            "carrier_postal_code": carrier.postal_code if carrier else None,
+            "carrier_city": carrier.city if carrier else None,
+            "carrier_country": carrier.country if carrier else None,
+            "carrier_transport_license": carrier.transport_license if carrier else None,
+            "carrier_vat_number": carrier.vat_number if carrier else None,
+            "carrier_phone": carrier.phone if carrier else None,
         } if contract else None,
         "stops": stops_data,
         "total_eqp": total_eqp,

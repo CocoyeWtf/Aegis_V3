@@ -27,7 +27,7 @@ async def list_contracts(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("contracts", "read")),
 ):
-    query = select(Contract).options(selectinload(Contract.schedules))
+    query = select(Contract).options(selectinload(Contract.schedules), selectinload(Contract.carrier))
     if region_id is not None:
         query = query.where(Contract.region_id == region_id)
     user_region_ids = get_user_region_ids(user)
@@ -52,7 +52,7 @@ async def available_contracts(
 
     query = (
         select(Contract)
-        .options(selectinload(Contract.schedules))
+        .options(selectinload(Contract.schedules), selectinload(Contract.carrier))
         .where(Contract.region_id == base.region_id)
     )
 
@@ -93,7 +93,7 @@ async def get_contract(
     user: User = Depends(require_permission("contracts", "read")),
 ):
     result = await db.execute(
-        select(Contract).where(Contract.id == contract_id).options(selectinload(Contract.schedules))
+        select(Contract).where(Contract.id == contract_id).options(selectinload(Contract.schedules), selectinload(Contract.carrier))
     )
     contract = result.scalar_one_or_none()
     if not contract:
@@ -119,7 +119,7 @@ async def create_contract(
 
     await db.flush()
     result = await db.execute(
-        select(Contract).where(Contract.id == contract.id).options(selectinload(Contract.schedules))
+        select(Contract).where(Contract.id == contract.id).options(selectinload(Contract.schedules), selectinload(Contract.carrier))
     )
     return result.scalar_one()
 
@@ -132,7 +132,7 @@ async def update_contract(
     user: User = Depends(require_permission("contracts", "update")),
 ):
     result = await db.execute(
-        select(Contract).where(Contract.id == contract_id).options(selectinload(Contract.schedules))
+        select(Contract).where(Contract.id == contract_id).options(selectinload(Contract.schedules), selectinload(Contract.carrier))
     )
     contract = result.scalar_one_or_none()
     if not contract:
@@ -141,7 +141,7 @@ async def update_contract(
         setattr(contract, key, value)
     await db.flush()
     result = await db.execute(
-        select(Contract).where(Contract.id == contract.id).options(selectinload(Contract.schedules))
+        select(Contract).where(Contract.id == contract.id).options(selectinload(Contract.schedules), selectinload(Contract.carrier))
     )
     return result.scalar_one()
 
@@ -155,7 +155,7 @@ async def update_schedule(
 ):
     """Mise à jour planning date-par-date / Update date-based schedule."""
     result = await db.execute(
-        select(Contract).where(Contract.id == contract_id).options(selectinload(Contract.schedules))
+        select(Contract).where(Contract.id == contract_id).options(selectinload(Contract.schedules), selectinload(Contract.carrier))
     )
     contract = result.scalar_one_or_none()
     if not contract:
@@ -177,7 +177,7 @@ async def update_schedule(
 
     await db.flush()
     result = await db.execute(
-        select(Contract).where(Contract.id == contract.id).options(selectinload(Contract.schedules))
+        select(Contract).where(Contract.id == contract.id).options(selectinload(Contract.schedules), selectinload(Contract.carrier))
     )
     return result.scalar_one()
 

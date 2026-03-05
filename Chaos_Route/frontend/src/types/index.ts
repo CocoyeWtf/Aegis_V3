@@ -87,6 +87,24 @@ export interface Supplier {
   region_id: number
 }
 
+export interface Carrier {
+  id: number
+  code: string
+  name: string
+  address?: string
+  postal_code?: string
+  city?: string
+  country?: string
+  phone?: string
+  email?: string
+  transport_license?: string
+  vat_number?: string
+  accounting_code?: string
+  contact_person?: string
+  notes?: string
+  region_id: number
+}
+
 export type TemperatureClass = 'SEC' | 'FRAIS' | 'GEL'
 
 export interface Volume {
@@ -227,6 +245,13 @@ export interface WaybillData {
     temperature_type?: string
     vehicle_type?: string
     capacity_weight_kg?: number
+    carrier_address?: string
+    carrier_postal_code?: string
+    carrier_city?: string
+    carrier_country?: string
+    carrier_transport_license?: string
+    carrier_vat_number?: string
+    carrier_phone?: string
   } | null
   stops: WaybillStop[]
   total_eqp: number
@@ -308,6 +333,8 @@ export interface Contract {
   has_tailgate?: boolean
   tailgate_type?: TailgateType
   schedules?: ContractSchedule[]
+  carrier_id?: number
+  carrier?: Carrier
 }
 
 export interface DistanceEntry {
