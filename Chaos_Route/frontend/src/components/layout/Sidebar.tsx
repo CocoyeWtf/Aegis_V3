@@ -69,6 +69,7 @@ const navGroups: NavGroup[] = [
       { path: '/base-reception', label: 'Reception reprises', icon: '📥', resource: 'pickup-requests' },
       { path: '/declarations', label: 'Declarations', icon: '⚠', resource: 'declarations' },
       { path: '/consignments', label: 'Suivi consignes', icon: '📊', resource: 'consignment-movements' },
+      { path: '/waybill-registry', label: 'Registre CMR', icon: '📄', resource: 'waybill-archives' },
     ],
   },
   {

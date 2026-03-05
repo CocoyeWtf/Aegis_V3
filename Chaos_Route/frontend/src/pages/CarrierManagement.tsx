@@ -36,6 +36,7 @@ export default function CarrierManagement() {
     { key: 'email', label: t('common.email'), type: 'text' },
     { key: 'transport_license', label: 'Licence transport', type: 'text' },
     { key: 'vat_number', label: 'N° TVA', type: 'text' },
+    { key: 'siren', label: 'SIREN/SIRET', type: 'text' },
     { key: 'accounting_code', label: 'Code comptable', type: 'text' },
     { key: 'contact_person', label: 'Personne de contact', type: 'text' },
     {

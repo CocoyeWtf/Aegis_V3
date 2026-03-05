@@ -49,6 +49,7 @@ from app.models.vehicle_modification import VehicleModification
 from app.models.vehicle_cost_entry import VehicleCostEntry, CostCategory
 from app.models.carrier import Carrier
 from app.models.consignment_movement import ConsignmentMovement
+from app.models.waybill_archive import WaybillArchive, CMRStatus
 
 __all__ = [
     "Country",
@@ -119,4 +120,6 @@ __all__ = [
     "CostCategory",
     "ConsignmentMovement",
     "Carrier",
+    "WaybillArchive",
+    "CMRStatus",
 ]

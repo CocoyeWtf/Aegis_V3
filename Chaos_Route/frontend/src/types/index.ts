@@ -99,6 +99,7 @@ export interface Carrier {
   email?: string
   transport_license?: string
   vat_number?: string
+  siren?: string
   accounting_code?: string
   contact_person?: string
   notes?: string
@@ -218,6 +219,34 @@ export interface WaybillStop {
   pickup_consignment: boolean
 }
 
+export type CMRStatus = 'DRAFT' | 'ISSUED' | 'DELIVERED' | 'CANCELLED'
+
+export interface WaybillArchive {
+  id: number
+  cmr_number: string
+  tour_id: number
+  region_id: number
+  status: CMRStatus
+  snapshot_json?: string | null
+  establishment_place?: string | null
+  establishment_date?: string | null
+  issued_at?: string | null
+  issued_by_id?: number | null
+  attached_documents?: string | null
+  sender_instructions?: string | null
+  payment_instructions?: string | null
+  cash_on_delivery?: string | null
+  reservations?: string | null
+  special_agreements?: string | null
+  sender_signed_at?: string | null
+  carrier_signed_at?: string | null
+  recipient_signed_at?: string | null
+  recipient_name?: string | null
+  delivery_remarks?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
 export interface WaybillData {
   tour_id: number
   tour_code: string
@@ -228,8 +257,11 @@ export interface WaybillData {
   departure_time?: string
   return_time?: string
   driver_name?: string
+  trailer_number?: string | null
   dock_door_number?: string | null
   remarks?: string
+  vehicle_license_plate?: string | null
+  tractor_license_plate?: string | null
   base: {
     code: string
     name: string
@@ -251,7 +283,14 @@ export interface WaybillData {
     carrier_country?: string
     carrier_transport_license?: string
     carrier_vat_number?: string
+    carrier_siren?: string
     carrier_phone?: string
+  } | null
+  cmr_archive?: {
+    id: number
+    cmr_number: string
+    status: CMRStatus
+    issued_at?: string | null
   } | null
   stops: WaybillStop[]
   total_eqp: number

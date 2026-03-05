@@ -98,4 +98,16 @@ body {
     background: #fff !important;
   }
   * { box-shadow: none !important; text-shadow: none !important; }
+
+  /* CMR : portrait A4 avec marges réduites / CMR: A4 portrait with reduced margins */
+  .cmr-document {
+    page-break-inside: avoid;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  /* Force la couleur des bordures CMR à l'impression / Force CMR border colors on print */
+  .cmr-document * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
 }

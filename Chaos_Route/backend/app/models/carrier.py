@@ -21,6 +21,7 @@ class Carrier(Base):
     email: Mapped[str | None] = mapped_column(String(150))
     transport_license: Mapped[str | None] = mapped_column(String(50))
     vat_number: Mapped[str | None] = mapped_column(String(30))
+    siren: Mapped[str | None] = mapped_column(String(20))  # SIREN/SIRET (CMR case 16)
     accounting_code: Mapped[str | None] = mapped_column(String(30))
     contact_person: Mapped[str | None] = mapped_column(String(150))
     notes: Mapped[str | None] = mapped_column(Text)

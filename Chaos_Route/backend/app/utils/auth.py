@@ -45,6 +45,7 @@ RESOURCES = [
     "reports",
     "consignment-movements",
     "carriers",
+    "waybill-archives",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

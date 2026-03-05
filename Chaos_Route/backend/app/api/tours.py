@@ -1909,6 +1909,18 @@ async def get_tour_waybill(
         from app.models.carrier import Carrier
         carrier = await db.get(Carrier, contract.carrier_id)
 
+    # Charger véhicules / Load vehicles
+    from app.models.vehicle import Vehicle
+    vehicle = await db.get(Vehicle, tour.vehicle_id) if tour.vehicle_id else None
+    tractor = await db.get(Vehicle, tour.tractor_id) if tour.tractor_id else None
+
+    # Vérifier si un CMR existe pour ce tour / Check if CMR archive exists for this tour
+    from app.models.waybill_archive import WaybillArchive
+    cmr_result = await db.execute(
+        select(WaybillArchive).where(WaybillArchive.tour_id == tour_id)
+    )
+    cmr_archive = cmr_result.scalar_one_or_none()
+
     # Charger PDVs et volumes des stops / Load PDVs and volumes for stops
     pdv_ids = [s.pdv_id for s in tour.stops]
     pdvs_map: dict[int, PDV] = {}
@@ -1976,8 +1988,11 @@ async def get_tour_waybill(
         "departure_time": tour.departure_time,
         "return_time": tour.return_time,
         "driver_name": tour.driver_name,
+        "trailer_number": tour.trailer_number,
         "dock_door_number": tour.dock_door_number,
         "remarks": tour.remarks,
+        "vehicle_license_plate": vehicle.license_plate if vehicle else None,
+        "tractor_license_plate": tractor.license_plate if tractor else None,
         "base": {
             "code": base.code if base else "",
             "name": base.name if base else "",
@@ -1999,8 +2014,15 @@ async def get_tour_waybill(
             "carrier_country": carrier.country if carrier else None,
             "carrier_transport_license": carrier.transport_license if carrier else None,
             "carrier_vat_number": carrier.vat_number if carrier else None,
+            "carrier_siren": carrier.siren if carrier else None,
             "carrier_phone": carrier.phone if carrier else None,
         } if contract else None,
+        "cmr_archive": {
+            "id": cmr_archive.id,
+            "cmr_number": cmr_archive.cmr_number,
+            "status": cmr_archive.status.value if cmr_archive.status else None,
+            "issued_at": cmr_archive.issued_at,
+        } if cmr_archive else None,
         "stops": stops_data,
         "total_eqp": total_eqp,
         "total_weight_kg": round(total_weight, 2),

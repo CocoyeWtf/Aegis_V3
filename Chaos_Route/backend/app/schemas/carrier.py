@@ -14,6 +14,7 @@ class CarrierBase(BaseModel):
     email: str | None = None
     transport_license: str | None = None
     vat_number: str | None = None
+    siren: str | None = None
     accounting_code: str | None = None
     contact_person: str | None = None
     notes: str | None = None
@@ -35,6 +36,7 @@ class CarrierUpdate(BaseModel):
     email: str | None = None
     transport_license: str | None = None
     vat_number: str | None = None
+    siren: str | None = None
     accounting_code: str | None = None
     contact_person: str | None = None
     notes: str | None = None
