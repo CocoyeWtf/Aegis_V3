@@ -5,6 +5,7 @@ import { Suspense, lazy } from 'react'
 import { MainLayout } from './components/layout/MainLayout'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { DefaultRedirect } from './components/auth/DefaultRedirect'
+import { ChunkErrorBoundary } from './components/ErrorBoundary'
 
 const Login = lazy(() => import('./pages/Login'))
 const ResetPassword = lazy(() => import('./pages/ResetPassword'))
@@ -63,6 +64,7 @@ function Loading() {
 
 export default function App() {
   return (
+    <ChunkErrorBoundary>
     <Suspense fallback={<Loading />}>
       <Routes>
         <Route path="/login" element={<Login />} />
@@ -117,5 +119,6 @@ export default function App() {
         </Route>
       </Routes>
     </Suspense>
+    </ChunkErrorBoundary>
   )
 }
