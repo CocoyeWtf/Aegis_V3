@@ -1217,6 +1217,104 @@ async def list_standalone_pickups(
     ]
 
 
+# ─── Reception base / Base reception ───
+
+
+@router.post("/base-receive/{label_code}", response_model=PickupLabelRead)
+async def base_receive_scan(
+    label_code: str,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Scan reception base via mobile / Base reception scan via mobile device.
+    Passe l'etiquette en RECEIVED avec horodatage.
+    """
+    result = await db.execute(
+        select(PickupLabel)
+        .where(PickupLabel.label_code == label_code)
+        .options(selectinload(PickupLabel.pickup_request).selectinload(PickupRequest.labels))
+    )
+    label = result.scalar_one_or_none()
+    if not label:
+        raise HTTPException(status_code=404, detail="Label not found")
+
+    # Idempotent si deja RECEIVED / Idempotent if already RECEIVED
+    if label.status == LabelStatus.RECEIVED:
+        return label
+
+    label.status = LabelStatus.RECEIVED
+    label.received_at = _now_iso()
+
+    # Auto-progression demande parent / Auto-progress parent request
+    from app.api.pickup_requests import _auto_progress_request
+    _auto_progress_request(label.pickup_request)
+
+    # Audit log
+    db.add(AuditLog(
+        entity_type="pickup_label", entity_id=label.id, action="BASE_RECEIVE",
+        changes=f'{{"label_code":"{label_code}","device_id":{device.id}}}',
+        user=f"device:{device.id}",
+        timestamp=_now_iso(),
+    ))
+
+    await db.flush()
+    await db.refresh(label)
+    return label
+
+
+@router.get("/base-receives")
+async def list_base_receives(
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Receptions base du jour / Today's base receives for this device."""
+    from app.models.support_type import SupportType
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    result = await db.execute(
+        select(
+            PickupLabel.label_code,
+            PickupLabel.status,
+            PickupLabel.received_at,
+            PDV.code.label("pdv_code"),
+            PDV.name.label("pdv_name"),
+            SupportType.code.label("support_type_code"),
+            SupportType.name.label("support_type_name"),
+            PickupRequest.pickup_type,
+            PickupRequest.with_content,
+            PickupRequest.declared_unit_value,
+            PickupRequest.quantity,
+        )
+        .join(PickupRequest, PickupLabel.pickup_request_id == PickupRequest.id)
+        .join(PDV, PickupRequest.pdv_id == PDV.id)
+        .join(SupportType, PickupRequest.support_type_id == SupportType.id)
+        .where(
+            PickupLabel.status == LabelStatus.RECEIVED,
+            PickupLabel.received_at.like(f"{today}%"),
+        )
+        .order_by(PickupLabel.received_at.desc())
+    )
+    rows = result.all()
+
+    return [
+        {
+            "label_code": row.label_code,
+            "status": row.status.value if hasattr(row.status, "value") else row.status,
+            "received_at": row.received_at,
+            "pdv_code": row.pdv_code,
+            "pdv_name": row.pdv_name,
+            "support_type_code": row.support_type_code,
+            "support_type_name": row.support_type_name,
+            "pickup_type": row.pickup_type.value if hasattr(row.pickup_type, "value") else row.pickup_type,
+            "with_content": row.with_content,
+            "declared_unit_value": float(row.declared_unit_value) if row.declared_unit_value is not None else None,
+            "quantity": row.quantity,
+        }
+        for row in rows
+    ]
+
+
 # ─── Inventaire PDV / PDV Inventory ───
 
 

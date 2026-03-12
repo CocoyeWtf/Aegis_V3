@@ -313,6 +313,12 @@ export default function TourListScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.quickActionBtn}
+          onPress={() => router.push('/base-reception')}
+        >
+          <Text style={styles.quickActionText}>Reception base</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.quickActionBtn}
           onPress={() => router.push('/inventory')}
         >
           <Text style={styles.quickActionText}>Inventaire PDV</Text>

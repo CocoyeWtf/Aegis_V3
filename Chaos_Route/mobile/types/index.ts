@@ -169,6 +169,22 @@ export interface StandalonePickupScan {
   quantity: number
 }
 
+/* ─── Reception base / Base reception scan ─── */
+
+export interface BaseReceiveScan {
+  label_code: string
+  status: string
+  received_at: string | null
+  pdv_code: string | null
+  pdv_name: string | null
+  support_type_code: string | null
+  support_type_name: string | null
+  pickup_type: string | null
+  with_content: boolean
+  declared_unit_value: number | null
+  quantity: number
+}
+
 /* ─── Inventaire PDV / PDV container inventory ─── */
 
 export interface SupportTypeBasic {
