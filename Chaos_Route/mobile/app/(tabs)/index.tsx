@@ -305,41 +305,46 @@ export default function TourListScreen() {
         }
       />
 
-      {/* Boutons actions rapides — filtre par features autorisees / Quick action buttons — filtered by allowed features */}
-      <View style={styles.quickActions}>
-        {hasFeature('pickups') && (
+      {/* Barre d'actions en bas / Bottom action bar */}
+      <View style={styles.bottomBar}>
+        {/* Boutons actions rapides — filtre par features autorisees */}
+        <View style={styles.quickActions}>
+          {hasFeature('pickups') && (
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => router.push('/standalone-pickups')}
+            >
+              <Text style={styles.quickActionText}>Scanner reprises</Text>
+            </TouchableOpacity>
+          )}
+          {hasFeature('base_reception') && (
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => router.push('/base-reception')}
+            >
+              <Text style={styles.quickActionText}>Reception base</Text>
+            </TouchableOpacity>
+          )}
+          {hasFeature('inventory') && (
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => router.push('/inventory')}
+            >
+              <Text style={styles.quickActionText}>Inventaire PDV</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Bouton scanner QR tour */}
+        {hasFeature('tours') && (
           <TouchableOpacity
-            style={styles.quickActionBtn}
-            onPress={() => router.push('/standalone-pickups')}
+            style={styles.qrButton}
+            onPress={() => { scannedRef.current = false; setShowScanner(true) }}
           >
-            <Text style={styles.quickActionText}>Scanner reprises</Text>
-          </TouchableOpacity>
-        )}
-        {hasFeature('base_reception') && (
-          <TouchableOpacity
-            style={styles.quickActionBtn}
-            onPress={() => router.push('/base-reception')}
-          >
-            <Text style={styles.quickActionText}>Reception base</Text>
-          </TouchableOpacity>
-        )}
-        {hasFeature('inventory') && (
-          <TouchableOpacity
-            style={styles.quickActionBtn}
-            onPress={() => router.push('/inventory')}
-          >
-            <Text style={styles.quickActionText}>Inventaire PDV</Text>
+            <Text style={styles.qrButtonText}>Scanner QR tour</Text>
           </TouchableOpacity>
         )}
       </View>
-
-      {/* Bouton scanner QR / QR scanner button */}
-      <TouchableOpacity
-        style={styles.qrButton}
-        onPress={() => { scannedRef.current = false; setShowScanner(true) }}
-      >
-        <Text style={styles.qrButtonText}>Scanner QR tour</Text>
-      </TouchableOpacity>
 
       {/* Overlay affectation en cours / Assigning overlay */}
       {assigning && (
@@ -371,7 +376,7 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: 14,
-    paddingBottom: 140,
+    paddingBottom: 16,
   },
   center: {
     flex: 1,
@@ -478,12 +483,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  /* Boutons actions rapides / Quick action buttons */
+  /* Barre d'actions en bas / Bottom action bar */
+  bottomBar: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    gap: 8,
+  },
   quickActions: {
     flexDirection: 'row',
     gap: 8,
-    paddingHorizontal: 14,
-    paddingBottom: 8,
   },
   quickActionBtn: {
     flex: 1,
@@ -499,12 +507,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  /* Bouton QR flottant / Floating QR button */
+  /* Bouton QR tour */
   qrButton: {
-    position: 'absolute',
-    bottom: 16,
-    left: 14,
-    right: 14,
     backgroundColor: COLORS.primary,
     borderRadius: 12,
     paddingVertical: 14,

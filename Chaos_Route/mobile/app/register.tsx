@@ -15,7 +15,7 @@ import { TorchToggleButton } from '../components/TorchToggleButton'
 export default function RegisterScreen() {
   const router = useRouter()
   const { register, fetchDeviceInfo } = useDeviceStore()
-  const [mode, setMode] = useState<'menu' | 'scan' | 'manual'>('menu')
+  const [mode, setMode] = useState<'menu' | 'scan' | 'manual'>('scan')
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [serverUrl, setServerUrl] = useState(API_BASE_URL)

@@ -98,6 +98,11 @@ api.interceptors.response.use(
       }
     }
 
+    // Device inconnu — reset et retour a l'ecran register / Unknown device — reset to register
+    if (error.response?.status === 401 && url.includes('/driver/') && error.response?.data?.detail === 'Unknown device') {
+      useDeviceStore.getState().reset()
+    }
+
     return Promise.reject(error)
   },
 )
