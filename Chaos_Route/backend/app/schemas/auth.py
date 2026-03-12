@@ -22,3 +22,20 @@ class TokenResponse(BaseModel):
 class RefreshRequest(BaseModel):
     """Requête de rafraîchissement / Refresh request."""
     refresh_token: str
+
+
+class ChangePasswordRequest(BaseModel):
+    """Changement de mot de passe par l'utilisateur / User self password change."""
+    current_password: str = Field(min_length=1, max_length=200)
+    new_password: str = Field(min_length=4, max_length=200)
+
+
+class ForgotPasswordRequest(BaseModel):
+    """Demande de réinitialisation par email / Forgot password request."""
+    email: str = Field(min_length=1, max_length=200)
+
+
+class ResetPasswordRequest(BaseModel):
+    """Réinitialisation du mot de passe via token / Reset password via token."""
+    token: str
+    new_password: str = Field(min_length=4, max_length=200)

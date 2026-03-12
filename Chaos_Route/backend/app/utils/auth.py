@@ -74,6 +74,13 @@ def create_refresh_token(user_id: int) -> str:
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
+def create_reset_token(user_id: int) -> str:
+    """Créer un token de réinitialisation mot de passe (15 min) / Create a password reset token."""
+    expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+    payload = {"sub": str(user_id), "type": "reset", "exp": expire}
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
 def decode_token(token: str) -> dict | None:
     """Décoder un token JWT / Decode a JWT token. Returns None if invalid."""
     try:

@@ -115,6 +115,17 @@ export default function Login() {
           >
             {loading ? t('common.loading') : t('auth.loginButton')}
           </button>
+
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={() => navigate('/reset-password')}
+              className="text-xs font-medium transition-colors hover:underline"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Mot de passe oublié ?
+            </button>
+          </div>
         </form>
       </div>
     </div>

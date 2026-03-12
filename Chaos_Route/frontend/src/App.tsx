@@ -7,6 +7,7 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { DefaultRedirect } from './components/auth/DefaultRedirect'
 
 const Login = lazy(() => import('./pages/Login'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const CountryRegion = lazy(() => import('./pages/CountryRegion'))
 const BaseManagement = lazy(() => import('./pages/BaseManagement'))
@@ -64,6 +65,7 @@ export default function App() {
     <Suspense fallback={<Loading />}>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/map-detached" element={<DetachedMap />} />
           <Route element={<MainLayout />}>

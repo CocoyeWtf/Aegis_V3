@@ -7,6 +7,7 @@ import { useAppStore } from '../../stores/useAppStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useMapStore } from '../../stores/useMapStore'
 import { useApi } from '../../hooks/useApi'
+import api from '../../services/api'
 import type { Country, Region, PDV, BaseLogistics } from '../../types'
 
 const languages = [
@@ -24,6 +25,13 @@ export function Header() {
   const { setCenter, setZoom } = useMapStore()
   const [showScope, setShowScope] = useState(false)
   const scopeRef = useRef<HTMLDivElement>(null)
+  const [showPwdDialog, setShowPwdDialog] = useState(false)
+  const [pwdCurrent, setPwdCurrent] = useState('')
+  const [pwdNew, setPwdNew] = useState('')
+  const [pwdConfirm, setPwdConfirm] = useState('')
+  const [pwdLoading, setPwdLoading] = useState(false)
+  const [pwdError, setPwdError] = useState<string | null>(null)
+  const [pwdSuccess, setPwdSuccess] = useState(false)
 
   const { data: countries } = useApi<Country>('/countries')
   const { data: allRegions } = useApi<Region>('/regions')
@@ -80,6 +88,41 @@ export function Header() {
   const handleLogout = () => {
     logout()
     navigate('/login')
+  }
+
+  const closePwdDialog = () => {
+    setShowPwdDialog(false)
+    setPwdCurrent('')
+    setPwdNew('')
+    setPwdConfirm('')
+    setPwdError(null)
+    setPwdSuccess(false)
+  }
+
+  const handleChangePassword = async () => {
+    setPwdError(null)
+    if (pwdNew.length < 4) {
+      setPwdError('Le nouveau mot de passe doit contenir au moins 4 caractères')
+      return
+    }
+    if (pwdNew !== pwdConfirm) {
+      setPwdError('Les mots de passe ne correspondent pas')
+      return
+    }
+    setPwdLoading(true)
+    try {
+      await api.put('/auth/change-password', {
+        current_password: pwdCurrent,
+        new_password: pwdNew,
+      })
+      setPwdSuccess(true)
+      setTimeout(closePwdDialog, 1500)
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setPwdError(msg || 'Erreur lors du changement de mot de passe')
+    } finally {
+      setPwdLoading(false)
+    }
   }
 
   return (
@@ -188,12 +231,20 @@ export function Header() {
           {theme === 'dark' ? '☀️' : '🌙'}
         </button>
 
-        {/* Utilisateur + déconnexion / User + logout */}
+        {/* Utilisateur + mot de passe + déconnexion / User + password + logout */}
         {user && (
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
               {user.username}
             </span>
+            <button
+              onClick={() => setShowPwdDialog(true)}
+              className="p-2 rounded-lg transition-colors"
+              style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
+              title="Modifier mon mot de passe"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </button>
             <button
               onClick={handleLogout}
               className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors"
@@ -205,6 +256,90 @@ export function Header() {
           </div>
         )}
       </div>
+
+      {/* Dialog changement de mot de passe / Change password dialog */}
+      {showPwdDialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={closePwdDialog}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div
+            className="relative rounded-xl border shadow-2xl w-full max-w-sm"
+            style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
+                Modifier mon mot de passe
+              </h3>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>
+                    Mot de passe actuel
+                  </label>
+                  <input
+                    type="password"
+                    value={pwdCurrent}
+                    onChange={(e) => setPwdCurrent(e.target.value)}
+                    autoFocus
+                    className="w-full px-3 py-2 rounded-lg border text-sm"
+                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>
+                    Nouveau mot de passe
+                  </label>
+                  <input
+                    type="password"
+                    value={pwdNew}
+                    onChange={(e) => setPwdNew(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border text-sm"
+                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>
+                    Confirmer le nouveau mot de passe
+                  </label>
+                  <input
+                    type="password"
+                    value={pwdConfirm}
+                    onChange={(e) => setPwdConfirm(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleChangePassword()}
+                    className="w-full px-3 py-2 rounded-lg border text-sm"
+                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  />
+                </div>
+              </div>
+
+              {pwdError && (
+                <p className="text-xs mt-3" style={{ color: 'var(--color-danger)' }}>{pwdError}</p>
+              )}
+              {pwdSuccess && (
+                <p className="text-xs mt-3" style={{ color: 'var(--color-success)' }}>Mot de passe modifie avec succes !</p>
+              )}
+
+              <div className="flex justify-end gap-2 mt-5">
+                <button
+                  onClick={closePwdDialog}
+                  className="px-4 py-2 rounded-lg text-sm font-medium"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  onClick={handleChangePassword}
+                  disabled={pwdLoading || !pwdCurrent || !pwdNew || !pwdConfirm}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                >
+                  {pwdLoading ? t('common.loading') : 'Modifier'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   )
 }
