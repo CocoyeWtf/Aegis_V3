@@ -46,6 +46,7 @@ RESOURCES = [
     "consignment-movements",
     "carriers",
     "waybill-archives",
+    "pdv-stock",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

@@ -950,3 +950,25 @@ export interface ConsignmentFilters {
   consignment_codes: string[]
   flux_types: string[]
 }
+
+// --- Stock contenants PDV / PDV container stock ---
+export interface PdvStockDetail {
+  pdv_id: number
+  pdv_code: string
+  pdv_name: string
+  support_type_id: number
+  support_type_code: string
+  support_type_name: string
+  current_stock: number
+  last_inventory_at: string | null
+  last_inventoried_by: string | null
+}
+
+export interface PdvInventoryRecord {
+  id: number
+  pdv_id: number
+  support_type_id: number
+  quantity: number
+  inventoried_at: string
+  inventoried_by: string | null
+}

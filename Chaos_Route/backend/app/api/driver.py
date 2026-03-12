@@ -27,7 +27,7 @@ from app.models.tour_stop import TourStop
 from app.models.tour_manifest_line import TourManifestLine
 from app.models.base_logistics import BaseLogistics
 from app.models.contract import Contract
-from app.models.pickup_request import PickupLabel, PickupRequest, LabelStatus
+from app.models.pickup_request import PickupLabel, PickupRequest, LabelStatus, PickupType
 from app.schemas.mobile import (
     AvailableTourRead,
     DriverTourRead,
@@ -44,6 +44,7 @@ from app.schemas.mobile import (
     SupportScanRead,
 )
 from app.schemas.pickup import PickupLabelRead
+from app.schemas.inventory import InventorySubmit
 from app.api.deps import get_authenticated_device, require_device_tour_access
 from app.api.ws_tracking import manager
 
@@ -1112,6 +1113,208 @@ async def refuse_pickup(
     })
 
     return {"status": "ok", "refused": len(labels)}
+
+
+# ─── Scan reprise autonome (hors tour) / Standalone pickup scanning (no tour) ───
+
+
+@router.post("/standalone-pickup/{label_code}", response_model=PickupLabelRead)
+async def standalone_pickup_scan(
+    label_code: str,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Scan reprise autonome sans tour / Standalone pickup scan without tour.
+    Permet au chauffeur de scanner une etiquette hors planning tour.
+    """
+    result = await db.execute(
+        select(PickupLabel)
+        .where(PickupLabel.label_code == label_code)
+        .options(selectinload(PickupLabel.pickup_request).selectinload(PickupRequest.labels))
+    )
+    label = result.scalar_one_or_none()
+    if not label:
+        raise HTTPException(status_code=404, detail="Label not found")
+
+    # Idempotent si deja PICKED_UP / Idempotent if already PICKED_UP
+    if label.status == LabelStatus.PICKED_UP:
+        return label
+
+    if label.status == LabelStatus.RECEIVED:
+        raise HTTPException(status_code=400, detail="Label already received")
+
+    label.status = LabelStatus.PICKED_UP
+    label.picked_up_at = _now_iso()
+    label.picked_up_device_id = device.id
+
+    # Auto-progression demande parent / Auto-progress parent request
+    from app.api.pickup_requests import _auto_progress_request
+    _auto_progress_request(label.pickup_request)
+
+    # Audit log
+    db.add(AuditLog(
+        entity_type="pickup_label", entity_id=label.id, action="STANDALONE_PICKUP",
+        changes=f'{{"label_code":"{label_code}","device_id":{device.id}}}',
+        user=f"device:{device.id}",
+        timestamp=_now_iso(),
+    ))
+
+    await db.flush()
+    await db.refresh(label)
+    return label
+
+
+@router.get("/standalone-pickups")
+async def list_standalone_pickups(
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Reprises autonomes du jour / Today's standalone pickups for this device."""
+    from app.models.support_type import SupportType
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    result = await db.execute(
+        select(
+            PickupLabel.label_code,
+            PickupLabel.status,
+            PickupLabel.picked_up_at,
+            PDV.code.label("pdv_code"),
+            PDV.name.label("pdv_name"),
+            SupportType.code.label("support_type_code"),
+            SupportType.name.label("support_type_name"),
+            PickupRequest.pickup_type,
+            PickupRequest.with_content,
+            PickupRequest.declared_unit_value,
+            PickupRequest.quantity,
+        )
+        .join(PickupRequest, PickupLabel.pickup_request_id == PickupRequest.id)
+        .join(PDV, PickupRequest.pdv_id == PDV.id)
+        .join(SupportType, PickupRequest.support_type_id == SupportType.id)
+        .where(
+            PickupLabel.picked_up_device_id == device.id,
+            PickupLabel.picked_up_at.like(f"{today}%"),
+        )
+        .order_by(PickupLabel.picked_up_at.desc())
+    )
+    rows = result.all()
+
+    return [
+        {
+            "label_code": row.label_code,
+            "status": row.status.value if hasattr(row.status, "value") else row.status,
+            "picked_up_at": row.picked_up_at,
+            "pdv_code": row.pdv_code,
+            "pdv_name": row.pdv_name,
+            "support_type_code": row.support_type_code,
+            "support_type_name": row.support_type_name,
+            "pickup_type": row.pickup_type.value if hasattr(row.pickup_type, "value") else row.pickup_type,
+            "with_content": row.with_content,
+            "declared_unit_value": float(row.declared_unit_value) if row.declared_unit_value is not None else None,
+            "quantity": row.quantity,
+        }
+        for row in rows
+    ]
+
+
+# ─── Inventaire PDV / PDV Inventory ───
+
+
+@router.post("/inventory-lookup")
+async def inventory_lookup(
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Rechercher un PDV par code + lister les types de support actifs / Lookup PDV by code + list active support types."""
+    from app.models.support_type import SupportType
+
+    pdv_code = (data.get("pdv_code") or "").strip()
+    if not pdv_code:
+        raise HTTPException(status_code=422, detail="pdv_code requis")
+
+    result = await db.execute(select(PDV).where(PDV.code == pdv_code))
+    pdv = result.scalar_one_or_none()
+    if not pdv:
+        raise HTTPException(status_code=404, detail="PDV non trouvé")
+
+    st_result = await db.execute(
+        select(SupportType).where(SupportType.is_active == True).order_by(SupportType.code)
+    )
+    support_types = st_result.scalars().all()
+
+    return {
+        "pdv": {"id": pdv.id, "code": pdv.code, "name": pdv.name},
+        "support_types": [
+            {"id": st.id, "code": st.code, "name": st.name, "unit_quantity": st.unit_quantity, "unit_label": st.unit_label}
+            for st in support_types
+        ],
+    }
+
+
+@router.post("/inventory")
+async def submit_inventory(
+    data: InventorySubmit,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Soumettre un inventaire PDV depuis la tablette / Submit PDV inventory from tablet."""
+    from app.models.pdv_inventory import PdvInventory, PdvStock
+
+    pdv = await db.get(PDV, data.pdv_id)
+    if not pdv:
+        raise HTTPException(status_code=404, detail="PDV not found")
+
+    now = _now_iso()
+    driver_name = data.inventoried_by or ""
+
+    for line in data.lines:
+        # Créer l'enregistrement d'inventaire / Create inventory record
+        inv = PdvInventory(
+            pdv_id=data.pdv_id,
+            support_type_id=line.support_type_id,
+            quantity=line.quantity,
+            inventoried_at=now,
+            device_id=device.id,
+            inventoried_by=driver_name,
+        )
+        db.add(inv)
+
+        # Mettre à jour le stock courant / Update current stock
+        stock_result = await db.execute(
+            select(PdvStock).where(
+                PdvStock.pdv_id == data.pdv_id,
+                PdvStock.support_type_id == line.support_type_id,
+            )
+        )
+        stock = stock_result.scalar_one_or_none()
+        if stock:
+            stock.current_stock = line.quantity
+            stock.last_inventory_at = now
+            stock.last_inventory_device_id = device.id
+            stock.last_inventoried_by = driver_name
+        else:
+            stock = PdvStock(
+                pdv_id=data.pdv_id,
+                support_type_id=line.support_type_id,
+                current_stock=line.quantity,
+                last_inventory_at=now,
+                last_inventory_device_id=device.id,
+                last_inventoried_by=driver_name,
+            )
+            db.add(stock)
+
+    # Audit log
+    db.add(AuditLog(
+        entity_type="pdv_inventory", entity_id=data.pdv_id, action="INVENTORY_SUBMITTED",
+        changes=f'{{"pdv_id":{data.pdv_id},"lines":{len(data.lines)},"device_id":{device.id},"by":"{driver_name}"}}',
+        user=f"device:{device.id}",
+        timestamp=now,
+    ))
+
+    await db.flush()
+
+    return {"status": "ok", "pdv_id": data.pdv_id, "lines": len(data.lines)}
 
 
 # ─── Mode kiosque / Kiosk mode ───

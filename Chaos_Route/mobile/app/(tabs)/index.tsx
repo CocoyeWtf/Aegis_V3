@@ -303,6 +303,22 @@ export default function TourListScreen() {
         }
       />
 
+      {/* Boutons actions rapides / Quick action buttons */}
+      <View style={styles.quickActions}>
+        <TouchableOpacity
+          style={styles.quickActionBtn}
+          onPress={() => router.push('/standalone-pickups')}
+        >
+          <Text style={styles.quickActionText}>Scanner reprises</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.quickActionBtn}
+          onPress={() => router.push('/inventory')}
+        >
+          <Text style={styles.quickActionText}>Inventaire PDV</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Bouton scanner QR / QR scanner button */}
       <TouchableOpacity
         style={styles.qrButton}
@@ -341,7 +357,7 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: 14,
-    paddingBottom: 80,
+    paddingBottom: 140,
   },
   center: {
     flex: 1,
@@ -446,6 +462,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.primary,
     fontWeight: '600',
+  },
+
+  /* Boutons actions rapides / Quick action buttons */
+  quickActions: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingBottom: 8,
+  },
+  quickActionBtn: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  quickActionText: {
+    color: COLORS.primary,
+    fontSize: 14,
+    fontWeight: '700',
   },
 
   /* Bouton QR flottant / Floating QR button */

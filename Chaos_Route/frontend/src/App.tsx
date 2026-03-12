@@ -51,6 +51,7 @@ const DeclarationManagement = lazy(() => import('./pages/DeclarationManagement')
 const CarrierManagement = lazy(() => import('./pages/CarrierManagement'))
 const ConsignmentTracking = lazy(() => import('./pages/ConsignmentTracking'))
 const WaybillRegistry = lazy(() => import('./pages/WaybillRegistry'))
+const PdvStock = lazy(() => import('./pages/PdvStock'))
 
 function Loading() {
   return (
@@ -110,6 +111,7 @@ export default function App() {
             <Route path="/carriers" element={<CarrierManagement />} />
             <Route path="/consignments" element={<ConsignmentTracking />} />
             <Route path="/waybill-registry" element={<WaybillRegistry />} />
+            <Route path="/pdv-stock" element={<PdvStock />} />
             <Route path="/help" element={<Help />} />
           </Route>
         </Route>

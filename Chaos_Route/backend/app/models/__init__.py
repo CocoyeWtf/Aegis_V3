@@ -50,6 +50,7 @@ from app.models.vehicle_cost_entry import VehicleCostEntry, CostCategory
 from app.models.carrier import Carrier
 from app.models.consignment_movement import ConsignmentMovement
 from app.models.waybill_archive import WaybillArchive, CMRStatus
+from app.models.pdv_inventory import PdvInventory, PdvStock
 
 __all__ = [
     "Country",
@@ -122,4 +123,6 @@ __all__ = [
     "Carrier",
     "WaybillArchive",
     "CMRStatus",
+    "PdvInventory",
+    "PdvStock",
 ]
