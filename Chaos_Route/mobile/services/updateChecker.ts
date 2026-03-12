@@ -6,7 +6,7 @@
  * If different and force_update = true: blocking modal + APK download.
  */
 
-import * as FileSystem from 'expo-file-system'
+import * as FileSystem from 'expo-file-system/legacy'
 import * as IntentLauncher from 'expo-intent-launcher'
 import { Platform, Alert } from 'react-native'
 import Constants from 'expo-constants'

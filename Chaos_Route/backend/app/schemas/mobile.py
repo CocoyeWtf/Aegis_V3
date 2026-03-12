@@ -5,15 +5,19 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # ─── MobileDevice ───
 
+ALL_DEVICE_FEATURES = ["tours", "pickups", "base_reception", "inventory", "declarations", "inspections"]
+
 class MobileDeviceCreate(BaseModel):
     friendly_name: str | None = None
     base_id: int | None = None
+    allowed_features: str | None = None  # CSV, defaut = tout
 
 class MobileDeviceUpdate(BaseModel):
     device_identifier: str | None = None
     friendly_name: str | None = None
     base_id: int | None = None
     is_active: bool | None = None
+    allowed_features: str | None = None
 
 class MobileDeviceRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -27,6 +31,7 @@ class MobileDeviceRead(BaseModel):
     app_version: str | None = None
     os_version: str | None = None
     last_seen_at: str | None = None
+    allowed_features: str | None = None
 
 class DeviceRegistration(BaseModel):
     """Enregistrement mobile via QR / Mobile registration via QR code."""

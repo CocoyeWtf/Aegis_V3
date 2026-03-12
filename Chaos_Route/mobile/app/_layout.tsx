@@ -55,8 +55,8 @@ export default function RootLayout() {
       if (kioskExitAllowed) return false // Laisser le systeme gerer
       return true // Bloquer la sortie
     }
-    BackHandler.addEventListener('hardwareBackPress', handler)
-    return () => BackHandler.removeEventListener('hardwareBackPress', handler)
+    const subscription = BackHandler.addEventListener('hardwareBackPress', handler)
+    return () => subscription.remove()
   }, [kioskExitAllowed])
 
   useEffect(() => {

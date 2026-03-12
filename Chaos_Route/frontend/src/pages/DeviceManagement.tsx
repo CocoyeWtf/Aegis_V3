@@ -18,15 +18,26 @@ function getServerBaseUrl(): string {
 
 type ConfirmActionType = 'deactivate' | 'hardDelete' | 'resetIdentity'
 
+const DEVICE_FEATURES = [
+  { key: 'tours', label: 'Tours / Livraisons' },
+  { key: 'pickups', label: 'Scanner reprises' },
+  { key: 'base_reception', label: 'Reception base' },
+  { key: 'inventory', label: 'Inventaire PDV' },
+  { key: 'declarations', label: 'Declarations' },
+  { key: 'inspections', label: 'Inspections' },
+] as const
+
+const ALL_FEATURES = DEVICE_FEATURES.map((f) => f.key).join(',')
+
 export default function DeviceManagement() {
   const [devices, setDevices] = useState<MobileDevice[]>([])
   const [bases, setBases] = useState<BaseLogistics[]>([])
   const [loading, setLoading] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
-  const [form, setForm] = useState({ friendly_name: '', base_id: '' as string })
+  const [form, setForm] = useState({ friendly_name: '', base_id: '' as string, allowed_features: ALL_FEATURES })
   const [qrDevice, setQrDevice] = useState<MobileDevice | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
-  const [editForm, setEditForm] = useState({ friendly_name: '', base_id: '' as string })
+  const [editForm, setEditForm] = useState({ friendly_name: '', base_id: '' as string, allowed_features: ALL_FEATURES })
   const [serverUrl, setServerUrl] = useState(() => getServerBaseUrl())
   const [confirmAction, setConfirmAction] = useState<{ type: ConfirmActionType; deviceId: number; deviceName: string } | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
@@ -52,8 +63,9 @@ export default function DeviceManagement() {
       const { data } = await api.post<MobileDevice>('/devices/', {
         friendly_name: form.friendly_name || null,
         base_id: form.base_id ? Number(form.base_id) : null,
+        allowed_features: form.allowed_features || ALL_FEATURES,
       })
-      setForm({ friendly_name: '', base_id: '' })
+      setForm({ friendly_name: '', base_id: '', allowed_features: ALL_FEATURES })
       setShowCreate(false)
       setQrDevice(data)
       loadDevices()
@@ -69,6 +81,7 @@ export default function DeviceManagement() {
       await api.put(`/devices/${id}`, {
         friendly_name: editForm.friendly_name || null,
         base_id: editForm.base_id ? Number(editForm.base_id) : null,
+        allowed_features: editForm.allowed_features || ALL_FEATURES,
       })
       setEditingId(null)
       loadDevices()
@@ -144,7 +157,20 @@ export default function DeviceManagement() {
     setEditForm({
       friendly_name: d.friendly_name || '',
       base_id: d.base_id ? String(d.base_id) : '',
+      allowed_features: d.allowed_features || ALL_FEATURES,
     })
+  }
+
+  const toggleFeature = (features: string, key: string): string => {
+    const list = features.split(',').filter(Boolean)
+    if (list.includes(key)) return list.filter((f) => f !== key).join(',')
+    return [...list, key].join(',')
+  }
+
+  const featureLabel = (features: string | null | undefined): string => {
+    const f = (features || ALL_FEATURES).split(',').filter(Boolean)
+    if (f.length === DEVICE_FEATURES.length) return 'Tous'
+    return f.map((k) => DEVICE_FEATURES.find((df) => df.key === k)?.label || k).join(', ')
   }
 
   const baseName = (id: number | null | undefined) => {
@@ -213,6 +239,18 @@ export default function DeviceManagement() {
               <button onClick={() => setShowCreate(false)}
                 className="px-4 py-2 rounded-lg text-sm border"
                 style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}>Annuler</button>
+            </div>
+          </div>
+          <div className="mb-2">
+            <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Fonctionnalites autorisees</label>
+            <div className="flex flex-wrap gap-3">
+              {DEVICE_FEATURES.map((f) => (
+                <label key={f.key} className="flex items-center gap-1.5 text-xs cursor-pointer" style={{ color: 'var(--text-secondary)' }}>
+                  <input type="checkbox" checked={form.allowed_features.split(',').includes(f.key)}
+                    onChange={() => setForm({ ...form, allowed_features: toggleFeature(form.allowed_features, f.key) })} />
+                  {f.label}
+                </label>
+              ))}
             </div>
           </div>
         </div>
@@ -292,6 +330,7 @@ export default function DeviceManagement() {
                 <th className="px-3 py-2 text-left font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Statut</th>
                 <th className="px-3 py-2 text-left font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Identifiant</th>
                 <th className="px-3 py-2 text-left font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Base</th>
+                <th className="px-3 py-2 text-left font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Profil</th>
                 <th className="px-3 py-2 text-center font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Actif</th>
                 <th className="px-3 py-2 text-center font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Actions</th>
               </tr>
@@ -328,6 +367,17 @@ export default function DeviceManagement() {
                           {bases.map((b) => <option key={b.id} value={b.id}>{b.code} — {b.name}</option>)}
                         </select>
                       </td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-wrap gap-1.5">
+                          {DEVICE_FEATURES.map((f) => (
+                            <label key={f.key} className="flex items-center gap-1 text-[10px] cursor-pointer whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
+                              <input type="checkbox" checked={editForm.allowed_features.split(',').includes(f.key)}
+                                onChange={() => setEditForm({ ...editForm, allowed_features: toggleFeature(editForm.allowed_features, f.key) })} />
+                              {f.label}
+                            </label>
+                          ))}
+                        </div>
+                      </td>
                       <td className="px-3 py-2 text-center whitespace-nowrap">{d.is_active ? '✓' : '✗'}</td>
                       <td className="px-3 py-2 text-center whitespace-nowrap">
                         <button onClick={() => handleUpdate(d.id)} className="text-xs font-semibold mr-2" style={{ color: 'var(--color-primary)' }}>OK</button>
@@ -345,6 +395,7 @@ export default function DeviceManagement() {
                       </td>
                       <td className="px-3 py-2 font-mono text-xs whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{d.device_identifier || '—'}</td>
                       <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{baseName(d.base_id)}</td>
+                      <td className="px-3 py-2 text-xs" style={{ color: 'var(--text-muted)', maxWidth: '180px' }}>{featureLabel(d.allowed_features)}</td>
                       <td className="px-3 py-2 text-center whitespace-nowrap" style={{ color: d.is_active ? '#22c55e' : 'var(--color-danger)' }}>
                         {d.is_active ? '✓' : '✗'}
                       </td>
@@ -410,7 +461,7 @@ export default function DeviceManagement() {
               ))}
               {devices.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
+                  <td colSpan={7} className="px-3 py-8 text-center whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
                     Aucun appareil enregistre — cliquez sur "Ajouter" pour creer un appareil
                   </td>
                 </tr>

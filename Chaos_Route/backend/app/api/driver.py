@@ -50,6 +50,15 @@ from app.api.ws_tracking import manager
 
 router = APIRouter()
 
+ALL_DEVICE_FEATURES = ["tours", "pickups", "base_reception", "inventory", "declarations", "inspections"]
+
+
+def _check_device_feature(device: MobileDevice, feature: str) -> None:
+    """Verifier qu'un appareil a acces a une fonctionnalite / Check device has feature access."""
+    allowed = (device.allowed_features or ",".join(ALL_DEVICE_FEATURES)).split(",")
+    if feature not in allowed:
+        raise HTTPException(status_code=403, detail=f"Feature '{feature}' not allowed on this device")
+
 
 @router.get("/device-info")
 async def get_device_info(
@@ -61,10 +70,12 @@ async def get_device_info(
     if device.base_id:
         base = await db.get(BaseLogistics, device.base_id)
         base_name = base.name if base else None
+    allowed = (device.allowed_features or ",".join(ALL_DEVICE_FEATURES)).split(",")
     return {
         "friendly_name": device.friendly_name,
         "base_name": base_name,
         "registration_code": device.registration_code,
+        "allowed_features": allowed,
     }
 
 
@@ -1127,6 +1138,7 @@ async def standalone_pickup_scan(
     """Scan reprise autonome sans tour / Standalone pickup scan without tour.
     Permet au chauffeur de scanner une etiquette hors planning tour.
     """
+    _check_device_feature(device, "pickups")
     result = await db.execute(
         select(PickupLabel)
         .where(PickupLabel.label_code == label_code)
@@ -1170,6 +1182,7 @@ async def list_standalone_pickups(
     device: MobileDevice = Depends(get_authenticated_device),
 ):
     """Reprises autonomes du jour / Today's standalone pickups for this device."""
+    _check_device_feature(device, "pickups")
     from app.models.support_type import SupportType
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -1229,6 +1242,7 @@ async def base_receive_scan(
     """Scan reception base via mobile / Base reception scan via mobile device.
     Passe l'etiquette en RECEIVED avec horodatage.
     """
+    _check_device_feature(device, "base_reception")
     result = await db.execute(
         select(PickupLabel)
         .where(PickupLabel.label_code == label_code)
@@ -1268,6 +1282,7 @@ async def list_base_receives(
     device: MobileDevice = Depends(get_authenticated_device),
 ):
     """Receptions base du jour / Today's base receives for this device."""
+    _check_device_feature(device, "base_reception")
     from app.models.support_type import SupportType
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -1325,6 +1340,7 @@ async def inventory_lookup(
     device: MobileDevice = Depends(get_authenticated_device),
 ):
     """Rechercher un PDV par code + lister les types de support actifs / Lookup PDV by code + list active support types."""
+    _check_device_feature(device, "inventory")
     from app.models.support_type import SupportType
 
     pdv_code = (data.get("pdv_code") or "").strip()
@@ -1357,6 +1373,7 @@ async def submit_inventory(
     device: MobileDevice = Depends(get_authenticated_device),
 ):
     """Soumettre un inventaire PDV depuis la tablette / Submit PDV inventory from tablet."""
+    _check_device_feature(device, "inventory")
     from app.models.pdv_inventory import PdvInventory, PdvStock
 
     pdv = await db.get(PDV, data.pdv_id)

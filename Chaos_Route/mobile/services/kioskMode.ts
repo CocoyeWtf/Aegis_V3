@@ -30,8 +30,8 @@ export function enableKioskMode(): () => void {
     // Bloquer le retour / Block back
     return true
   }
-  BackHandler.addEventListener('hardwareBackPress', handler)
-  return () => BackHandler.removeEventListener('hardwareBackPress', handler)
+  const subscription = BackHandler.addEventListener('hardwareBackPress', handler)
+  return () => subscription.remove()
 }
 
 /* Gerer un tap sur la zone cachee / Handle a tap on the hidden zone */

@@ -20,6 +20,7 @@ class MobileDevice(Base):
     app_version: Mapped[str | None] = mapped_column(String(20))
     os_version: Mapped[str | None] = mapped_column(String(50))
     last_seen_at: Mapped[str | None] = mapped_column(String(32))  # ISO 8601
+    allowed_features: Mapped[str | None] = mapped_column(String(500), default="tours,pickups,base_reception,inventory,declarations,inspections")  # CSV des fonctionnalites autorisees
 
     # Relations
     base: Mapped["BaseLogistics | None"] = relationship()

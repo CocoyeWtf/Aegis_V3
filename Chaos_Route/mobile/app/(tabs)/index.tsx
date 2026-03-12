@@ -13,12 +13,14 @@ import { CameraView, useCameraPermissions } from 'expo-camera'
 import { useRouter, useFocusEffect } from 'expo-router'
 import api from '../../services/api'
 import { TourCard } from '../../components/TourCard'
+import { useDeviceStore } from '../../stores/useDeviceStore'
 import { COLORS } from '../../constants/config'
 import { TorchToggleButton } from '../../components/TorchToggleButton'
 import type { DriverTour, AvailableTour } from '../../types'
 
 export default function TourListScreen() {
   const router = useRouter()
+  const hasFeature = useDeviceStore((s) => s.hasFeature)
   const [tours, setTours] = useState<DriverTour[]>([])
   const [availableTours, setAvailableTours] = useState<AvailableTour[]>([])
   const [loading, setLoading] = useState(false)
@@ -303,26 +305,32 @@ export default function TourListScreen() {
         }
       />
 
-      {/* Boutons actions rapides / Quick action buttons */}
+      {/* Boutons actions rapides — filtre par features autorisees / Quick action buttons — filtered by allowed features */}
       <View style={styles.quickActions}>
-        <TouchableOpacity
-          style={styles.quickActionBtn}
-          onPress={() => router.push('/standalone-pickups')}
-        >
-          <Text style={styles.quickActionText}>Scanner reprises</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.quickActionBtn}
-          onPress={() => router.push('/base-reception')}
-        >
-          <Text style={styles.quickActionText}>Reception base</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.quickActionBtn}
-          onPress={() => router.push('/inventory')}
-        >
-          <Text style={styles.quickActionText}>Inventaire PDV</Text>
-        </TouchableOpacity>
+        {hasFeature('pickups') && (
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => router.push('/standalone-pickups')}
+          >
+            <Text style={styles.quickActionText}>Scanner reprises</Text>
+          </TouchableOpacity>
+        )}
+        {hasFeature('base_reception') && (
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => router.push('/base-reception')}
+          >
+            <Text style={styles.quickActionText}>Reception base</Text>
+          </TouchableOpacity>
+        )}
+        {hasFeature('inventory') && (
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => router.push('/inventory')}
+          >
+            <Text style={styles.quickActionText}>Inventaire PDV</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Bouton scanner QR / QR scanner button */}

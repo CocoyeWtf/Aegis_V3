@@ -10,21 +10,30 @@ interface DeviceState {
   registrationCode: string | null // Code d'enregistrement serveur
   friendlyName: string | null    // Nom de l'appareil (depuis le serveur)
   baseName: string | null        // Nom de la base logistique
+  allowedFeatures: string[]      // Fonctionnalites autorisees / Allowed features
   isRegistered: boolean
   isLoading: boolean
+  hasFeature: (feature: string) => boolean
   loadDevice: () => Promise<void>
   register: (deviceId: string, registrationCode: string) => Promise<void>
   fetchDeviceInfo: () => Promise<void>
   reset: () => Promise<void>
 }
 
+const ALL_FEATURES = ['tours', 'pickups', 'base_reception', 'inventory', 'declarations', 'inspections']
+
 export const useDeviceStore = create<DeviceState>((set, get) => ({
   deviceId: null,
   registrationCode: null,
   friendlyName: null,
   baseName: null,
+  allowedFeatures: ALL_FEATURES,
   isRegistered: false,
   isLoading: true,
+
+  hasFeature: (feature: string) => {
+    return get().allowedFeatures.includes(feature)
+  },
 
   loadDevice: async () => {
     try {
@@ -61,14 +70,20 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       const { data } = await api.get('/driver/device-info')
       const friendlyName = data.friendly_name || null
       const baseName = data.base_name || null
+      const allowedFeatures: string[] = Array.isArray(data.allowed_features) ? data.allowed_features : ALL_FEATURES
       // Persister localement / Persist locally
       if (friendlyName) await SecureStore.setItemAsync('friendly_name', friendlyName)
       else await SecureStore.deleteItemAsync('friendly_name')
       if (baseName) await SecureStore.setItemAsync('base_name', baseName)
       else await SecureStore.deleteItemAsync('base_name')
-      set({ friendlyName, baseName })
+      await SecureStore.setItemAsync('allowed_features', JSON.stringify(allowedFeatures))
+      set({ friendlyName, baseName, allowedFeatures })
     } catch {
-      // Silencieux — utiliser le cache local / Silent — use local cache
+      // Charger depuis le cache local / Load from local cache
+      try {
+        const cached = await SecureStore.getItemAsync('allowed_features')
+        if (cached) set({ allowedFeatures: JSON.parse(cached) })
+      } catch { /* ignore */ }
     }
   },
 

@@ -112,7 +112,7 @@ export default function InventoryScreen() {
     } finally {
       setSubmitting(false)
     }
-  }, [setup, quantities, deviceName])
+  }, [setup, quantities, friendlyName])
 
   /* Reset pour nouveau inventaire / Reset for new inventory */
   const handleReset = useCallback(() => {
