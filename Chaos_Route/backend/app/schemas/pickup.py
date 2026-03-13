@@ -62,6 +62,7 @@ class PickupLabelRead(BaseModel):
     picked_up_at: str | None
     picked_up_device_id: int | None
     received_at: str | None
+    received_device_id: int | None = None
 
 
 # --- PickupRequest ---
@@ -118,7 +119,7 @@ class PickupRequestRead(BaseModel):
 
 
 class PickupRequestListRead(BaseModel):
-    """Version allégée sans labels pour les listes / Lightweight version without labels for lists."""
+    """Version allégée avec compteurs labels / Lightweight version with label counts for lists."""
     model_config = ConfigDict(from_attributes=True)
     id: int
     pdv_id: int
@@ -137,6 +138,11 @@ class PickupRequestListRead(BaseModel):
     declared_content_item_value: float | None = None
     declared_content_items_per_unit: int | None = None
     total_declared_value: float | None = None
+    # Compteurs labels / Label counters
+    total_labels: int = 0
+    pending_count: int = 0
+    picked_up_count: int = 0
+    received_count: int = 0
     # Relations
     pdv: PDVBrief | None = None
     support_type: SupportTypeRead | None = None

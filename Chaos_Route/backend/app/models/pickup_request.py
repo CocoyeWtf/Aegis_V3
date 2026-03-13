@@ -1,8 +1,8 @@
-"""Modèles Demande de reprise et Étiquette / Pickup request and label models."""
+"""Modèles Demande de reprise, Étiquette et Mouvement / Pickup request, label and movement models."""
 
 import enum
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -30,6 +30,16 @@ class LabelStatus(str, enum.Enum):
     PLANNED = "PLANNED"
     PICKED_UP = "PICKED_UP"
     RECEIVED = "RECEIVED"
+
+
+class MovementType(str, enum.Enum):
+    """Type de mouvement contenant / Container movement type."""
+    REQUESTED = "REQUESTED"        # Demande PDV créée
+    PLANNED = "PLANNED"            # Affecté à un tour
+    PICKED_UP = "PICKED_UP"        # Repris par chauffeur
+    RECEIVED = "RECEIVED"          # Réceptionné sur base
+    REFUSED = "REFUSED"            # Refusé par chauffeur
+    UNLINKED = "UNLINKED"          # Délié du tour
 
 
 class PickupRequest(Base):
@@ -93,6 +103,29 @@ class PickupLabel(Base):
     picked_up_at: Mapped[str | None] = mapped_column(String(32))  # ISO 8601
     picked_up_device_id: Mapped[int | None] = mapped_column(ForeignKey("mobile_devices.id"))
     received_at: Mapped[str | None] = mapped_column(String(32))  # ISO 8601
+    received_device_id: Mapped[int | None] = mapped_column(ForeignKey("mobile_devices.id"))
 
     # Relations
     pickup_request: Mapped["PickupRequest"] = relationship(back_populates="labels")
+    movements: Mapped[list["PickupMovement"]] = relationship(back_populates="pickup_label", cascade="all, delete-orphan")
+
+
+class PickupMovement(Base):
+    """Mouvement contenant — traçabilité complète / Container movement — full traceability.
+    Chaque changement de statut d'une étiquette crée un mouvement.
+    Every label status change creates a movement record.
+    """
+    __tablename__ = "pickup_movements"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    pickup_label_id: Mapped[int] = mapped_column(ForeignKey("pickup_labels.id", ondelete="CASCADE"), nullable=False)
+    movement_type: Mapped[MovementType] = mapped_column(Enum(MovementType), nullable=False)
+    timestamp: Mapped[str] = mapped_column(String(32), nullable=False)  # ISO 8601
+    device_id: Mapped[int | None] = mapped_column(ForeignKey("mobile_devices.id"))
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    notes: Mapped[str | None] = mapped_column(Text)
+    latitude: Mapped[float | None] = mapped_column(Float)
+    longitude: Mapped[float | None] = mapped_column(Float)
+
+    # Relations
+    pickup_label: Mapped["PickupLabel"] = relationship(back_populates="movements")

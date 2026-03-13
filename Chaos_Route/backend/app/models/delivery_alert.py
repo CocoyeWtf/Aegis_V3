@@ -15,6 +15,8 @@ class AlertType(str, enum.Enum):
     UNEXPECTED_SUPPORT = "UNEXPECTED_SUPPORT"
     FORCED_CLOSURE = "FORCED_CLOSURE"
     PICKUP_REFUSED = "PICKUP_REFUSED"
+    PICKUP_PARTIAL = "PICKUP_PARTIAL"  # Reprise partielle chauffeur / Partial pickup by driver
+    PICKUP_LOSS = "PICKUP_LOSS"  # Ecart chauffeur/base / Driver/base discrepancy
     STOP_REOPENED = "STOP_REOPENED"
     LONG_STOP = "LONG_STOP"
     LONG_TRAVEL = "LONG_TRAVEL"

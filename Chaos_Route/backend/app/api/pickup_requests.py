@@ -11,9 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models.pickup_request import PickupRequest, PickupLabel, PickupStatus, LabelStatus, PickupType
+from app.models.pickup_request import PickupRequest, PickupLabel, PickupMovement, PickupStatus, LabelStatus, PickupType, MovementType
 from app.models.support_type import SupportType
 from app.models.pdv import PDV
+from app.models.pdv_inventory import PdvStock
 from app.models.user import User
 from app.schemas.pickup import (
     PickupRequestCreate,
@@ -26,6 +27,51 @@ from app.schemas.pickup import (
 from app.api.deps import require_permission
 
 router = APIRouter()
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _enrich_with_label_counts(req: PickupRequest) -> dict:
+    """Ajouter les compteurs labels au dict de réponse / Add label counts to response dict."""
+    data = PickupRequestListRead.model_validate(req, from_attributes=True)
+    if req.labels:
+        data.total_labels = len(req.labels)
+        data.picked_up_count = sum(1 for lb in req.labels if lb.status == LabelStatus.PICKED_UP)
+        data.received_count = sum(1 for lb in req.labels if lb.status == LabelStatus.RECEIVED)
+        data.pending_count = sum(1 for lb in req.labels if lb.status in (LabelStatus.PENDING, LabelStatus.PLANNED))
+    else:
+        data.total_labels = req.quantity
+    return data
+
+
+async def _update_pdv_stock_on_pickup(db: AsyncSession, pdv_id: int, support_type_id: int, delta: int = -1):
+    """Mettre à jour le stock PDV lors d'une reprise / Update PDV stock on pickup.
+    delta=-1 : chauffeur reprend (stock PDV diminue).
+    """
+    result = await db.execute(
+        select(PdvStock).where(
+            PdvStock.pdv_id == pdv_id,
+            PdvStock.support_type_id == support_type_id,
+        )
+    )
+    stock = result.scalar_one_or_none()
+    if stock:
+        stock.current_stock = max(0, stock.current_stock + delta)
+
+
+def _create_movement(label: PickupLabel, movement_type: MovementType, device_id: int | None = None,
+                     user_id: int | None = None, notes: str | None = None) -> PickupMovement:
+    """Créer un enregistrement de mouvement / Create a movement record."""
+    return PickupMovement(
+        pickup_label_id=label.id,
+        movement_type=movement_type,
+        timestamp=_now_iso(),
+        device_id=device_id,
+        user_id=user_id,
+        notes=notes,
+    )
 
 
 def _generate_label_code(pdv_code: str, support_code: str, date_str: str, seq: int) -> str:
@@ -45,10 +91,11 @@ async def list_pickup_requests(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("pickup-requests", "read")),
 ):
-    """Liste des demandes de reprise avec filtres / List pickup requests with filters."""
+    """Liste des demandes de reprise avec filtres et compteurs labels / List pickup requests with filters and label counts."""
     query = select(PickupRequest).options(
         selectinload(PickupRequest.pdv),
         selectinload(PickupRequest.support_type),
+        selectinload(PickupRequest.labels),
     ).order_by(PickupRequest.id.desc())
 
     if pdv_id is not None:
@@ -61,7 +108,8 @@ async def list_pickup_requests(
         query = query.where(PickupRequest.availability_date == availability_date)
 
     result = await db.execute(query)
-    return result.scalars().all()
+    requests = result.scalars().all()
+    return [_enrich_with_label_counts(req) for req in requests]
 
 
 @router.get("/by-pdv/pending/", response_model=list[PdvPickupSummary])
@@ -97,7 +145,7 @@ async def pending_by_pdv(
         entry = pdv_map[req.pdv_id]
         pending_labels = sum(1 for lb in req.labels if lb.status in (LabelStatus.PENDING, LabelStatus.PLANNED))
         entry["pending_count"] += pending_labels
-        entry["requests"].append(PickupRequestListRead.model_validate(req, from_attributes=True))
+        entry["requests"].append(_enrich_with_label_counts(req))
 
     return [PdvPickupSummary(**v) for v in pdv_map.values()]
 
@@ -135,7 +183,10 @@ async def receive_label(
         raise HTTPException(status_code=400, detail="Label already received")
 
     label.status = LabelStatus.RECEIVED
-    label.received_at = datetime.now(timezone.utc).isoformat()
+    label.received_at = _now_iso()
+
+    # Mouvement traçabilité / Traceability movement
+    db.add(_create_movement(label, MovementType.RECEIVED, user_id=user.id))
 
     # Auto-progression de la demande parent / Auto-progress parent request
     _auto_progress_request(label.pickup_request)
@@ -282,7 +333,7 @@ async def create_pickup_request(
     )
     start_seq = (existing_count_result.scalar() or 0) + 1
 
-    # Générer les étiquettes / Generate labels
+    # Générer les étiquettes + mouvements / Generate labels + movements
     for i in range(data.quantity):
         seq = start_seq + i
         label = PickupLabel(
@@ -292,6 +343,8 @@ async def create_pickup_request(
             status=LabelStatus.PENDING,
         )
         db.add(label)
+        await db.flush()  # Pour obtenir label.id
+        db.add(_create_movement(label, MovementType.REQUESTED, user_id=user.id))
 
     await db.flush()
 
@@ -353,8 +406,12 @@ async def delete_pickup_request(
 
 
 def _auto_progress_request(request: PickupRequest):
-    """Auto-progression : si toutes les étiquettes ont le même statut, la demande suit.
-    Auto-progress: if all labels have the same status, the request follows.
+    """Auto-progression basée sur les statuts individuels des étiquettes.
+    Auto-progress based on individual label statuses.
+    - Tous RECEIVED → RECEIVED
+    - Tous PICKED_UP (ou mix PICKED_UP/RECEIVED) → PICKED_UP
+    - Tous PLANNED → PLANNED
+    - Sinon statut le plus avancé
     """
     if not request.labels:
         return
@@ -363,9 +420,67 @@ def _auto_progress_request(request: PickupRequest):
 
     if statuses == {LabelStatus.RECEIVED}:
         request.status = PickupStatus.RECEIVED
-    elif statuses == {LabelStatus.PICKED_UP}:
+    elif LabelStatus.RECEIVED in statuses:
+        # Mix RECEIVED + autre → PICKED_UP (en transit partiel)
         request.status = PickupStatus.PICKED_UP
-    elif LabelStatus.PICKED_UP in statuses or LabelStatus.RECEIVED in statuses:
+    elif LabelStatus.PICKED_UP in statuses:
         request.status = PickupStatus.PICKED_UP
     elif statuses == {LabelStatus.PLANNED}:
         request.status = PickupStatus.PLANNED
+
+
+@router.get("/{request_id}/movements")
+async def get_request_movements(
+    request_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("pickup-requests", "read")),
+):
+    """Historique mouvements d'une demande / Movement history for a request."""
+    result = await db.execute(
+        select(PickupMovement)
+        .join(PickupLabel, PickupMovement.pickup_label_id == PickupLabel.id)
+        .where(PickupLabel.pickup_request_id == request_id)
+        .order_by(PickupMovement.timestamp.desc())
+    )
+    movements = result.scalars().all()
+    return [
+        {
+            "id": m.id,
+            "label_id": m.pickup_label_id,
+            "movement_type": m.movement_type.value if hasattr(m.movement_type, "value") else m.movement_type,
+            "timestamp": m.timestamp,
+            "device_id": m.device_id,
+            "user_id": m.user_id,
+            "notes": m.notes,
+        }
+        for m in movements
+    ]
+
+
+@router.get("/discrepancies/", response_model=list[PickupRequestListRead])
+async def list_discrepancies(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("pickup-requests", "read")),
+):
+    """Demandes avec écarts chauffeur/base / Requests with driver/base discrepancies.
+    Retourne les demandes où picked_up_count != received_count (écart = perte potentielle).
+    Returns requests where picked_up_count != received_count (gap = potential loss).
+    """
+    query = select(PickupRequest).options(
+        selectinload(PickupRequest.pdv),
+        selectinload(PickupRequest.support_type),
+        selectinload(PickupRequest.labels),
+    ).where(PickupRequest.status == PickupStatus.PICKED_UP)
+
+    result = await db.execute(query)
+    requests = result.scalars().all()
+
+    discrepancies = []
+    for req in requests:
+        picked = sum(1 for lb in req.labels if lb.status in (LabelStatus.PICKED_UP, LabelStatus.RECEIVED))
+        received = sum(1 for lb in req.labels if lb.status == LabelStatus.RECEIVED)
+        # Ecart = des labels repris mais pas encore reçus (perte potentielle)
+        if picked > 0 and received < picked:
+            discrepancies.append(_enrich_with_label_counts(req))
+
+    return discrepancies

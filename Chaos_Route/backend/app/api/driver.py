@@ -27,7 +27,7 @@ from app.models.tour_stop import TourStop
 from app.models.tour_manifest_line import TourManifestLine
 from app.models.base_logistics import BaseLogistics
 from app.models.contract import Contract
-from app.models.pickup_request import PickupLabel, PickupRequest, LabelStatus, PickupType
+from app.models.pickup_request import PickupLabel, PickupRequest, PickupMovement, LabelStatus, PickupType, MovementType
 from app.schemas.mobile import (
     AvailableTourRead,
     DriverTourRead,
@@ -1050,6 +1050,14 @@ async def scan_pickup_label(
     label.picked_up_at = _now_iso()
     label.picked_up_device_id = device.id
 
+    # Mouvement traçabilité + décrémentation stock PDV / Movement traceability + PDV stock decrement
+    db.add(PickupMovement(
+        pickup_label_id=label.id, movement_type=MovementType.PICKED_UP,
+        timestamp=_now_iso(), device_id=device.id,
+    ))
+    from app.api.pickup_requests import _update_pdv_stock_on_pickup
+    await _update_pdv_stock_on_pickup(db, label.pickup_request.pdv_id, label.pickup_request.support_type_id, delta=-1)
+
     # Auto-progression demande parent / Auto-progress parent request
     from app.api.pickup_requests import _auto_progress_request
     _auto_progress_request(label.pickup_request)
@@ -1105,6 +1113,11 @@ async def refuse_pickup(
         label.tour_stop_id = None
         label.status = LabelStatus.PENDING
         requests_seen.add(label.pickup_request_id)
+        # Mouvement traçabilité refus / Refusal traceability movement
+        db.add(PickupMovement(
+            pickup_label_id=label.id, movement_type=MovementType.REFUSED,
+            timestamp=_now_iso(), device_id=device.id, notes=data.reason,
+        ))
 
     # Auto-progression demandes parentes / Auto-progress parent requests
     for label in labels:
@@ -1158,6 +1171,14 @@ async def standalone_pickup_scan(
     label.status = LabelStatus.PICKED_UP
     label.picked_up_at = _now_iso()
     label.picked_up_device_id = device.id
+
+    # Mouvement traçabilité + décrémentation stock PDV / Movement traceability + PDV stock decrement
+    db.add(PickupMovement(
+        pickup_label_id=label.id, movement_type=MovementType.PICKED_UP,
+        timestamp=_now_iso(), device_id=device.id,
+    ))
+    from app.api.pickup_requests import _update_pdv_stock_on_pickup
+    await _update_pdv_stock_on_pickup(db, label.pickup_request.pdv_id, label.pickup_request.support_type_id, delta=-1)
 
     # Auto-progression demande parent / Auto-progress parent request
     from app.api.pickup_requests import _auto_progress_request
@@ -1258,6 +1279,13 @@ async def base_receive_scan(
 
     label.status = LabelStatus.RECEIVED
     label.received_at = _now_iso()
+    label.received_device_id = device.id
+
+    # Mouvement traçabilité / Traceability movement
+    db.add(PickupMovement(
+        pickup_label_id=label.id, movement_type=MovementType.RECEIVED,
+        timestamp=_now_iso(), device_id=device.id,
+    ))
 
     # Auto-progression demande parent / Auto-progress parent request
     from app.api.pickup_requests import _auto_progress_request

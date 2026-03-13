@@ -640,7 +640,7 @@ export default function PdvPickupRequests() {
                 className="text-center px-4 py-3 font-medium"
                 style={{ color: 'var(--text-muted)' }}
               >
-                Statut
+                Statut / Progression
               </th>
               <th className="text-left px-4 py-3 font-medium" style={{ color: 'var(--text-muted)' }}>
                 Notes
@@ -715,6 +715,40 @@ export default function PdvPickupRequests() {
                     >
                       {STATUS_LABELS[req.status] || req.status}
                     </span>
+                    {(req.total_labels ?? 0) > 0 && (req.picked_up_count ?? 0) + (req.received_count ?? 0) > 0 && (
+                      <div className="mt-1 text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
+                        {(req.pending_count ?? 0) > 0 && (
+                          <span style={{ color: '#6b7280' }}>
+                            {req.pending_count} attente
+                          </span>
+                        )}
+                        {(req.pending_count ?? 0) > 0 && (req.picked_up_count ?? 0) > 0 && ' · '}
+                        {(req.picked_up_count ?? 0) > 0 && (
+                          <span style={{ color: '#3b82f6' }}>
+                            {req.picked_up_count} chauffeur
+                          </span>
+                        )}
+                        {((req.pending_count ?? 0) > 0 || (req.picked_up_count ?? 0) > 0) && (req.received_count ?? 0) > 0 && ' · '}
+                        {(req.received_count ?? 0) > 0 && (
+                          <span style={{ color: '#22c55e' }}>
+                            {req.received_count} base
+                          </span>
+                        )}
+                        <span style={{ color: 'var(--text-muted)' }}> / {req.total_labels}</span>
+                        {/* Alerte reprise partielle PDV */}
+                        {(req.pending_count ?? 0) > 0 && (req.picked_up_count ?? 0) > 0 && (
+                          <div style={{ color: '#f59e0b', fontWeight: 700, fontSize: 10 }}>
+                            Reprise partielle PDV
+                          </div>
+                        )}
+                        {/* Alerte ecart chauffeur/base : des labels repris par chauffeur + certains recus base mais pas tous */}
+                        {(req.picked_up_count ?? 0) > 0 && (req.received_count ?? 0) > 0 && (
+                          <div style={{ color: '#ef4444', fontWeight: 700, fontSize: 10 }}>
+                            {req.picked_up_count} en transit (ecart)
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>
                     {req.notes || '—'}

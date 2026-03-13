@@ -547,6 +547,7 @@ export interface PickupLabel {
   picked_up_at?: string | null
   picked_up_device_id?: number | null
   received_at?: string | null
+  received_device_id?: number | null
 }
 
 export interface PickupRequest {
@@ -567,6 +568,11 @@ export interface PickupRequest {
   declared_content_item_value?: number | null
   declared_content_items_per_unit?: number | null
   total_declared_value?: number | null
+  // Compteurs labels / Label counters
+  total_labels?: number
+  pending_count?: number
+  picked_up_count?: number
+  received_count?: number
   // Relations
   pdv?: { id: number; code: string; name: string } | null
   support_type?: SupportType | null
