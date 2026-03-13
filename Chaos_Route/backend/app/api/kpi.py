@@ -1,4 +1,4 @@
-"""Routes KPI — taux de ponctualité CDC et opérationnelle / KPI routes — CDC and operational punctuality rate."""
+"""Routes KPI — ponctualité, surcharges, taux de reprise / KPI routes — punctuality, surcharges, pickup rate."""
 
 from datetime import datetime, timedelta
 
@@ -14,6 +14,8 @@ from app.models.surcharge_type import SurchargeType
 from app.models.volume import Volume
 from app.models.pdv import PDV
 from app.models.support_scan import SupportScan
+from app.models.pickup_request import PickupLabel, PickupRequest, LabelStatus
+from app.models.contract import Contract
 from app.models.user import User
 from app.api.deps import require_permission, get_user_region_ids
 
@@ -473,4 +475,173 @@ async def get_surcharges_kpi(
         "by_month": sorted(by_month.values(), key=lambda x: x["month"]),
         "by_type": sorted(by_type.values(), key=lambda x: x["total_amount"], reverse=True),
         "by_month_and_type": sorted(by_month_and_type.values(), key=lambda x: (x["month"], x["label"])),
+    }
+
+
+@router.get("/pickup-rate")
+async def get_pickup_rate_kpi(
+    date_from: str = Query(..., description="Date début (YYYY-MM-DD)"),
+    date_to: str = Query(..., description="Date fin (YYYY-MM-DD)"),
+    region_id: int | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("dashboard", "read")),
+):
+    """Taux de reprise contenant par chauffeur et contrat / Container pickup rate by driver and contract.
+
+    Pour chaque tournée avec des labels planifiés, calcule le taux :
+    - planned = labels assignés a un tour_stop de cette tournée (PLANNED, PICKED_UP, RECEIVED)
+    - picked_up = labels effectivement repris (PICKED_UP ou RECEIVED)
+    - rate = picked_up / planned * 100
+    """
+
+    # 1. Charger tours sur la période / Load tours for period
+    tour_query = select(Tour).where(
+        Tour.date >= date_from,
+        Tour.date <= date_to,
+        Tour.status.in_([TourStatus.COMPLETED, TourStatus.RETURNING, TourStatus.IN_PROGRESS]),
+    )
+
+    # Scope région / Region scope
+    user_regions = get_user_region_ids(user)
+    if region_id:
+        from app.models.base_logistics import BaseLogistics
+        base_ids_q = select(BaseLogistics.id).where(BaseLogistics.region_id == region_id)
+        tour_query = tour_query.where(Tour.base_id.in_(base_ids_q))
+    elif user_regions:
+        from app.models.base_logistics import BaseLogistics
+        base_ids_q = select(BaseLogistics.id).where(BaseLogistics.region_id.in_(user_regions))
+        tour_query = tour_query.where(Tour.base_id.in_(base_ids_q))
+
+    result = await db.execute(tour_query)
+    tours = result.scalars().all()
+
+    if not tours:
+        return {"summary": {"total_planned": 0, "total_picked_up": 0, "total_received": 0, "rate_pct": 0},
+                "by_driver": [], "by_contract": []}
+
+    tour_ids = [t.id for t in tours]
+    tour_map = {t.id: t for t in tours}
+
+    # 2. Charger les stops de ces tours / Load stops
+    result = await db.execute(
+        select(TourStop.id, TourStop.tour_id).where(TourStop.tour_id.in_(tour_ids))
+    )
+    stop_rows = result.all()
+    stop_tour_map = {row[0]: row[1] for row in stop_rows}  # stop_id -> tour_id
+    stop_ids = list(stop_tour_map.keys())
+
+    if not stop_ids:
+        return {"summary": {"total_planned": 0, "total_picked_up": 0, "total_received": 0, "rate_pct": 0},
+                "by_driver": [], "by_contract": []}
+
+    # 3. Charger les labels planifiés sur ces stops / Load labels planned on these stops
+    result = await db.execute(
+        select(PickupLabel).where(
+            PickupLabel.tour_stop_id.in_(stop_ids),
+            PickupLabel.status.in_([LabelStatus.PLANNED, LabelStatus.PICKED_UP, LabelStatus.RECEIVED]),
+        )
+    )
+    labels = result.scalars().all()
+
+    if not labels:
+        return {"summary": {"total_planned": 0, "total_picked_up": 0, "total_received": 0, "rate_pct": 0},
+                "by_driver": [], "by_contract": []}
+
+    # 4. Charger les contrats / Load contracts
+    contract_ids = list({t.contract_id for t in tours if t.contract_id})
+    contract_map: dict[int, Contract] = {}
+    if contract_ids:
+        result = await db.execute(select(Contract).where(Contract.id.in_(contract_ids)))
+        contract_map = {c.id: c for c in result.scalars().all()}
+
+    # 5. Agréger par chauffeur et par contrat / Aggregate by driver and contract
+    def pct(ok: int, total: int) -> float:
+        return round(ok / total * 100, 1) if total > 0 else 0
+
+    total_planned = 0
+    total_picked = 0
+    total_received = 0
+
+    by_driver: dict[str, dict] = {}
+    by_contract: dict[str, dict] = {}
+
+    for label in labels:
+        tour_id = stop_tour_map.get(label.tour_stop_id)
+        if not tour_id:
+            continue
+        tour = tour_map.get(tour_id)
+        if not tour:
+            continue
+
+        driver_key = tour.driver_name or f"Chauffeur #{tour.driver_user_id or '?'}"
+        contract_key = "Sans contrat"
+        if tour.contract_id and tour.contract_id in contract_map:
+            c = contract_map[tour.contract_id]
+            contract_key = f"{c.code} — {c.transporter_name}"
+
+        is_picked = label.status in (LabelStatus.PICKED_UP, LabelStatus.RECEIVED)
+        is_received = label.status == LabelStatus.RECEIVED
+
+        total_planned += 1
+        if is_picked:
+            total_picked += 1
+        if is_received:
+            total_received += 1
+
+        # By driver
+        if driver_key not in by_driver:
+            by_driver[driver_key] = {"driver": driver_key, "planned": 0, "picked_up": 0, "received": 0, "tours": set()}
+        by_driver[driver_key]["planned"] += 1
+        if is_picked:
+            by_driver[driver_key]["picked_up"] += 1
+        if is_received:
+            by_driver[driver_key]["received"] += 1
+        by_driver[driver_key]["tours"].add(tour_id)
+
+        # By contract
+        if contract_key not in by_contract:
+            by_contract[contract_key] = {"contract": contract_key, "planned": 0, "picked_up": 0, "received": 0, "tours": set()}
+        by_contract[contract_key]["planned"] += 1
+        if is_picked:
+            by_contract[contract_key]["picked_up"] += 1
+        if is_received:
+            by_contract[contract_key]["received"] += 1
+        by_contract[contract_key]["tours"].add(tour_id)
+
+    # Finaliser / Finalize
+    by_driver_resp = sorted([
+        {
+            "driver": d["driver"],
+            "tours_count": len(d["tours"]),
+            "planned": d["planned"],
+            "picked_up": d["picked_up"],
+            "received": d["received"],
+            "pickup_rate_pct": pct(d["picked_up"], d["planned"]),
+            "receive_rate_pct": pct(d["received"], d["planned"]),
+        }
+        for d in by_driver.values()
+    ], key=lambda x: x["pickup_rate_pct"])
+
+    by_contract_resp = sorted([
+        {
+            "contract": c["contract"],
+            "tours_count": len(c["tours"]),
+            "planned": c["planned"],
+            "picked_up": c["picked_up"],
+            "received": c["received"],
+            "pickup_rate_pct": pct(c["picked_up"], c["planned"]),
+            "receive_rate_pct": pct(c["received"], c["planned"]),
+        }
+        for c in by_contract.values()
+    ], key=lambda x: x["pickup_rate_pct"])
+
+    return {
+        "summary": {
+            "total_planned": total_planned,
+            "total_picked_up": total_picked,
+            "total_received": total_received,
+            "rate_pct": pct(total_picked, total_planned),
+        },
+        "by_driver": by_driver_resp,
+        "by_contract": by_contract_resp,
     }
