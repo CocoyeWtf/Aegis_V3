@@ -997,7 +997,10 @@ async def scan_pickup_label(
     result = await db.execute(
         select(PickupLabel)
         .where(PickupLabel.label_code == label_code)
-        .options(selectinload(PickupLabel.pickup_request).selectinload(PickupRequest.labels))
+        .options(
+            selectinload(PickupLabel.pickup_request).selectinload(PickupRequest.labels),
+            selectinload(PickupLabel.pickup_request).selectinload(PickupRequest.support_type),
+        )
     )
     label = result.scalar_one_or_none()
     if not label:
@@ -1051,12 +1054,14 @@ async def scan_pickup_label(
     label.picked_up_device_id = device.id
 
     # Mouvement traçabilité + décrémentation stock PDV / Movement traceability + PDV stock decrement
+    # Stock en unites individuelles (palettes, bacs) — 1 etiquette = unit_quantity unites
+    unit_qty = label.pickup_request.support_type.unit_quantity if label.pickup_request.support_type else 1
     db.add(PickupMovement(
         pickup_label_id=label.id, movement_type=MovementType.PICKED_UP,
         timestamp=_now_iso(), device_id=device.id,
     ))
     from app.api.pickup_requests import _update_pdv_stock_on_pickup
-    await _update_pdv_stock_on_pickup(db, label.pickup_request.pdv_id, label.pickup_request.support_type_id, delta=-1)
+    await _update_pdv_stock_on_pickup(db, label.pickup_request.pdv_id, label.pickup_request.support_type_id, delta=-unit_qty)
 
     # Auto-progression demande parent / Auto-progress parent request
     from app.api.pickup_requests import _auto_progress_request
@@ -1155,7 +1160,10 @@ async def standalone_pickup_scan(
     result = await db.execute(
         select(PickupLabel)
         .where(PickupLabel.label_code == label_code)
-        .options(selectinload(PickupLabel.pickup_request).selectinload(PickupRequest.labels))
+        .options(
+            selectinload(PickupLabel.pickup_request).selectinload(PickupRequest.labels),
+            selectinload(PickupLabel.pickup_request).selectinload(PickupRequest.support_type),
+        )
     )
     label = result.scalar_one_or_none()
     if not label:
@@ -1173,12 +1181,14 @@ async def standalone_pickup_scan(
     label.picked_up_device_id = device.id
 
     # Mouvement traçabilité + décrémentation stock PDV / Movement traceability + PDV stock decrement
+    # Stock en unites individuelles (palettes, bacs) — 1 etiquette = unit_quantity unites
+    unit_qty = label.pickup_request.support_type.unit_quantity if label.pickup_request.support_type else 1
     db.add(PickupMovement(
         pickup_label_id=label.id, movement_type=MovementType.PICKED_UP,
         timestamp=_now_iso(), device_id=device.id,
     ))
     from app.api.pickup_requests import _update_pdv_stock_on_pickup
-    await _update_pdv_stock_on_pickup(db, label.pickup_request.pdv_id, label.pickup_request.support_type_id, delta=-1)
+    await _update_pdv_stock_on_pickup(db, label.pickup_request.pdv_id, label.pickup_request.support_type_id, delta=-unit_qty)
 
     # Auto-progression demande parent / Auto-progress parent request
     from app.api.pickup_requests import _auto_progress_request
