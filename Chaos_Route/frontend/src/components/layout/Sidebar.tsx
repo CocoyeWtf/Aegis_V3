@@ -79,7 +79,7 @@ const navGroups: NavGroup[] = [
     children: [
       { path: '/pdv-deliveries', label: 'Planning livraisons', icon: '📅', resource: 'pdvs' },
       { path: '/pickup-requests', label: 'Demandes de reprise', icon: '📋', resource: 'pickup-requests' },
-      { path: '/pdv-stock', label: 'Stock contenants', icon: '📦', resource: 'pdv-stock' },
+      { path: '/pdv-stock', label: 'Stock contenants PDV', icon: '📦', resource: 'pdv-stock' },
     ],
   },
   {
