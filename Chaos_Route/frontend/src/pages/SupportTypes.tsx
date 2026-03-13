@@ -70,7 +70,8 @@ export default function SupportTypes() {
         </div>
       ),
     },
-    { key: 'code', label: 'Code', width: '120px', filterable: true },
+    { key: 'code', label: 'Code long', width: '120px', filterable: true },
+    { key: 'short_code', label: 'Code court', width: '100px', filterable: true, render: (row) => row.short_code || '—' },
     { key: 'name', label: 'Nom', filterable: true },
     { key: 'unit_quantity', label: 'Qte/unite', width: '100px' },
     { key: 'unit_label', label: 'Libelle unite', filterable: true },
@@ -81,7 +82,8 @@ export default function SupportTypes() {
   ]
 
   const fields: FieldDef[] = [
-    { key: 'code', label: 'Code', type: 'text', required: true },
+    { key: 'code', label: 'Code long', type: 'text', required: true },
+    { key: 'short_code', label: 'Code court', type: 'text' },
     { key: 'name', label: 'Nom', type: 'text', required: true },
     { key: 'unit_quantity', label: 'Quantite par unite', type: 'number', required: true },
     { key: 'unit_label', label: 'Libelle unite (ex: pile de 15)', type: 'text' },

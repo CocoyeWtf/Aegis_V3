@@ -521,6 +521,7 @@ export interface DeliveryAlert {
 export interface SupportType {
   id: number
   code: string
+  short_code?: string | null
   name: string
   unit_quantity: number
   unit_label?: string | null

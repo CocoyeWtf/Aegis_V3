@@ -12,6 +12,7 @@ class SupportType(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    short_code: Mapped[str | None] = mapped_column(String(10))
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     unit_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # ex: 15 palettes par pile
     unit_label: Mapped[str | None] = mapped_column(String(100))  # ex: "pile de 15"
