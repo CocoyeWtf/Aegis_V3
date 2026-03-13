@@ -50,7 +50,8 @@ export default function SupportScanScreen() {
   }, [tourId, tourStopId])
 
   /* Scanner un code barre support / Scan a support barcode */
-  const handleBarCodeScanned = useCallback(async ({ data, type }: { data: string; type: string }) => {
+  const handleBarCodeScanned = useCallback(async ({ data: rawData, type }: { data: string; type: string }) => {
+    const data = rawData.trim()
     if (!scanning || !isReady) return
 
     // Anti-doublon : ignorer si meme code dans les 3 dernieres secondes

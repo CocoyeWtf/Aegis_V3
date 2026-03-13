@@ -42,7 +42,8 @@ export default function PickupScanScreen() {
   }, [tourId])
 
   /* Scanner un code barre etiquette / Scan a pickup label barcode */
-  const handleBarCodeScanned = useCallback(({ data }: { data: string }) => {
+  const handleBarCodeScanned = useCallback(({ data: rawData }: { data: string }) => {
+    const data = rawData.trim()
     if (!scanning) return
 
     // Anti-doublon

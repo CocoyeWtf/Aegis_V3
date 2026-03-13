@@ -51,7 +51,8 @@ export default function RegisterScreen() {
     }
   }
 
-  const handleBarCodeScanned = ({ data }: { data: string }) => {
+  const handleBarCodeScanned = ({ data: rawData }: { data: string }) => {
+    const data = rawData.trim()
     if (scannedRef.current) return
     scannedRef.current = true
 

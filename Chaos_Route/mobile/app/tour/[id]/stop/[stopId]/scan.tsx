@@ -20,7 +20,8 @@ export default function ScanPdvScreen() {
   const tourId = Number(id)
   const tourStopId = Number(stopId)
 
-  const handleBarCodeScanned = async ({ data }: { data: string }) => {
+  const handleBarCodeScanned = async ({ data: rawData }: { data: string }) => {
+    const data = rawData.trim()
     if (scannedRef.current || !scanning) return
     scannedRef.current = true
     setScanning(false)

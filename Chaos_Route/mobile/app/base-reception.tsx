@@ -34,7 +34,8 @@ export default function BaseReceptionScreen() {
   }, [])
 
   /* Scanner un code barre etiquette / Scan a pickup label barcode */
-  const handleBarCodeScanned = useCallback(({ data }: { data: string }) => {
+  const handleBarCodeScanned = useCallback(({ data: rawData }: { data: string }) => {
+    const data = rawData.trim()
     // Anti-doublon : 3 secondes
     const now = Date.now()
     if (data === lastScanRef.current && now - lastScanTimeRef.current < 3000) return
