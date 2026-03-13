@@ -1301,6 +1301,20 @@ async def base_receive_scan(
     from app.api.pickup_requests import _auto_progress_request
     _auto_progress_request(label.pickup_request)
 
+    # Increment stock base sur reception / Increment base stock on reception
+    if device.base_id and label.pickup_request:
+        req = label.pickup_request
+        # Charger support_type si pas deja charge / Load support_type if not loaded
+        from app.models.support_type import SupportType as ST
+        st_result = await db.execute(select(ST).where(ST.id == req.support_type_id))
+        st = st_result.scalar_one_or_none()
+        unit_qty = st.unit_quantity if st else 1
+        from app.api.base_container_stock import increment_base_stock_on_receive
+        await increment_base_stock_on_receive(
+            db, device.base_id, req.support_type_id, unit_qty,
+            label_code, device_id=device.id,
+        )
+
     # Audit log
     db.add(AuditLog(
         entity_type="pickup_label", entity_id=label.id, action="BASE_RECEIVE",

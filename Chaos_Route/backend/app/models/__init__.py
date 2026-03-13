@@ -51,6 +51,7 @@ from app.models.carrier import Carrier
 from app.models.consignment_movement import ConsignmentMovement
 from app.models.waybill_archive import WaybillArchive, CMRStatus
 from app.models.pdv_inventory import PdvInventory, PdvStock
+from app.models.base_container_stock import BaseContainerStock, BaseContainerMovement, BaseMovementType
 
 __all__ = [
     "Country",
@@ -127,4 +128,7 @@ __all__ = [
     "CMRStatus",
     "PdvInventory",
     "PdvStock",
+    "BaseContainerStock",
+    "BaseContainerMovement",
+    "BaseMovementType",
 ]

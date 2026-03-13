@@ -37,6 +37,7 @@ const RESOURCES = [
   'carriers',
   'waybill-archives',
   'pdv-stock',
+  'base-container-stock',
 ]
 
 const ACTIONS = ['read', 'create', 'update', 'delete'] as const
@@ -87,6 +88,7 @@ const RESOURCE_I18N: Record<string, string> = {
   'carriers': 'Transporteurs',
   'waybill-archives': 'Registre CMR',
   'pdv-stock': 'Stock contenants PDV',
+  'base-container-stock': 'Stock contenants base',
 }
 
 export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {

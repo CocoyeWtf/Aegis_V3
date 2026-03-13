@@ -191,6 +191,31 @@ async def receive_label(
     # Auto-progression de la demande parent / Auto-progress parent request
     _auto_progress_request(label.pickup_request)
 
+    # Increment stock base sur reception / Increment base stock on reception
+    # Determiner la base via le tour_stop du label / Determine base via label's tour_stop
+    base_id = None
+    if label.tour_stop_id:
+        from app.models.tour_stop import TourStop
+        from app.models.tour import Tour
+        ts_result = await db.execute(select(TourStop).where(TourStop.id == label.tour_stop_id))
+        ts = ts_result.scalar_one_or_none()
+        if ts:
+            tour_result = await db.execute(select(Tour).where(Tour.id == ts.tour_id))
+            tour = tour_result.scalar_one_or_none()
+            if tour:
+                base_id = tour.base_id
+
+    if base_id and label.pickup_request:
+        req = label.pickup_request
+        st_result = await db.execute(select(SupportType).where(SupportType.id == req.support_type_id))
+        st = st_result.scalar_one_or_none()
+        unit_qty = st.unit_quantity if st else 1
+        from app.api.base_container_stock import increment_base_stock_on_receive
+        await increment_base_stock_on_receive(
+            db, base_id, req.support_type_id, unit_qty,
+            label.label_code, device_id=None,
+        )
+
     await db.flush()
     await db.refresh(label)
     return label

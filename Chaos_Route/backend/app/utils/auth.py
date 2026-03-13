@@ -47,6 +47,7 @@ RESOURCES = [
     "carriers",
     "waybill-archives",
     "pdv-stock",
+    "base-container-stock",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

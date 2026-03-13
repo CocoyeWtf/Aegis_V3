@@ -979,3 +979,34 @@ export interface PdvInventoryRecord {
   inventoried_at: string
   inventoried_by: string | null
 }
+
+// --- Stock contenants base / Base container stock ---
+export interface BaseStockDetail {
+  id: number
+  base_id: number
+  base_code: string
+  base_name: string
+  support_type_id: number
+  support_type_code: string
+  support_type_name: string
+  unit_quantity: number
+  unit_label: string | null
+  current_stock: number
+  last_updated_at: string | null
+}
+
+export type BaseMovementTypeEnum = 'RECEIVED_FROM_PDV' | 'DELIVERY_PREP' | 'SUPPLIER_RETURN' | 'INVENTORY_ADJUSTMENT'
+
+export interface BaseMovementRecord {
+  id: number
+  base_id: number
+  base_name: string
+  support_type_id: number
+  support_type_code: string
+  support_type_name: string
+  movement_type: BaseMovementTypeEnum
+  quantity: number
+  reference: string | null
+  timestamp: string
+  notes: string | null
+}
