@@ -24,7 +24,7 @@ from app.schemas.pickup import (
     PickupLabelRead,
     PdvPickupSummary,
 )
-from app.api.deps import require_permission
+from app.api.deps import require_permission, enforce_pdv_scope
 
 router = APIRouter()
 
@@ -92,6 +92,9 @@ async def list_pickup_requests(
     user: User = Depends(require_permission("pickup-requests", "read")),
 ):
     """Liste des demandes de reprise avec filtres et compteurs labels / List pickup requests with filters and label counts."""
+    # Forcer le scope PDV si utilisateur lié à un PDV / Enforce PDV scope
+    pdv_id = enforce_pdv_scope(user, pdv_id)
+
     query = select(PickupRequest).options(
         selectinload(PickupRequest.pdv),
         selectinload(PickupRequest.support_type),
@@ -118,6 +121,8 @@ async def pending_by_pdv(
     user: User = Depends(require_permission("pickup-requests", "read")),
 ):
     """Résumé des reprises en attente par PDV (pour planning) / Pending pickups summary by PDV (for planning)."""
+    user_pdv = enforce_pdv_scope(user, None)
+
     query = (
         select(PickupRequest)
         .where(PickupRequest.status.in_([PickupStatus.REQUESTED, PickupStatus.PLANNED]))
@@ -127,6 +132,9 @@ async def pending_by_pdv(
             selectinload(PickupRequest.labels),
         )
     )
+    if user_pdv is not None:
+        query = query.where(PickupRequest.pdv_id == user_pdv)
+
     result = await db.execute(query)
     requests = result.scalars().all()
 
@@ -232,6 +240,9 @@ async def export_pickup_requests_csv(
     user: User = Depends(require_permission("pickup-requests", "read")),
 ):
     """Export CSV des demandes de reprise / CSV export of pickup requests."""
+    # Forcer le scope PDV / Enforce PDV scope
+    pdv_id = enforce_pdv_scope(user, pdv_id)
+
     query = select(PickupRequest).options(
         selectinload(PickupRequest.pdv),
         selectinload(PickupRequest.support_type),
@@ -319,6 +330,11 @@ async def create_pickup_request(
     user: User = Depends(require_permission("pickup-requests", "create")),
 ):
     """Créer une demande + auto-générer N étiquettes / Create request + auto-generate N labels."""
+    # Forcer le PDV si utilisateur PDV / Enforce PDV for PDV users
+    forced_pdv = enforce_pdv_scope(user, data.pdv_id)
+    if forced_pdv is not None:
+        data.pdv_id = forced_pdv
+
     # Valider PDV et SupportType / Validate PDV and SupportType
     pdv = await db.get(PDV, data.pdv_id)
     if not pdv:

@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback } from 'react'
 import * as XLSX from 'xlsx'
 import { useApi } from '../hooks/useApi'
 import { useAppStore } from '../stores/useAppStore'
+import { useAuthStore } from '../stores/useAuthStore'
 import type { PdvDeliveryEntry, BaseLogistics, PDV } from '../types'
 import type { Column } from '../components/data/DataTable'
 import { DataTable } from '../components/data/DataTable'
@@ -30,6 +31,8 @@ const statusColors: Record<string, string> = {
 
 export default function PdvDeliverySchedule() {
   const { selectedRegionId } = useAppStore()
+  const user = useAuthStore((s) => s.user)
+  const isPdvUser = !!user?.pdv_id
 
   /* Dates par défaut : aujourd'hui → +7j / Default: today → +7 days */
   const [dateFrom, setDateFrom] = useState(() => toDateStr(new Date()))
@@ -51,9 +54,11 @@ export default function PdvDeliverySchedule() {
   const scheduleParams = useMemo(() => {
     const p: Record<string, unknown> = { date_from: dateFrom, date_to: dateTo }
     if (baseId) p.base_id = baseId
-    if (pdvId) p.pdv_id = pdvId
+    // Forcer le PDV pour utilisateur PDV / Force PDV for PDV user
+    if (isPdvUser && user?.pdv_id) p.pdv_id = user.pdv_id
+    else if (pdvId) p.pdv_id = pdvId
     return p
-  }, [dateFrom, dateTo, baseId, pdvId])
+  }, [dateFrom, dateTo, baseId, pdvId, isPdvUser, user?.pdv_id])
 
   const { data, loading } = useApi<PdvDeliveryEntry>('/pdvs/delivery-schedule', scheduleParams)
 
@@ -234,7 +239,8 @@ export default function PdvDeliverySchedule() {
             ))}
           </select>
         </div>
-        {/* PDV avec recherche */}
+        {/* PDV avec recherche (masqué pour utilisateurs PDV) / Hidden for PDV users */}
+        {!isPdvUser && (
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>PDV</label>
           <div className="flex gap-1">
@@ -277,6 +283,7 @@ export default function PdvDeliverySchedule() {
             </select>
           </div>
         </div>
+        )}
         {/* Compteur résultats */}
         <div className="ml-auto text-sm" style={{ color: 'var(--text-muted)' }}>
           {data.length} livraison{data.length !== 1 ? 's' : ''}

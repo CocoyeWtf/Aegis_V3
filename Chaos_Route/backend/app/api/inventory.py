@@ -12,7 +12,7 @@ from app.models.support_type import SupportType
 from app.models.pdv_inventory import PdvInventory, PdvStock
 from app.models.user import User
 from app.schemas.inventory import PdvStockDetail, PdvInventoryRead
-from app.api.deps import require_permission
+from app.api.deps import require_permission, enforce_pdv_scope
 
 router = APIRouter()
 
@@ -25,6 +25,9 @@ async def list_stocks(
     user: User = Depends(require_permission("pdv-stock", "read")),
 ):
     """Liste des stocks courants / List current stocks."""
+    # Forcer le scope PDV / Enforce PDV scope
+    pdv_id = enforce_pdv_scope(user, pdv_id)
+
     query = (
         select(PdvStock, PDV.code, PDV.name, SupportType.code, SupportType.name)
         .join(PDV, PdvStock.pdv_id == PDV.id)
@@ -63,6 +66,9 @@ async def inventory_history(
     user: User = Depends(require_permission("pdv-stock", "read")),
 ):
     """Historique des inventaires / Inventory history."""
+    # Forcer le scope PDV / Enforce PDV scope
+    pdv_id = enforce_pdv_scope(user, pdv_id)
+
     query = select(PdvInventory).order_by(PdvInventory.inventoried_at.desc())
     if pdv_id:
         query = query.where(PdvInventory.pdv_id == pdv_id)

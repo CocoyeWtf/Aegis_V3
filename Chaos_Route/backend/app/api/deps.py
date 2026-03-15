@@ -123,3 +123,31 @@ def get_user_region_ids(user: User) -> list[int] | None:
     if not user.regions:
         return None
     return [r.id for r in user.regions]
+
+
+def get_user_pdv_id(user: User) -> int | None:
+    """Retourne le pdv_id si l'utilisateur est lié à un PDV / Returns pdv_id if user is linked to a PDV.
+
+    None = pas de filtre (superadmin ou utilisateur non-PDV) / no filter (superadmin or non-PDV user).
+    """
+    if user.is_superadmin:
+        return None
+    return user.pdv_id
+
+
+def enforce_pdv_scope(user: User, requested_pdv_id: int | None) -> int | None:
+    """Force le pdv_id pour un utilisateur PDV / Force pdv_id for a PDV user.
+
+    - Utilisateur PDV : ignore le pdv_id demandé, retourne toujours user.pdv_id
+    - Utilisateur non-PDV : retourne le pdv_id demandé tel quel
+    - Raises 403 si utilisateur PDV tente d'accéder à un autre PDV
+    """
+    user_pdv = get_user_pdv_id(user)
+    if user_pdv is None:
+        return requested_pdv_id
+    if requested_pdv_id is not None and requested_pdv_id != user_pdv:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès limité à votre PDV",
+        )
+    return user_pdv

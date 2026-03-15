@@ -13,7 +13,7 @@ from app.models.volume import Volume
 from app.models.base_logistics import BaseLogistics
 from app.models.user import User
 from app.schemas.pdv import PDVCreate, PDVRead, PDVUpdate
-from app.api.deps import require_permission, get_user_region_ids
+from app.api.deps import require_permission, get_user_region_ids, enforce_pdv_scope
 
 router = APIRouter()
 
@@ -47,6 +47,9 @@ async def get_delivery_schedule(
     """Planning livraisons PDV / PDV delivery schedule.
     Jointure Tour → TourStop → PDV + agrégation volumes par température.
     """
+    # Forcer le scope PDV / Enforce PDV scope
+    pdv_id = enforce_pdv_scope(user, pdv_id)
+
     # Date effective = delivery_date si renseigné, sinon date / Effective date = delivery_date or date
     effective_date = func.coalesce(Tour.delivery_date, Tour.date)
 

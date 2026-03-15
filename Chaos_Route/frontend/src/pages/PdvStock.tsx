@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import { DataTable, type Column } from '../components/data/DataTable'
 import { useApi } from '../hooks/useApi'
+import { useAuthStore } from '../stores/useAuthStore'
 import type { PdvStockDetail, PdvInventoryRecord } from '../types'
 
 type TabKey = 'stock' | 'history'
@@ -12,11 +13,16 @@ type StockRow = PdvStockDetail & { id: number }
 type HistoryRow = PdvInventoryRecord
 
 export default function PdvStock() {
+  const user = useAuthStore((s) => s.user)
+  const isPdvUser = !!user?.pdv_id
+
   const [tab, setTab] = useState<TabKey>('stock')
   const [supportFilter, setSupportFilter] = useState('')
 
-  const { data: rawStocks, loading: loadingStocks } = useApi<PdvStockDetail>('/pdv-stock')
-  const { data: history, loading: loadingHistory } = useApi<PdvInventoryRecord>('/pdv-stock/history', { limit: 200 })
+  const pdvParams = isPdvUser && user?.pdv_id ? { pdv_id: user.pdv_id } : undefined
+  const historyParams = { limit: 200, ...(isPdvUser && user?.pdv_id ? { pdv_id: user.pdv_id } : {}) }
+  const { data: rawStocks, loading: loadingStocks } = useApi<PdvStockDetail>('/pdv-stock', pdvParams)
+  const { data: history, loading: loadingHistory } = useApi<PdvInventoryRecord>('/pdv-stock/history', historyParams)
 
   /* Ajout id synthétique au stock (pdv_id + support_type_id) */
   const stocks: StockRow[] = useMemo(
