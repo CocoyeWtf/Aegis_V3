@@ -97,7 +97,7 @@ class PickupRequestRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     pdv_id: int
-    support_type_id: int
+    support_type_id: int | None = None
     quantity: int
     availability_date: str
     pickup_type: str
@@ -123,7 +123,7 @@ class PickupRequestListRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     pdv_id: int
-    support_type_id: int
+    support_type_id: int | None = None
     quantity: int
     availability_date: str
     pickup_type: str
