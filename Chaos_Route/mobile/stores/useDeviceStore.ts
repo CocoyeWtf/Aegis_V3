@@ -41,18 +41,25 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       const registrationCode = await SecureStore.getItemAsync('registration_code')
       const friendlyName = await SecureStore.getItemAsync('friendly_name')
       const baseName = await SecureStore.getItemAsync('base_name')
+      // Charger les features depuis le cache local avant le fetch / Load cached features before fetch
+      let allowedFeatures = ALL_FEATURES
+      try {
+        const cached = await SecureStore.getItemAsync('allowed_features')
+        if (cached) allowedFeatures = JSON.parse(cached)
+      } catch { /* ignore */ }
       const isRegistered = !!deviceId && !!registrationCode
       set({
         deviceId,
         registrationCode,
         friendlyName,
         baseName,
+        allowedFeatures,
         isRegistered,
         isLoading: false,
       })
       // Rafraichir depuis le serveur si enregistre / Refresh from server if registered
       if (isRegistered) {
-        get().fetchDeviceInfo()
+        await get().fetchDeviceInfo()
       }
     } catch {
       set({ isLoading: false })
@@ -92,7 +99,8 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
     await SecureStore.deleteItemAsync('registration_code')
     await SecureStore.deleteItemAsync('friendly_name')
     await SecureStore.deleteItemAsync('base_name')
-    set({ deviceId: null, registrationCode: null, friendlyName: null, baseName: null, isRegistered: false })
+    await SecureStore.deleteItemAsync('allowed_features')
+    set({ deviceId: null, registrationCode: null, friendlyName: null, baseName: null, allowedFeatures: ALL_FEATURES, isRegistered: false })
   },
 }))
 
