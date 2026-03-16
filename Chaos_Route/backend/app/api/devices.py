@@ -16,7 +16,7 @@ from app.models.delivery_alert import DeliveryAlert
 from app.models.device_assignment import DeviceAssignment
 from app.models.driver_declaration import DriverDeclaration
 from app.models.gps_position import GPSPosition
-from app.models.mobile_device import MobileDevice
+from app.models.mobile_device import DEVICE_PROFILES, MobileDevice
 from app.models.pickup_request import PickupLabel
 from app.models.stop_event import StopEvent
 from app.models.support_scan import SupportScan
@@ -38,6 +38,7 @@ async def create_device(
     """Creer un appareil (auto-genere registration_code UUID) / Create a device.
     device_identifier laisse vide — sera rempli par le telephone lors de l'enregistrement QR.
     """
+    profile = data.profile or "DRIVER"
     device = MobileDevice(
         device_identifier=None,  # Rempli par le telephone / Filled by phone on registration
         friendly_name=data.friendly_name,
@@ -45,6 +46,8 @@ async def create_device(
         registration_code=str(uuid.uuid4())[:8].upper(),
         is_active=True,
         registered_at=None,  # Sera set lors de l'enregistrement QR
+        profile=profile,
+        allowed_features=DEVICE_PROFILES.get(profile, DEVICE_PROFILES["DRIVER"]),
     )
     db.add(device)
     await db.flush()
@@ -88,6 +91,9 @@ async def update_device(
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
     changes = data.model_dump(exclude_unset=True)
+    # Si le profil change, recalculer allowed_features / If profile changes, recompute features
+    if "profile" in changes and changes["profile"] in DEVICE_PROFILES:
+        changes["allowed_features"] = DEVICE_PROFILES[changes["profile"]]
     for key, value in changes.items():
         setattr(device, key, value)
     await db.flush()

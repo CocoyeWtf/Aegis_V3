@@ -7,17 +7,23 @@ from pydantic import BaseModel, ConfigDict, Field
 
 ALL_DEVICE_FEATURES = ["tours", "pickups", "base_reception", "inventory", "declarations", "inspections"]
 
+DEVICE_PROFILE_LABELS = {
+    "DRIVER": "Chauffeur",
+    "BASE_RECEPTION": "Reception base",
+    "INVENTORY": "Inventaire",
+}
+
 class MobileDeviceCreate(BaseModel):
     friendly_name: str | None = None
     base_id: int | None = None
-    allowed_features: str | None = None  # CSV, defaut = tout
+    profile: str = "DRIVER"  # DRIVER, BASE_RECEPTION, INVENTORY
 
 class MobileDeviceUpdate(BaseModel):
     device_identifier: str | None = None
     friendly_name: str | None = None
     base_id: int | None = None
     is_active: bool | None = None
-    allowed_features: str | None = None
+    profile: str | None = None  # DRIVER, BASE_RECEPTION, INVENTORY
 
 class MobileDeviceRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -31,6 +37,7 @@ class MobileDeviceRead(BaseModel):
     app_version: str | None = None
     os_version: str | None = None
     last_seen_at: str | None = None
+    profile: str | None = "DRIVER"
     allowed_features: str | None = None
 
 class DeviceRegistration(BaseModel):

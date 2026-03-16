@@ -18,26 +18,21 @@ function getServerBaseUrl(): string {
 
 type ConfirmActionType = 'deactivate' | 'hardDelete' | 'resetIdentity'
 
-const DEVICE_FEATURES = [
-  { key: 'tours', label: 'Tours / Livraisons' },
-  { key: 'pickups', label: 'Scanner reprises' },
-  { key: 'base_reception', label: 'Reception base' },
-  { key: 'inventory', label: 'Inventaire PDV' },
-  { key: 'declarations', label: 'Declarations' },
-  { key: 'inspections', label: 'Inspections' },
+const DEVICE_PROFILES = [
+  { key: 'DRIVER', label: 'Chauffeur', desc: 'Tours, reprises, declarations' },
+  { key: 'BASE_RECEPTION', label: 'Reception base', desc: 'Scanner reception base' },
+  { key: 'INVENTORY', label: 'Inventaire', desc: 'Inventaire PDV et base' },
 ] as const
-
-const ALL_FEATURES = DEVICE_FEATURES.map((f) => f.key).join(',')
 
 export default function DeviceManagement() {
   const [devices, setDevices] = useState<MobileDevice[]>([])
   const [bases, setBases] = useState<BaseLogistics[]>([])
   const [loading, setLoading] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
-  const [form, setForm] = useState({ friendly_name: '', base_id: '' as string, allowed_features: ALL_FEATURES })
+  const [form, setForm] = useState({ friendly_name: '', base_id: '' as string, profile: 'DRIVER' })
   const [qrDevice, setQrDevice] = useState<MobileDevice | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
-  const [editForm, setEditForm] = useState({ friendly_name: '', base_id: '' as string, allowed_features: ALL_FEATURES })
+  const [editForm, setEditForm] = useState({ friendly_name: '', base_id: '' as string, profile: 'DRIVER' })
   const [serverUrl, setServerUrl] = useState(() => getServerBaseUrl())
   const [confirmAction, setConfirmAction] = useState<{ type: ConfirmActionType; deviceId: number; deviceName: string } | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
@@ -63,9 +58,9 @@ export default function DeviceManagement() {
       const { data } = await api.post<MobileDevice>('/devices/', {
         friendly_name: form.friendly_name || null,
         base_id: form.base_id ? Number(form.base_id) : null,
-        allowed_features: form.allowed_features || ALL_FEATURES,
+        profile: form.profile,
       })
-      setForm({ friendly_name: '', base_id: '', allowed_features: ALL_FEATURES })
+      setForm({ friendly_name: '', base_id: '', profile: 'DRIVER' })
       setShowCreate(false)
       setQrDevice(data)
       loadDevices()
@@ -81,7 +76,7 @@ export default function DeviceManagement() {
       await api.put(`/devices/${id}`, {
         friendly_name: editForm.friendly_name || null,
         base_id: editForm.base_id ? Number(editForm.base_id) : null,
-        allowed_features: editForm.allowed_features || ALL_FEATURES,
+        profile: editForm.profile,
       })
       setEditingId(null)
       loadDevices()
@@ -157,20 +152,12 @@ export default function DeviceManagement() {
     setEditForm({
       friendly_name: d.friendly_name || '',
       base_id: d.base_id ? String(d.base_id) : '',
-      allowed_features: d.allowed_features || ALL_FEATURES,
+      profile: d.profile || 'DRIVER',
     })
   }
 
-  const toggleFeature = (features: string, key: string): string => {
-    const list = features.split(',').filter(Boolean)
-    if (list.includes(key)) return list.filter((f) => f !== key).join(',')
-    return [...list, key].join(',')
-  }
-
-  const featureLabel = (features: string | null | undefined): string => {
-    const f = (features || ALL_FEATURES).split(',').filter(Boolean)
-    if (f.length === DEVICE_FEATURES.length) return 'Tous'
-    return f.map((k) => DEVICE_FEATURES.find((df) => df.key === k)?.label || k).join(', ')
+  const profileLabel = (profile: string | null | undefined): string => {
+    return DEVICE_PROFILES.find((p) => p.key === (profile || 'DRIVER'))?.label || profile || 'Chauffeur'
   }
 
   const baseName = (id: number | null | undefined) => {
@@ -203,7 +190,7 @@ export default function DeviceManagement() {
           Gestion des appareils
         </h1>
         <button
-          onClick={() => { setShowCreate(true); setForm({ friendly_name: '', base_id: '', allowed_features: ALL_FEATURES }) }}
+          onClick={() => { setShowCreate(true); setForm({ friendly_name: '', base_id: '', profile: 'DRIVER' }) }}
           className="px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-80"
           style={{ backgroundColor: 'var(--color-primary)', color: '#fff' }}
         >
@@ -215,7 +202,7 @@ export default function DeviceManagement() {
       {showCreate && (
         <div className="mb-4 p-4 rounded-xl border" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}>
           <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Nouvel appareil</h3>
-          <div className="grid grid-cols-3 gap-3 mb-3">
+          <div className="grid grid-cols-4 gap-3 mb-3">
             <div>
               <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Nom de l'appareil</label>
               <input type="text" value={form.friendly_name} onChange={(e) => setForm({ ...form, friendly_name: e.target.value })}
@@ -232,6 +219,17 @@ export default function DeviceManagement() {
                 {bases.map((b) => <option key={b.id} value={b.id}>{b.code} — {b.name}</option>)}
               </select>
             </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Profil</label>
+              <select value={form.profile} onChange={(e) => setForm({ ...form, profile: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border text-sm"
+                style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+                {DEVICE_PROFILES.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+              </select>
+              <span className="text-[10px] mt-0.5 block" style={{ color: 'var(--text-muted)' }}>
+                {DEVICE_PROFILES.find((p) => p.key === form.profile)?.desc}
+              </span>
+            </div>
             <div className="flex items-end gap-2">
               <button onClick={handleCreate}
                 className="px-4 py-2 rounded-lg text-sm font-semibold"
@@ -239,18 +237,6 @@ export default function DeviceManagement() {
               <button onClick={() => setShowCreate(false)}
                 className="px-4 py-2 rounded-lg text-sm border"
                 style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}>Annuler</button>
-            </div>
-          </div>
-          <div className="mb-2">
-            <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Fonctionnalites autorisees</label>
-            <div className="flex flex-wrap gap-3">
-              {DEVICE_FEATURES.map((f) => (
-                <label key={f.key} className="flex items-center gap-1.5 text-xs cursor-pointer" style={{ color: 'var(--text-secondary)' }}>
-                  <input type="checkbox" checked={form.allowed_features.split(',').includes(f.key)}
-                    onChange={() => setForm({ ...form, allowed_features: toggleFeature(form.allowed_features, f.key) })} />
-                  {f.label}
-                </label>
-              ))}
             </div>
           </div>
         </div>
@@ -368,15 +354,11 @@ export default function DeviceManagement() {
                         </select>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="flex flex-wrap gap-1.5">
-                          {DEVICE_FEATURES.map((f) => (
-                            <label key={f.key} className="flex items-center gap-1 text-[10px] cursor-pointer whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
-                              <input type="checkbox" checked={editForm.allowed_features.split(',').includes(f.key)}
-                                onChange={() => setEditForm({ ...editForm, allowed_features: toggleFeature(editForm.allowed_features, f.key) })} />
-                              {f.label}
-                            </label>
-                          ))}
-                        </div>
+                        <select value={editForm.profile} onChange={(e) => setEditForm({ ...editForm, profile: e.target.value })}
+                          className="w-full px-2 py-1 rounded border text-xs"
+                          style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+                          {DEVICE_PROFILES.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+                        </select>
                       </td>
                       <td className="px-3 py-2 text-center whitespace-nowrap">{d.is_active ? '✓' : '✗'}</td>
                       <td className="px-3 py-2 text-center whitespace-nowrap">
@@ -395,7 +377,7 @@ export default function DeviceManagement() {
                       </td>
                       <td className="px-3 py-2 font-mono text-xs whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{d.device_identifier || '—'}</td>
                       <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{baseName(d.base_id)}</td>
-                      <td className="px-3 py-2 text-xs" style={{ color: 'var(--text-muted)', maxWidth: '180px' }}>{featureLabel(d.allowed_features)}</td>
+                      <td className="px-3 py-2 text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>{profileLabel(d.profile)}</td>
                       <td className="px-3 py-2 text-center whitespace-nowrap" style={{ color: d.is_active ? '#22c55e' : 'var(--color-danger)' }}>
                         {d.is_active ? '✓' : '✗'}
                       </td>

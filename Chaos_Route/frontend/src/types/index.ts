@@ -442,6 +442,7 @@ export interface MobileDevice {
   app_version?: string | null
   os_version?: string | null
   last_seen_at?: string | null
+  profile?: string | null
   allowed_features?: string | null
 }
 

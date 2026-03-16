@@ -6,6 +6,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 
+# Profils mobiles et features associees / Mobile profiles and associated features
+DEVICE_PROFILES = {
+    "DRIVER": "tours,pickups,declarations",
+    "BASE_RECEPTION": "base_reception",
+    "INVENTORY": "inventory",
+}
+
+
 class MobileDevice(Base):
     """Telephone enregistre dans le parc / Registered fleet phone."""
     __tablename__ = "mobile_devices"
@@ -20,7 +28,8 @@ class MobileDevice(Base):
     app_version: Mapped[str | None] = mapped_column(String(20))
     os_version: Mapped[str | None] = mapped_column(String(50))
     last_seen_at: Mapped[str | None] = mapped_column(String(32))  # ISO 8601
-    allowed_features: Mapped[str | None] = mapped_column(String(500), default="tours,pickups,base_reception,inventory,declarations,inspections")  # CSV des fonctionnalites autorisees
+    profile: Mapped[str | None] = mapped_column(String(30), default="DRIVER")  # DRIVER, BASE_RECEPTION, INVENTORY
+    allowed_features: Mapped[str | None] = mapped_column(String(500), default="tours,pickups,declarations")  # CSV auto-derive du profil
 
     # Relations
     base: Mapped["BaseLogistics | None"] = relationship()
