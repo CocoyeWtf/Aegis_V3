@@ -17,7 +17,7 @@ router = APIRouter()
 async def list_regions(
     country_id: int | None = None,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("countries", "read")),
+    user: User = Depends(require_permission("countries", "read")),  # regions héritent de countries
 ):
     """Lister les régions, optionnellement filtrées par pays / List regions, optionally filtered by country."""
     query = select(Region)

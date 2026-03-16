@@ -122,6 +122,8 @@ export interface Volume {
   dispatch_date?: string | null
   dispatch_time?: string | null
   tour_id?: number | null
+  volume_m3?: number | null
+  nb_supports?: number | null
   activity_type?: string | null      // 'SUIVI' | 'MEAV'
   promo_start_date?: string | null   // YYYY-MM-DD
   split_group_id?: number | null

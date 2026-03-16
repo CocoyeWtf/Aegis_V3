@@ -86,6 +86,7 @@ class InspectionItem(Base):
 
     # Relations
     inspection: Mapped["VehicleInspection"] = relationship(back_populates="items")
+    photos: Mapped[list["InspectionPhoto"]] = relationship(back_populates="item")
 
     def __repr__(self) -> str:
         return f"<InspectionItem {self.label} - {self.result.value}>"
@@ -106,3 +107,4 @@ class InspectionPhoto(Base):
 
     # Relations
     inspection: Mapped["VehicleInspection"] = relationship(back_populates="photos")
+    item: Mapped["InspectionItem | None"] = relationship(back_populates="photos")

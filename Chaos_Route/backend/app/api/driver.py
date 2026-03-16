@@ -3,6 +3,7 @@
 Auth par appareil (X-Device-ID header) — pas de JWT pour le chauffeur.
 """
 
+import os
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -1486,9 +1487,8 @@ async def submit_inventory(
 
 # ─── Mode kiosque / Kiosk mode ───
 
-# Mot de passe kiosque global (peut etre rendu configurable par appareil plus tard)
-# Global kiosk password (can be made per-device later)
-KIOSK_PASSWORD = "cmro2026"
+# Mot de passe kiosque depuis env / Kiosk password from environment
+KIOSK_PASSWORD = os.environ.get("KIOSK_PASSWORD", "cmro2026")
 
 
 @router.post("/verify-kiosk-password")
