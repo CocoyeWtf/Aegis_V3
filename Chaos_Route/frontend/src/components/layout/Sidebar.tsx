@@ -22,6 +22,8 @@ interface NavGroup {
   path?: string
   resource?: string
   children?: NavItem[]
+  /** Masquer ce groupe pour les utilisateurs PDV / Hide this group for PDV users */
+  hideForPdv?: boolean
 }
 
 const navGroups: NavGroup[] = [
@@ -30,6 +32,7 @@ const navGroups: NavGroup[] = [
     key: 'database',
     label: 'nav.database',
     icon: '🗄️',
+    hideForPdv: true,
     children: [
       { path: '/countries', label: 'nav.countries', icon: '🌍', resource: 'countries' },
       { path: '/pdvs', label: 'nav.pdvs', icon: '🏪', resource: 'pdvs' },
@@ -49,6 +52,7 @@ const navGroups: NavGroup[] = [
     key: 'transport',
     label: 'nav.transportOps',
     icon: '🚛',
+    hideForPdv: true,
     children: [
       { path: '/contracts', label: 'nav.contracts', icon: '📝', resource: 'contracts' },
       { path: '/volumes', label: 'nav.volumes', icon: '📋', resource: 'volumes' },
@@ -63,6 +67,7 @@ const navGroups: NavGroup[] = [
     key: 'baseOps',
     label: 'nav.baseOps',
     icon: '🏭',
+    hideForPdv: true,
     children: [
       { path: '/operations', label: 'nav.postier', icon: '📮', resource: 'operations' },
       { path: '/tracking', label: 'Suivi chauffeurs', icon: '📡', resource: 'tracking' },
@@ -87,6 +92,7 @@ const navGroups: NavGroup[] = [
     key: 'fleet',
     label: 'Flotte',
     icon: '🚛',
+    hideForPdv: true,
     children: [
       { path: '/vehicles', label: 'Vehicules', icon: '🚚', resource: 'vehicles' },
       { path: '/inspections', label: 'Inspections', icon: '🔍', resource: 'inspections' },
@@ -97,6 +103,7 @@ const navGroups: NavGroup[] = [
     key: 'reports',
     label: 'Rapports',
     icon: '📈',
+    hideForPdv: true,
     children: [
       { path: '/reports/daily', label: 'Rapport quotidien', icon: '📅', resource: 'reports' },
       { path: '/reports/driver', label: 'Rapport chauffeurs', icon: '🧑', resource: 'reports' },
@@ -104,11 +111,12 @@ const navGroups: NavGroup[] = [
       { path: '/reports/vehicle', label: 'Rapport vehicules', icon: '🚚', resource: 'reports' },
     ],
   },
-  { key: 'guardPost', label: 'nav.guardPost', icon: '🚧', path: '/guard-post', resource: 'guard-post' },
+  { key: 'guardPost', label: 'nav.guardPost', icon: '🚧', path: '/guard-post', resource: 'guard-post', hideForPdv: true },
   {
     key: 'admin',
     label: 'nav.admin',
     icon: '⚙️',
+    hideForPdv: true,
     children: [
       { path: '/admin/users', label: 'nav.users', icon: '👥', resource: 'users' },
       { path: '/admin/roles', label: 'nav.roles', icon: '🛡️', resource: 'roles' },
@@ -168,6 +176,7 @@ export function Sidebar({ forceCollapsed = false }: SidebarProps) {
   const { sidebarCollapsed, toggleSidebar } = useAppStore()
   const hasPermission = useAuthStore((s) => s.hasPermission)
   const isSuperadmin = useAuthStore((s) => s.user?.is_superadmin ?? false)
+  const isPdvUser = useAuthStore((s) => !!s.user?.pdv_id)
   const location = useLocation()
 
   /* En mode forceCollapsed, toujours collapsed / When forced, always collapsed */
@@ -210,6 +219,7 @@ export function Sidebar({ forceCollapsed = false }: SidebarProps) {
     hasPermission(child.resource, 'read') && (!child.superadminOnly || isSuperadmin)
 
   const visibleGroups = navGroups.filter((group) => {
+    if (isPdvUser && group.hideForPdv) return false
     if (group.children) {
       return group.children.some(canSeeItem)
     }
