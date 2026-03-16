@@ -68,6 +68,7 @@ export default function DistanceMatrix() {
         </button>
       </div>
       <CrudPage<DistanceEntry>
+        resource="distances"
         title={t('distances.title')}
         endpoint="/distance-matrix"
         columns={columns}

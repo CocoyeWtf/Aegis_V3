@@ -43,6 +43,7 @@ export default function KmTax() {
 
   return (
     <CrudPage<KmTaxEntry>
+      resource="distances"
       title={t('kmTax.title')}
       endpoint="/km-tax"
       columns={columns}

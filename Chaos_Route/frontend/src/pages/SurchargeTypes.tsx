@@ -30,6 +30,7 @@ export default function SurchargeTypes() {
 
   return (
     <CrudPage<SurchargeType>
+      resource="surcharge-types"
       title="Types de surcharge"
       endpoint="/surcharge-types"
       columns={columns}

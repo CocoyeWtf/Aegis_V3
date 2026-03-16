@@ -7,6 +7,7 @@ import { FormDialog, type FieldDef, type FormDialogSize } from './FormDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ImportDialog } from './ImportDialog'
 import { useApi } from '../../hooks/useApi'
+import { useAuthStore } from '../../stores/useAuthStore'
 import { create, update, remove, downloadExport } from '../../services/api'
 
 interface CrudPageProps<T extends { id: number }> {
@@ -36,6 +37,8 @@ interface CrudPageProps<T extends { id: number }> {
   formExtra?: (formData: Record<string, unknown>, initialData?: Record<string, unknown>) => React.ReactNode
   /** Taille du formulaire / Form dialog size */
   formSize?: FormDialogSize
+  /** Ressource RBAC pour conditionner create/edit/delete / RBAC resource to gate CUD actions */
+  resource?: string
 }
 
 export function CrudPage<T extends { id: number }>({
@@ -57,8 +60,13 @@ export function CrudPage<T extends { id: number }>({
   transformInitialData,
   formExtra,
   formSize,
+  resource,
 }: CrudPageProps<T>) {
   const { t } = useTranslation()
+  const hasPermission = useAuthStore((s) => s.hasPermission)
+  const canCreate = !resource || hasPermission(resource, 'create')
+  const canUpdate = !resource || hasPermission(resource, 'update')
+  const canDelete = !resource || hasPermission(resource, 'delete')
   const { data, loading, refetch } = useApi<T>(endpoint, apiParams)
 
   const [formOpen, setFormOpen] = useState(false)
@@ -143,11 +151,11 @@ export function CrudPage<T extends { id: number }>({
         loading={loading}
         searchable
         searchKeys={searchKeys}
-        onCreate={handleCreate}
-        onEdit={handleEdit}
-        onDelete={(row) => setDeleteId(row.id)}
-        onDuplicate={allowDuplicate ? handleDuplicate : undefined}
-        onImport={importEntity ? () => setImportOpen(true) : undefined}
+        onCreate={canCreate ? handleCreate : undefined}
+        onEdit={canUpdate ? handleEdit : undefined}
+        onDelete={canDelete ? ((row) => setDeleteId(row.id)) : undefined}
+        onDuplicate={allowDuplicate && canCreate ? handleDuplicate : undefined}
+        onImport={importEntity && canCreate ? () => setImportOpen(true) : undefined}
         onExport={exportEntity ? (format) => downloadExport(exportEntity, format) : undefined}
       />
 

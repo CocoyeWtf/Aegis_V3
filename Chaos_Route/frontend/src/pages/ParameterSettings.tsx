@@ -48,6 +48,7 @@ export default function ParameterSettings() {
 
   return (
     <CrudPage<Parameter>
+      resource="parameters"
       title={t('parameters.title')}
       endpoint="/parameters"
       columns={columns}

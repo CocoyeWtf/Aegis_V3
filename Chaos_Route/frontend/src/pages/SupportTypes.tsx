@@ -157,6 +157,7 @@ export default function SupportTypes() {
       />
       <CrudPage<SupportType>
         key={refreshKey}
+        resource="support-types"
         title="Types de support"
         endpoint="/support-types"
         columns={columns}

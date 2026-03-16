@@ -48,6 +48,7 @@ export default function CarrierManagement() {
 
   return (
     <CrudPage<Carrier>
+      resource="carriers"
       title="Transporteurs"
       endpoint="/carriers"
       columns={columns}

@@ -191,6 +191,7 @@ function MaintenanceCrud({ vehicleOptions }: { vehicleOptions: { value: string; 
 
   return (
     <CrudPage<MaintenanceRecord>
+      resource="fleet"
       title=""
       endpoint="/fleet/maintenance"
       columns={columns}
@@ -266,6 +267,7 @@ function FuelCrud({ vehicleOptions }: { vehicleOptions: { value: string; label: 
 
   return (
     <CrudPage<FuelEntry>
+      resource="fleet"
       title=""
       endpoint="/fleet/fuel"
       columns={columns}
@@ -320,6 +322,7 @@ function ModificationsCrud({ vehicleOptions }: { vehicleOptions: { value: string
 
   return (
     <CrudPage<VehicleModificationEntry>
+      resource="fleet"
       title=""
       endpoint="/fleet/modifications"
       columns={columns}
@@ -375,6 +378,7 @@ function CostsCrud({ vehicleOptions }: { vehicleOptions: { value: string; label:
 
   return (
     <CrudPage<VehicleCostEntry>
+      resource="fleet"
       title=""
       endpoint="/fleet/costs"
       columns={columns}
@@ -436,6 +440,7 @@ function ScheduleRulesCrud() {
 
   return (
     <CrudPage<MaintenanceScheduleRule>
+      resource="fleet"
       title=""
       endpoint="/fleet/schedule-rules"
       columns={columns}

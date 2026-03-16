@@ -146,6 +146,7 @@ export default function PdvManagement() {
   return (
     <>
       <CrudPage<PDV>
+        resource="pdvs"
         title={t('pdvs.title')}
         endpoint="/pdvs"
         columns={columns}

@@ -270,6 +270,7 @@ function TemplatesCrud() {
 
   return (
     <CrudPage<InspectionTemplate>
+      resource="inspections"
       title=""
       endpoint="/inspections/templates"
       columns={columns}

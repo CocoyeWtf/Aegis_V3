@@ -195,6 +195,7 @@ export default function VehicleManagement() {
   return (
     <>
       <CrudPage<Vehicle>
+        resource="vehicles"
         title="Vehicules"
         endpoint="/vehicles"
         columns={columns}

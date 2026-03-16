@@ -82,6 +82,7 @@ export default function VolumeManagement() {
 
   return (
     <CrudPage<Volume>
+      resource="volumes"
       title={t('volumes.title')}
       endpoint="/volumes"
       columns={columns}

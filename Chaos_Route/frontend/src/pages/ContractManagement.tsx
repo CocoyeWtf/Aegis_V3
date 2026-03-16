@@ -163,6 +163,7 @@ export default function ContractManagement() {
   return (
     <>
       <CrudPage<Contract>
+        resource="contracts"
         title={t('contracts.title')}
         endpoint="/contracts"
         columns={columns}

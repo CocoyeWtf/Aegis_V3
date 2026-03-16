@@ -22,6 +22,7 @@ export default function BaseActivityManagement() {
 
   return (
     <CrudPage<BaseActivity>
+      resource="base-activities"
       title={t('baseActivities.title')}
       endpoint="/base-activities"
       columns={columns}

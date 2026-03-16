@@ -27,6 +27,7 @@ export default function FuelPrices() {
 
   return (
     <CrudPage<FuelPrice>
+      resource="fleet"
       title={t('fuelPrices.title')}
       endpoint="/fuel-prices"
       columns={columns}

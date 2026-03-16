@@ -44,6 +44,7 @@ export default function SupplierManagement() {
 
   return (
     <CrudPage<Supplier>
+      resource="suppliers"
       title={t('suppliers.title')}
       endpoint="/suppliers"
       columns={columns}

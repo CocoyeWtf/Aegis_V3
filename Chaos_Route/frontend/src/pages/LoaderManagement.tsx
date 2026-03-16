@@ -32,6 +32,7 @@ export default function LoaderManagement() {
 
   return (
     <CrudPage<Loader>
+      resource="loaders"
       title="Chargeurs"
       endpoint="/loaders"
       columns={columns}
