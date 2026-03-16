@@ -18,6 +18,7 @@ PDV_PERMISSIONS = [
     ("pickup-requests", "read"),
     ("pickup-requests", "create"),
     ("pdv-stock", "read"),
+    ("support-types", "read"),
     ("dashboard", "read"),
 ]
 

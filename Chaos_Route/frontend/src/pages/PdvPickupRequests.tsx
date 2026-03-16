@@ -103,9 +103,6 @@ export default function PdvPickupRequests() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Presets rapides : supports avec contenu consigne / Quick presets: supports with consignment content
-  const consignmentPresets = supportTypes.filter((st) => st.content_item_label && st.unit_value != null)
-
   // Valeur estimee en direct / Real-time estimated value
   // quantity × unit_quantity × (unit_value + with_content × content_items_per_unit × content_item_value)
   const estimatedValue =
@@ -117,13 +114,6 @@ export default function PdvPickupRequests() {
             ? selectedSt.content_items_per_unit * selectedSt.content_item_value
             : 0))
       : null
-
-  const applyPreset = useCallback((st: SupportType) => {
-    setSupportTypeId(String(st.id))
-    setPickupType('CONSIGNMENT')
-    setQuantity(1)
-    setWithContent(true)
-  }, [])
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -238,30 +228,6 @@ export default function PdvPickupRequests() {
           Nouvelle demande
         </h2>
 
-        {/* Presets rapides / Quick presets (PDV users only) */}
-        {isPdvUser && consignmentPresets.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-              Preset rapide :
-            </span>
-            {consignmentPresets.map((st) => (
-              <button
-                key={st.id}
-                type="button"
-                onClick={() => applyPreset(st)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium border"
-                style={{
-                  backgroundColor: 'var(--bg-tertiary)',
-                  borderColor: 'var(--color-primary)',
-                  color: 'var(--color-primary)',
-                }}
-              >
-                ⚡ {st.name}
-                {st.content_item_label ? ` + ${st.content_item_label}s vides` : ''}
-              </button>
-            ))}
-          </div>
-        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* PDV recherche (mode dispatcher) / PDV search (dispatcher mode) */}
