@@ -6,7 +6,7 @@ import { useApi } from '../hooks/useApi'
 import { useAuthStore } from '../stores/useAuthStore'
 import api from '../services/api'
 import { PickupLabelPrint } from '../components/pickup/PickupLabelPrint'
-import type { PickupRequest, PickupTypeEnum, SupportType, PDV } from '../types'
+import type { PickupRequest, PickupTypeEnum, SupportType } from '../types'
 
 const PICKUP_TYPE_OPTIONS: { value: PickupTypeEnum; label: string }[] = [
   { value: 'CONTAINER', label: 'Contenants' },
@@ -40,8 +40,15 @@ export default function PdvPickupRequests() {
   const user = useAuthStore((s) => s.user)
   const isPdvUser = !!user?.pdv_id
 
-  const { data: supportTypes } = useApi<SupportType>('/support-types', { is_active: true })
-  const { data: pdvs } = useApi<PDV>('/pdvs')
+  // Charger les données de formulaire via endpoint dédié (pas besoin de support-types:read)
+  const [supportTypes, setSupportTypes] = useState<SupportType[]>([])
+  const [pdvs, setPdvs] = useState<{ id: number; code: string; name: string }[]>([])
+  useEffect(() => {
+    api.get('/pickup-requests/form-data/').then(({ data }) => {
+      setSupportTypes(data.support_types ?? [])
+      setPdvs(data.pdvs ?? [])
+    }).catch(() => { /* silently fail */ })
+  }, [])
 
   // Filtres liste / List filters
   const [filterStatus, setFilterStatus] = useState<string>('')

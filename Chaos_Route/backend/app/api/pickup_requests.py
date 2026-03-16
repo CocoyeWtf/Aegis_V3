@@ -82,6 +82,43 @@ def _generate_label_code(pdv_code: str, support_code: str, date_str: str, seq: i
     return f"RET-{pdv_code}-{support_code}-{date_compact}-{seq:03d}"
 
 
+@router.get("/form-data/")
+async def pickup_form_data(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("pickup-requests", "read")),
+):
+    """Données nécessaires au formulaire de demande / Form data for pickup request creation.
+    Retourne les types de support actifs — sans exiger support-types:read.
+    """
+    # Types de support actifs / Active support types
+    st_result = await db.execute(select(SupportType).where(SupportType.is_active == True).order_by(SupportType.code))
+    support_types = st_result.scalars().all()
+
+    # PDVs accessibles / Accessible PDVs
+    pdv_query = select(PDV).order_by(PDV.code)
+    user_pdv = enforce_pdv_scope(user, None)
+    if user_pdv is not None:
+        pdv_query = pdv_query.where(PDV.id == user_pdv)
+    pdv_result = await db.execute(pdv_query)
+    pdvs = pdv_result.scalars().all()
+
+    return {
+        "support_types": [
+            {
+                "id": st.id, "code": st.code, "name": st.name,
+                "short_code": st.short_code, "unit_quantity": st.unit_quantity,
+                "unit_label": st.unit_label, "unit_value": st.unit_value,
+                "content_item_label": st.content_item_label,
+                "content_items_per_unit": st.content_items_per_unit,
+                "content_item_value": st.content_item_value,
+                "image_path": st.image_path,
+            }
+            for st in support_types
+        ],
+        "pdvs": [{"id": p.id, "code": p.code, "name": p.name} for p in pdvs],
+    }
+
+
 @router.get("/", response_model=list[PickupRequestListRead])
 async def list_pickup_requests(
     pdv_id: int | None = None,
