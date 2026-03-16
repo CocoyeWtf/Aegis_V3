@@ -68,7 +68,7 @@ class PickupLabelRead(BaseModel):
 # --- PickupRequest ---
 class PickupRequestCreate(BaseModel):
     pdv_id: int
-    support_type_id: int
+    support_type_id: int | None = None
     quantity: int
     availability_date: str  # YYYY-MM-DD
     pickup_type: str = "CONTAINER"

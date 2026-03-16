@@ -372,13 +372,21 @@ async def create_pickup_request(
     if forced_pdv is not None:
         data.pdv_id = forced_pdv
 
-    # Valider PDV et SupportType / Validate PDV and SupportType
+    # Valider PDV / Validate PDV
     pdv = await db.get(PDV, data.pdv_id)
     if not pdv:
         raise HTTPException(status_code=404, detail="PDV not found")
-    st = await db.get(SupportType, data.support_type_id)
-    if not st:
-        raise HTTPException(status_code=404, detail="Support type not found")
+
+    # Valider SupportType (optionnel pour MERCHANDISE) / Validate SupportType (optional for MERCHANDISE)
+    st = None
+    if data.support_type_id is not None:
+        st = await db.get(SupportType, data.support_type_id)
+        if not st:
+            raise HTTPException(status_code=404, detail="Support type not found")
+    elif data.pickup_type != "MERCHANDISE":
+        raise HTTPException(status_code=400, detail="Type de support requis pour ce type de reprise")
+
+    st_code = st.code if st else "MERCH"
 
     req = PickupRequest(
         pdv_id=data.pdv_id,
@@ -391,10 +399,10 @@ async def create_pickup_request(
         notes=data.notes,
         # Snapshots valeur au moment de la déclaration / Value snapshots at declaration time
         with_content=data.with_content,
-        declared_unit_value=float(st.unit_value) if st.unit_value is not None else None,
-        declared_unit_quantity=st.unit_quantity,
-        declared_content_item_value=float(st.content_item_value) if st.content_item_value is not None else None,
-        declared_content_items_per_unit=st.content_items_per_unit,
+        declared_unit_value=float(st.unit_value) if st and st.unit_value is not None else None,
+        declared_unit_quantity=st.unit_quantity if st else 1,
+        declared_content_item_value=float(st.content_item_value) if st and st.content_item_value is not None else None,
+        declared_content_items_per_unit=st.content_items_per_unit if st else None,
     )
     db.add(req)
     await db.flush()
@@ -416,7 +424,7 @@ async def create_pickup_request(
         seq = start_seq + i
         label = PickupLabel(
             pickup_request_id=req.id,
-            label_code=_generate_label_code(pdv.code, st.code, data.availability_date, seq),
+            label_code=_generate_label_code(pdv.code, st_code, data.availability_date, seq),
             sequence_number=i + 1,
             status=LabelStatus.PENDING,
         )

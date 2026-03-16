@@ -48,7 +48,7 @@ class PickupRequest(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     pdv_id: Mapped[int] = mapped_column(ForeignKey("pdvs.id"), nullable=False)
-    support_type_id: Mapped[int] = mapped_column(ForeignKey("support_types.id"), nullable=False)
+    support_type_id: Mapped[int | None] = mapped_column(ForeignKey("support_types.id"), nullable=True)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)  # nombre d'unités
     availability_date: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD
     pickup_type: Mapped[PickupType] = mapped_column(Enum(PickupType), nullable=False, default=PickupType.CONTAINER)

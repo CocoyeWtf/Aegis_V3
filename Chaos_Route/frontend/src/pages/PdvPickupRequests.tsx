@@ -81,6 +81,23 @@ export default function PdvPickupRequests() {
   // Impression / Print
   const [printRequest, setPrintRequest] = useState<PickupRequest | null>(null)
 
+  /* Prefixes de code par type de reprise / Code prefixes per pickup type */
+  const PICKUP_TYPE_PREFIXES: Record<string, string[]> = {
+    CONTAINER: ['PA', 'CO'],   // Palettes + Combis/Rolls
+    CARDBOARD: ['RE'],         // Balles carton/plastique
+    CONSIGNMENT: ['SF'],       // Casiers biere
+    MERCHANDISE: [],           // Pas de support type
+  }
+
+  /* Support types filtres selon le type de reprise / Filtered by pickup type */
+  const filteredSupportTypes = useMemo(() => {
+    if (!pickupType) return supportTypes
+    const prefixes = PICKUP_TYPE_PREFIXES[pickupType] ?? []
+    if (prefixes.length === 0) return []
+    return supportTypes.filter((st) => prefixes.some((p) => st.code.startsWith(p)))
+  }, [supportTypes, pickupType])
+
+  const needsSupportType = pickupType !== 'MERCHANDISE'
   const selectedSt = supportTypes.find((st) => String(st.id) === supportTypeId)
   const showWithContent = pickupType === 'CONSIGNMENT' && !!selectedSt?.content_item_label
 
@@ -126,13 +143,14 @@ export default function PdvPickupRequests() {
     async (e: React.FormEvent) => {
       e.preventDefault()
       const finalPdvId = isPdvUser ? user!.pdv_id : Number(pdvId)
-      if (!finalPdvId || !supportTypeId || !pickupType) return
+      if (!finalPdvId || !pickupType) return
+      if (needsSupportType && !supportTypeId) return
 
       setSubmitting(true)
       try {
         await api.post('/pickup-requests/', {
           pdv_id: finalPdvId,
-          support_type_id: Number(supportTypeId),
+          support_type_id: supportTypeId ? Number(supportTypeId) : null,
           quantity,
           availability_date: availabilityDate,
           pickup_type: pickupType,
@@ -156,7 +174,7 @@ export default function PdvPickupRequests() {
         setSubmitting(false)
       }
     },
-    [isPdvUser, user, pdvId, supportTypeId, quantity, availabilityDate, pickupType, withContent, showWithContent, notes, refetch],
+    [isPdvUser, user, pdvId, supportTypeId, quantity, availabilityDate, pickupType, withContent, showWithContent, needsSupportType, notes, refetch],
   )
 
   const handlePrint = useCallback(async (req: PickupRequest) => {
@@ -333,6 +351,7 @@ export default function PdvPickupRequests() {
               value={pickupType}
               onChange={(e) => {
                 setPickupType(e.target.value as PickupTypeEnum)
+                setSupportTypeId('')
                 setWithContent(false)
               }}
               required
@@ -352,7 +371,8 @@ export default function PdvPickupRequests() {
             </select>
           </div>
 
-          {/* Type de support */}
+          {/* Type de support (masque pour MERCHANDISE) */}
+          {needsSupportType && (
           <div>
             <label
               className="block text-sm font-medium mb-1"
@@ -375,13 +395,14 @@ export default function PdvPickupRequests() {
               }}
             >
               <option value="">-- Selectionner --</option>
-              {supportTypes.map((st) => (
+              {filteredSupportTypes.map((st) => (
                 <option key={st.id} value={st.id}>
-                  {st.code} - {st.name} {st.unit_label ? `(${st.unit_label})` : ''}
+                  {st.code} - {st.name} {st.unit_value != null ? `(${st.unit_value} €)` : ''}
                 </option>
               ))}
             </select>
           </div>
+          )}
 
           {/* Quantite */}
           <div>
