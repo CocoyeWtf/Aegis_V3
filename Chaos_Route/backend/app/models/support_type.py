@@ -25,3 +25,5 @@ class SupportType(Base):
     content_item_label: Mapped[str | None] = mapped_column(String(50))        # ex: "bouteille"
     content_items_per_unit: Mapped[int | None] = mapped_column(Integer)       # ex: 24 bouteilles par bac
     content_item_value: Mapped[float | None] = mapped_column(Numeric(10, 4))  # ex: 0.10 € par bouteille
+    # Usine fournisseur pour export (ex: "InBev JUPILLE") / Supplier plant for export
+    supplier_plant: Mapped[str | None] = mapped_column(String(100))

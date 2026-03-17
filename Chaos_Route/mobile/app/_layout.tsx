@@ -219,6 +219,7 @@ export default function RootLayout() {
         <Stack.Screen name="standalone-pickups" options={{ title: 'Scanner reprises', presentation: 'modal' }} />
         <Stack.Screen name="base-reception" options={{ title: 'Reception base', presentation: 'modal' }} />
         <Stack.Screen name="inventory" options={{ title: 'Inventaire PDV', presentation: 'modal' }} />
+        <Stack.Screen name="base-inventory" options={{ title: 'Inventaire base', presentation: 'modal' }} />
       </Stack>
     </>
   )

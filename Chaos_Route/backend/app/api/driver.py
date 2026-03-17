@@ -1485,6 +1485,130 @@ async def submit_inventory(
     return {"status": "ok", "pdv_id": data.pdv_id, "lines": len(data.lines)}
 
 
+# ─── Inventaire base mobile / Mobile base inventory ───
+
+@router.post("/base-inventory-setup")
+async def base_inventory_setup(
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Charger infos base + zones + types de support / Load base info + zones + support types."""
+    _check_device_feature(device, "inventory")
+    from app.models.support_type import SupportType
+    from app.models.base_zone import BaseZone
+
+    if not device.base_id:
+        raise HTTPException(status_code=400, detail="Appareil non rattache a une base")
+
+    base = await db.get(BaseLogistics, device.base_id)
+    if not base:
+        raise HTTPException(status_code=404, detail="Base non trouvee")
+
+    zones = (await db.execute(
+        select(BaseZone).where(BaseZone.base_id == base.id, BaseZone.is_active == True).order_by(BaseZone.code)
+    )).scalars().all()
+
+    support_types = (await db.execute(
+        select(SupportType).where(SupportType.is_active == True).order_by(SupportType.code)
+    )).scalars().all()
+
+    return {
+        "base": {"id": base.id, "code": base.code, "name": base.name},
+        "zones": [{"id": z.id, "code": z.code, "name": z.name} for z in zones],
+        "support_types": [
+            {
+                "id": st.id, "code": st.code, "name": st.name,
+                "unit_quantity": st.unit_quantity, "unit_label": st.unit_label,
+                "supplier_plant": st.supplier_plant,
+            }
+            for st in support_types
+        ],
+    }
+
+
+@router.post("/base-inventory")
+async def submit_base_inventory(
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Soumettre un inventaire base / Submit base inventory from mobile."""
+    _check_device_feature(device, "inventory")
+    from app.models.base_container_stock import BaseContainerStock, BaseContainerMovement, BaseMovementType
+
+    if not device.base_id:
+        raise HTTPException(status_code=400, detail="Appareil non rattache a une base")
+
+    zone_id = data.get("zone_id")  # nullable
+    inventory_type = data.get("inventory_type", "COMPLEMENT")
+    lines = data.get("lines", [])
+    inventoried_by = data.get("inventoried_by", "")
+
+    if not lines:
+        raise HTTPException(status_code=422, detail="Aucune ligne d'inventaire")
+
+    now = _now_iso()
+    updated = 0
+
+    for line in lines:
+        st_id = line.get("support_type_id")
+        qty = line.get("quantity", 0)
+        if st_id is None:
+            continue
+
+        # Trouver ou creer le stock par base × zone × support / Find or create
+        result = await db.execute(
+            select(BaseContainerStock).where(
+                BaseContainerStock.base_id == device.base_id,
+                BaseContainerStock.support_type_id == st_id,
+                BaseContainerStock.zone_id == zone_id,
+            )
+        )
+        stock = result.scalar_one_or_none()
+        old_qty = stock.current_stock if stock else 0
+
+        if stock:
+            stock.current_stock = qty
+            stock.last_updated_at = now
+        else:
+            stock = BaseContainerStock(
+                base_id=device.base_id,
+                zone_id=zone_id,
+                support_type_id=st_id,
+                current_stock=qty,
+                last_updated_at=now,
+            )
+            db.add(stock)
+
+        # Mouvement / Movement
+        delta = qty - old_qty
+        if delta != 0:
+            db.add(BaseContainerMovement(
+                base_id=device.base_id,
+                zone_id=zone_id,
+                support_type_id=st_id,
+                movement_type=BaseMovementType.BASE_INVENTORY,
+                inventory_type=inventory_type,
+                quantity=delta,
+                reference=f"Inventaire {inventory_type} ({old_qty} -> {qty})",
+                timestamp=now,
+                device_id=device.id,
+                notes=f"Par: {inventoried_by}" if inventoried_by else None,
+            ))
+        updated += 1
+
+    # Audit log
+    db.add(AuditLog(
+        entity_type="base_inventory", entity_id=device.base_id, action="BASE_INVENTORY_SUBMITTED",
+        changes=f'{{"base_id":{device.base_id},"zone_id":{zone_id},"type":"{inventory_type}","lines":{len(lines)},"device_id":{device.id}}}',
+        user=f"device:{device.id}",
+        timestamp=now,
+    ))
+
+    await db.flush()
+    return {"status": "ok", "base_id": device.base_id, "zone_id": zone_id, "lines": updated}
+
+
 # ─── Mode kiosque / Kiosk mode ───
 
 # Mot de passe kiosque depuis env / Kiosk password from environment

@@ -1,15 +1,19 @@
 """Routes Stock contenants base / Base container stock API routes."""
 
+import csv
+import io
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.base_container_stock import BaseContainerStock, BaseContainerMovement, BaseMovementType
 from app.models.base_logistics import BaseLogistics
+from app.models.base_zone import BaseZone
 from app.models.support_type import SupportType
 from app.models.user import User
 from app.api.deps import require_permission
@@ -28,6 +32,8 @@ class BaseStockRead(BaseModel):
     base_id: int
     base_code: str
     base_name: str
+    zone_id: int | None = None
+    zone_name: str | None = None
     support_type_id: int
     support_type_code: str
     support_type_name: str
@@ -48,6 +54,7 @@ class BaseStockAdjust(BaseModel):
 
 class BaseStockInventory(BaseModel):
     base_id: int
+    zone_id: int | None = None
     lines: list[dict]  # [{support_type_id: int, quantity: int}]
 
 
@@ -55,10 +62,13 @@ class BaseMovementRead(BaseModel):
     id: int
     base_id: int
     base_name: str
+    zone_id: int | None = None
+    zone_name: str | None = None
     support_type_id: int
     support_type_code: str
     support_type_name: str
     movement_type: str
+    inventory_type: str | None = None
     quantity: int
     reference: str | None
     timestamp: str
@@ -80,6 +90,8 @@ async def list_base_stocks(
             BaseContainerStock.base_id,
             BaseLogistics.code.label("base_code"),
             BaseLogistics.name.label("base_name"),
+            BaseContainerStock.zone_id,
+            BaseZone.name.label("zone_name"),
             BaseContainerStock.support_type_id,
             SupportType.code.label("support_type_code"),
             SupportType.name.label("support_type_name"),
@@ -90,7 +102,8 @@ async def list_base_stocks(
         )
         .join(BaseLogistics, BaseContainerStock.base_id == BaseLogistics.id)
         .join(SupportType, BaseContainerStock.support_type_id == SupportType.id)
-        .order_by(BaseLogistics.name, SupportType.name)
+        .outerjoin(BaseZone, BaseContainerStock.zone_id == BaseZone.id)
+        .order_by(BaseLogistics.name, BaseZone.name, SupportType.name)
     )
     if base_id is not None:
         query = query.where(BaseContainerStock.base_id == base_id)
@@ -123,6 +136,7 @@ async def base_inventory(
         result = await db.execute(
             select(BaseContainerStock).where(
                 BaseContainerStock.base_id == data.base_id,
+                BaseContainerStock.zone_id == data.zone_id,
                 BaseContainerStock.support_type_id == st_id,
             )
         )
@@ -135,6 +149,7 @@ async def base_inventory(
         else:
             stock = BaseContainerStock(
                 base_id=data.base_id,
+                zone_id=data.zone_id,
                 support_type_id=st_id,
                 current_stock=qty,
                 last_updated_at=now,
@@ -220,10 +235,13 @@ async def list_base_movements(
             BaseContainerMovement.id,
             BaseContainerMovement.base_id,
             BaseLogistics.name.label("base_name"),
+            BaseContainerMovement.zone_id,
+            BaseZone.name.label("zone_name"),
             BaseContainerMovement.support_type_id,
             SupportType.code.label("support_type_code"),
             SupportType.name.label("support_type_name"),
             BaseContainerMovement.movement_type,
+            BaseContainerMovement.inventory_type,
             BaseContainerMovement.quantity,
             BaseContainerMovement.reference,
             BaseContainerMovement.timestamp,
@@ -231,6 +249,7 @@ async def list_base_movements(
         )
         .join(BaseLogistics, BaseContainerMovement.base_id == BaseLogistics.id)
         .join(SupportType, BaseContainerMovement.support_type_id == SupportType.id)
+        .outerjoin(BaseZone, BaseContainerMovement.zone_id == BaseZone.id)
         .order_by(BaseContainerMovement.timestamp.desc())
         .limit(limit)
     )
@@ -250,6 +269,75 @@ async def list_base_movements(
         )
         for row in rows
     ]
+
+
+# --- Export InBev CSV ---
+
+@router.get("/export")
+async def export_base_stock(
+    base_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("base-container-stock", "read")),
+):
+    """Export stock biere au format InBev CSV / Export beer stock in InBev CSV format."""
+    base = await db.get(BaseLogistics, base_id)
+    if not base:
+        raise HTTPException(status_code=404, detail="Base not found")
+
+    # Stock agrege toutes zones / Aggregate stock across zones
+    query = (
+        select(
+            SupportType.name.label("empties_type"),
+            SupportType.supplier_plant.label("plant"),
+            func.sum(BaseContainerStock.current_stock).label("pallets"),
+        )
+        .join(SupportType, BaseContainerStock.support_type_id == SupportType.id)
+        .where(
+            BaseContainerStock.base_id == base_id,
+            SupportType.code.like("SF-%"),  # Biere/consigne uniquement
+            BaseContainerStock.current_stock > 0,
+        )
+        .group_by(SupportType.name, SupportType.supplier_plant)
+        .order_by(SupportType.supplier_plant, SupportType.name)
+    )
+    result = await db.execute(query)
+    rows = result.all()
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    customer_name = f"{base.name}"
+
+    # Generer CSV format InBev / Generate InBev format CSV
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow(["CUSTOMER NAME", "DATE", "EMPTIES TYPE", "PLANT", "PALLETS"])
+
+    # Grouper par plant / Group by plant
+    current_plant = None
+    first_row = True
+    for row in rows:
+        plant = row.plant or ""
+        if first_row:
+            writer.writerow([customer_name, today, row.empties_type, plant, int(row.pallets)])
+            first_row = False
+        elif plant != current_plant:
+            writer.writerow([])  # Ligne vide entre groupes / Blank line between groups
+            writer.writerow([customer_name, today, row.empties_type, plant, int(row.pallets)])
+        else:
+            writer.writerow(["", "", row.empties_type, plant, int(row.pallets)])
+        current_plant = plant
+
+    # Total
+    total = sum(int(r.pallets) for r in rows)
+    writer.writerow([])
+    writer.writerow(["", "", "", "", total])
+
+    output.seek(0)
+    filename = f"inventaire_biere_{base.code}_{today}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # --- Helper pour auto-increment sur reception / Helper for auto-increment on reception ---

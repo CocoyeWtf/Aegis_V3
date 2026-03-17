@@ -535,6 +535,7 @@ export interface SupportType {
   content_item_label?: string | null
   content_items_per_unit?: number | null
   content_item_value?: number | null
+  supplier_plant?: string | null
 }
 
 export type PickupTypeEnum = 'CONTAINER' | 'MERCHANDISE' | 'CARDBOARD' | 'CONSIGNMENT'
@@ -990,6 +991,8 @@ export interface BaseStockDetail {
   base_id: number
   base_code: string
   base_name: string
+  zone_id?: number | null
+  zone_name?: string | null
   support_type_id: number
   support_type_code: string
   support_type_name: string
@@ -999,16 +1002,19 @@ export interface BaseStockDetail {
   last_updated_at: string | null
 }
 
-export type BaseMovementTypeEnum = 'RECEIVED_FROM_PDV' | 'DELIVERY_PREP' | 'SUPPLIER_RETURN' | 'INVENTORY_ADJUSTMENT'
+export type BaseMovementTypeEnum = 'RECEIVED_FROM_PDV' | 'DELIVERY_PREP' | 'SUPPLIER_RETURN' | 'INVENTORY_ADJUSTMENT' | 'BASE_INVENTORY'
 
 export interface BaseMovementRecord {
   id: number
   base_id: number
   base_name: string
+  zone_id?: number | null
+  zone_name?: string | null
   support_type_id: number
   support_type_code: string
   support_type_name: string
   movement_type: BaseMovementTypeEnum
+  inventory_type?: string | null
   quantity: number
   reference: string | null
   timestamp: string

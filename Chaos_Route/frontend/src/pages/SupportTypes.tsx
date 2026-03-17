@@ -75,6 +75,7 @@ export default function SupportTypes() {
     { key: 'name', label: 'Nom', filterable: true },
     { key: 'unit_quantity', label: 'Qte/unite', width: '100px' },
     { key: 'unit_label', label: 'Libelle unite', filterable: true },
+    { key: 'supplier_plant', label: 'Usine fournisseur', width: '160px', filterable: true, render: (row) => row.supplier_plant || '—' },
     {
       key: 'is_active', label: 'Actif', width: '80px',
       render: (row) => row.is_active ? '✓' : '✗',
@@ -99,6 +100,7 @@ export default function SupportTypes() {
     { key: 'content_item_label', label: 'Label contenu (ex: bouteille)', type: 'text' },
     { key: 'content_items_per_unit', label: 'Nb contenu par unite', type: 'number' },
     { key: 'content_item_value', label: 'Valeur par contenu (€)', type: 'number', step: 0.0001 },
+    { key: 'supplier_plant', label: 'Usine fournisseur (ex: InBev JUPILLE)', type: 'text' },
   ]
 
   const renderFormImage = useCallback((_formData: Record<string, unknown>, initialData?: Record<string, unknown>) => {
@@ -173,6 +175,7 @@ export default function SupportTypes() {
           content_items_per_unit: d.content_items_per_unit !== '' && d.content_items_per_unit != null ? Number(d.content_items_per_unit) : null,
           content_item_value: d.content_item_value !== '' && d.content_item_value != null ? Number(d.content_item_value) : null,
           content_item_label: d.content_item_label || null,
+          supplier_plant: d.supplier_plant || null,
         })}
         formExtra={renderFormImage}
       />

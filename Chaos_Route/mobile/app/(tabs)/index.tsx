@@ -333,6 +333,14 @@ export default function TourListScreen() {
               <Text style={styles.quickActionText}>Inventaire PDV</Text>
             </TouchableOpacity>
           )}
+          {hasFeature('inventory') && (
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => router.push('/base-inventory')}
+            >
+              <Text style={styles.quickActionText}>Inventaire base</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Bouton scanner QR tour */}

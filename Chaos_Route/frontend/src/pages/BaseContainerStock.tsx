@@ -13,6 +13,7 @@ const MVT_LABELS: Record<string, string> = {
   DELIVERY_PREP: 'Sortie preparation',
   SUPPLIER_RETURN: 'Retour fournisseur',
   INVENTORY_ADJUSTMENT: 'Ajustement inventaire',
+  BASE_INVENTORY: 'Inventaire mobile',
 }
 
 export default function BaseContainerStock() {
@@ -217,6 +218,16 @@ export default function BaseContainerStock() {
             style={{ backgroundColor: 'var(--color-primary)' }}
           >
             Inventaire physique
+          </button>
+          <button
+            onClick={() => {
+              if (!baseFilter) { alert('Selectionnez une base dans le filtre pour exporter.'); return }
+              window.open(`/api/base-container-stock/export?base_id=${baseFilter}`, '_blank')
+            }}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-white"
+            style={{ backgroundColor: '#22c55e' }}
+          >
+            Export biere (CSV)
           </button>
           <button
             onClick={() => { setAdjBaseId(''); setAdjSupportId(''); setAdjQty(0); setAdjRef(''); setAdjNotes(''); setShowAdjust(true) }}

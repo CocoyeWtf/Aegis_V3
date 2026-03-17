@@ -8,12 +8,20 @@ from sqlalchemy import Column, Enum, Float, Integer, String, Text, ForeignKey
 from app.database import Base
 
 
+class BaseInventoryType(str, enum.Enum):
+    """Type d'inventaire base / Base inventory type."""
+    BEER_DAILY = "BEER_DAILY"          # Biere quotidien / Daily beer
+    ALL_WEEKLY = "ALL_WEEKLY"          # Tous contenants hebdo / Weekly all containers
+    COMPLEMENT = "COMPLEMENT"          # Complement aleatoire / Random complement
+
+
 class BaseMovementType(str, enum.Enum):
     """Type de mouvement contenant base / Base container movement type."""
     RECEIVED_FROM_PDV = "RECEIVED_FROM_PDV"        # Reception depuis PDV (scan base)
     DELIVERY_PREP = "DELIVERY_PREP"                # Sortie preparation livraison
     SUPPLIER_RETURN = "SUPPLIER_RETURN"            # Retour fournisseur
-    INVENTORY_ADJUSTMENT = "INVENTORY_ADJUSTMENT"  # Ajustement inventaire physique
+    INVENTORY_ADJUSTMENT = "INVENTORY_ADJUSTMENT"  # Ajustement inventaire physique (web)
+    BASE_INVENTORY = "BASE_INVENTORY"              # Inventaire mobile base
 
 
 class BaseContainerStock(Base):
@@ -23,6 +31,7 @@ class BaseContainerStock(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     base_id = Column(Integer, ForeignKey("bases_logistics.id"), nullable=False, index=True)
+    zone_id = Column(Integer, ForeignKey("base_zones.id"), nullable=True)
     support_type_id = Column(Integer, ForeignKey("support_types.id"), nullable=False)
     current_stock = Column(Integer, nullable=False, default=0)
     last_updated_at = Column(String, nullable=True)  # ISO 8601
@@ -35,8 +44,10 @@ class BaseContainerMovement(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     base_id = Column(Integer, ForeignKey("bases_logistics.id"), nullable=False, index=True)
+    zone_id = Column(Integer, ForeignKey("base_zones.id"), nullable=True)
     support_type_id = Column(Integer, ForeignKey("support_types.id"), nullable=False)
     movement_type = Column(Enum(BaseMovementType), nullable=False)
+    inventory_type = Column(String(30), nullable=True)  # BEER_DAILY, ALL_WEEKLY, COMPLEMENT
     quantity = Column(Integer, nullable=False)  # positif = entree, negatif = sortie
     reference = Column(String(100), nullable=True)  # label_code, bon de livraison, etc.
     timestamp = Column(String(32), nullable=False)  # ISO 8601
