@@ -1,7 +1,7 @@
 """Routes Distancier enrichi / Enriched distance matrix API routes."""
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -39,6 +39,11 @@ def _resolve_label(entry_type: str, entry_id: int, base_labels: dict, pdv_labels
 async def list_distances(
     origin_type: str | None = None,
     origin_id: int | None = None,
+    destination_type: str | None = None,
+    destination_id: int | None = None,
+    search: str | None = None,
+    limit: int = Query(default=500, le=5000),
+    offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("distances", "read")),
 ):
@@ -47,10 +52,41 @@ async def list_distances(
         query = query.where(DistanceMatrix.origin_type == origin_type)
     if origin_id is not None:
         query = query.where(DistanceMatrix.origin_id == origin_id)
+    if destination_type is not None:
+        query = query.where(DistanceMatrix.destination_type == destination_type)
+    if destination_id is not None:
+        query = query.where(DistanceMatrix.destination_id == destination_id)
+
+    # Recherche par label (origin ou destination) / Search by label
+    if search:
+        base_labels, pdv_labels = await _build_label_caches(db)
+        search_lower = search.lower()
+        matching_ids: list[tuple[str, int]] = []
+        for bid, label in base_labels.items():
+            if search_lower in label.lower():
+                matching_ids.append(("BASE", bid))
+        for pid, label in pdv_labels.items():
+            if search_lower in label.lower():
+                matching_ids.append(("PDV", pid))
+        if matching_ids:
+            conditions = []
+            for etype, eid in matching_ids:
+                conditions.append(
+                    (DistanceMatrix.origin_type == etype) & (DistanceMatrix.origin_id == eid)
+                )
+                conditions.append(
+                    (DistanceMatrix.destination_type == etype) & (DistanceMatrix.destination_id == eid)
+                )
+            query = query.where(or_(*conditions))
+        else:
+            return []  # Pas de match / No match
+
+    query = query.order_by(DistanceMatrix.id).offset(offset).limit(limit)
     result = await db.execute(query)
     entries = result.scalars().all()
 
-    base_labels, pdv_labels = await _build_label_caches(db)
+    if not search:
+        base_labels, pdv_labels = await _build_label_caches(db)
     enriched = []
     for e in entries:
         data = DistanceMatrixRead.model_validate(e)
@@ -59,6 +95,21 @@ async def list_distances(
         enriched.append(data)
 
     return enriched
+
+
+@router.get("/count")
+async def count_distances(
+    origin_type: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("distances", "read")),
+):
+    """Nombre total d'entrees / Total count of entries."""
+    from sqlalchemy import func
+    query = select(func.count(DistanceMatrix.id))
+    if origin_type is not None:
+        query = query.where(DistanceMatrix.origin_type == origin_type)
+    result = await db.execute(query)
+    return {"count": result.scalar()}
 
 
 @router.get("/lookup")

@@ -1,16 +1,40 @@
 /* Page Distancier enrichi / Enriched distance matrix management page */
 
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CrudPage } from '../components/data/CrudPage'
 import { ImportDialog } from '../components/data/ImportDialog'
 import type { Column } from '../components/data/DataTable'
 import type { FieldDef } from '../components/data/FormDialog'
 import type { DistanceEntry } from '../types'
+import api from '../services/api'
 
 export default function DistanceMatrix() {
   const { t } = useTranslation()
   const [timeImportOpen, setTimeImportOpen] = useState(false)
+  const [serverSearch, setServerSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const [totalCount, setTotalCount] = useState<number | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+
+  /* Charger le total / Load total count */
+  useEffect(() => {
+    api.get('/distance-matrix/count/').then((res) => {
+      setTotalCount(res.data.count)
+    }).catch(() => {})
+  }, [])
+
+  /* Debounce la recherche serveur / Debounce server search */
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchInput(value)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      setServerSearch(value)
+    }, 400)
+  }, [])
+
+  const apiParams: Record<string, unknown> = { limit: 500 }
+  if (serverSearch) apiParams.search = serverSearch
 
   const pointTypeOptions = [
     { value: 'BASE', label: 'Base' },
@@ -66,6 +90,26 @@ export default function DistanceMatrix() {
         >
           {t('timeBreakdown.importTimeMatrix')}
         </button>
+        {/* Recherche serveur / Server-side search */}
+        <input
+          type="text"
+          placeholder="Rechercher base/PDV..."
+          value={searchInput}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          className="px-3 py-1.5 rounded-lg text-sm border outline-none focus:ring-1"
+          style={{
+            backgroundColor: 'var(--bg-tertiary)',
+            borderColor: 'var(--border-color)',
+            color: 'var(--text-primary)',
+            width: '260px',
+          }}
+        />
+        {totalCount != null && (
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            {serverSearch ? 'Resultats filtrés' : `${totalCount.toLocaleString('fr-FR')} entrées au total`}
+            {' — affichage limité à 500'}
+          </span>
+        )}
       </div>
       <CrudPage<DistanceEntry>
         resource="distances"
@@ -78,6 +122,7 @@ export default function DistanceMatrix() {
         editTitle={t('distances.edit')}
         importEntity="distances"
         exportEntity="distances"
+        apiParams={apiParams}
       />
       <ImportDialog
         open={timeImportOpen}
