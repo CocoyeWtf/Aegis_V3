@@ -16,8 +16,8 @@ interface MapState {
 }
 
 export const useMapStore = create<MapState>((set) => ({
-  center: [46.603354, 1.888334], // France center
-  zoom: 6,
+  center: [50.5, 4.35], // Belgique center
+  zoom: 8,
   showBases: true,
   showPdvs: true,
   showSuppliers: true,

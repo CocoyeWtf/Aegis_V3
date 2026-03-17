@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import api from '../services/api'
 import { useAuthStore } from '../stores/useAuthStore'
+import { useAppStore } from '../stores/useAppStore'
 import { getDefaultRoute } from '../utils/getDefaultRoute'
 
 export default function Login() {
@@ -29,6 +30,11 @@ export default function Login() {
       // Charger le profil / Load profile
       const { data: me } = await api.get('/auth/me')
       setUser(me)
+
+      // Auto-selectionner la region si une seule / Auto-select region if user has exactly one
+      if (me.regions?.length === 1) {
+        useAppStore.getState().setSelectedRegion(me.regions[0].id)
+      }
 
       // Rediriger vers la première page accessible / Redirect to first accessible page
       navigate(getDefaultRoute(me))
