@@ -106,7 +106,7 @@ export default function RoleManagement() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setFormOpen(false)}>
           <div className="absolute inset-0 bg-black/60" />
           <div
-            className="relative rounded-xl border shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto"
+            className="relative rounded-xl border shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-y-auto"
             style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
             onClick={(e) => e.stopPropagation()}
           >

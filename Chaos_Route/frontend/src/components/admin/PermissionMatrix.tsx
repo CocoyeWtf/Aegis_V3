@@ -98,6 +98,12 @@ const RESOURCE_GROUPS: ResourceGroup[] = [
 const ALL_RESOURCES = RESOURCE_GROUPS.flatMap((g) => g.resources.map((r) => r.resource))
 
 const ACTIONS = ['read', 'create', 'update', 'delete'] as const
+const ACTION_LABELS: Record<string, string> = {
+  read: 'Lire',
+  create: 'Creer',
+  update: 'Modif.',
+  delete: 'Suppr.',
+}
 
 interface PermissionEntry {
   resource: string
@@ -107,6 +113,24 @@ interface PermissionEntry {
 interface PermissionMatrixProps {
   value: PermissionEntry[]
   onChange: (permissions: PermissionEntry[]) => void
+}
+
+/* Checkbox réutilisable / Reusable checkbox */
+function Check({ checked, onChange, size = 24 }: { checked: boolean; onChange: () => void; size?: number }) {
+  return (
+    <label
+      className="inline-flex items-center justify-center rounded cursor-pointer transition-all border"
+      style={{
+        width: size,
+        height: size,
+        backgroundColor: checked ? 'rgba(249,115,22,0.15)' : 'var(--bg-tertiary)',
+        borderColor: checked ? 'var(--color-primary)' : 'var(--border-color)',
+      }}
+    >
+      <input type="checkbox" checked={checked} onChange={onChange} className="sr-only" />
+      {checked && <span style={{ color: 'var(--color-primary)', fontSize: size * 0.55 }} className="font-bold">✓</span>}
+    </label>
+  )
 }
 
 export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
@@ -135,7 +159,6 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
     }
   }
 
-  /* Toggle toutes les resources d'un groupe / Toggle all resources in a group */
   const toggleGroup = (group: ResourceGroup) => {
     const groupResources = group.resources.map((r) => r.resource)
     const allChecked = groupResources.every((r) => ACTIONS.every((a) => has(r, a)))
@@ -145,6 +168,18 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
       const without = value.filter((p) => !groupResources.includes(p.resource))
       const added: PermissionEntry[] = []
       groupResources.forEach((r) => ACTIONS.forEach((a) => added.push({ resource: r, action: a })))
+      onChange([...without, ...added])
+    }
+  }
+
+  const toggleGroupCol = (group: ResourceGroup, action: string) => {
+    const resources = group.resources.map((r) => r.resource)
+    const colChecked = resources.every((r) => has(r, action))
+    if (colChecked) {
+      onChange(value.filter((p) => !(resources.includes(p.resource) && p.action === action)))
+    } else {
+      const without = value.filter((p) => !(resources.includes(p.resource) && p.action === action))
+      const added = resources.map((r) => ({ resource: r, action }))
       onChange([...without, ...added])
     }
   }
@@ -180,7 +215,6 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
     })
   }
 
-  /* Compter les permissions actives d'un groupe / Count active permissions in a group */
   const groupCount = (group: ResourceGroup) => {
     const total = group.resources.length * ACTIONS.length
     let active = 0
@@ -192,178 +226,119 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
     return { active, total }
   }
 
+  /* Style de grille : label flexible + 4 colonnes fixes / Grid: flexible label + 4 fixed columns */
+  const gridStyle = { display: 'grid', gridTemplateColumns: '1fr 60px 60px 60px 60px', alignItems: 'center' }
+
   return (
-    <div className="overflow-x-auto">
-      <table className="text-sm" style={{ tableLayout: 'fixed', width: '100%' }}>
-        <colgroup>
-          <col />
-          {ACTIONS.map((a) => (
-            <col key={a} style={{ width: '70px' }} />
-          ))}
-        </colgroup>
-        <thead>
-          <tr>
-            <th
-              className="text-left px-3 py-2 font-medium"
+    <div>
+      {/* En-tete / Header */}
+      <div style={gridStyle} className="mb-1">
+        <div className="px-2">
+          <button
+            type="button"
+            onClick={toggleAll}
+            className="text-xs underline"
+            style={{ color: 'var(--color-primary)' }}
+          >
+            {t('admin.roles.toggleAll')}
+          </button>
+        </div>
+        {ACTIONS.map((action) => (
+          <div key={action} className="text-center">
+            <button
+              type="button"
+              onClick={() => toggleCol(action)}
+              className="text-xs hover:underline font-medium"
               style={{ color: 'var(--text-muted)' }}
             >
-              <button
-                type="button"
-                onClick={toggleAll}
-                className="text-xs underline"
-                style={{ color: 'var(--color-primary)' }}
-              >
-                {t('admin.roles.toggleAll')}
-              </button>
-            </th>
-            {ACTIONS.map((action) => (
-              <th key={action} className="py-2 text-center font-medium" style={{ color: 'var(--text-muted)' }}>
+              {ACTION_LABELS[action]}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Groupes / Groups */}
+      {RESOURCE_GROUPS.map((group) => {
+        const isCollapsed = collapsed.has(group.key)
+        const { active, total } = groupCount(group)
+        const allGroupChecked = active === total
+
+        return (
+          <div key={group.key} className="mb-0.5">
+            {/* En-tete de groupe / Group header */}
+            <div
+              style={{ ...gridStyle, backgroundColor: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)' }}
+              className="rounded-t py-1.5"
+            >
+              <div className="px-2 flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => toggleCol(action)}
-                  className="text-xs hover:underline"
-                  style={{ color: 'var(--text-secondary)' }}
+                  onClick={() => toggleCollapse(group.key)}
+                  className="text-xs"
+                  style={{ color: 'var(--text-muted)', width: '14px', flexShrink: 0 }}
                 >
-                  {t(`admin.roles.action_${action}`)}
+                  {isCollapsed ? '▶' : '▼'}
                 </button>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {RESOURCE_GROUPS.map((group) => {
-            const isCollapsed = collapsed.has(group.key)
-            const { active, total } = groupCount(group)
-            const allGroupChecked = active === total
-            return (
-              <tbody key={group.key}>
-                {/* En-tete de groupe / Group header */}
-                <tr
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group)}
+                  className="font-semibold text-xs hover:underline flex items-center gap-1"
+                  style={{ color: 'var(--text-primary)' }}
+                >
+                  <span>{group.icon}</span>
+                  <span>{group.label}</span>
+                </button>
+                <span
+                  className="text-xs px-1 rounded"
                   style={{
-                    backgroundColor: 'var(--bg-secondary)',
-                    borderTop: '2px solid var(--border-color)',
+                    fontSize: '10px',
+                    backgroundColor: allGroupChecked ? 'rgba(34,197,94,0.15)' : active > 0 ? 'rgba(249,115,22,0.15)' : 'var(--bg-tertiary)',
+                    color: allGroupChecked ? '#22c55e' : active > 0 ? 'var(--color-primary)' : 'var(--text-muted)',
                   }}
                 >
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleCollapse(group.key)}
-                        className="text-xs"
-                        style={{ color: 'var(--text-muted)', width: '16px' }}
-                      >
-                        {isCollapsed ? '▶' : '▼'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toggleGroup(group)}
-                        className="font-semibold text-xs hover:underline flex items-center gap-1.5"
-                        style={{ color: 'var(--text-primary)' }}
-                      >
-                        <span>{group.icon}</span>
-                        <span>{group.label}</span>
-                      </button>
-                      <span
-                        className="text-xs px-1.5 py-0.5 rounded"
-                        style={{
-                          backgroundColor: allGroupChecked
-                            ? 'rgba(34,197,94,0.15)'
-                            : active > 0
-                              ? 'rgba(249,115,22,0.15)'
-                              : 'var(--bg-tertiary)',
-                          color: allGroupChecked
-                            ? '#22c55e'
-                            : active > 0
-                              ? 'var(--color-primary)'
-                              : 'var(--text-muted)',
-                        }}
-                      >
-                        {active}/{total}
-                      </span>
-                    </div>
-                  </td>
-                  {ACTIONS.map((action) => {
-                    const colChecked = group.resources.every((r) => has(r.resource, action))
-                    return (
-                      <td key={action} className="py-2 text-center">
-                        <label
-                          className={`inline-flex items-center justify-center w-7 h-7 rounded-md cursor-pointer transition-all border ${colChecked ? 'border-orange-500' : ''}`}
-                          style={{
-                            backgroundColor: colChecked ? 'rgba(249,115,22,0.15)' : 'var(--bg-tertiary)',
-                            borderColor: colChecked ? 'var(--color-primary)' : 'var(--border-color)',
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={colChecked}
-                            onChange={() => {
-                              const resources = group.resources.map((r) => r.resource)
-                              if (colChecked) {
-                                onChange(value.filter((p) => !(resources.includes(p.resource) && p.action === action)))
-                              } else {
-                                const without = value.filter((p) => !(resources.includes(p.resource) && p.action === action))
-                                const added = resources.map((r) => ({ resource: r, action }))
-                                onChange([...without, ...added])
-                              }
-                            }}
-                            className="sr-only"
-                          />
-                          {colChecked && (
-                            <span style={{ color: 'var(--color-primary)' }} className="text-sm font-bold">✓</span>
-                          )}
-                        </label>
-                      </td>
-                    )
-                  })}
-                </tr>
-                {/* Sous-elements / Sub-items */}
-                {!isCollapsed && group.resources.map((item) => (
-                  <tr
-                    key={item.resource}
-                    className="border-t"
-                    style={{ borderColor: 'var(--border-color)' }}
+                  {active}/{total}
+                </span>
+              </div>
+              {ACTIONS.map((action) => {
+                const colChecked = group.resources.every((r) => has(r.resource, action))
+                return (
+                  <div key={action} className="text-center">
+                    <Check checked={colChecked} onChange={() => toggleGroupCol(group, action)} size={22} />
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Sous-elements / Sub-items */}
+            {!isCollapsed && group.resources.map((item) => (
+              <div
+                key={item.resource}
+                style={{ ...gridStyle, borderBottom: '1px solid var(--border-color)' }}
+                className="py-1"
+              >
+                <div className="pl-8 pr-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleRow(item.resource)}
+                    className="text-xs hover:underline text-left"
+                    style={{ color: 'var(--text-secondary)' }}
                   >
-                    <td className="pl-10 pr-3 py-1.5">
-                      <button
-                        type="button"
-                        onClick={() => toggleRow(item.resource)}
-                        className="text-xs hover:underline text-left"
-                        style={{ color: 'var(--text-secondary)' }}
-                      >
-                        {item.label}
-                      </button>
-                    </td>
-                    {ACTIONS.map((action) => {
-                      const checked = has(item.resource, action)
-                      return (
-                        <td key={action} className="py-1.5 text-center">
-                          <label
-                            className={`inline-flex items-center justify-center w-6 h-6 rounded cursor-pointer transition-all border ${checked ? 'border-orange-500' : ''}`}
-                            style={{
-                              backgroundColor: checked ? 'rgba(249,115,22,0.15)' : 'var(--bg-tertiary)',
-                              borderColor: checked ? 'var(--color-primary)' : 'var(--border-color)',
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggle(item.resource, action)}
-                              className="sr-only"
-                            />
-                            {checked && (
-                              <span style={{ color: 'var(--color-primary)' }} className="text-xs font-bold">✓</span>
-                            )}
-                          </label>
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            )
-          })}
-        </tbody>
-      </table>
+                    {item.label}
+                  </button>
+                </div>
+                {ACTIONS.map((action) => {
+                  const checked = has(item.resource, action)
+                  return (
+                    <div key={action} className="text-center">
+                      <Check checked={checked} onChange={() => toggle(item.resource, action)} size={20} />
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+        )
+      })}
     </div>
   )
 }
