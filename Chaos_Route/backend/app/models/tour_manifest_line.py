@@ -1,6 +1,6 @@
 """Ligne manifeste WMS — un support chargé / WMS manifest line — one loaded support."""
 
-from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -9,6 +9,9 @@ from app.database import Base
 class TourManifestLine(Base):
     """Ligne manifeste WMS — un support chargé / WMS manifest line — one loaded support."""
     __tablename__ = "tour_manifest_lines"
+    __table_args__ = (
+        Index("ix_tour_manifest_lines_tour_id", "tour_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     tour_id: Mapped[int] = mapped_column(ForeignKey("tours.id"), nullable=False)

@@ -6,7 +6,7 @@ An inspection = a set of check items + photos.
 
 import enum
 
-from sqlalchemy import Boolean, Enum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Enum, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -37,6 +37,10 @@ class InspectionItemResult(str, enum.Enum):
 class VehicleInspection(Base):
     """Inspection vehicule (depart, retour, periodique) / Vehicle inspection."""
     __tablename__ = "vehicle_inspections"
+    __table_args__ = (
+        Index("ix_vehicle_inspections_vehicle_id", "vehicle_id"),
+        Index("ix_vehicle_inspections_started_at", "started_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), nullable=False)
@@ -71,6 +75,9 @@ class VehicleInspection(Base):
 class InspectionItem(Base):
     """Resultat d'un point d'inspection / Individual inspection item result."""
     __tablename__ = "inspection_items"
+    __table_args__ = (
+        Index("ix_inspection_items_inspection_id", "inspection_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     inspection_id: Mapped[int] = mapped_column(ForeignKey("vehicle_inspections.id"), nullable=False)
@@ -95,6 +102,9 @@ class InspectionItem(Base):
 class InspectionPhoto(Base):
     """Photos inspection vehicule / Vehicle inspection photos."""
     __tablename__ = "inspection_photos"
+    __table_args__ = (
+        Index("ix_inspection_photos_inspection_id", "inspection_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     inspection_id: Mapped[int] = mapped_column(ForeignKey("vehicle_inspections.id"), nullable=False)

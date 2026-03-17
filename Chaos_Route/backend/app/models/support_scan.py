@@ -1,6 +1,6 @@
 """Modele Scan support individuel / Individual support scan model."""
 
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Float, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -9,6 +9,10 @@ from app.database import Base
 class SupportScan(Base):
     """Scan support individuel (code barre 1D) / Individual support scan (1D barcode)."""
     __tablename__ = "support_scans"
+    __table_args__ = (
+        Index("ix_support_scans_tour_stop_id", "tour_stop_id"),
+        Index("ix_support_scans_barcode", "barcode"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     tour_stop_id: Mapped[int] = mapped_column(ForeignKey("tour_stops.id"), nullable=False)

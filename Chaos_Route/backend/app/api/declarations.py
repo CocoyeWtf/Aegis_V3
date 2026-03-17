@@ -133,12 +133,20 @@ async def list_my_declarations(
         .limit(50)
     )
     declarations = result.scalars().all()
+
+    # Batch load photos to avoid N+1 / Charger photos en batch
+    decl_ids = [d.id for d in declarations]
+    photos_by_decl: dict[int, list] = {}
+    if decl_ids:
+        photos_result = await db.execute(
+            select(DeclarationPhoto).where(DeclarationPhoto.declaration_id.in_(decl_ids))
+        )
+        for photo in photos_result.scalars().all():
+            photos_by_decl.setdefault(photo.declaration_id, []).append(photo)
+
     out = []
     for d in declarations:
-        photos_result = await db.execute(
-            select(DeclarationPhoto).where(DeclarationPhoto.declaration_id == d.id)
-        )
-        photos = photos_result.scalars().all()
+        photos = photos_by_decl.get(d.id, [])
         out.append(DeclarationRead(
             id=d.id,
             device_id=d.device_id,
@@ -168,6 +176,8 @@ async def list_declarations(
     declaration_type: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    limit: int = Query(default=200, le=2000),
+    offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("declarations", "read")),
 ):
@@ -183,15 +193,23 @@ async def list_declarations(
     if date_to is not None:
         query = query.where(DriverDeclaration.created_at <= date_to + "T23:59:59")
 
-    result = await db.execute(query.limit(200))
+    query = query.offset(offset).limit(limit)
+    result = await db.execute(query)
     declarations = result.scalars().all()
+
+    # Batch load photos to avoid N+1 / Charger photos en batch
+    decl_ids = [d.id for d in declarations]
+    photos_by_decl: dict[int, list] = {}
+    if decl_ids:
+        photos_result = await db.execute(
+            select(DeclarationPhoto).where(DeclarationPhoto.declaration_id.in_(decl_ids))
+        )
+        for photo in photos_result.scalars().all():
+            photos_by_decl.setdefault(photo.declaration_id, []).append(photo)
 
     out = []
     for d in declarations:
-        photos_result = await db.execute(
-            select(DeclarationPhoto).where(DeclarationPhoto.declaration_id == d.id)
-        )
-        photos = photos_result.scalars().all()
+        photos = photos_by_decl.get(d.id, [])
         out.append(DeclarationRead(
             id=d.id,
             device_id=d.device_id,

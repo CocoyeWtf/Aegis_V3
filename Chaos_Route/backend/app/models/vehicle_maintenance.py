@@ -2,7 +2,7 @@
 
 import enum
 
-from sqlalchemy import Boolean, Enum, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, Enum, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -33,6 +33,11 @@ class MaintenanceStatus(str, enum.Enum):
 class VehicleMaintenanceRecord(Base):
     """Enregistrement entretien / Maintenance record."""
     __tablename__ = "vehicle_maintenance_records"
+    __table_args__ = (
+        Index("ix_vehicle_maintenance_vehicle_id", "vehicle_id"),
+        Index("ix_vehicle_maintenance_status", "status"),
+        Index("ix_vehicle_maintenance_scheduled", "scheduled_date"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), nullable=False)

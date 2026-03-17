@@ -1,6 +1,6 @@
 """Modèle Arrêt de tournée / Tour stop model."""
 
-from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -8,6 +8,11 @@ from app.database import Base
 
 class TourStop(Base):
     __tablename__ = "tour_stops"
+    __table_args__ = (
+        Index("ix_tour_stops_tour_id", "tour_id"),
+        Index("ix_tour_stops_pdv_id", "pdv_id"),
+        Index("ix_tour_stops_delivery_status", "delivery_status"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     tour_id: Mapped[int] = mapped_column(ForeignKey("tours.id"), nullable=False)

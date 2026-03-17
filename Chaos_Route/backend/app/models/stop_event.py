@@ -2,7 +2,7 @@
 
 import enum
 
-from sqlalchemy import Boolean, Enum, Float, ForeignKey, String, Text
+from sqlalchemy import Boolean, Enum, Float, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -19,6 +19,10 @@ class StopEventType(str, enum.Enum):
 class StopEvent(Base):
     """Evenement a un arret (arrivee, depart, cloture) / Event at a stop."""
     __tablename__ = "stop_events"
+    __table_args__ = (
+        Index("ix_stop_events_tour_stop_id", "tour_stop_id"),
+        Index("ix_stop_events_timestamp", "timestamp"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     tour_stop_id: Mapped[int] = mapped_column(ForeignKey("tour_stops.id"), nullable=False)

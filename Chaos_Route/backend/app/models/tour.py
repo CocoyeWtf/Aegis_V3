@@ -2,7 +2,7 @@
 
 import enum
 
-from sqlalchemy import Boolean, Enum, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, Enum, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -20,6 +20,12 @@ class TourStatus(str, enum.Enum):
 
 class Tour(Base):
     __tablename__ = "tours"
+    __table_args__ = (
+        Index("ix_tours_base_date", "base_id", "date"),
+        Index("ix_tours_status", "status"),
+        Index("ix_tours_contract_id", "contract_id"),
+        Index("ix_tours_delivery_date", "delivery_date"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     date: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD

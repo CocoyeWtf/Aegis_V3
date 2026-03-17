@@ -50,29 +50,50 @@ async def get_latest_positions(
     result = await db.execute(query)
     tours = result.scalars().all()
 
+    tour_ids = [t.id for t in tours]
+
+    if not tour_ids:
+        return []
+
+    # Batch: derniere position GPS par tour / Latest GPS position per tour
+    latest_ts = (
+        select(GPSPosition.tour_id, func.max(GPSPosition.timestamp).label("max_ts"))
+        .where(GPSPosition.tour_id.in_(tour_ids))
+        .group_by(GPSPosition.tour_id)
+        .subquery()
+    )
+    gps_result = await db.execute(
+        select(GPSPosition).join(
+            latest_ts,
+            (GPSPosition.tour_id == latest_ts.c.tour_id) & (GPSPosition.timestamp == latest_ts.c.max_ts)
+        )
+    )
+    gps_by_tour = {g.tour_id: g for g in gps_result.scalars().all()}
+
+    # Batch: nombre total de stops par tour / Total stop counts per tour
+    stops_total_result = await db.execute(
+        select(TourStop.tour_id, func.count(TourStop.id))
+        .where(TourStop.tour_id.in_(tour_ids))
+        .group_by(TourStop.tour_id)
+    )
+    stops_total_map = dict(stops_total_result.all())
+
+    # Batch: stops livres par tour / Delivered stop counts per tour
+    stops_delivered_result = await db.execute(
+        select(TourStop.tour_id, func.count(TourStop.id))
+        .where(TourStop.tour_id.in_(tour_ids), TourStop.delivery_status == "DELIVERED")
+        .group_by(TourStop.tour_id)
+    )
+    stops_delivered_map = dict(stops_delivered_result.all())
+
     positions = []
     for tour in tours:
-        # Derniere position GPS / Latest GPS position
-        gps_result = await db.execute(
-            select(GPSPosition)
-            .where(GPSPosition.tour_id == tour.id)
-            .order_by(GPSPosition.timestamp.desc())
-            .limit(1)
-        )
-        gps = gps_result.scalar_one_or_none()
+        gps = gps_by_tour.get(tour.id)
         if not gps:
             continue
 
-        # Compter les stops livres / Count delivered stops
-        stops_total = await db.scalar(
-            select(func.count(TourStop.id)).where(TourStop.tour_id == tour.id)
-        ) or 0
-        stops_delivered = await db.scalar(
-            select(func.count(TourStop.id)).where(
-                TourStop.tour_id == tour.id,
-                TourStop.delivery_status == "DELIVERED",
-            )
-        ) or 0
+        total = stops_total_map.get(tour.id, 0)
+        delivered = stops_delivered_map.get(tour.id, 0)
 
         positions.append(DriverPositionRead(
             tour_id=tour.id,
@@ -83,8 +104,8 @@ async def get_latest_positions(
             speed=gps.speed,
             accuracy=gps.accuracy,
             timestamp=gps.timestamp,
-            stops_total=stops_total,
-            stops_delivered=stops_delivered,
+            stops_total=total,
+            stops_delivered=delivered,
         ))
 
     return positions

@@ -1,6 +1,6 @@
 """Modele Affectation telephone-chauffeur-tour / Device-driver-tour assignment model."""
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -13,6 +13,11 @@ class DeviceAssignment(Base):
     user_id est optionnel (pour lien eventuel avec un compte utilisateur).
     """
     __tablename__ = "device_assignments"
+    __table_args__ = (
+        Index("ix_device_assignments_device_id", "device_id"),
+        Index("ix_device_assignments_tour_id", "tour_id"),
+        Index("ix_device_assignments_date", "date"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     device_id: Mapped[int] = mapped_column(ForeignKey("mobile_devices.id"), nullable=False)

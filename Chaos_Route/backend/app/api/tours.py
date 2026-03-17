@@ -382,6 +382,8 @@ async def list_tours(
     delivery_date: str | None = None,
     base_id: int | None = None,
     status: str | None = None,
+    limit: int = Query(default=200, le=2000),
+    offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("tour-planning", "read")),
 ):
@@ -405,6 +407,7 @@ async def list_tours(
         query = query.join(BaseLogistics, Tour.base_id == BaseLogistics.id).where(
             BaseLogistics.region_id.in_(user_region_ids)
         )
+    query = query.order_by(Tour.id.desc()).offset(offset).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
 

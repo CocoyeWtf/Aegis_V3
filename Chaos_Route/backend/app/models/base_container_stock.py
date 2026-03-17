@@ -4,7 +4,7 @@ Suivi du stock de contenants par entrepot (base logistique).
 
 import enum
 
-from sqlalchemy import Column, Enum, Float, Integer, String, Text, ForeignKey
+from sqlalchemy import Column, Enum, Float, Index, Integer, String, Text, ForeignKey
 from app.database import Base
 
 
@@ -41,6 +41,10 @@ class BaseContainerMovement(Base):
     """Mouvement contenant base — tracabilite complete.
     Base container movement — full traceability."""
     __tablename__ = "base_container_movements"
+    __table_args__ = (
+        Index("ix_base_movements_support_type", "support_type_id"),
+        Index("ix_base_movements_timestamp", "timestamp"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     base_id = Column(Integer, ForeignKey("bases_logistics.id"), nullable=False, index=True)

@@ -2,7 +2,7 @@
 
 import enum
 
-from sqlalchemy import Enum, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Enum, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -16,6 +16,10 @@ class SurchargeStatus(str, enum.Enum):
 
 class TourSurcharge(Base):
     __tablename__ = "tour_surcharges"
+    __table_args__ = (
+        Index("ix_tour_surcharges_tour_id", "tour_id"),
+        Index("ix_tour_surcharges_status", "status"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     tour_id: Mapped[int] = mapped_column(ForeignKey("tours.id", ondelete="CASCADE"), nullable=False)

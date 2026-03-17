@@ -2,7 +2,7 @@
 
 import enum
 
-from sqlalchemy import Date, Enum, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Date, Enum, ForeignKey, Index, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -17,6 +17,11 @@ class TemperatureClass(str, enum.Enum):
 
 class Volume(Base):
     __tablename__ = "volumes"
+    __table_args__ = (
+        Index("ix_volumes_pdv_date", "pdv_id", "date"),
+        Index("ix_volumes_base_date", "base_origin_id", "date"),
+        Index("ix_volumes_tour_id", "tour_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     pdv_id: Mapped[int] = mapped_column(ForeignKey("pdvs.id"), nullable=False)

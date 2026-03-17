@@ -1,6 +1,6 @@
 """Modele suivi carburant / Fuel tracking model."""
 
-from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -9,6 +9,9 @@ from app.database import Base
 class VehicleFuelEntry(Base):
     """Entree carburant / Fuel entry."""
     __tablename__ = "vehicle_fuel_entries"
+    __table_args__ = (
+        Index("ix_vehicle_fuel_vehicle_date", "vehicle_id", "date"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), nullable=False)

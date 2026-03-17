@@ -2,7 +2,7 @@
 
 import enum
 
-from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Index, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -45,6 +45,11 @@ class MovementType(str, enum.Enum):
 class PickupRequest(Base):
     """Demande de reprise de contenants / Container pickup request."""
     __tablename__ = "pickup_requests"
+    __table_args__ = (
+        Index("ix_pickup_requests_pdv_id", "pdv_id"),
+        Index("ix_pickup_requests_status", "status"),
+        Index("ix_pickup_requests_availability", "availability_date"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     pdv_id: Mapped[int] = mapped_column(ForeignKey("pdvs.id"), nullable=False)
@@ -93,6 +98,11 @@ class PickupRequest(Base):
 class PickupLabel(Base):
     """Étiquette individuelle par unité / Individual label per unit."""
     __tablename__ = "pickup_labels"
+    __table_args__ = (
+        Index("ix_pickup_labels_request_id", "pickup_request_id"),
+        Index("ix_pickup_labels_status", "status"),
+        Index("ix_pickup_labels_tour_stop", "tour_stop_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     pickup_request_id: Mapped[int] = mapped_column(ForeignKey("pickup_requests.id", ondelete="CASCADE"), nullable=False)
@@ -116,6 +126,10 @@ class PickupMovement(Base):
     Every label status change creates a movement record.
     """
     __tablename__ = "pickup_movements"
+    __table_args__ = (
+        Index("ix_pickup_movements_label_id", "pickup_label_id"),
+        Index("ix_pickup_movements_timestamp", "timestamp"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     pickup_label_id: Mapped[int] = mapped_column(ForeignKey("pickup_labels.id", ondelete="CASCADE"), nullable=False)

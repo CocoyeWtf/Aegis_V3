@@ -1,6 +1,6 @@
 """Routes Volumes / Volume API routes."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +21,8 @@ async def list_volumes(
     date_from: str | None = None,
     date_to: str | None = None,
     base_origin_id: int | None = None,
+    limit: int = Query(default=500, le=5000),
+    offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("volumes", "read")),
 ):
@@ -40,6 +42,7 @@ async def list_volumes(
     user_region_ids = get_user_region_ids(user)
     if user_region_ids is not None:
         query = query.join(PDV, Volume.pdv_id == PDV.id).where(PDV.region_id.in_(user_region_ids))
+    query = query.order_by(Volume.id.desc()).offset(offset).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
 

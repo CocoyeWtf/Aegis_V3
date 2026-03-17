@@ -2,7 +2,7 @@
 Suivi du stock de contenants par point de vente.
 """
 
-from sqlalchemy import Column, Integer, Float, String, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, Float, Index, String, ForeignKey, DateTime
 from app.database import Base
 
 
@@ -10,6 +10,9 @@ class PdvInventory(Base):
     """Snapshot d'inventaire — un enregistrement par type de support inventorié.
     Inventory snapshot — one record per support type inventoried."""
     __tablename__ = "pdv_inventories"
+    __table_args__ = (
+        Index("ix_pdv_inventories_support_type", "support_type_id"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     pdv_id = Column(Integer, ForeignKey("pdvs.id"), nullable=False, index=True)
@@ -24,6 +27,9 @@ class PdvStock(Base):
     """Stock courant par PDV × type de support — mis à jour par inventaire.
     Current stock per PDV × support type — updated by inventory."""
     __tablename__ = "pdv_stocks"
+    __table_args__ = (
+        Index("ix_pdv_stocks_support_type", "support_type_id"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     pdv_id = Column(Integer, ForeignKey("pdvs.id"), nullable=False, index=True)

@@ -7,7 +7,7 @@ Stores an immutable snapshot of the CMR waybill compliant with the Geneva Conven
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Enum, ForeignKey, String, Text
+from sqlalchemy import Enum, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -24,6 +24,11 @@ class CMRStatus(str, enum.Enum):
 class WaybillArchive(Base):
     """Archive CMR — lettre de voiture immutable / CMR waybill archive — immutable consignment note."""
     __tablename__ = "waybill_archives"
+    __table_args__ = (
+        Index("ix_waybill_archives_region_id", "region_id"),
+        Index("ix_waybill_archives_status", "status"),
+        Index("ix_waybill_archives_issued_at", "issued_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 

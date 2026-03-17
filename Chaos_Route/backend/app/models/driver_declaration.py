@@ -2,7 +2,7 @@
 
 import enum
 
-from sqlalchemy import Enum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Enum, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -21,6 +21,11 @@ class DeclarationType(str, enum.Enum):
 class DriverDeclaration(Base):
     """Declarations chauffeur / Driver declarations."""
     __tablename__ = "driver_declarations"
+    __table_args__ = (
+        Index("ix_declarations_device_id", "device_id"),
+        Index("ix_declarations_tour_id", "tour_id"),
+        Index("ix_declarations_created_at", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     device_id: Mapped[int] = mapped_column(ForeignKey("mobile_devices.id"), nullable=False)
@@ -38,6 +43,9 @@ class DriverDeclaration(Base):
 class DeclarationPhoto(Base):
     """Photos attachees aux declarations / Photos attached to declarations."""
     __tablename__ = "declaration_photos"
+    __table_args__ = (
+        Index("ix_declaration_photos_declaration_id", "declaration_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     declaration_id: Mapped[int] = mapped_column(ForeignKey("driver_declarations.id"), nullable=False)

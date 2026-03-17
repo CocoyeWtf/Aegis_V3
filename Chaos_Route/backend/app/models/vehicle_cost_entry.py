@@ -2,7 +2,7 @@
 
 import enum
 
-from sqlalchemy import Enum, ForeignKey, Numeric, String, Text
+from sqlalchemy import Enum, ForeignKey, Index, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -22,6 +22,10 @@ class CostCategory(str, enum.Enum):
 class VehicleCostEntry(Base):
     """Cout divers vehicule / Vehicle miscellaneous cost."""
     __tablename__ = "vehicle_cost_entries"
+    __table_args__ = (
+        Index("ix_vehicle_costs_vehicle_date", "vehicle_id", "date"),
+        Index("ix_vehicle_costs_category", "category"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), nullable=False)
