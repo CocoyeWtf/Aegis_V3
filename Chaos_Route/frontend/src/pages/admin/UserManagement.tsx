@@ -85,6 +85,27 @@ export default function UserManagement() {
         ...pdvs.map((p) => ({ value: String(p.id), label: `${p.code} — ${p.name}` })),
       ],
     },
+    {
+      key: 'default_route',
+      label: 'Page d\'accueil',
+      type: 'select',
+      options: [
+        { value: '', label: '— Par defaut (Tableau de bord) —' },
+        { value: '/', label: 'Tableau de bord' },
+        { value: '/tour-planning', label: 'Planning tournees' },
+        { value: '/tour-history', label: 'Historique tournees' },
+        { value: '/operations', label: 'Operations (postier)' },
+        { value: '/tracking', label: 'Suivi chauffeurs' },
+        { value: '/guard-post', label: 'Poste de garde' },
+        { value: '/pickup-requests', label: 'Demandes de reprise' },
+        { value: '/base-reception', label: 'Reception reprises' },
+        { value: '/pdv-deliveries', label: 'Planning livraisons PDV' },
+        { value: '/pdv-stock', label: 'Stock contenants PDV' },
+        { value: '/volumes', label: 'Volumes' },
+        { value: '/vehicles', label: 'Vehicules' },
+        { value: '/base-container-stock', label: 'Stock contenants base' },
+      ],
+    },
     // Statut
     { key: 'is_active', label: t('admin.users.active'), type: 'checkbox' },
     { key: 'is_superadmin', label: 'Superadmin', type: 'checkbox' },
@@ -114,6 +135,7 @@ export default function UserManagement() {
       role_ids: row.roles.map((r) => String(r.id)),
       region_ids: row.regions.map((r) => String(r.id)),
       pdv_id: row.pdv_id ? String(row.pdv_id) : '',
+      default_route: (row as unknown as Record<string, unknown>).default_route || '',
       password: '',
     })
     setFormOpen(true)
@@ -131,6 +153,7 @@ export default function UserManagement() {
         role_ids: ((formData.role_ids as string[]) || []).map(Number),
         region_ids: ((formData.region_ids as string[]) || []).map(Number),
         pdv_id: pdvIdVal,
+        default_route: (formData.default_route as string) || null,
       }
       // N'envoyer le password que s'il est rempli / Only send password if filled
       const pwd = (formData.password as string | null) ?? ''

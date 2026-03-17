@@ -66,6 +66,7 @@ class UserCreate(BaseModel):
     role_ids: list[int] = []
     region_ids: list[int] = []
     pdv_id: int | None = None
+    default_route: str | None = None
 
 
 class UserUpdate(BaseModel):
@@ -77,6 +78,7 @@ class UserUpdate(BaseModel):
     role_ids: list[int] | None = None
     region_ids: list[int] | None = None
     pdv_id: int | None = None
+    default_route: str | None = None
 
 
 class UserRead(BaseModel):
@@ -87,6 +89,7 @@ class UserRead(BaseModel):
     is_superadmin: bool
     pdv_id: int | None = None
     badge_code: str | None = None
+    default_route: str | None = None
     roles: list[RoleBrief]
     regions: list[RegionBrief]
     created_at: datetime
@@ -102,6 +105,7 @@ class UserMe(BaseModel):
     is_superadmin: bool
     pdv_id: int | None = None
     badge_code: str | None = None
+    default_route: str | None = None
     roles: list[RoleBrief]
     regions: list[RegionBrief]
     permissions: list[str]  # ["pdvs:read", "pdvs:create", ...]

@@ -11,6 +11,11 @@ export function DefaultRedirect({ children }: { children: React.ReactNode }) {
 
   if (!user) return null
 
+  /* Rediriger vers la route par defaut configurée ou la première accessible */
+  if (user.default_route) {
+    return <Navigate to={user.default_route} replace />
+  }
+
   if (!hasPermission('dashboard', 'read')) {
     const route = getDefaultRoute(user)
     if (route !== '/') {

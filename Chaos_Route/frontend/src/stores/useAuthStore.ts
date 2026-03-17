@@ -10,6 +10,7 @@ export interface UserInfo {
   is_superadmin: boolean
   pdv_id?: number | null
   badge_code?: string | null
+  default_route?: string | null
   permissions: string[] // ["pdvs:read", "pdvs:create", ...] ou ["*:*"]
   roles: { id: number; name: string }[]
   regions: { id: number; name: string }[]

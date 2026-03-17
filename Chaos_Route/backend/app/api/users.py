@@ -64,6 +64,7 @@ async def create_user(
         is_active=data.is_active,
         is_superadmin=data.is_superadmin,
         pdv_id=data.pdv_id,
+        default_route=data.default_route,
         badge_code=uuid.uuid4().hex[:8].upper(),
     )
 
@@ -108,6 +109,8 @@ async def update_user(
         target.is_superadmin = data.is_superadmin
     if data.pdv_id is not None:
         target.pdv_id = data.pdv_id
+    if data.default_route is not None:
+        target.default_route = data.default_route if data.default_route else None
 
     if data.role_ids is not None:
         roles_result = await db.execute(select(Role).where(Role.id.in_(data.role_ids)))

@@ -27,6 +27,11 @@ function userHasPermission(user: UserInfo, resource: string, action: string): bo
 }
 
 export function getDefaultRoute(user: UserInfo): string {
+  /* Si l'utilisateur a une route par defaut configurée, l'utiliser / Use configured default route */
+  if (user.default_route) {
+    return user.default_route
+  }
+
   for (const r of routePermissions) {
     if (userHasPermission(user, r.resource, 'read')) {
       return r.path
