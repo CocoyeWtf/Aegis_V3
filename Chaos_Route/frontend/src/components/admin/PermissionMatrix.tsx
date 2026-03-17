@@ -194,12 +194,18 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="text-sm" style={{ tableLayout: 'fixed', width: '100%' }}>
+        <colgroup>
+          <col />
+          {ACTIONS.map((a) => (
+            <col key={a} style={{ width: '70px' }} />
+          ))}
+        </colgroup>
         <thead>
           <tr>
             <th
               className="text-left px-3 py-2 font-medium"
-              style={{ color: 'var(--text-muted)', width: '280px' }}
+              style={{ color: 'var(--text-muted)' }}
             >
               <button
                 type="button"
@@ -211,7 +217,7 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
               </button>
             </th>
             {ACTIONS.map((action) => (
-              <th key={action} className="px-3 py-2 text-center font-medium" style={{ color: 'var(--text-muted)', width: '70px' }}>
+              <th key={action} className="py-2 text-center font-medium" style={{ color: 'var(--text-muted)' }}>
                 <button
                   type="button"
                   onClick={() => toggleCol(action)}
@@ -279,7 +285,7 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
                   {ACTIONS.map((action) => {
                     const colChecked = group.resources.every((r) => has(r.resource, action))
                     return (
-                      <td key={action} className="px-3 py-2 text-center">
+                      <td key={action} className="py-2 text-center">
                         <label
                           className={`inline-flex items-center justify-center w-7 h-7 rounded-md cursor-pointer transition-all border ${colChecked ? 'border-orange-500' : ''}`}
                           style={{
@@ -330,7 +336,7 @@ export function PermissionMatrix({ value, onChange }: PermissionMatrixProps) {
                     {ACTIONS.map((action) => {
                       const checked = has(item.resource, action)
                       return (
-                        <td key={action} className="px-3 py-1.5 text-center">
+                        <td key={action} className="py-1.5 text-center">
                           <label
                             className={`inline-flex items-center justify-center w-6 h-6 rounded cursor-pointer transition-all border ${checked ? 'border-orange-500' : ''}`}
                             style={{
