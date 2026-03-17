@@ -15,7 +15,7 @@ export default function DistanceMatrix() {
   const [serverSearch, setServerSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [totalCount, setTotalCount] = useState<number | null>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
 
   /* Charger le total / Load total count */
   useEffect(() => {
