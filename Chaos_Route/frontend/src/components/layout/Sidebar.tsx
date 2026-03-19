@@ -79,6 +79,7 @@ const navGroups: NavGroup[] = [
       { path: '/base-container-stock', label: 'Stock contenants base', icon: '🏗️', resource: 'base-container-stock' },
       { path: '/supplier-pickups', label: 'Reprises fournisseurs', icon: '🔄', resource: 'supplier-pickups' },
       { path: '/temperature', label: 'Controle temperature', icon: '🌡️', resource: 'temperature' },
+      { path: '/reception-booking', label: 'Booking reception', icon: '📅', resource: 'reception-booking' },
     ],
   },
   {

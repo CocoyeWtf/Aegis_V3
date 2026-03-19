@@ -9,6 +9,7 @@ export interface UserInfo {
   email: string
   is_superadmin: boolean
   pdv_id?: number | null
+  supplier_id?: number | null
   badge_code?: string | null
   default_route?: string | null
   permissions: string[] // ["pdvs:read", "pdvs:create", ...] ou ["*:*"]

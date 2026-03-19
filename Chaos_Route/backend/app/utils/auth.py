@@ -51,6 +51,7 @@ RESOURCES = [
     "supplier-pickups",
     "collection-requests",
     "temperature",
+    "reception-booking",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

@@ -8,7 +8,7 @@ import { ConfirmDialog } from '../../components/data/ConfirmDialog'
 import { useApi } from '../../hooks/useApi'
 import { create, update, remove } from '../../services/api'
 import { DriverBadgeCard } from '../../components/print/DriverBadgeCard'
-import type { UserAccount, Role, Region, PDV } from '../../types'
+import type { UserAccount, Role, Region, PDV, Supplier } from '../../types'
 
 export default function UserManagement() {
   const { t } = useTranslation()
@@ -16,6 +16,7 @@ export default function UserManagement() {
   const { data: roles } = useApi<Role>('/roles')
   const { data: regions } = useApi<Region>('/regions')
   const { data: pdvs } = useApi<PDV>('/pdvs')
+  const { data: suppliers } = useApi<Supplier>('/suppliers')
 
   const [formOpen, setFormOpen] = useState(false)
   const [editItem, setEditItem] = useState<Record<string, unknown> | undefined>()
@@ -86,6 +87,15 @@ export default function UserManagement() {
       ],
     },
     {
+      key: 'supplier_id',
+      label: 'Fournisseur lie',
+      type: 'select',
+      options: [
+        { value: '', label: '— Aucun —' },
+        ...suppliers.map((s) => ({ value: String(s.id), label: `${s.code} — ${s.name}` })),
+      ],
+    },
+    {
       key: 'default_route',
       label: 'Page d\'accueil',
       type: 'select',
@@ -105,6 +115,9 @@ export default function UserManagement() {
         { value: '/vehicles', label: 'Vehicules' },
         { value: '/base-container-stock', label: 'Stock contenants base' },
         { value: '/supplier-pickups', label: 'Reprises fournisseurs' },
+        { value: '/collection-requests', label: 'Enlevements fournisseurs' },
+        { value: '/temperature', label: 'Controle temperature' },
+        { value: '/reception-booking', label: 'Booking reception' },
       ],
     },
     // Statut
@@ -136,6 +149,7 @@ export default function UserManagement() {
       role_ids: row.roles.map((r) => String(r.id)),
       region_ids: row.regions.map((r) => String(r.id)),
       pdv_id: row.pdv_id ? String(row.pdv_id) : '',
+      supplier_id: (row as unknown as Record<string, unknown>).supplier_id ? String((row as unknown as Record<string, unknown>).supplier_id) : '',
       default_route: (row as unknown as Record<string, unknown>).default_route || '',
       password: '',
     })
@@ -146,6 +160,7 @@ export default function UserManagement() {
     setSaving(true)
     try {
       const pdvIdVal = formData.pdv_id ? Number(formData.pdv_id) : null
+      const supplierIdVal = formData.supplier_id ? Number(formData.supplier_id) : null
       const payload: Record<string, unknown> = {
         username: formData.username,
         email: formData.email,
@@ -154,6 +169,7 @@ export default function UserManagement() {
         role_ids: ((formData.role_ids as string[]) || []).map(Number),
         region_ids: ((formData.region_ids as string[]) || []).map(Number),
         pdv_id: pdvIdVal,
+        supplier_id: supplierIdVal,
         default_route: (formData.default_route as string) || null,
       }
       // N'envoyer le password que s'il est rempli / Only send password if filled

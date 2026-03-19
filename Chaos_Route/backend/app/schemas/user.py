@@ -66,6 +66,7 @@ class UserCreate(BaseModel):
     role_ids: list[int] = []
     region_ids: list[int] = []
     pdv_id: int | None = None
+    supplier_id: int | None = None
     default_route: str | None = None
 
 
@@ -78,6 +79,7 @@ class UserUpdate(BaseModel):
     role_ids: list[int] | None = None
     region_ids: list[int] | None = None
     pdv_id: int | None = None
+    supplier_id: int | None = None
     default_route: str | None = None
 
 
@@ -88,6 +90,7 @@ class UserRead(BaseModel):
     is_active: bool
     is_superadmin: bool
     pdv_id: int | None = None
+    supplier_id: int | None = None
     badge_code: str | None = None
     default_route: str | None = None
     roles: list[RoleBrief]
@@ -104,6 +107,7 @@ class UserMe(BaseModel):
     email: str
     is_superadmin: bool
     pdv_id: int | None = None
+    supplier_id: int | None = None
     badge_code: str | None = None
     default_route: str | None = None
     roles: list[RoleBrief]

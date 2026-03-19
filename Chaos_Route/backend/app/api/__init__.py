@@ -47,6 +47,7 @@ from app.api import (
     supplier_pickup_requests,
     collection_requests,
     temperature,
+    reception_booking,
 )
 
 api_router = APIRouter(prefix="/api")
@@ -94,3 +95,4 @@ api_router.include_router(base_container_stock.router, prefix="/base-container-s
 api_router.include_router(supplier_pickup_requests.router, prefix="/supplier-pickups", tags=["supplier-pickups"])
 api_router.include_router(collection_requests.router, prefix="/collection-requests", tags=["collection-requests"])
 api_router.include_router(temperature.router, prefix="/temperature", tags=["temperature"])
+api_router.include_router(reception_booking.router, prefix="/reception-booking", tags=["reception-booking"])

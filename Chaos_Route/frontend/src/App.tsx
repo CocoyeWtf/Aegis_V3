@@ -57,6 +57,7 @@ const BaseContainerStock = lazy(() => import('./pages/BaseContainerStock'))
 const SupplierPickupRequests = lazy(() => import('./pages/SupplierPickupRequests'))
 const CollectionRequests = lazy(() => import('./pages/CollectionRequests'))
 const TemperatureControl = lazy(() => import('./pages/TemperatureControl'))
+const ReceptionBookingPage = lazy(() => import('./pages/ReceptionBooking'))
 
 function Loading() {
   return (
@@ -122,6 +123,7 @@ export default function App() {
             <Route path="/supplier-pickups" element={<SupplierPickupRequests />} />
             <Route path="/collection-requests" element={<CollectionRequests />} />
             <Route path="/temperature" element={<TemperatureControl />} />
+            <Route path="/reception-booking" element={<ReceptionBookingPage />} />
             <Route path="/help" element={<Help />} />
           </Route>
         </Route>

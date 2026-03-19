@@ -58,6 +58,7 @@ const RESOURCE_GROUPS: ResourceGroup[] = [
       { resource: 'base-container-stock', label: 'Stock contenants base' },
       { resource: 'supplier-pickups', label: 'Reprises fournisseurs' },
       { resource: 'temperature', label: 'Controle temperature' },
+      { resource: 'reception-booking', label: 'Booking reception' },
     ],
   },
   {
