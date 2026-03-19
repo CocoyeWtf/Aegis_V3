@@ -536,6 +536,8 @@ export interface SupportType {
   content_items_per_unit?: number | null
   content_item_value?: number | null
   supplier_plant?: string | null
+  supplier_id?: number | null
+  alert_threshold?: number | null
 }
 
 export type PickupTypeEnum = 'CONTAINER' | 'MERCHANDISE' | 'CARDBOARD' | 'CONSIGNMENT'
@@ -606,6 +608,50 @@ export interface PdvPickupSummary {
   pdv_name: string
   pending_count: number
   requests: PickupRequest[]
+}
+
+/* ─── Reprises fournisseur / Supplier pickup types ─── */
+
+export type SupplierPickupStatus = 'DRAFT' | 'SENT' | 'CONFIRMED' | 'PICKED_UP'
+
+export interface SupplierPickupLine {
+  id: number
+  request_id: number
+  support_type_id: number
+  palette_count: number
+  unit_count?: number | null
+  notes?: string | null
+  support_type_name?: string | null
+  support_type_code?: string | null
+}
+
+export interface SupplierPickupRequest {
+  id: number
+  base_id: number
+  supplier_id: number
+  status: SupplierPickupStatus
+  notes?: string | null
+  created_by_user_id?: number | null
+  created_at: string
+  sent_at?: string | null
+  confirmed_at?: string | null
+  picked_up_at?: string | null
+  supplier?: { id: number; code: string; name: string; email?: string | null } | null
+  base?: { id: number; code?: string | null; name: string } | null
+  lines: SupplierPickupLine[]
+  created_by_username?: string | null
+}
+
+export interface StockAlert {
+  base_id: number
+  base_name: string
+  support_type_id: number
+  support_type_name: string
+  support_type_code: string
+  current_stock: number
+  alert_threshold: number
+  supplier_id?: number | null
+  supplier_name?: string | null
 }
 
 /* ─── Manifeste WMS / WMS Manifest types ─── */

@@ -1,7 +1,7 @@
 """Modèle Type de Support / Support Type model (palettes, CHEP, etc.)."""
 
-from sqlalchemy import Boolean, Integer, Numeric, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
@@ -27,3 +27,10 @@ class SupportType(Base):
     content_item_value: Mapped[float | None] = mapped_column(Numeric(10, 4))  # ex: 0.10 € par bouteille
     # Usine fournisseur pour export (ex: "InBev JUPILLE") / Supplier plant for export
     supplier_plant: Mapped[str | None] = mapped_column(String(100))
+    # Lien fournisseur / Supplier link (pour reprises fournisseur)
+    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"))
+    # Seuil d'alerte stock base / Base stock alert threshold
+    alert_threshold: Mapped[int | None] = mapped_column(Integer)
+
+    # Relations
+    supplier: Mapped["Supplier"] = relationship(lazy="joined")

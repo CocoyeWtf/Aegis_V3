@@ -44,6 +44,7 @@ from app.api import (
     waybill_archives,
     inventory,
     base_container_stock,
+    supplier_pickup_requests,
 )
 
 api_router = APIRouter(prefix="/api")
@@ -88,3 +89,4 @@ api_router.include_router(carriers.router, prefix="/carriers", tags=["carriers"]
 api_router.include_router(waybill_archives.router, tags=["waybill-archives"])
 api_router.include_router(inventory.router, prefix="/pdv-stock", tags=["pdv-stock"])
 api_router.include_router(base_container_stock.router, prefix="/base-container-stock", tags=["base-container-stock"])
+api_router.include_router(supplier_pickup_requests.router, prefix="/supplier-pickups", tags=["supplier-pickups"])

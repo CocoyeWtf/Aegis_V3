@@ -76,6 +76,7 @@ const navGroups: NavGroup[] = [
       { path: '/consignments', label: 'Suivi consignes', icon: '📊', resource: 'consignment-movements' },
       { path: '/waybill-registry', label: 'Registre CMR', icon: '📄', resource: 'waybill-archives' },
       { path: '/base-container-stock', label: 'Stock contenants base', icon: '🏗️', resource: 'base-container-stock' },
+      { path: '/supplier-pickups', label: 'Reprises fournisseurs', icon: '🔄', resource: 'supplier-pickups' },
     ],
   },
   {

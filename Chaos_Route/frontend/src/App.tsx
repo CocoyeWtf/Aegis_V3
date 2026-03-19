@@ -54,6 +54,7 @@ const ConsignmentTracking = lazy(() => import('./pages/ConsignmentTracking'))
 const WaybillRegistry = lazy(() => import('./pages/WaybillRegistry'))
 const PdvStock = lazy(() => import('./pages/PdvStock'))
 const BaseContainerStock = lazy(() => import('./pages/BaseContainerStock'))
+const SupplierPickupRequests = lazy(() => import('./pages/SupplierPickupRequests'))
 
 function Loading() {
   return (
@@ -116,6 +117,7 @@ export default function App() {
             <Route path="/waybill-registry" element={<WaybillRegistry />} />
             <Route path="/pdv-stock" element={<PdvStock />} />
             <Route path="/base-container-stock" element={<BaseContainerStock />} />
+            <Route path="/supplier-pickups" element={<SupplierPickupRequests />} />
             <Route path="/help" element={<Help />} />
           </Route>
         </Route>

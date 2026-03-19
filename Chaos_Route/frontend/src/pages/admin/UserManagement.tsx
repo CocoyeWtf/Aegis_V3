@@ -104,6 +104,7 @@ export default function UserManagement() {
         { value: '/volumes', label: 'Volumes' },
         { value: '/vehicles', label: 'Vehicules' },
         { value: '/base-container-stock', label: 'Stock contenants base' },
+        { value: '/supplier-pickups', label: 'Reprises fournisseurs' },
       ],
     },
     // Statut

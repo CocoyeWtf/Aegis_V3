@@ -19,6 +19,8 @@ class SupportTypeCreate(BaseModel):
     content_items_per_unit: int | None = None
     content_item_value: float | None = None
     supplier_plant: str | None = None
+    supplier_id: int | None = None
+    alert_threshold: int | None = None
 
 
 class SupportTypeUpdate(BaseModel):
@@ -34,6 +36,8 @@ class SupportTypeUpdate(BaseModel):
     content_items_per_unit: int | None = None
     content_item_value: float | None = None
     supplier_plant: str | None = None
+    supplier_id: int | None = None
+    alert_threshold: int | None = None
 
 
 class SupportTypeRead(BaseModel):
@@ -51,6 +55,8 @@ class SupportTypeRead(BaseModel):
     content_items_per_unit: int | None = None
     content_item_value: float | None = None
     supplier_plant: str | None = None
+    supplier_id: int | None = None
+    alert_threshold: int | None = None
 
 
 # --- PickupLabel ---

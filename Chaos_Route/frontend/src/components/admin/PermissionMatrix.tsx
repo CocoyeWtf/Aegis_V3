@@ -55,6 +55,7 @@ const RESOURCE_GROUPS: ResourceGroup[] = [
       { resource: 'consignment-movements', label: 'Suivi consignes' },
       { resource: 'waybill-archives', label: 'Registre CMR' },
       { resource: 'base-container-stock', label: 'Stock contenants base' },
+      { resource: 'supplier-pickups', label: 'Reprises fournisseurs' },
     ],
   },
   {

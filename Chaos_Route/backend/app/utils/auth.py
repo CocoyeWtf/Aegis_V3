@@ -48,6 +48,7 @@ RESOURCES = [
     "waybill-archives",
     "pdv-stock",
     "base-container-stock",
+    "supplier-pickups",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 
