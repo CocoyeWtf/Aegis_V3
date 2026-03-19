@@ -49,6 +49,8 @@ RESOURCES = [
     "pdv-stock",
     "base-container-stock",
     "supplier-pickups",
+    "collection-requests",
+    "temperature",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

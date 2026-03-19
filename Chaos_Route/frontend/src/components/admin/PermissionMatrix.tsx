@@ -43,6 +43,7 @@ const RESOURCE_GROUPS: ResourceGroup[] = [
       { resource: 'tour-history', label: 'Historique / Synthese transport' },
       { resource: 'aide-decision', label: 'Aide a la decision' },
       { resource: 'surcharges', label: 'Surcharges' },
+      { resource: 'collection-requests', label: 'Enlevements fournisseurs' },
     ],
   },
   {
@@ -56,6 +57,7 @@ const RESOURCE_GROUPS: ResourceGroup[] = [
       { resource: 'waybill-archives', label: 'Registre CMR' },
       { resource: 'base-container-stock', label: 'Stock contenants base' },
       { resource: 'supplier-pickups', label: 'Reprises fournisseurs' },
+      { resource: 'temperature', label: 'Controle temperature' },
     ],
   },
   {

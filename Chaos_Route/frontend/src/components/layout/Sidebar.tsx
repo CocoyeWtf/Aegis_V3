@@ -61,6 +61,7 @@ const navGroups: NavGroup[] = [
       { path: '/tour-history', label: 'nav.tourHistory', icon: '📜', resource: 'tour-history' },
       { path: '/transporter-summary', label: 'nav.transporterSummary', icon: '🧾', resource: 'tour-history' },
       { path: '/aide-decision', label: 'Aide à la décision', icon: '🧠', resource: 'aide-decision' },
+      { path: '/collection-requests', label: 'Enlevements fournisseurs', icon: '🚚', resource: 'collection-requests' },
     ],
   },
   {
@@ -77,6 +78,7 @@ const navGroups: NavGroup[] = [
       { path: '/waybill-registry', label: 'Registre CMR', icon: '📄', resource: 'waybill-archives' },
       { path: '/base-container-stock', label: 'Stock contenants base', icon: '🏗️', resource: 'base-container-stock' },
       { path: '/supplier-pickups', label: 'Reprises fournisseurs', icon: '🔄', resource: 'supplier-pickups' },
+      { path: '/temperature', label: 'Controle temperature', icon: '🌡️', resource: 'temperature' },
     ],
   },
   {
