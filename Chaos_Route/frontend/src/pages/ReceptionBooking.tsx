@@ -79,7 +79,8 @@ export default function ReceptionBooking() {
   const [showConfigDialog, setShowConfigDialog] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  // New booking form
+  // Booking form (create + edit)
+  const [editBookingId, setEditBookingId] = useState<number | null>(null)
   const [bkDockType, setBkDockType] = useState('')
   const [bkStartTime, setBkStartTime] = useState('')
   const [bkPallets, setBkPallets] = useState('')
@@ -193,22 +194,35 @@ export default function ReceptionBooking() {
   }, [bookings, timeSlots, columns])
 
   // ─── Handlers ───
-  const handleCreateBooking = async () => {
-    if (!selectedBaseId || !bkDockType || !bkStartTime || !bkPallets) return
+  const handleSaveBooking = async () => {
+    if (!bkDockType || !bkStartTime || !bkPallets) return
     setSaving(true)
     try {
-      await api.post('/reception-booking/bookings/', {
-        base_id: Number(selectedBaseId),
-        dock_type: bkDockType,
-        booking_date: selectedDate,
-        start_time: bkStartTime,
-        pallet_count: Number(bkPallets),
-        dock_number: bkDockNum ? Number(bkDockNum) : null,
-        supplier_name: bkSupplier || null,
-        is_locked: bkLocked,
-        notes: bkNotes || null,
-        orders: bkOrderNum ? [{ order_number: bkOrderNum }] : [],
-      })
+      if (editBookingId) {
+        await api.put(`/reception-booking/bookings/${editBookingId}`, {
+          dock_type: bkDockType,
+          dock_number: bkDockNum ? Number(bkDockNum) : null,
+          start_time: bkStartTime,
+          pallet_count: Number(bkPallets),
+          supplier_name: bkSupplier || null,
+          is_locked: bkLocked,
+          notes: bkNotes || null,
+        })
+      } else {
+        if (!selectedBaseId) return
+        await api.post('/reception-booking/bookings/', {
+          base_id: Number(selectedBaseId),
+          dock_type: bkDockType,
+          booking_date: selectedDate,
+          start_time: bkStartTime,
+          pallet_count: Number(bkPallets),
+          dock_number: bkDockNum ? Number(bkDockNum) : null,
+          supplier_name: bkSupplier || null,
+          is_locked: bkLocked,
+          notes: bkNotes || null,
+          orders: bkOrderNum ? [{ order_number: bkOrderNum }] : [],
+        })
+      }
       setShowBookDialog(false)
       fetchData()
     } catch (err: unknown) {
@@ -231,12 +245,23 @@ export default function ReceptionBooking() {
         await api.post(`/reception-booking/bookings/${bookingId}/refuse`, { reason })
       } else if (action === 'cancel') {
         await api.put(`/reception-booking/bookings/${bookingId}`, { status: 'CANCELLED' })
-      } else if (action === 'delete') {
-        if (!confirm('Supprimer definitivement ce booking ?')) return
-        await api.delete(`/reception-booking/bookings/${bookingId}`)
       }
       fetchData()
-    } catch { alert('Erreur') }
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur'
+      alert(detail)
+    }
+  }
+
+  const handleDeleteBooking = async (bookingId: number) => {
+    if (!window.confirm('Supprimer definitivement ce booking ?')) return
+    try {
+      await api.delete(`/reception-booking/bookings/${bookingId}`)
+      fetchData()
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur suppression'
+      alert(detail)
+    }
   }
 
   const handleSaveConfig = async () => {
@@ -302,11 +327,25 @@ export default function ReceptionBooking() {
   }
 
   const openNewBooking = (dockType?: string, startTime?: string, dockNum?: number) => {
+    setEditBookingId(null)
     setBkDockType(dockType || dockTypes[0] || 'SEC')
     setBkStartTime(startTime || timeSlots[0] || '06:00')
     setBkPallets(''); setBkSupplier(''); setBkOrderNum('')
     setBkLocked(false); setBkNotes('')
     setBkDockNum(dockNum ? String(dockNum) : '')
+    setShowBookDialog(true)
+  }
+
+  const openEditBooking = (b: Booking) => {
+    setEditBookingId(b.id)
+    setBkDockType(b.dock_type)
+    setBkStartTime(b.start_time)
+    setBkPallets(String(b.pallet_count))
+    setBkSupplier(b.supplier_name || '')
+    setBkOrderNum(b.orders.map((o) => o.order_number).join(', '))
+    setBkLocked(b.is_locked)
+    setBkNotes(b.notes || '')
+    setBkDockNum(b.dock_number ? String(b.dock_number) : '')
     setShowBookDialog(true)
   }
 
@@ -330,6 +369,7 @@ export default function ReceptionBooking() {
           position: 'relative',
         }}
         title={`${booking.supplier_name || '?'} — ${booking.pallet_count} pal. — ${booking.start_time}-${booking.end_time}`}
+        onClick={(e) => { e.stopPropagation(); openEditBooking(booking) }}
       >
         <div className="font-bold truncate" style={{ color }}>{booking.supplier_name || 'Sans nom'}</div>
         <div className="truncate" style={{ color: 'var(--text-primary)' }}>
@@ -339,6 +379,9 @@ export default function ReceptionBooking() {
           {booking.start_time}-{booking.end_time} · {STATUS_LABELS[booking.status]}
           {booking.is_locked && ' · Verrouille'}
         </div>
+        {booking.notes && (
+          <div className="text-[10px] truncate italic" style={{ color: 'var(--text-muted)' }}>{booking.notes}</div>
+        )}
         {booking.checkin && (
           <div className="text-[10px] mt-0.5" style={{ color: '#3b82f6' }}>
             Arrive {booking.checkin.checkin_time.slice(11, 16)} · {booking.checkin.license_plate}
@@ -526,8 +569,11 @@ export default function ReceptionBooking() {
                 </thead>
                 <tbody>
                   {bookings.map((b) => (
-                    <tr key={b.id} className="border-t" style={{ borderColor: 'var(--border-color)' }}>
-                      <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{b.supplier_name || '—'}</td>
+                    <tr key={b.id} className="border-t hover:opacity-80" style={{ borderColor: 'var(--border-color)' }}>
+                      <td className="px-3 py-2 cursor-pointer" style={{ color: 'var(--text-primary)' }} onClick={() => openEditBooking(b)}>
+                        {b.supplier_name || '—'}
+                        {b.notes && <div className="text-[10px] truncate max-w-[150px]" style={{ color: 'var(--text-muted)' }}>{b.notes}</div>}
+                      </td>
                       <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>
                         {b.orders.map((o) => o.order_number).join(', ') || '—'}
                       </td>
@@ -549,6 +595,8 @@ export default function ReceptionBooking() {
                       </td>
                       <td className="px-3 py-2 text-right">
                         <div className="flex gap-1 justify-end flex-wrap">
+                          <button onClick={() => openEditBooking(b)}
+                            className="px-2 py-1 rounded text-xs" style={{ color: 'var(--color-primary)', backgroundColor: 'var(--bg-tertiary)' }}>Modifier</button>
                           {b.status === 'CHECKED_IN' && (
                             <button onClick={() => handleBookingAction(b.id, 'at-dock')}
                               className="px-2 py-1 rounded text-xs text-white" style={{ backgroundColor: '#f59e0b' }}>A quai</button>
@@ -565,7 +613,7 @@ export default function ReceptionBooking() {
                                 className="px-2 py-1 rounded text-xs" style={{ color: '#6b7280', backgroundColor: '#6b728020' }}>Annuler</button>
                             </>
                           )}
-                          <button onClick={() => handleBookingAction(b.id, 'delete')}
+                          <button onClick={() => handleDeleteBooking(b.id)}
                             className="px-2 py-1 rounded text-xs" style={{ color: '#ef4444', backgroundColor: '#ef444410' }}>Suppr.</button>
                         </div>
                       </td>
@@ -676,7 +724,7 @@ export default function ReceptionBooking() {
           <div className="w-full max-w-md rounded-xl border shadow-2xl p-6"
             style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
             onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold mb-4" style={{ color: 'var(--text-primary)' }}>Nouveau booking</h2>
+            <h2 className="text-lg font-bold mb-4" style={{ color: 'var(--text-primary)' }}>{editBookingId ? 'Modifier booking' : 'Nouveau booking'}</h2>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -734,11 +782,11 @@ export default function ReceptionBooking() {
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={() => setShowBookDialog(false)} className="px-4 py-2 rounded-lg text-sm"
                 style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>Annuler</button>
-              <button onClick={handleCreateBooking}
+              <button onClick={handleSaveBooking}
                 disabled={saving || !bkDockType || !bkStartTime || !bkPallets}
                 className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
                 style={{ backgroundColor: 'var(--color-primary)' }}>
-                {saving ? 'Creation...' : 'Creer'}
+                {saving ? 'Enregistrement...' : (editBookingId ? 'Enregistrer' : 'Creer')}
               </button>
             </div>
           </div>

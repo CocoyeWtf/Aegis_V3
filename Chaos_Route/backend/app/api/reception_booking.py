@@ -468,10 +468,22 @@ async def update_booking(
         booking.supplier_name = data.supplier_name
     if data.notes is not None:
         booking.notes = data.notes
+    if data.dock_type is not None:
+        booking.dock_type = DockType(data.dock_type)
+    if data.booking_date is not None:
+        booking.booking_date = data.booking_date
+    if data.start_time is not None:
+        booking.start_time = data.start_time
 
-    # Recalculer si palettes changent / Recalculate if pallets change
+    # Recalculer si palettes ou heure changent / Recalculate if pallets or time change
+    need_recalc = False
     if data.pallet_count is not None and data.pallet_count != booking.pallet_count:
         booking.pallet_count = data.pallet_count
+        need_recalc = True
+    if data.start_time is not None or data.dock_type is not None:
+        need_recalc = True
+
+    if need_recalc:
         cfg_result = await db.execute(
             select(DockConfig).where(
                 DockConfig.base_id == booking.base_id,
@@ -480,7 +492,7 @@ async def update_booking(
         )
         cfg = cfg_result.scalar_one_or_none()
         if cfg:
-            duration = _calc_duration(data.pallet_count, cfg)
+            duration = _calc_duration(booking.pallet_count, cfg)
             booking.estimated_duration_minutes = duration
             booking.end_time = _add_minutes(booking.start_time, duration)
 
