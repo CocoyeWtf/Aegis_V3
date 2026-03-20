@@ -194,10 +194,7 @@ export default function ReceptionBooking() {
 
   // ─── Handlers ───
   const handleCreateBooking = async () => {
-    if (!selectedBaseId || !bkDockType || !bkStartTime || !bkPallets) {
-      alert('Veuillez remplir tous les champs obligatoires : type quai, heure, nb palettes')
-      return
-    }
+    if (!selectedBaseId || !bkDockType || !bkStartTime || !bkPallets) return
     setSaving(true)
     try {
       await api.post('/reception-booking/bookings/', {
@@ -496,9 +493,9 @@ export default function ReceptionBooking() {
                               borderColor: 'var(--border-color)',
                               backgroundColor: booking ? 'transparent' : 'var(--bg-primary)',
                               height: '28px',
-                              cursor: booking ? 'default' : 'pointer',
+                              cursor: booking || !selectedBaseId ? 'default' : 'pointer',
                             }}
-                            onClick={() => !booking && openNewBooking(col.dockType, slotTime, col.dockNumber)}
+                            onClick={() => !booking && selectedBaseId && openNewBooking(col.dockType, slotTime, col.dockNumber)}
                           >
                             {booking ? renderBookingBlock(booking, slotTime) : null}
                           </div>
