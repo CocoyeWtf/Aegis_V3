@@ -1,6 +1,7 @@
-/* Composant impression etiquettes reprises / Pickup label print component */
+/* Composant impression etiquettes reprises / Pickup label print component
+   Deux modes : A4 grille 2 colonnes (photocopieur) ou etiquette unitaire (Zebra) */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import JsBarcode from 'jsbarcode'
 import type { PickupLabel, PickupTypeEnum } from '../../types'
 
@@ -89,21 +90,112 @@ function BarcodeLabel({
   )
 }
 
-export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pickupType, supportTypeImageUrl, onClose }: PickupLabelPrintProps) {
-  const handlePrint = () => {
-    window.print()
+/* CSS impression A4 : grille 2 colonnes / A4 print: 2-column grid */
+const PRINT_CSS_A4 = `
+  @media print {
+    .no-print { display: none !important; }
+    body * { visibility: hidden; }
+    .label-grid, .label-grid * { visibility: visible; }
+    .label-grid {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 100%;
+      display: grid !important;
+      grid-template-columns: repeat(2, 1fr) !important;
+      gap: 10px !important;
+      padding: 10mm !important;
+    }
+    .label-card {
+      page-break-inside: avoid;
+    }
+    .label-card svg { max-width: 100% !important; height: auto !important; }
+    .label-img {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
   }
+`
+
+/* CSS impression Zebra : 1 etiquette par page, taille label / Zebra print: 1 label per page */
+const PRINT_CSS_ZEBRA = `
+  @page {
+    size: 105mm 148.5mm;
+    margin: 0;
+  }
+  @media print {
+    .no-print { display: none !important; }
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 105mm !important;
+      background: #fff !important;
+    }
+    body * { visibility: hidden; }
+    .label-grid, .label-grid * { visibility: visible; }
+    .label-grid {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 105mm !important;
+      display: block !important;
+      padding: 0 !important;
+    }
+    .label-card {
+      visibility: visible;
+      width: 105mm !important;
+      height: 148.5mm !important;
+      padding: 6mm !important;
+      margin: 0 !important;
+      border: none !important;
+      border-radius: 0 !important;
+      box-sizing: border-box;
+      display: flex !important;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3mm;
+      page-break-after: always;
+      page-break-inside: avoid;
+      background: #fff !important;
+      color: #000 !important;
+    }
+    .label-card:last-child { page-break-after: auto; }
+    .label-card svg { max-width: 90mm !important; height: auto !important; }
+    .label-card div { font-size: 14px !important; }
+    .label-img {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+  }
+`
+
+export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pickupType, supportTypeImageUrl, onClose }: PickupLabelPrintProps) {
+  const [printMode, setPrintMode] = useState<'a4' | 'zebra'>('a4')
+
+  const handlePrint = useCallback((mode: 'a4' | 'zebra') => {
+    setPrintMode(mode)
+    // Laisser le temps au CSS de s'appliquer / Let CSS apply before printing
+    setTimeout(() => window.print(), 50)
+  }, [])
 
   return (
     <div>
       {/* Boutons hors impression / Buttons hidden on print */}
-      <div className="no-print" style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+      <div className="no-print" style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
         <button
-          onClick={handlePrint}
+          onClick={() => handlePrint('a4')}
           className="px-4 py-2 rounded-lg text-sm font-medium text-white"
           style={{ backgroundColor: 'var(--color-primary)' }}
         >
-          Imprimer
+          Imprimer A4
+        </button>
+        <button
+          onClick={() => handlePrint('zebra')}
+          className="px-4 py-2 rounded-lg text-sm font-medium text-white"
+          style={{ backgroundColor: '#2563eb' }}
+        >
+          Imprimer Zebra
         </button>
         <button
           onClick={onClose}
@@ -134,32 +226,8 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
         ))}
       </div>
 
-      {/* CSS impression / Print CSS */}
-      <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          body * { visibility: hidden; }
-          .label-grid, .label-grid * { visibility: visible; }
-          .label-grid {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 100%;
-            display: grid !important;
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 10px !important;
-            padding: 10mm !important;
-          }
-          .label-card {
-            page-break-inside: avoid;
-          }
-          .label-card svg { max-width: 100% !important; height: auto !important; }
-          .label-img {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-        }
-      `}</style>
+      {/* CSS impression dynamique / Dynamic print CSS */}
+      <style>{printMode === 'zebra' ? PRINT_CSS_ZEBRA : PRINT_CSS_A4}</style>
     </div>
   )
 }
