@@ -66,7 +66,7 @@ function BarcodeLabel({
       <div style={{ fontWeight: 'bold', fontSize: '11px', textAlign: 'center' }}>
         {PICKUP_LABEL_HEADERS[pickupType || 'CONTAINER'] || 'REPRISE CONTENANTS'}
       </div>
-      <svg ref={svgRef} />
+      <svg ref={svgRef} style={{ width: '100%', height: 'auto' }} />
       <div style={{ fontSize: '10px', fontFamily: 'monospace', textAlign: 'center' }}>
         {label.label_code}
       </div>
