@@ -62,6 +62,7 @@ function BarcodeLabel({
       flexDirection: 'column',
       alignItems: 'center',
       gap: '4px',
+      overflow: 'hidden',
     }}>
       <div style={{ fontWeight: 'bold', fontSize: '11px', textAlign: 'center' }}>
         {PICKUP_LABEL_HEADERS[pickupType || 'CONTAINER'] || 'REPRISE CONTENANTS'}
@@ -94,7 +95,7 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
   }
 
   return (
-    <div id="pickup-print-zone">
+    <div>
       {/* Boutons hors impression / Buttons hidden on print */}
       <div className="no-print" style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
         <button
@@ -137,15 +138,13 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          body > *:not(#root) { display: none !important; }
-          #root > *:not([class*="p-6"]) { display: none !important; }
-          #pickup-print-zone {
-            position: fixed !important;
-            left: 0; top: 0;
-            width: 100% !important;
-            z-index: 99999;
-          }
+          body * { visibility: hidden; }
+          .label-grid, .label-grid * { visibility: visible; }
           .label-grid {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
             display: grid !important;
             grid-template-columns: repeat(2, 1fr) !important;
             gap: 10px !important;
@@ -153,10 +152,8 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
           }
           .label-card {
             page-break-inside: avoid;
-            background: #fff !important;
-            color: #000 !important;
           }
-          .label-card svg { max-width: 100%; height: auto; }
+          .label-card svg { max-width: 100% !important; height: auto !important; }
           .label-img {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
