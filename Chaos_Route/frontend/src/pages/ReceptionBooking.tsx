@@ -1,7 +1,7 @@
 /* Page booking reception V2 / Supplier reception booking V2
    Planning visuel par type de quai, creneaux 15min, config, reservations, import */
 
-import { useState, useEffect, useCallback, useMemo, Fragment } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import api from '../services/api'
 import { useAuthStore } from '../stores/useAuthStore'
 
@@ -209,49 +209,6 @@ export default function ReceptionBooking() {
       })
     })
   }, [bookings, timeSlots, columns])
-
-  // ─── Grid layout avec séparateurs visuels entre types de quais ───
-  const { gridItems, dockTypeGroups, gridTemplateCols } = useMemo(() => {
-    const items: { kind: 'dock' | 'separator'; colIndex?: number; leftColor?: string; rightColor?: string }[] = []
-    const groups: { dockType: string; label: string; color: string; count: number; startItemIdx: number }[] = []
-    let prevType = ''
-    let groupCount = 0
-    let groupStartIdx = 0
-
-    columns.forEach((col, ci) => {
-      if (col.dockType !== prevType) {
-        if (prevType) {
-          groups.push({
-            dockType: prevType, label: DOCK_TYPE_LABELS[prevType] || prevType,
-            color: DOCK_TYPE_COLORS[prevType] || '#737373', count: groupCount, startItemIdx: groupStartIdx,
-          })
-          items.push({ kind: 'separator', leftColor: DOCK_TYPE_COLORS[prevType] || '#737373', rightColor: DOCK_TYPE_COLORS[col.dockType] || '#737373' })
-          groupStartIdx = items.length
-          groupCount = 0
-        } else {
-          groupStartIdx = 0
-        }
-        prevType = col.dockType
-      }
-      items.push({ kind: 'dock', colIndex: ci })
-      groupCount++
-    })
-    if (prevType && groupCount > 0) {
-      groups.push({
-        dockType: prevType, label: DOCK_TYPE_LABELS[prevType] || prevType,
-        color: DOCK_TYPE_COLORS[prevType] || '#737373', count: groupCount, startItemIdx: groupStartIdx,
-      })
-    }
-
-    const colTemplate = items.map((i) => i.kind === 'separator' ? '18px' : 'minmax(120px, 1fr)').join(' ')
-    return { gridItems: items, dockTypeGroups: groups, gridTemplateCols: `60px ${colTemplate}` }
-  }, [columns])
-
-  // Position grille de chaque item (1-based, col 1 = temps)
-  const itemGridPositions = useMemo(() => {
-    let pos = 2
-    return gridItems.map(() => pos++)
-  }, [gridItems])
 
   // ─── Handlers ───
   const handleSaveBooking = async () => {
