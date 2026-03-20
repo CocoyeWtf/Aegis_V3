@@ -135,6 +135,10 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
 
       {/* CSS impression / Print CSS */}
       <style>{`
+        @page {
+          size: portrait;
+          margin: 10mm;
+        }
         @media print {
           .no-print { display: none !important; }
           body * { visibility: hidden; }
@@ -147,7 +151,7 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
             display: grid !important;
             grid-template-columns: repeat(2, 1fr) !important;
             gap: 10px !important;
-            padding: 10mm !important;
+            padding: 0 !important;
           }
           .label-card {
             page-break-inside: avoid;
