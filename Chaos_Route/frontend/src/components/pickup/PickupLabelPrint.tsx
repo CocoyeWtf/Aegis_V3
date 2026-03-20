@@ -1,6 +1,7 @@
-/* Composant impression etiquettes reprises / Pickup label print component */
+/* Composant impression etiquettes reprises / Pickup label print component
+   Ouvre une fenetre dediee pour forcer portrait / Opens dedicated window to force portrait */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import JsBarcode from 'jsbarcode'
 import type { PickupLabel, PickupTypeEnum } from '../../types'
 
@@ -89,14 +90,83 @@ function BarcodeLabel({
 }
 
 export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pickupType, supportTypeImageUrl, onClose }: PickupLabelPrintProps) {
-  const handlePrint = () => {
-    window.print()
+  const gridRef = useRef<HTMLDivElement>(null)
+
+  const handlePrint = useCallback(() => {
+    if (!gridRef.current) return
+
+    // Ouvrir une fenetre dediee pour controler @page / Open dedicated window
+    const printWindow = window.open('', '_blank', 'width=800,height=600')
+    if (!printWindow) {
+      alert('Le navigateur a bloque la fenetre popup. Autorisez les popups pour ce site.')
+      return
+    }
+
+    // Copier le contenu HTML des etiquettes
+    const content = gridRef.current.innerHTML
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+<title>Etiquettes reprises</title>
+<style>
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
   }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; }
+  .label-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    padding: 0;
+  }
+  .label-card {
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 10px;
+    page-break-inside: avoid;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .label-img {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+  }
+</style>
+</head>
+<body>
+<div class="label-grid">
+${content}
+</div>
+</body>
+</html>`)
+    printWindow.document.close()
+
+    // Attendre le chargement des images puis imprimer
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.print()
+        printWindow.close()
+      }, 300)
+    }
+    // Fallback si onload ne se declenche pas
+    setTimeout(() => {
+      if (!printWindow.closed) {
+        printWindow.print()
+        printWindow.close()
+      }
+    }, 1500)
+  }, [])
 
   return (
     <div>
-      {/* Boutons hors impression / Buttons hidden on print */}
-      <div className="no-print" style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+      {/* Boutons / Buttons */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
         <button
           onClick={handlePrint}
           className="px-4 py-2 rounded-lg text-sm font-medium text-white"
@@ -113,8 +183,8 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
         </button>
       </div>
 
-      {/* Grille d'etiquettes / Label grid */}
-      <div className="label-grid" style={{
+      {/* Grille d'etiquettes (preview + source pour impression) / Label grid */}
+      <div ref={gridRef} className="label-grid" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(2, 1fr)',
         gap: '12px',
@@ -132,36 +202,6 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
           />
         ))}
       </div>
-
-      {/* CSS impression / Print CSS */}
-      <style>{`
-        @page {
-          size: portrait;
-          margin: 10mm;
-        }
-        @media print {
-          .no-print { display: none !important; }
-          body * { visibility: hidden; }
-          .label-grid, .label-grid * { visibility: visible; }
-          .label-grid {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            display: grid !important;
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 10px !important;
-            padding: 0 !important;
-          }
-          .label-card {
-            page-break-inside: avoid;
-          }
-          .label-img {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-        }
-      `}</style>
     </div>
   )
 }
