@@ -213,6 +213,10 @@ export default function ReceptionBooking() {
   // ─── Handlers ───
   const handleSaveBooking = async () => {
     if (!bkDockType || !bkStartTime || !bkPallets) return
+    if (!editBookingId && !selectedBaseId) {
+      alert('Veuillez selectionner une base avant de creer un booking.')
+      return
+    }
     setSaving(true)
     try {
       if (editBookingId) {
@@ -226,7 +230,6 @@ export default function ReceptionBooking() {
           notes: bkNotes || null,
         })
       } else {
-        if (!selectedBaseId) return
         await api.post('/reception-booking/bookings/', {
           base_id: Number(selectedBaseId),
           dock_type: bkDockType,
