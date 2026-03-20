@@ -188,6 +188,8 @@ export interface Tour {
   trailer_ready_time?: string
   eqp_loaded?: number
   departure_signal_time?: string
+  trailer_ready_temp?: number | null
+  loading_end_temp?: number | null
   wms_tour_code?: string
   driver_user_id?: number | null
   device_assignment_id?: number | null

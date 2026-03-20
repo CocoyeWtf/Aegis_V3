@@ -201,6 +201,8 @@ export default function Operations() {
     trailer_ready_time: string
     eqp_loaded: string
     departure_signal_time: string
+    trailer_ready_temp: string
+    loading_end_temp: string
     vehicle_id: string
     tractor_id: string
   }>>({})
@@ -247,6 +249,8 @@ export default function Operations() {
             trailer_ready_time: tour.trailer_ready_time ?? '',
             eqp_loaded: tour.eqp_loaded != null ? String(tour.eqp_loaded) : '',
             departure_signal_time: tour.departure_signal_time ?? '',
+            trailer_ready_temp: tour.trailer_ready_temp != null ? String(tour.trailer_ready_temp) : '',
+            loading_end_temp: tour.loading_end_temp != null ? String(tour.loading_end_temp) : '',
             vehicle_id: tour.vehicle_id != null ? String(tour.vehicle_id) : '',
             tractor_id: tour.tractor_id != null ? String(tour.tractor_id) : '',
           }
@@ -306,6 +310,8 @@ export default function Operations() {
         ...f,
         total_weight_kg: f.total_weight_kg ? parseFloat(f.total_weight_kg) : null,
         eqp_loaded: f.eqp_loaded ? parseInt(f.eqp_loaded, 10) : null,
+        trailer_ready_temp: f.trailer_ready_temp ? parseFloat(f.trailer_ready_temp) : null,
+        loading_end_temp: f.loading_end_temp ? parseFloat(f.loading_end_temp) : null,
         vehicle_id: f.vehicle_id ? parseInt(f.vehicle_id, 10) : null,
         tractor_id: f.tractor_id ? parseInt(f.tractor_id, 10) : null,
       })
@@ -684,7 +690,7 @@ export default function Operations() {
 interface TourRowProps {
   tour: TourWithDelay
   contract: Contract | null
-  form: { driver_name: string; driver_arrival_time: string; loading_end_time: string; total_weight_kg: string; remarks: string; loader_code: string; loader_name: string; trailer_number: string; dock_door_number: string; trailer_ready_time: string; eqp_loaded: string; departure_signal_time: string; vehicle_id: string; tractor_id: string } | undefined
+  form: { driver_name: string; driver_arrival_time: string; loading_end_time: string; total_weight_kg: string; remarks: string; loader_code: string; loader_name: string; trailer_number: string; dock_door_number: string; trailer_ready_time: string; eqp_loaded: string; departure_signal_time: string; trailer_ready_temp: string; loading_end_temp: string; vehicle_id: string; tractor_id: string } | undefined
   fleetVehicles: VehicleSummary[]
   isExpanded: boolean
   color: string
@@ -851,7 +857,7 @@ function TourRow({
             </div>
 
             {/* Ligne 1 — Prépa semi / Trailer preparation */}
-            <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: '2fr 1fr 1fr' }}>
+            <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: '2fr 0.8fr 1fr 1fr' }}>
               <div className="min-w-0">
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Dispo semi</label>
                 <div className="flex gap-1">
@@ -862,6 +868,13 @@ function TourRow({
                   <button onClick={(e) => { e.stopPropagation(); onSetNow('trailer_ready_time') }}
                     className="px-1.5 rounded text-xs font-bold shrink-0" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-primary)' }} title="Maintenant">&#9201;</button>
                 </div>
+              </div>
+              <div className="min-w-0">
+                <label className="block text-xs font-semibold mb-1" style={{ color: '#3b82f6' }}>T° dispo</label>
+                <input type="number" step="0.1" value={form.trailer_ready_temp} onChange={(e) => onFormChange('trailer_ready_temp', e.target.value)}
+                  className="w-full min-w-0 px-1.5 py-1.5 rounded border text-xs"
+                  style={{ backgroundColor: 'var(--bg-primary)', borderColor: '#3b82f6', color: 'var(--text-primary)' }}
+                  placeholder="°C" onClick={(e) => e.stopPropagation()} />
               </div>
               <div className="min-w-0">
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>N° semi</label>
@@ -880,7 +893,7 @@ function TourRow({
             </div>
 
             {/* Ligne 2 — Chargement / Loading */}
-            <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: '1fr 1.5fr 2fr 0.8fr' }}>
+            <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: '1fr 1.5fr 2fr 0.8fr 0.8fr' }}>
               <div className="min-w-0">
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Code charg.</label>
                 <input type="text" value={form.loader_code} onChange={(e) => onFormChange('loader_code', e.target.value)}
@@ -906,6 +919,13 @@ function TourRow({
                   <button onClick={(e) => { e.stopPropagation(); onSetNow('loading_end_time') }}
                     className="px-1.5 rounded text-xs font-bold shrink-0" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-primary)' }} title="Maintenant">&#9201;</button>
                 </div>
+              </div>
+              <div className="min-w-0">
+                <label className="block text-xs font-semibold mb-1" style={{ color: '#3b82f6' }}>T° fin charg.</label>
+                <input type="number" step="0.1" value={form.loading_end_temp} onChange={(e) => onFormChange('loading_end_temp', e.target.value)}
+                  className="w-full min-w-0 px-1.5 py-1.5 rounded border text-xs"
+                  style={{ backgroundColor: 'var(--bg-primary)', borderColor: '#3b82f6', color: 'var(--text-primary)' }}
+                  placeholder="°C" onClick={(e) => e.stopPropagation()} />
               </div>
               <div className="min-w-0">
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>EQC</label>

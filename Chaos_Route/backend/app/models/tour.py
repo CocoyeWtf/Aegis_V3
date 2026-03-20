@@ -67,6 +67,10 @@ class Tour(Base):
     departure_signal_time: Mapped[str | None] = mapped_column(String(16))
     wms_tour_code: Mapped[str | None] = mapped_column(String(30))
 
+    # Temperatures relevees par le postier / Temperatures recorded by dispatcher
+    trailer_ready_temp: Mapped[float | None] = mapped_column(Numeric(5, 1))  # °C a la mise a dispo semi
+    loading_end_temp: Mapped[float | None] = mapped_column(Numeric(5, 1))    # °C en fin de chargement
+
     # Vehicules propres affectes au tour / Own vehicles assigned to tour
     # vehicle_id = vehicule principal (porteur seul, ou semi-remorque dans un ensemble)
     # tractor_id = tracteur (seulement pour les ensembles tracteur+semi)
