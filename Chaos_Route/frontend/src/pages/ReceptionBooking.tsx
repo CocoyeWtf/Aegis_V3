@@ -197,11 +197,10 @@ export default function ReceptionBooking() {
 
   // Matrice booking : [slotIndex][colIndex] / Booking matrix
   const bookingMatrix = useMemo(() => {
-    const activeBookings = bookings.filter((b) => !['CANCELLED', 'REFUSED'].includes(b.status))
     return timeSlots.map((slotTime) => {
       const slotMin = timeToMinutes(slotTime)
       return columns.map((col) => {
-        return activeBookings.find((b) => {
+        return bookings.find((b) => {
           if (b.dock_type !== col.dockType || b.dock_number !== col.dockNumber) return false
           const bStart = timeToMinutes(b.start_time)
           const bEnd = timeToMinutes(b.end_time)
@@ -377,16 +376,20 @@ export default function ReceptionBooking() {
     const slotsSpan = Math.ceil(booking.estimated_duration_minutes / 15)
     const color = STATUS_COLORS[booking.status] || '#737373'
 
+    const isDead = ['CANCELLED', 'REFUSED'].includes(booking.status)
+
     return (
       <div
         className="rounded px-1.5 py-1 text-xs cursor-pointer overflow-hidden"
         style={{
-          backgroundColor: `${color}20`,
+          backgroundColor: `${color}${isDead ? '10' : '20'}`,
           borderLeft: `3px solid ${color}`,
           minHeight: `${slotsSpan * 28}px`,
           position: 'relative',
+          opacity: isDead ? 0.6 : 1,
+          textDecoration: booking.status === 'CANCELLED' ? 'line-through' : undefined,
         }}
-        title={`${booking.supplier_name || '?'} — ${booking.pallet_count} pal. — ${booking.start_time}-${booking.end_time}`}
+        title={`${booking.supplier_name || '?'} — ${booking.pallet_count} pal. — ${booking.start_time}-${booking.end_time}${isDead ? ` [${STATUS_LABELS[booking.status]}]` : ''}`}
         onClick={(e) => { e.stopPropagation(); openEditBooking(booking) }}
       >
         <div className="flex items-center gap-1">
@@ -412,32 +415,16 @@ export default function ReceptionBooking() {
         {booking.notes && (
           <div className="text-[10px] truncate italic" style={{ color: 'var(--text-muted)' }}>{booking.notes}</div>
         )}
+        {booking.refusal && (
+          <div className="text-[10px] mt-0.5 truncate" style={{ color: '#ef4444' }}>
+            Refuse : {booking.refusal.reason}
+          </div>
+        )}
         {booking.checkin && (
           <div className="text-[10px] mt-0.5" style={{ color: '#3b82f6' }}>
             Arrive {booking.checkin.checkin_time.slice(11, 16)} · {booking.checkin.license_plate}
           </div>
         )}
-        {/* Actions rapides / Quick actions */}
-        <div className="flex gap-1 mt-1 flex-wrap">
-          {booking.status === 'CHECKED_IN' && (
-            <button onClick={(e) => { e.stopPropagation(); handleBookingAction(booking.id, 'at-dock') }}
-              className="px-1.5 py-0.5 rounded text-[10px] font-medium text-white" style={{ backgroundColor: '#f59e0b' }}>
-              A quai
-            </button>
-          )}
-          {booking.status === 'AT_DOCK' && (
-            <button onClick={(e) => { e.stopPropagation(); handleBookingAction(booking.id, 'departed') }}
-              className="px-1.5 py-0.5 rounded text-[10px] font-medium text-white" style={{ backgroundColor: '#22c55e' }}>
-              Parti
-            </button>
-          )}
-          {['DRAFT', 'CONFIRMED', 'CHECKED_IN'].includes(booking.status) && (
-            <button onClick={(e) => { e.stopPropagation(); handleBookingAction(booking.id, 'refuse') }}
-              className="px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ color: '#ef4444' }}>
-              Refuser
-            </button>
-          )}
-        </div>
       </div>
     )
   }
@@ -516,7 +503,8 @@ export default function ReceptionBooking() {
           {columns.length > 0 && timeSlots.length > 0 && (
             <div className="rounded-lg border p-3"
               style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-              <div className="flex items-center gap-3 mb-3">
+              {/* En-tete : types de quais + horaires */}
+              <div className="flex items-center gap-3 mb-2">
                 {dockTypes.map((dt) => {
                   const cfg = baseConfigs.find((c) => c.dock_type === dt)
                   if (!cfg) return null
@@ -532,6 +520,31 @@ export default function ReceptionBooking() {
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                   {minutesToTime(earliest)}-{minutesToTime(latest)}
                 </span>
+              </div>
+              {/* Legende indicateurs / Indicators legend */}
+              <div className="flex items-center gap-4 mb-3 px-1 py-1.5 rounded"
+                style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                <span className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>Indicateurs :</span>
+                <div className="flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#22c55e' }} />
+                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Rapproche</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#ef4444' }} />
+                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Verrouille</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#3b82f6' }} />
+                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Note</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="inline-block w-3 h-2 rounded-sm" style={{ backgroundColor: '#ef444430', border: '1px solid #ef4444' }} />
+                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Refuse</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="inline-block w-3 h-2 rounded-sm" style={{ backgroundColor: '#6b728030', border: '1px solid #6b7280' }} />
+                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Annule</span>
+                </div>
               </div>
 
               <div className="overflow-x-auto">
@@ -589,91 +602,12 @@ export default function ReceptionBooking() {
             </div>
           )}
 
-          {/* Liste bookings du jour */}
+          {/* Compteur bookings du jour / Day booking counter */}
           {bookings.length > 0 && (
-            <div className="rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border-color)' }}>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                    <th className="text-left px-3 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Fournisseur</th>
-                    <th className="text-left px-3 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Commande(s)</th>
-                    <th className="text-left px-3 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Type</th>
-                    <th className="text-right px-3 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Palettes</th>
-                    <th className="text-left px-3 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Creneau</th>
-                    <th className="text-center px-3 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Quai</th>
-                    <th className="text-left px-3 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Statut</th>
-                    <th className="text-right px-3 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bookings.map((b) => (
-                    <tr key={b.id} className="border-t hover:opacity-80" style={{ borderColor: 'var(--border-color)' }}>
-                      <td className="px-3 py-2 cursor-pointer" style={{ color: 'var(--text-primary)' }} onClick={() => openEditBooking(b)}>
-                        <div className="flex items-center gap-1.5">
-                          {b.orders.some((o) => o.reconciled) && (
-                            <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#22c55e' }} title="Rapproche" />
-                          )}
-                          {b.is_locked && (
-                            <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#ef4444' }} title="Verrouille" />
-                          )}
-                          {b.notes && (
-                            <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#3b82f6' }} title="Note" />
-                          )}
-                          <span>{b.supplier_name || '—'}</span>
-                        </div>
-                        {b.notes && <div className="text-[10px] truncate max-w-[200px]" style={{ color: 'var(--text-muted)' }}>{b.notes}</div>}
-                      </td>
-                      <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>
-                        {b.orders.map((o) => o.order_number).join(', ') || '—'}
-                      </td>
-                      <td className="px-3 py-2">
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium"
-                          style={{ backgroundColor: `${DOCK_TYPE_COLORS[b.dock_type]}20`, color: DOCK_TYPE_COLORS[b.dock_type] }}>
-                          {DOCK_TYPE_LABELS[b.dock_type] || b.dock_type}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-right" style={{ color: 'var(--text-primary)' }}>{b.pallet_count}</td>
-                      <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{b.start_time}-{b.end_time}</td>
-                      <td className="px-3 py-2 text-center" style={{ color: 'var(--text-primary)' }}>{b.dock_number || '—'}</td>
-                      <td className="px-3 py-2">
-                        <span className="px-2 py-0.5 rounded-full text-xs font-medium"
-                          style={{ backgroundColor: `${STATUS_COLORS[b.status]}20`, color: STATUS_COLORS[b.status] }}>
-                          {STATUS_LABELS[b.status] || b.status}
-                        </span>
-                        {b.is_locked && <span className="ml-1 text-[10px]" style={{ color: '#f59e0b' }}>Verrouille</span>}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <div className="flex gap-1 justify-end flex-wrap">
-                          <button onClick={() => openEditBooking(b)}
-                            className="px-2 py-1 rounded text-xs" style={{ color: 'var(--color-primary)', backgroundColor: 'var(--bg-tertiary)' }}>
-                            {canEdit(b) ? 'Modifier' : 'Voir'}
-                          </button>
-                          {b.status === 'CHECKED_IN' && (
-                            <button onClick={() => handleBookingAction(b.id, 'at-dock')}
-                              className="px-2 py-1 rounded text-xs text-white" style={{ backgroundColor: '#f59e0b' }}>A quai</button>
-                          )}
-                          {b.status === 'AT_DOCK' && (
-                            <button onClick={() => handleBookingAction(b.id, 'departed')}
-                              className="px-2 py-1 rounded text-xs text-white" style={{ backgroundColor: '#22c55e' }}>Parti</button>
-                          )}
-                          {canEdit(b) && !['COMPLETED', 'CANCELLED', 'REFUSED'].includes(b.status) && (
-                            <>
-                              <button onClick={() => handleBookingAction(b.id, 'refuse')}
-                                className="px-2 py-1 rounded text-xs" style={{ color: '#ef4444', backgroundColor: '#ef444420' }}>Refuser</button>
-                              <button onClick={() => handleBookingAction(b.id, 'cancel')}
-                                className="px-2 py-1 rounded text-xs" style={{ color: '#6b7280', backgroundColor: '#6b728020' }}>Annuler</button>
-                            </>
-                          )}
-                          {canEdit(b) && (
-                            <button onClick={() => handleDeleteBooking(b.id)}
-                              className="px-2 py-1 rounded text-xs" style={{ color: '#ef4444', backgroundColor: '#ef444410' }}>Suppr.</button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--text-muted)' }}>
+              <span>{bookings.length} booking(s)</span>
+              <span>{bookings.reduce((s, b) => s + b.pallet_count, 0)} palettes</span>
+              <span>{bookings.filter((b) => b.status === 'REFUSED').length} refuse(s)</span>
             </div>
           )}
         </>
@@ -784,66 +718,140 @@ export default function ReceptionBooking() {
             <h2 className="text-lg font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
               {readOnly ? 'Detail booking' : (editBookingId ? 'Modifier booking' : 'Nouveau booking')}
             </h2>
+            {/* Infos statut si edition / Status info when editing */}
+            {editedBooking && (
+              <div className="flex items-center gap-3 mb-3 px-3 py-2 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full text-white"
+                  style={{ backgroundColor: STATUS_COLORS[editedBooking.status] || '#737373' }}>
+                  {STATUS_LABELS[editedBooking.status] || editedBooking.status}
+                </span>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {editedBooking.start_time}-{editedBooking.end_time} · {editedBooking.estimated_duration_minutes} min · {editedBooking.pallet_count} pal.
+                </span>
+                {editedBooking.checkin && (
+                  <span className="text-xs" style={{ color: '#3b82f6' }}>
+                    Plaque: {editedBooking.checkin.license_plate}
+                  </span>
+                )}
+              </div>
+            )}
+
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Type quai <span style={{ color: '#ef4444' }}>*</span></label>
-                  <select value={bkDockType} onChange={(e) => setBkDockType(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg text-sm border"
+                  <select value={bkDockType} onChange={(e) => setBkDockType(e.target.value)} disabled={readOnly}
+                    className="w-full px-3 py-2 rounded-lg text-sm border disabled:opacity-60"
                     style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
                     {dockTypes.map((dt) => <option key={dt} value={dt}>{DOCK_TYPE_LABELS[dt]}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Heure debut <span style={{ color: '#ef4444' }}>*</span></label>
-                  <input type="time" step={900} value={bkStartTime} onChange={(e) => setBkStartTime(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg text-sm border"
+                  <input type="time" step={900} value={bkStartTime} onChange={(e) => setBkStartTime(e.target.value)} disabled={readOnly}
+                    className="w-full px-3 py-2 rounded-lg text-sm border disabled:opacity-60"
                     style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: !bkStartTime ? '#ef4444' : 'var(--border-color)', color: 'var(--text-primary)' }} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Nb palettes <span style={{ color: '#ef4444' }}>*</span></label>
-                  <input type="number" min={1} value={bkPallets} onChange={(e) => setBkPallets(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg text-sm border"
+                  <input type="number" min={1} value={bkPallets} onChange={(e) => setBkPallets(e.target.value)} disabled={readOnly}
+                    className="w-full px-3 py-2 rounded-lg text-sm border disabled:opacity-60"
                     style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Quai (optionnel)</label>
-                  <input type="number" min={1} value={bkDockNum} onChange={(e) => setBkDockNum(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg text-sm border"
+                  <input type="number" min={1} value={bkDockNum} onChange={(e) => setBkDockNum(e.target.value)} disabled={readOnly}
+                    className="w-full px-3 py-2 rounded-lg text-sm border disabled:opacity-60"
                     style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Fournisseur</label>
-                <input type="text" value={bkSupplier} onChange={(e) => setBkSupplier(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg text-sm border"
+                <input type="text" value={bkSupplier} onChange={(e) => setBkSupplier(e.target.value)} disabled={readOnly}
+                  className="w-full px-3 py-2 rounded-lg text-sm border disabled:opacity-60"
                   style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>N° commande (Rd)</label>
-                <input type="text" value={bkOrderNum} onChange={(e) => setBkOrderNum(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg text-sm border"
+                <input type="text" value={bkOrderNum} onChange={(e) => setBkOrderNum(e.target.value)} disabled={readOnly}
+                  className="w-full px-3 py-2 rounded-lg text-sm border disabled:opacity-60"
                   style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
               </div>
               <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-primary)' }}>
-                <input type="checkbox" checked={bkLocked} onChange={(e) => setBkLocked(e.target.checked)} />
+                <input type="checkbox" checked={bkLocked} onChange={(e) => setBkLocked(e.target.checked)} disabled={readOnly} />
                 Non deplacable (risque rupture)
               </label>
               <div>
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Notes</label>
-                <textarea rows={2} value={bkNotes} onChange={(e) => setBkNotes(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg text-sm border"
+                <textarea rows={2} value={bkNotes} onChange={(e) => setBkNotes(e.target.value)} disabled={readOnly}
+                  className="w-full px-3 py-2 rounded-lg text-sm border disabled:opacity-60"
                   style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
               </div>
+
+              {/* Refusal info si refuse / Refusal info if refused */}
+              {editedBooking?.refusal && (
+                <div className="px-3 py-2 rounded-lg border" style={{ borderColor: '#ef4444', backgroundColor: '#ef444410' }}>
+                  <div className="text-xs font-medium" style={{ color: '#ef4444' }}>Motif du refus :</div>
+                  <div className="text-sm mt-1" style={{ color: 'var(--text-primary)' }}>{editedBooking.refusal.reason}</div>
+                  {editedBooking.refusal.notes && (
+                    <div className="text-xs mt-1 italic" style={{ color: 'var(--text-muted)' }}>{editedBooking.refusal.notes}</div>
+                  )}
+                </div>
+              )}
             </div>
-            <div className="mt-5 flex justify-end gap-2">
+
+            {/* Boutons actions / Action buttons */}
+            {editedBooking && !readOnly && (
+              <div className="mt-4 pt-3 border-t flex flex-wrap gap-2" style={{ borderColor: 'var(--border-color)' }}>
+                {/* A quai — quand le chauffeur est arrive (CHECKED_IN) */}
+                {editedBooking.status === 'CHECKED_IN' && (
+                  <button onClick={() => { handleBookingAction(editedBooking.id, 'at-dock'); setShowBookDialog(false) }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
+                    style={{ backgroundColor: '#f59e0b' }}>
+                    A quai
+                  </button>
+                )}
+                {/* Parti — quand le chauffeur est a quai (AT_DOCK) */}
+                {editedBooking.status === 'AT_DOCK' && (
+                  <button onClick={() => { handleBookingAction(editedBooking.id, 'departed'); setShowBookDialog(false) }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
+                    style={{ backgroundColor: '#22c55e' }}>
+                    Parti (termine)
+                  </button>
+                )}
+                {/* Refuser — DRAFT, CONFIRMED ou CHECKED_IN */}
+                {['DRAFT', 'CONFIRMED', 'CHECKED_IN'].includes(editedBooking.status) && (
+                  <button onClick={() => { handleBookingAction(editedBooking.id, 'refuse'); setShowBookDialog(false) }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
+                    style={{ backgroundColor: '#ef4444' }}>
+                    Refuser
+                  </button>
+                )}
+                {/* Annuler — si pas deja COMPLETED/CANCELLED/REFUSED */}
+                {!['COMPLETED', 'CANCELLED', 'REFUSED'].includes(editedBooking.status) && (
+                  <button onClick={() => { handleBookingAction(editedBooking.id, 'cancel'); setShowBookDialog(false) }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium border"
+                    style={{ borderColor: '#6b7280', color: '#6b7280' }}>
+                    Annuler
+                  </button>
+                )}
+                {/* Supprimer — toujours dispo pour qui a le droit */}
+                <button onClick={() => { handleDeleteBooking(editedBooking.id); setShowBookDialog(false) }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium ml-auto"
+                  style={{ color: '#ef4444', border: '1px solid #ef444440' }}>
+                  Supprimer
+                </button>
+              </div>
+            )}
+
+            <div className="mt-4 flex justify-end gap-2">
               <button onClick={() => setShowBookDialog(false)} className="px-4 py-2 rounded-lg text-sm"
                 style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>
                 {readOnly ? 'Fermer' : 'Annuler'}
               </button>
-              {!readOnly && (
+              {!readOnly && !['COMPLETED', 'CANCELLED', 'REFUSED'].includes(editedBooking?.status || '') && (
                 <button onClick={handleSaveBooking}
                   disabled={saving || !bkDockType || !bkStartTime || !bkPallets}
                   className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
