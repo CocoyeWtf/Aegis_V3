@@ -17,7 +17,7 @@ from app.models.supplier_pickup_request import (
 from app.models.base_container_stock import BaseContainerStock, BaseContainerMovement, BaseMovementType
 from app.models.support_type import SupportType
 from app.models.supplier import Supplier
-from app.models.base_logistics import BaseLogisticss
+from app.models.base_logistics import BaseLogistics
 from app.models.user import User
 from app.models.audit import AuditLog
 from app.schemas.supplier_pickup import (
