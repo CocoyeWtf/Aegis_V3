@@ -218,7 +218,7 @@ export default function ReceptionBooking() {
     } finally { setSaving(false) }
   }
 
-  const handleBookingAction = async (bookingId: number, action: string, extraData?: Record<string, unknown>) => {
+  const handleBookingAction = async (bookingId: number, action: string) => {
     try {
       if (action === 'at-dock') {
         const dock = prompt('Numero de quai :')
