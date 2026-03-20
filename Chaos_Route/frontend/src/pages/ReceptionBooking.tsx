@@ -1,7 +1,7 @@
 /* Page booking reception V2 / Supplier reception booking V2
    Planning visuel par type de quai, creneaux 15min, config, reservations, import */
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, Fragment } from 'react'
 import api from '../services/api'
 import { useAuthStore } from '../stores/useAuthStore'
 
@@ -209,6 +209,49 @@ export default function ReceptionBooking() {
       })
     })
   }, [bookings, timeSlots, columns])
+
+  // ─── Grid layout avec séparateurs visuels entre types de quais ───
+  const { gridItems, dockTypeGroups, gridTemplateCols } = useMemo(() => {
+    const items: { kind: 'dock' | 'separator'; colIndex?: number; leftColor?: string; rightColor?: string }[] = []
+    const groups: { dockType: string; label: string; color: string; count: number; startItemIdx: number }[] = []
+    let prevType = ''
+    let groupCount = 0
+    let groupStartIdx = 0
+
+    columns.forEach((col, ci) => {
+      if (col.dockType !== prevType) {
+        if (prevType) {
+          groups.push({
+            dockType: prevType, label: DOCK_TYPE_LABELS[prevType] || prevType,
+            color: DOCK_TYPE_COLORS[prevType] || '#737373', count: groupCount, startItemIdx: groupStartIdx,
+          })
+          items.push({ kind: 'separator', leftColor: DOCK_TYPE_COLORS[prevType] || '#737373', rightColor: DOCK_TYPE_COLORS[col.dockType] || '#737373' })
+          groupStartIdx = items.length
+          groupCount = 0
+        } else {
+          groupStartIdx = 0
+        }
+        prevType = col.dockType
+      }
+      items.push({ kind: 'dock', colIndex: ci })
+      groupCount++
+    })
+    if (prevType && groupCount > 0) {
+      groups.push({
+        dockType: prevType, label: DOCK_TYPE_LABELS[prevType] || prevType,
+        color: DOCK_TYPE_COLORS[prevType] || '#737373', count: groupCount, startItemIdx: groupStartIdx,
+      })
+    }
+
+    const colTemplate = items.map((i) => i.kind === 'separator' ? '18px' : 'minmax(120px, 1fr)').join(' ')
+    return { gridItems: items, dockTypeGroups: groups, gridTemplateCols: `60px ${colTemplate}` }
+  }, [columns])
+
+  // Position grille de chaque item (1-based, col 1 = temps)
+  const itemGridPositions = useMemo(() => {
+    let pos = 2
+    return gridItems.map(() => pos++)
+  }, [gridItems])
 
   // ─── Handlers ───
   const handleSaveBooking = async () => {
@@ -504,30 +547,13 @@ export default function ReceptionBooking() {
           )}
 
           {columns.length > 0 && timeSlots.length > 0 && (
-            <div className="rounded-lg border p-3"
+            <div className="rounded-xl border overflow-hidden"
               style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-              {/* En-tete : types de quais + horaires */}
-              <div className="flex items-center gap-3 mb-2">
-                {dockTypes.map((dt) => {
-                  const cfg = baseConfigs.find((c) => c.dock_type === dt)
-                  if (!cfg) return null
-                  return (
-                    <div key={dt} className="flex items-center gap-1">
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: DOCK_TYPE_COLORS[dt] }} />
-                      <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
-                        {DOCK_TYPE_LABELS[dt]} ({cfg.dock_count})
-                      </span>
-                    </div>
-                  )
-                })}
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {minutesToTime(earliest)}-{minutesToTime(latest)}
-                </span>
-              </div>
+
               {/* Legende indicateurs / Indicators legend */}
-              <div className="flex items-center gap-4 mb-3 px-1 py-1.5 rounded"
-                style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                <span className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>Indicateurs :</span>
+              <div className="flex items-center gap-4 px-4 py-2 border-b"
+                style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)' }}>
+                <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Legende</span>
                 <div className="flex items-center gap-1">
                   <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#22c55e' }} />
                   <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Rapproche</span>
@@ -548,49 +574,72 @@ export default function ReceptionBooking() {
                   <span className="inline-block w-3 h-2 rounded-sm" style={{ backgroundColor: '#6b728030', border: '1px solid #6b7280' }} />
                   <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Annule</span>
                 </div>
+                <span className="ml-auto text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  {minutesToTime(earliest)} - {minutesToTime(latest)}
+                </span>
               </div>
 
-              <div className="overflow-x-auto">
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: `60px repeat(${columns.length}, minmax(120px, 1fr))`,
-                  gap: '1px',
-                }}>
-                  {/* Header colonnes — un par quai physique, séparateur entre types */}
-                  <div className="text-[10px] font-medium px-1 py-1" style={{ color: 'var(--text-muted)' }}>Heure</div>
-                  {columns.map((col, ci) => {
-                    const isNewType = ci > 0 && columns[ci - 1].dockType !== col.dockType
-                    return (
-                      <div key={ci} className="text-[10px] font-medium px-1 py-1 text-center rounded-t"
-                        style={{
-                          color: col.color, backgroundColor: `${col.color}10`,
-                          borderLeft: isNewType ? `2px solid ${col.color}` : undefined,
+              <div className="overflow-x-auto" style={{ padding: '12px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
+                  {/* Colonne horaires / Time column */}
+                  <div style={{ width: '52px', flexShrink: 0, paddingTop: '52px' }}>
+                    {timeSlots.map((slotTime) => {
+                      const isHour = slotTime.endsWith(':00')
+                      return (
+                        <div key={slotTime} style={{
+                          height: '28px', lineHeight: '28px',
+                          fontSize: '10px', fontWeight: isHour ? 700 : 400,
+                          color: isHour ? 'var(--text-primary)' : 'var(--text-muted)',
+                          textAlign: 'right', paddingRight: '6px',
                         }}>
-                        {col.label}
-                      </div>
-                    )
-                  })}
+                          {slotTime}
+                        </div>
+                      )
+                    })}
+                  </div>
 
-                  {/* Lignes — un par créneau 15 min */}
-                  {timeSlots.map((slotTime, si) => (
-                    <>
-                      <div key={`t-${slotTime}`} className="text-[10px] px-1 py-0.5 border-t"
-                        style={{ color: 'var(--text-muted)', borderColor: 'var(--border-color)', height: '28px', lineHeight: '24px' }}>
-                        {slotTime}
+                  {/* Colonnes quais / Dock columns as cards */}
+                  {columns.map((col, ci) => (
+                    <div key={ci} style={{
+                      flex: '1', minWidth: '110px',
+                      border: '2px solid var(--color-primary)',
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                      backgroundColor: 'var(--bg-primary)',
+                    }}>
+                      {/* En-tete quai / Dock header */}
+                      <div style={{
+                        background: `linear-gradient(135deg, var(--color-primary), var(--color-primary-hover))`,
+                        padding: '8px 6px',
+                        textAlign: 'center',
+                      }}>
+                        <div style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: '28px', height: '28px', borderRadius: '50%',
+                          backgroundColor: 'rgba(255,255,255,0.25)',
+                          color: 'white', fontSize: '13px', fontWeight: 700,
+                        }}>
+                          {col.dockNumber}
+                        </div>
+                        <div style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(255,255,255,0.85)', marginTop: '2px' }}>
+                          {DOCK_TYPE_LABELS[col.dockType] || col.dockType}
+                        </div>
                       </div>
-                      {columns.map((col, ci) => {
+
+                      {/* Créneaux / Time slots */}
+                      {timeSlots.map((slotTime, si) => {
+                        const isHour = slotTime.endsWith(':00')
+                        const isHalf = slotTime.endsWith(':30')
                         const booking = bookingMatrix[si]?.[ci] || null
-                        const isNewType = ci > 0 && columns[ci - 1].dockType !== col.dockType
                         return (
                           <div
-                            key={`d-${slotTime}-${ci}`}
-                            className="border-t px-0.5"
+                            key={slotTime}
                             style={{
-                              borderColor: 'var(--border-color)',
-                              backgroundColor: booking ? 'transparent' : 'var(--bg-primary)',
                               height: '28px',
+                              borderTop: isHour ? '1px solid var(--border-color)' : (isHalf ? '1px dashed var(--border-color)' : '1px solid transparent'),
+                              backgroundColor: isHour ? 'var(--bg-secondary)' : 'var(--bg-primary)',
                               cursor: booking || !selectedBaseId ? 'default' : 'pointer',
-                              borderLeft: isNewType ? `2px solid ${col.color}` : undefined,
+                              padding: '0 3px',
                             }}
                             onClick={() => !booking && selectedBaseId && openNewBooking(col.dockType, slotTime, col.dockNumber)}
                           >
@@ -598,7 +647,7 @@ export default function ReceptionBooking() {
                           </div>
                         )
                       })}
-                    </>
+                    </div>
                   ))}
                 </div>
               </div>
