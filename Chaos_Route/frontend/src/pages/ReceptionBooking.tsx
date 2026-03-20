@@ -136,55 +136,61 @@ export default function ReceptionBooking() {
     return (d.getDay() + 6) % 7  // 0=Monday
   }, [selectedDate])
 
-  // ─── Planning grid data ───
-  const planningData = useMemo(() => {
-    const result: {
-      dockType: string; dockTypeColor: string; dockCount: number
-      openTime: string; closeTime: string
-      slots: { time: string; docks: (Booking | null)[] }[]
-    }[] = []
+  // ─── Planning unifie : toutes les colonnes = quais physiques ───
+  interface DockColumn { dockType: string; dockNumber: number; label: string; color: string }
+
+  const { columns, timeSlots, earliest, latest } = useMemo(() => {
+    const cols: DockColumn[] = []
+    let earliest = 24 * 60
+    let latest = 0
 
     const typesToShow = selectedDockType ? [selectedDockType] : dockTypes
 
     for (const dt of typesToShow) {
       const cfg = baseConfigs.find((c) => c.dock_type === dt)
       if (!cfg) continue
-
       const schedule = cfg.schedules.find((s) => s.day_of_week === selectedDow)
       if (!schedule) continue
 
-      const opening = timeToMinutes(schedule.open_time)
-      const closing = timeToMinutes(schedule.close_time)
-      const typeBookings = bookings.filter((b) =>
-        b.dock_type === dt && !['CANCELLED', 'REFUSED'].includes(b.status)
-      )
+      const open = timeToMinutes(schedule.open_time)
+      const close = timeToMinutes(schedule.close_time)
+      if (open < earliest) earliest = open
+      if (close > latest) latest = close
 
-      const slots: { time: string; docks: (Booking | null)[] }[] = []
-      let current = opening
-      while (current + 15 <= closing) {
-        const time = minutesToTime(current)
-        const docks: (Booking | null)[] = []
-        for (let d = 1; d <= cfg.dock_count; d++) {
-          const booking = typeBookings.find((b) => {
-            if (b.dock_number !== d) return false
-            const bStart = timeToMinutes(b.start_time)
-            const bEnd = timeToMinutes(b.end_time)
-            return bStart <= current && bEnd > current
-          })
-          docks.push(booking || null)
-        }
-        slots.push({ time, docks })
-        current += 15
+      for (let d = 1; d <= cfg.dock_count; d++) {
+        cols.push({
+          dockType: dt, dockNumber: d,
+          label: `${DOCK_TYPE_LABELS[dt] || dt} Q${d}`,
+          color: DOCK_TYPE_COLORS[dt] || '#737373',
+        })
       }
-
-      result.push({
-        dockType: dt, dockTypeColor: DOCK_TYPE_COLORS[dt] || '#737373',
-        dockCount: cfg.dock_count, openTime: schedule.open_time,
-        closeTime: schedule.close_time, slots,
-      })
     }
-    return result
-  }, [baseConfigs, bookings, dockTypes, selectedDockType, selectedDow])
+
+    const slots: string[] = []
+    let cur = earliest
+    while (cur + 15 <= latest) {
+      slots.push(minutesToTime(cur))
+      cur += 15
+    }
+
+    return { columns: cols, timeSlots: slots, earliest, latest }
+  }, [baseConfigs, dockTypes, selectedDockType, selectedDow])
+
+  // Matrice booking : [slotIndex][colIndex] / Booking matrix
+  const bookingMatrix = useMemo(() => {
+    const activeBookings = bookings.filter((b) => !['CANCELLED', 'REFUSED'].includes(b.status))
+    return timeSlots.map((slotTime) => {
+      const slotMin = timeToMinutes(slotTime)
+      return columns.map((col) => {
+        return activeBookings.find((b) => {
+          if (b.dock_type !== col.dockType || b.dock_number !== col.dockNumber) return false
+          const bStart = timeToMinutes(b.start_time)
+          const bEnd = timeToMinutes(b.end_time)
+          return bStart <= slotMin && bEnd > slotMin
+        }) || null
+      })
+    })
+  }, [bookings, timeSlots, columns])
 
   // ─── Handlers ───
   const handleCreateBooking = async () => {
@@ -422,7 +428,7 @@ export default function ReceptionBooking() {
         <>
           {loading && <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>Chargement...</div>}
 
-          {!loading && planningData.length === 0 && selectedBaseId && (
+          {!loading && columns.length === 0 && selectedBaseId && (
             <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
               Aucune configuration de quai pour cette base ce jour.
               <button onClick={() => setTab('config')} className="ml-2 underline" style={{ color: 'var(--color-primary)' }}>
@@ -431,61 +437,73 @@ export default function ReceptionBooking() {
             </div>
           )}
 
-          {planningData.map((pd) => (
-            <div key={pd.dockType} className="rounded-lg border p-3"
+          {columns.length > 0 && timeSlots.length > 0 && (
+            <div className="rounded-lg border p-3"
               style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: pd.dockTypeColor }} />
-                <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                  {DOCK_TYPE_LABELS[pd.dockType] || pd.dockType}
-                </span>
+              <div className="flex items-center gap-3 mb-3">
+                {dockTypes.map((dt) => {
+                  const cfg = baseConfigs.find((c) => c.dock_type === dt)
+                  if (!cfg) return null
+                  return (
+                    <div key={dt} className="flex items-center gap-1">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: DOCK_TYPE_COLORS[dt] }} />
+                      <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
+                        {DOCK_TYPE_LABELS[dt]} ({cfg.dock_count})
+                      </span>
+                    </div>
+                  )
+                })}
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {pd.dockCount} quai(s) · {pd.openTime}-{pd.closeTime}
+                  {minutesToTime(earliest)}-{minutesToTime(latest)}
                 </span>
               </div>
 
               <div className="overflow-x-auto">
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: `60px repeat(${pd.dockCount}, minmax(140px, 1fr))`,
+                  gridTemplateColumns: `60px repeat(${columns.length}, minmax(120px, 1fr))`,
                   gap: '1px',
                 }}>
-                  {/* Header quais */}
+                  {/* Header colonnes — un par quai physique */}
                   <div className="text-[10px] font-medium px-1 py-1" style={{ color: 'var(--text-muted)' }}>Heure</div>
-                  {Array.from({ length: pd.dockCount }, (_, i) => (
-                    <div key={i} className="text-[10px] font-medium px-1 py-1 text-center" style={{ color: 'var(--text-muted)' }}>
-                      Quai {i + 1}
+                  {columns.map((col, ci) => (
+                    <div key={ci} className="text-[10px] font-medium px-1 py-1 text-center rounded-t"
+                      style={{ color: col.color, backgroundColor: `${col.color}10` }}>
+                      {col.label}
                     </div>
                   ))}
 
-                  {/* Slots */}
-                  {pd.slots.map((slot) => (
+                  {/* Lignes — un par créneau 15 min */}
+                  {timeSlots.map((slotTime, si) => (
                     <>
-                      <div key={`t-${slot.time}`} className="text-[10px] px-1 py-0.5 border-t"
+                      <div key={`t-${slotTime}`} className="text-[10px] px-1 py-0.5 border-t"
                         style={{ color: 'var(--text-muted)', borderColor: 'var(--border-color)', height: '28px', lineHeight: '24px' }}>
-                        {slot.time}
+                        {slotTime}
                       </div>
-                      {slot.docks.map((booking, dockIdx) => (
-                        <div
-                          key={`d-${slot.time}-${dockIdx}`}
-                          className="border-t px-0.5"
-                          style={{
-                            borderColor: 'var(--border-color)',
-                            backgroundColor: booking ? 'transparent' : 'var(--bg-primary)',
-                            height: '28px',
-                            cursor: booking ? 'default' : 'pointer',
-                          }}
-                          onClick={() => !booking && openNewBooking(pd.dockType, slot.time, dockIdx + 1)}
-                        >
-                          {booking ? renderBookingBlock(booking, slot.time) : null}
-                        </div>
-                      ))}
+                      {columns.map((col, ci) => {
+                        const booking = bookingMatrix[si]?.[ci] || null
+                        return (
+                          <div
+                            key={`d-${slotTime}-${ci}`}
+                            className="border-t px-0.5"
+                            style={{
+                              borderColor: 'var(--border-color)',
+                              backgroundColor: booking ? 'transparent' : 'var(--bg-primary)',
+                              height: '28px',
+                              cursor: booking ? 'default' : 'pointer',
+                            }}
+                            onClick={() => !booking && openNewBooking(col.dockType, slotTime, col.dockNumber)}
+                          >
+                            {booking ? renderBookingBlock(booking, slotTime) : null}
+                          </div>
+                        )
+                      })}
                     </>
                   ))}
                 </div>
               </div>
             </div>
-          ))}
+          )}
 
           {/* Liste bookings du jour */}
           {bookings.length > 0 && (
