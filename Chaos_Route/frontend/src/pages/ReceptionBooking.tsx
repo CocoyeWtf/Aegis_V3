@@ -567,18 +567,13 @@ export default function ReceptionBooking() {
                       {/* En-tete quai / Dock header */}
                       <div style={{
                         background: `linear-gradient(135deg, var(--color-primary), var(--color-primary-hover))`,
-                        padding: '8px 6px',
+                        padding: '10px 6px',
                         textAlign: 'center',
                       }}>
-                        <div style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          width: '28px', height: '28px', borderRadius: '50%',
-                          backgroundColor: 'rgba(255,255,255,0.25)',
-                          color: 'white', fontSize: '13px', fontWeight: 700,
-                        }}>
-                          {col.dockNumber}
+                        <div style={{ color: 'white', fontSize: '15px', fontWeight: 700 }}>
+                          Quai n&deg;{col.dockNumber}
                         </div>
-                        <div style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(255,255,255,0.85)', marginTop: '2px' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.85)', marginTop: '2px' }}>
                           {DOCK_TYPE_LABELS[col.dockType] || col.dockType}
                         </div>
                       </div>
