@@ -66,7 +66,7 @@ function BarcodeLabel({
       <div style={{ fontWeight: 'bold', fontSize: '11px', textAlign: 'center' }}>
         {PICKUP_LABEL_HEADERS[pickupType || 'CONTAINER'] || 'REPRISE CONTENANTS'}
       </div>
-      <svg ref={svgRef} style={{ width: '100%', height: 'auto' }} />
+      <svg ref={svgRef} style={{ maxWidth: '100%', height: 'auto' }} />
       <div style={{ fontSize: '10px', fontFamily: 'monospace', textAlign: 'center' }}>
         {label.label_code}
       </div>
@@ -94,7 +94,7 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
   }
 
   return (
-    <div>
+    <div id="pickup-print-zone">
       {/* Boutons hors impression / Buttons hidden on print */}
       <div className="no-print" style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
         <button
@@ -137,13 +137,15 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          body * { visibility: hidden; }
-          .label-grid, .label-grid * { visibility: visible; }
+          body > *:not(#root) { display: none !important; }
+          #root > *:not([class*="p-6"]) { display: none !important; }
+          #pickup-print-zone {
+            position: fixed !important;
+            left: 0; top: 0;
+            width: 100% !important;
+            z-index: 99999;
+          }
           .label-grid {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
             display: grid !important;
             grid-template-columns: repeat(2, 1fr) !important;
             gap: 10px !important;
@@ -151,7 +153,10 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
           }
           .label-card {
             page-break-inside: avoid;
+            background: #fff !important;
+            color: #000 !important;
           }
+          .label-card svg { max-width: 100%; height: auto; }
           .label-img {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
