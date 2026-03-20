@@ -3,7 +3,6 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import api from '../services/api'
-import { useAuthStore } from '../stores/useAuthStore'
 
 interface Base { id: number; code: string; name: string }
 
@@ -43,11 +42,6 @@ interface Booking {
   orders: BookingOrder[]; checkin?: BookingCheckin; refusal?: BookingRefusal
 }
 
-interface SlotAvailability {
-  start_time: string; end_time: string; dock_type: string
-  available_docks: number[]; total_docks: number
-}
-
 const DOCK_TYPE_LABELS: Record<string, string> = {
   SEC: 'Sec', FRAIS: 'Frais', GEL: 'Gel', FFL: 'FFL',
 }
@@ -70,7 +64,6 @@ function timeToMinutes(t: string) { const [h, m] = t.split(':').map(Number); ret
 function minutesToTime(m: number) { return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}` }
 
 export default function ReceptionBooking() {
-  const user = useAuthStore((s) => s.user)
   const [bases, setBases] = useState<Base[]>([])
   const [configs, setConfigs] = useState<DockConfig[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
