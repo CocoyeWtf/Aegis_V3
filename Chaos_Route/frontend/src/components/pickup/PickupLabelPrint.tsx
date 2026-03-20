@@ -141,7 +141,7 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
           body * { visibility: hidden; }
           .label-grid, .label-grid * { visibility: visible; }
           .label-grid {
-            position: absolute;
+            position: fixed;
             left: 0;
             top: 0;
             width: 100%;
