@@ -121,6 +121,7 @@ class PickupRequestRead(BaseModel):
     declared_content_item_value: float | None = None
     declared_content_items_per_unit: int | None = None
     total_declared_value: float | None = None
+    print_count: int = 0
     # Relations
     pdv: PDVBrief | None = None
     support_type: SupportTypeRead | None = None
@@ -147,6 +148,7 @@ class PickupRequestListRead(BaseModel):
     declared_content_item_value: float | None = None
     declared_content_items_per_unit: int | None = None
     total_declared_value: float | None = None
+    print_count: int = 0
     # Compteurs labels / Label counters
     total_labels: int = 0
     pending_count: int = 0

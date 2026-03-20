@@ -179,8 +179,11 @@ export default function PdvPickupRequests() {
 
   const handlePrint = useCallback(async (req: PickupRequest) => {
     const { data } = await api.get<PickupRequest>(`/pickup-requests/${req.id}`)
+    // Incrementer le compteur d'impression / Increment print counter
+    await api.post(`/pickup-requests/${req.id}/printed`)
+    refetch()
     setPrintRequest(data)
-  }, [])
+  }, [refetch])
 
   const handleExportCsv = useCallback(async () => {
     const params: Record<string, unknown> = {}
@@ -748,21 +751,28 @@ export default function PdvPickupRequests() {
                     {req.notes || '—'}
                   </td>
                   <td className="text-center px-4 py-3">
-                    {req.status === 'PICKED_UP' || req.status === 'RECEIVED' ? (
-                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Scanne</span>
-                    ) : (
-                      <button
-                        onClick={() => handlePrint(req)}
-                        className="px-3 py-1 rounded text-xs font-medium"
-                        style={{
-                          backgroundColor: 'var(--bg-tertiary)',
-                          color: 'var(--text-primary)',
-                        }}
-                        title="Imprimer les etiquettes"
-                      >
-                        Etiquettes
-                      </button>
-                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                      {req.status === 'PICKED_UP' || req.status === 'RECEIVED' ? (
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Scanne</span>
+                      ) : (
+                        <button
+                          onClick={() => handlePrint(req)}
+                          className="px-3 py-1 rounded text-xs font-medium"
+                          style={{
+                            backgroundColor: 'var(--bg-tertiary)',
+                            color: 'var(--text-primary)',
+                          }}
+                          title="Imprimer les etiquettes"
+                        >
+                          Etiquettes
+                        </button>
+                      )}
+                      {(req.print_count ?? 0) > 0 && (
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                          {req.print_count}x imprime
+                        </span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )

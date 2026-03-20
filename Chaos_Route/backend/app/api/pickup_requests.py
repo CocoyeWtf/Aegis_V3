@@ -360,6 +360,24 @@ async def get_pickup_request(
     return req
 
 
+@router.post("/{request_id}/printed")
+async def mark_printed(
+    request_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("pickup-requests", "read")),
+):
+    """Incrementer le compteur d'impression / Increment print counter."""
+    result = await db.execute(
+        select(PickupRequest).where(PickupRequest.id == request_id)
+    )
+    req = result.scalar_one_or_none()
+    if not req:
+        raise HTTPException(status_code=404, detail="Pickup request not found")
+    req.print_count = (req.print_count or 0) + 1
+    await db.commit()
+    return {"print_count": req.print_count}
+
+
 @router.post("/", response_model=PickupRequestRead, status_code=201)
 async def create_pickup_request(
     data: PickupRequestCreate,

@@ -61,6 +61,7 @@ class PickupRequest(Base):
     requested_at: Mapped[str | None] = mapped_column(DateTime, server_default=func.now())
     requested_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     notes: Mapped[str | None] = mapped_column(Text)
+    print_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
     # Consigne : contenu inclus (ex: bouteilles vides dans les bacs)
     # Consignment: content included (e.g., empty bottles in the crates)

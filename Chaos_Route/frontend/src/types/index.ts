@@ -575,6 +575,7 @@ export interface PickupRequest {
   declared_content_item_value?: number | null
   declared_content_items_per_unit?: number | null
   total_declared_value?: number | null
+  print_count?: number
   // Compteurs labels / Label counters
   total_labels?: number
   pending_count?: number
