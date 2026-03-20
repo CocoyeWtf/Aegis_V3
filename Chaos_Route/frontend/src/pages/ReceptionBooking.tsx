@@ -234,6 +234,9 @@ export default function ReceptionBooking() {
         await api.post(`/reception-booking/bookings/${bookingId}/refuse`, { reason })
       } else if (action === 'cancel') {
         await api.put(`/reception-booking/bookings/${bookingId}`, { status: 'CANCELLED' })
+      } else if (action === 'delete') {
+        if (!confirm('Supprimer definitivement ce booking ?')) return
+        await api.delete(`/reception-booking/bookings/${bookingId}`)
       }
       fetchData()
     } catch { alert('Erreur') }
@@ -565,6 +568,8 @@ export default function ReceptionBooking() {
                                 className="px-2 py-1 rounded text-xs" style={{ color: '#6b7280', backgroundColor: '#6b728020' }}>Annuler</button>
                             </>
                           )}
+                          <button onClick={() => handleBookingAction(b.id, 'delete')}
+                            className="px-2 py-1 rounded text-xs" style={{ color: '#ef4444', backgroundColor: '#ef444410' }}>Suppr.</button>
                         </div>
                       </td>
                     </tr>
