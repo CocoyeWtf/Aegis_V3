@@ -49,6 +49,8 @@ function BarcodeLabel({
         height: 60,
         displayValue: false,
         margin: 2,
+        lineColor: '#000',
+        background: '#fff',
       })
     }
   }, [label.label_code])
@@ -65,6 +67,8 @@ function BarcodeLabel({
       gap: '3mm',
       boxSizing: 'border-box',
       pageBreakAfter: 'always',
+      backgroundColor: '#fff',
+      color: '#000',
     }}>
       <div style={{ fontWeight: 'bold', fontSize: '16px', textAlign: 'center', textTransform: 'uppercase' }}>
         {PICKUP_LABEL_HEADERS[pickupType || 'CONTAINER'] || 'REPRISE CONTENANTS'}
@@ -94,7 +98,7 @@ function BarcodeLabel({
       <div style={{ fontSize: '13px', textAlign: 'center', fontWeight: 'bold' }}>
         {supportTypeName}
       </div>
-      <div style={{ fontSize: '11px', textAlign: 'center', color: '#666' }}>
+      <div style={{ fontSize: '11px', textAlign: 'center', color: '#555' }}>
         {label.sequence_number} / {total}
       </div>
     </div>
