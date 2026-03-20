@@ -194,7 +194,10 @@ export default function ReceptionBooking() {
 
   // ─── Handlers ───
   const handleCreateBooking = async () => {
-    if (!selectedBaseId || !bkDockType || !bkStartTime || !bkPallets) return
+    if (!selectedBaseId || !bkDockType || !bkStartTime || !bkPallets) {
+      alert('Veuillez remplir tous les champs obligatoires : type quai, heure, nb palettes')
+      return
+    }
     setSaving(true)
     try {
       await api.post('/reception-booking/bookings/', {
@@ -300,7 +303,7 @@ export default function ReceptionBooking() {
 
   const openNewBooking = (dockType?: string, startTime?: string, dockNum?: number) => {
     setBkDockType(dockType || dockTypes[0] || 'SEC')
-    setBkStartTime(startTime || '')
+    setBkStartTime(startTime || timeSlots[0] || '06:00')
     setBkPallets(''); setBkSupplier(''); setBkOrderNum('')
     setBkLocked(false); setBkNotes('')
     setBkDockNum(dockNum ? String(dockNum) : '')
@@ -675,7 +678,7 @@ export default function ReceptionBooking() {
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Type quai</label>
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Type quai <span style={{ color: '#ef4444' }}>*</span></label>
                   <select value={bkDockType} onChange={(e) => setBkDockType(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg text-sm border"
                     style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
@@ -683,15 +686,15 @@ export default function ReceptionBooking() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Heure debut</label>
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Heure debut <span style={{ color: '#ef4444' }}>*</span></label>
                   <input type="time" step={900} value={bkStartTime} onChange={(e) => setBkStartTime(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg text-sm border"
-                    style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+                    style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: !bkStartTime ? '#ef4444' : 'var(--border-color)', color: 'var(--text-primary)' }} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Nb palettes</label>
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Nb palettes <span style={{ color: '#ef4444' }}>*</span></label>
                   <input type="number" min={1} value={bkPallets} onChange={(e) => setBkPallets(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg text-sm border"
                     style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
