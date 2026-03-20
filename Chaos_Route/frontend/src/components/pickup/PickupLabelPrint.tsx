@@ -1,5 +1,6 @@
 /* Composant impression etiquettes reprises / Pickup label print component
-   Deux modes : A4 grille 2 colonnes (photocopieur) ou etiquette unitaire (Zebra via iframe isole) */
+   Format unique paysage 148.5 x 105mm — barcode sur la longueur.
+   Impression via iframe isole : pas d'interference CSS, scaling proportionnel auto. */
 
 import { useEffect, useRef, useCallback } from 'react'
 import JsBarcode from 'jsbarcode'
@@ -54,16 +55,16 @@ function BarcodeLabel({
   }, [label.label_code])
 
   return (
-    <div className="label-card" style={{
+    <div style={{
       border: '1px solid #333',
       borderRadius: '6px',
       padding: '10px',
-      pageBreakInside: 'avoid',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       gap: '4px',
       overflow: 'hidden',
+      aspectRatio: '148.5 / 105',
     }}>
       <div style={{ fontWeight: 'bold', fontSize: '11px', textAlign: 'center' }}>
         {PICKUP_LABEL_HEADERS[pickupType || 'CONTAINER'] || 'REPRISE CONTENANTS'}
@@ -79,8 +80,7 @@ function BarcodeLabel({
         <img
           src={supportTypeImageUrl}
           alt={supportTypeName}
-          className="label-img"
-          style={{ width: 60, height: 60, objectFit: 'contain' }}
+          style={{ width: 50, height: 50, objectFit: 'contain' }}
         />
       )}
       <div style={{ fontSize: '10px', textAlign: 'center' }}>
@@ -90,8 +90,8 @@ function BarcodeLabel({
   )
 }
 
-/* Genere le HTML d'une etiquette pour l'iframe Zebra / Generate label HTML for Zebra iframe */
-function buildZebraLabelHtml(
+/* HTML d'une etiquette pour l'iframe / Label HTML for print iframe */
+function buildLabelHtml(
   labelCode: string,
   seqNum: number,
   total: number,
@@ -103,71 +103,74 @@ function buildZebraLabelHtml(
 ): string {
   const header = PICKUP_LABEL_HEADERS[pickupType] || 'REPRISE CONTENANTS'
   const imgTag = imageUrl
-    ? `<img src="${imageUrl}" style="width:36mm;height:36mm;object-fit:contain;" />`
+    ? `<img src="${imageUrl}" style="height:12mm;object-fit:contain;" />`
     : ''
   return `
     <div class="label">
-      <div style="font-weight:bold;font-size:28pt;text-transform:uppercase;">${header}</div>
+      <div class="header">${header}</div>
       <svg id="bc-${seqNum}"></svg>
-      <div style="font-size:20pt;font-family:monospace;letter-spacing:2px;">${labelCode}</div>
-      <div style="font-size:24pt;font-weight:bold;margin-top:4mm;">${pdvCode}</div>
-      <div style="font-size:20pt;">${pdvName}</div>
+      <div class="code">${labelCode}</div>
+      <div class="pdv-code">${pdvCode}</div>
+      <div class="pdv-name">${pdvName}</div>
       ${imgTag}
-      <div style="font-size:22pt;font-weight:bold;">${supportTypeName}</div>
-      <div style="font-size:18pt;color:#555;">${seqNum} / ${total}</div>
+      <div class="support">${supportTypeName}</div>
+      <div class="seq">${seqNum} / ${total}</div>
     </div>
   `
 }
 
 export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pickupType, supportTypeImageUrl, onClose }: PickupLabelPrintProps) {
 
-  /* Impression A4 classique / Standard A4 print */
-  const handlePrintA4 = useCallback(() => {
-    window.print()
-  }, [])
-
-  /* Impression Zebra via iframe isole / Zebra print via isolated iframe */
-  const handlePrintZebra = useCallback(() => {
+  const handlePrint = useCallback(() => {
     const labelsHtml = labels.map((l) =>
-      buildZebraLabelHtml(
+      buildLabelHtml(
         l.label_code, l.sequence_number, labels.length,
         pdvCode, pdvName, supportTypeName,
         pickupType || 'CONTAINER', supportTypeImageUrl,
       )
     ).join('')
 
-    // Construire le document complet / Build the full document
+    // Document HTML autonome, format paysage 148.5 x 105mm
+    // Le navigateur envoie cette taille a l'imprimante.
+    // - Zebra 105x148.5 : match exact (le driver tourne si besoin)
+    // - Photocopieur A4 : imprime tel quel (petit) ou l'user coche "adapter a la page"
     const html = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>Etiquettes Zebra</title>
+<title>Etiquettes</title>
 <style>
   @page {
-    size: 210mm 297mm;
+    size: 148.5mm 105mm;
     margin: 0;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    width: 210mm;
+    width: 148.5mm;
     font-family: Arial, Helvetica, sans-serif;
     color: #000;
     background: #fff;
   }
   .label {
-    width: 210mm;
-    height: 297mm;
-    padding: 12mm;
+    width: 148.5mm;
+    height: 105mm;
+    padding: 4mm 6mm;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 5mm;
+    gap: 2mm;
     text-align: center;
     page-break-after: always;
   }
   .label:last-child { page-break-after: auto; }
-  svg { max-width: 180mm; height: auto; }
+  .header { font-weight: bold; font-size: 12pt; text-transform: uppercase; }
+  svg { max-width: 130mm; height: auto; }
+  .code { font-size: 9pt; font-family: monospace; letter-spacing: 1px; }
+  .pdv-code { font-size: 11pt; font-weight: bold; margin-top: 1mm; }
+  .pdv-name { font-size: 9pt; }
+  .support { font-size: 10pt; font-weight: bold; }
+  .seq { font-size: 8pt; color: #555; }
 </style>
 </head>
 <body>
@@ -175,17 +178,23 @@ ${labelsHtml}
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3/dist/JsBarcode.all.min.js"><\/script>
 <script>
   document.querySelectorAll('svg[id^="bc-"]').forEach(function(svg) {
-    var code = svg.closest('.label').querySelector('[style*="monospace"]').textContent.trim();
-    JsBarcode(svg, code, { format:'CODE128', width:4, height:120, displayValue:false, margin:4, lineColor:'#000', background:'#fff' });
+    var code = svg.closest('.label').querySelector('.code').textContent.trim();
+    JsBarcode(svg, code, {
+      format: 'CODE128',
+      width: 2,
+      height: 45,
+      displayValue: false,
+      margin: 2,
+      lineColor: '#000',
+      background: '#fff'
+    });
   });
-  setTimeout(function() { window.print(); }, 300);
 <\/script>
 </body>
 </html>`
 
-    // Creer un iframe cache, injecter le HTML, imprimer / Create hidden iframe, inject HTML, print
     const iframe = document.createElement('iframe')
-    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:none;'
+    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:148.5mm;height:105mm;border:none;'
     document.body.appendChild(iframe)
 
     const doc = iframe.contentDocument || iframe.contentWindow?.document
@@ -195,38 +204,25 @@ ${labelsHtml}
       doc.close()
     }
 
-    // Nettoyer apres impression / Cleanup after print
-    const cleanup = () => {
-      setTimeout(() => {
-        document.body.removeChild(iframe)
-      }, 2000)
-    }
     iframe.onload = () => {
       setTimeout(() => {
         iframe.contentWindow?.focus()
         iframe.contentWindow?.print()
-        cleanup()
-      }, 500)
+        setTimeout(() => document.body.removeChild(iframe), 3000)
+      }, 400)
     }
   }, [labels, pdvCode, pdvName, supportTypeName, pickupType, supportTypeImageUrl])
 
   return (
     <div>
-      {/* Boutons hors impression / Buttons hidden on print */}
-      <div className="no-print" style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+      {/* Boutons / Buttons */}
+      <div className="no-print" style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
         <button
-          onClick={handlePrintA4}
+          onClick={handlePrint}
           className="px-4 py-2 rounded-lg text-sm font-medium text-white"
           style={{ backgroundColor: 'var(--color-primary)' }}
         >
-          Imprimer A4
-        </button>
-        <button
-          onClick={handlePrintZebra}
-          className="px-4 py-2 rounded-lg text-sm font-medium text-white"
-          style={{ backgroundColor: '#2563eb' }}
-        >
-          Imprimer Zebra
+          Imprimer
         </button>
         <button
           onClick={onClose}
@@ -237,10 +233,10 @@ ${labelsHtml}
         </button>
       </div>
 
-      {/* Grille d'etiquettes (apercu + impression A4) / Label grid (preview + A4 print) */}
-      <div className="label-grid" style={{
+      {/* Apercu / Preview */}
+      <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(2, 1fr)',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
         gap: '12px',
       }}>
         {labels.map((label) => (
@@ -256,33 +252,6 @@ ${labelsHtml}
           />
         ))}
       </div>
-
-      {/* CSS impression A4 / A4 print CSS */}
-      <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          body * { visibility: hidden; }
-          .label-grid, .label-grid * { visibility: visible; }
-          .label-grid {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 100%;
-            display: grid !important;
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 10px !important;
-            padding: 10mm !important;
-          }
-          .label-card {
-            page-break-inside: avoid;
-          }
-          .label-card svg { max-width: 100% !important; height: auto !important; }
-          .label-img {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-        }
-      `}</style>
     </div>
   )
 }
