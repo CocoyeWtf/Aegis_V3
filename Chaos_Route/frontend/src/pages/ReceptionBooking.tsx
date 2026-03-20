@@ -31,7 +31,7 @@ interface BookingCheckin {
 
 interface BookingRefusal {
   id: number; booking_id: number; reason: string
-  refused_by_user_id: number; timestamp: string
+  refused_by_user_id: number; timestamp: string; notes?: string
 }
 
 interface Booking {
