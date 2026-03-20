@@ -103,18 +103,18 @@ function buildZebraLabelHtml(
 ): string {
   const header = PICKUP_LABEL_HEADERS[pickupType] || 'REPRISE CONTENANTS'
   const imgTag = imageUrl
-    ? `<img src="${imageUrl}" style="width:18mm;height:18mm;object-fit:contain;" />`
+    ? `<img src="${imageUrl}" style="width:36mm;height:36mm;object-fit:contain;" />`
     : ''
   return `
     <div class="label">
-      <div style="font-weight:bold;font-size:14pt;text-transform:uppercase;">${header}</div>
+      <div style="font-weight:bold;font-size:28pt;text-transform:uppercase;">${header}</div>
       <svg id="bc-${seqNum}"></svg>
-      <div style="font-size:10pt;font-family:monospace;letter-spacing:1px;">${labelCode}</div>
-      <div style="font-size:12pt;font-weight:bold;margin-top:2mm;">${pdvCode}</div>
-      <div style="font-size:10pt;">${pdvName}</div>
+      <div style="font-size:20pt;font-family:monospace;letter-spacing:2px;">${labelCode}</div>
+      <div style="font-size:24pt;font-weight:bold;margin-top:4mm;">${pdvCode}</div>
+      <div style="font-size:20pt;">${pdvName}</div>
       ${imgTag}
-      <div style="font-size:11pt;font-weight:bold;">${supportTypeName}</div>
-      <div style="font-size:9pt;color:#555;">${seqNum} / ${total}</div>
+      <div style="font-size:22pt;font-weight:bold;">${supportTypeName}</div>
+      <div style="font-size:18pt;color:#555;">${seqNum} / ${total}</div>
     </div>
   `
 }
@@ -144,30 +144,30 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
 <title>Etiquettes Zebra</title>
 <style>
   @page {
-    size: 105mm 148.5mm;
+    size: 210mm 297mm;
     margin: 0;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    width: 105mm;
+    width: 210mm;
     font-family: Arial, Helvetica, sans-serif;
     color: #000;
     background: #fff;
   }
   .label {
-    width: 105mm;
-    height: 148.5mm;
-    padding: 6mm;
+    width: 210mm;
+    height: 297mm;
+    padding: 12mm;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2.5mm;
+    gap: 5mm;
     text-align: center;
     page-break-after: always;
   }
   .label:last-child { page-break-after: auto; }
-  svg { max-width: 90mm; height: auto; }
+  svg { max-width: 180mm; height: auto; }
 </style>
 </head>
 <body>
@@ -176,7 +176,7 @@ ${labelsHtml}
 <script>
   document.querySelectorAll('svg[id^="bc-"]').forEach(function(svg) {
     var code = svg.closest('.label').querySelector('[style*="monospace"]').textContent.trim();
-    JsBarcode(svg, code, { format:'CODE128', width:2, height:60, displayValue:false, margin:2, lineColor:'#000', background:'#fff' });
+    JsBarcode(svg, code, { format:'CODE128', width:4, height:120, displayValue:false, margin:4, lineColor:'#000', background:'#fff' });
   });
   setTimeout(function() { window.print(); }, 300);
 <\/script>
@@ -185,7 +185,7 @@ ${labelsHtml}
 
     // Creer un iframe cache, injecter le HTML, imprimer / Create hidden iframe, inject HTML, print
     const iframe = document.createElement('iframe')
-    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:105mm;height:148.5mm;border:none;'
+    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:none;'
     document.body.appendChild(iframe)
 
     const doc = iframe.contentDocument || iframe.contentWindow?.document
