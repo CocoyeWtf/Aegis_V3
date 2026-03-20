@@ -2,6 +2,7 @@
 Config quais par type, bookings, check-in, dock events, refusal, import XLS.
 """
 
+import json
 import math
 import uuid
 from datetime import datetime, timezone
@@ -19,6 +20,7 @@ from app.models.reception_booking import (
 )
 from app.models.base_logistics import BaseLogistics
 from app.models.user import User
+from app.models.audit import AuditLog
 from app.schemas.reception_booking import (
     DockConfigCreate, DockConfigRead, DockConfigUpdate,
     BookingCreate, BookingRead, BookingUpdate, BookingMoveSlot,
@@ -31,6 +33,36 @@ from app.api.deps import require_permission, get_current_user
 router = APIRouter()
 
 DAY_LABELS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+
+
+async def _log_booking_audit(
+    db: AsyncSession, booking_id: int, action: str, user: User,
+    changes: dict | None = None,
+) -> None:
+    """Enregistrer une action booking / Log a booking action to audit."""
+    db.add(AuditLog(
+        entity_type="booking",
+        entity_id=booking_id,
+        action=action,
+        changes=json.dumps(changes, ensure_ascii=False) if changes else None,
+        user=user.username,
+        timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    ))
+
+
+def _user_can_edit_booking(user: User, booking: Booking) -> bool:
+    """Verifier si l'utilisateur peut modifier ce booking / Check if user can edit this booking.
+    Createur du booking OU permission reception-booking:update OU superadmin.
+    """
+    if user.is_superadmin:
+        return True
+    if booking.created_by_user_id == user.id:
+        return True
+    for role in user.roles:
+        for perm in role.permissions:
+            if perm.resource == "reception-booking" and perm.action == "update":
+                return True
+    return False
 
 # Polyvalence : FRAIS peut recevoir du GEL / FRAIS docks can receive GEL
 DOCK_COMPAT = {DockType.FRAIS: [DockType.FRAIS, DockType.GEL]}
@@ -407,6 +439,11 @@ async def create_booking(
         ))
 
     await db.flush()
+    await _log_booking_audit(db, booking.id, "CREATE", user, {
+        "dock_type": data.dock_type, "start_time": data.start_time,
+        "pallet_count": data.pallet_count, "supplier": data.supplier_name,
+    })
+    await db.flush()
     result = await db.execute(
         select(Booking).where(Booking.id == booking.id)
         .options(selectinload(Booking.orders), selectinload(Booking.checkin),
@@ -446,9 +483,11 @@ async def update_booking(
     booking_id: int,
     data: BookingUpdate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("reception-booking", "update")),
+    user: User = Depends(get_current_user),
 ):
-    """Modifier un booking / Update a booking."""
+    """Modifier un booking / Update a booking.
+    Seul le createur ou un profil avec reception-booking:update peut modifier.
+    """
     result = await db.execute(
         select(Booking).where(Booking.id == booking_id)
         .options(selectinload(Booking.orders), selectinload(Booking.checkin),
@@ -458,26 +497,41 @@ async def update_booking(
     if not booking:
         raise HTTPException(status_code=404, detail="Booking non trouve")
 
+    if not _user_can_edit_booking(user, booking):
+        raise HTTPException(status_code=403, detail="Seul le createur ou un admin peut modifier ce booking")
+
+    # Collecter les changements pour le log / Collect changes for audit
+    changes: dict = {}
+
     if data.status is not None:
+        changes["status"] = f"{booking.status} → {data.status}"
         booking.status = BookingStatus(data.status)
     if data.dock_number is not None:
+        changes["dock_number"] = f"{booking.dock_number} → {data.dock_number}"
         booking.dock_number = data.dock_number
     if data.is_locked is not None:
+        changes["is_locked"] = f"{booking.is_locked} → {data.is_locked}"
         booking.is_locked = data.is_locked
     if data.supplier_name is not None:
+        changes["supplier_name"] = f"{booking.supplier_name} → {data.supplier_name}"
         booking.supplier_name = data.supplier_name
     if data.notes is not None:
+        changes["notes"] = f"{booking.notes} → {data.notes}"
         booking.notes = data.notes
     if data.dock_type is not None:
+        changes["dock_type"] = f"{booking.dock_type} → {data.dock_type}"
         booking.dock_type = DockType(data.dock_type)
     if data.booking_date is not None:
+        changes["booking_date"] = f"{booking.booking_date} → {data.booking_date}"
         booking.booking_date = data.booking_date
     if data.start_time is not None:
+        changes["start_time"] = f"{booking.start_time} → {data.start_time}"
         booking.start_time = data.start_time
 
     # Recalculer si palettes ou heure changent / Recalculate if pallets or time change
     need_recalc = False
     if data.pallet_count is not None and data.pallet_count != booking.pallet_count:
+        changes["pallet_count"] = f"{booking.pallet_count} → {data.pallet_count}"
         booking.pallet_count = data.pallet_count
         need_recalc = True
     if data.start_time is not None or data.dock_type is not None:
@@ -496,6 +550,8 @@ async def update_booking(
             booking.estimated_duration_minutes = duration
             booking.end_time = _add_minutes(booking.start_time, duration)
 
+    if changes:
+        await _log_booking_audit(db, booking_id, "UPDATE", user, changes)
     await db.flush()
     await db.refresh(booking, ["orders", "checkin", "dock_events", "refusal"])
     return _booking_to_read(booking)
@@ -542,12 +598,19 @@ async def move_booking(
 async def delete_booking(
     booking_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("reception-booking", "delete")),
+    user: User = Depends(get_current_user),
 ):
     booking = await db.get(Booking, booking_id)
     if not booking:
         raise HTTPException(status_code=404, detail="Booking non trouve")
+    if not _user_can_edit_booking(user, booking):
+        raise HTTPException(status_code=403, detail="Seul le createur ou un admin peut supprimer ce booking")
+    await _log_booking_audit(db, booking_id, "DELETE", user, {
+        "supplier": booking.supplier_name, "dock_type": booking.dock_type.value if hasattr(booking.dock_type, 'value') else booking.dock_type,
+        "date": booking.booking_date, "start_time": booking.start_time,
+    })
     await db.delete(booking)
+    await db.flush()
 
 
 # ─── Groupage — Fusionner des bookings ───
@@ -662,6 +725,7 @@ async def mark_at_dock(
         booking_id=booking_id, event_type=DockEventType.AT_DOCK,
         dock_number=dock_number, timestamp=_now_iso(), user_id=user.id,
     ))
+    await _log_booking_audit(db, booking_id, "AT_DOCK", user, {"dock_number": dock_number})
     await db.flush()
     return {"ok": True}
 
@@ -682,6 +746,7 @@ async def mark_departed(
         booking_id=booking_id, event_type=DockEventType.DEPARTED,
         dock_number=booking.dock_number, timestamp=_now_iso(), user_id=user.id,
     ))
+    await _log_booking_audit(db, booking_id, "DEPARTED", user, {"dock_number": booking.dock_number})
     await db.flush()
     return {"ok": True}
 
@@ -706,6 +771,7 @@ async def refuse_booking(
         refused_by_user_id=user.id, timestamp=_now_iso(),
         notes=data.notes,
     ))
+    await _log_booking_audit(db, booking_id, "REFUSED", user, {"reason": data.reason})
     await db.flush()
     return {"ok": True, "message": "Booking refuse — notification appro"}
 

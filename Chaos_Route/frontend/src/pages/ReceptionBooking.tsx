@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import api from '../services/api'
+import { useAuthStore } from '../stores/useAuthStore'
 
 interface Base { id: number; code: string; name: string }
 
@@ -38,7 +39,7 @@ interface Booking {
   booking_date: string; start_time: string; end_time: string
   pallet_count: number; estimated_duration_minutes: number
   status: string; is_locked: boolean; supplier_name?: string
-  temperature_type?: string; notes?: string
+  temperature_type?: string; notes?: string; created_by_user_id?: number
   orders: BookingOrder[]; checkin?: BookingCheckin; refusal?: BookingRefusal
 }
 
@@ -63,7 +64,16 @@ const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 function timeToMinutes(t: string) { const [h, m] = t.split(':').map(Number); return h * 60 + m }
 function minutesToTime(m: number) { return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}` }
 
+const DAY_NAMES = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+const MONTH_NAMES = ['janvier', 'fevrier', 'mars', 'avril', 'mai', 'juin', 'juillet', 'aout', 'septembre', 'octobre', 'novembre', 'decembre']
+
+function formatDateFr(dateStr: string) {
+  const d = new Date(dateStr)
+  return `${DAY_NAMES[d.getDay()]} ${d.getDate()} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`
+}
+
 export default function ReceptionBooking() {
+  const user = useAuthStore((s) => s.user)
   const [bases, setBases] = useState<Base[]>([])
   const [configs, setConfigs] = useState<DockConfig[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
@@ -72,6 +82,14 @@ export default function ReceptionBooking() {
   const [selectedBaseId, setSelectedBaseId] = useState<number | ''>('')
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10))
   const [selectedDockType, setSelectedDockType] = useState<string>('')
+
+  // Verifier si l'utilisateur peut modifier un booking / Check if user can edit a booking
+  const canEdit = useCallback((b: Booking) => {
+    if (!user) return false
+    if (user.is_superadmin) return true
+    if (b.created_by_user_id === user.id) return true
+    return user.permissions.includes('reception-booking:update') || user.permissions.includes('*:*')
+  }, [user])
 
   // Dialogs
   const [tab, setTab] = useState<'planning' | 'config' | 'import'>('planning')
@@ -371,7 +389,19 @@ export default function ReceptionBooking() {
         title={`${booking.supplier_name || '?'} — ${booking.pallet_count} pal. — ${booking.start_time}-${booking.end_time}`}
         onClick={(e) => { e.stopPropagation(); openEditBooking(booking) }}
       >
-        <div className="font-bold truncate" style={{ color }}>{booking.supplier_name || 'Sans nom'}</div>
+        <div className="flex items-center gap-1">
+          {/* Indicateurs visuels / Visual indicators */}
+          {booking.orders.some((o) => o.reconciled) && (
+            <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#22c55e' }} title="Rapproche avec import" />
+          )}
+          {booking.is_locked && (
+            <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#ef4444' }} title="Verrouille — ne pas deplacer/refuser" />
+          )}
+          {booking.notes && (
+            <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#3b82f6' }} title="Note" />
+          )}
+          <span className="font-bold truncate" style={{ color }}>{booking.supplier_name || 'Sans nom'}</span>
+        </div>
         <div className="truncate" style={{ color: 'var(--text-primary)' }}>
           {booking.orders.map((o) => o.order_number).join(', ') || '—'} · {booking.pallet_count} pal.
         </div>
@@ -464,8 +494,8 @@ export default function ReceptionBooking() {
             + Booking
           </button>
         )}
-        <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-          {DAY_LABELS[selectedDow]}
+        <span className="text-sm font-semibold px-3 py-1" style={{ color: 'var(--text-primary)' }}>
+          {formatDateFr(selectedDate)}
         </span>
       </div>
 
@@ -510,14 +540,20 @@ export default function ReceptionBooking() {
                   gridTemplateColumns: `60px repeat(${columns.length}, minmax(120px, 1fr))`,
                   gap: '1px',
                 }}>
-                  {/* Header colonnes — un par quai physique */}
+                  {/* Header colonnes — un par quai physique, séparateur entre types */}
                   <div className="text-[10px] font-medium px-1 py-1" style={{ color: 'var(--text-muted)' }}>Heure</div>
-                  {columns.map((col, ci) => (
-                    <div key={ci} className="text-[10px] font-medium px-1 py-1 text-center rounded-t"
-                      style={{ color: col.color, backgroundColor: `${col.color}10` }}>
-                      {col.label}
-                    </div>
-                  ))}
+                  {columns.map((col, ci) => {
+                    const isNewType = ci > 0 && columns[ci - 1].dockType !== col.dockType
+                    return (
+                      <div key={ci} className="text-[10px] font-medium px-1 py-1 text-center rounded-t"
+                        style={{
+                          color: col.color, backgroundColor: `${col.color}10`,
+                          borderLeft: isNewType ? `2px solid ${col.color}` : undefined,
+                        }}>
+                        {col.label}
+                      </div>
+                    )
+                  })}
 
                   {/* Lignes — un par créneau 15 min */}
                   {timeSlots.map((slotTime, si) => (
@@ -528,6 +564,7 @@ export default function ReceptionBooking() {
                       </div>
                       {columns.map((col, ci) => {
                         const booking = bookingMatrix[si]?.[ci] || null
+                        const isNewType = ci > 0 && columns[ci - 1].dockType !== col.dockType
                         return (
                           <div
                             key={`d-${slotTime}-${ci}`}
@@ -537,6 +574,7 @@ export default function ReceptionBooking() {
                               backgroundColor: booking ? 'transparent' : 'var(--bg-primary)',
                               height: '28px',
                               cursor: booking || !selectedBaseId ? 'default' : 'pointer',
+                              borderLeft: isNewType ? `2px solid ${col.color}` : undefined,
                             }}
                             onClick={() => !booking && selectedBaseId && openNewBooking(col.dockType, slotTime, col.dockNumber)}
                           >
@@ -571,8 +609,19 @@ export default function ReceptionBooking() {
                   {bookings.map((b) => (
                     <tr key={b.id} className="border-t hover:opacity-80" style={{ borderColor: 'var(--border-color)' }}>
                       <td className="px-3 py-2 cursor-pointer" style={{ color: 'var(--text-primary)' }} onClick={() => openEditBooking(b)}>
-                        {b.supplier_name || '—'}
-                        {b.notes && <div className="text-[10px] truncate max-w-[150px]" style={{ color: 'var(--text-muted)' }}>{b.notes}</div>}
+                        <div className="flex items-center gap-1.5">
+                          {b.orders.some((o) => o.reconciled) && (
+                            <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#22c55e' }} title="Rapproche" />
+                          )}
+                          {b.is_locked && (
+                            <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#ef4444' }} title="Verrouille" />
+                          )}
+                          {b.notes && (
+                            <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#3b82f6' }} title="Note" />
+                          )}
+                          <span>{b.supplier_name || '—'}</span>
+                        </div>
+                        {b.notes && <div className="text-[10px] truncate max-w-[200px]" style={{ color: 'var(--text-muted)' }}>{b.notes}</div>}
                       </td>
                       <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>
                         {b.orders.map((o) => o.order_number).join(', ') || '—'}
@@ -596,7 +645,9 @@ export default function ReceptionBooking() {
                       <td className="px-3 py-2 text-right">
                         <div className="flex gap-1 justify-end flex-wrap">
                           <button onClick={() => openEditBooking(b)}
-                            className="px-2 py-1 rounded text-xs" style={{ color: 'var(--color-primary)', backgroundColor: 'var(--bg-tertiary)' }}>Modifier</button>
+                            className="px-2 py-1 rounded text-xs" style={{ color: 'var(--color-primary)', backgroundColor: 'var(--bg-tertiary)' }}>
+                            {canEdit(b) ? 'Modifier' : 'Voir'}
+                          </button>
                           {b.status === 'CHECKED_IN' && (
                             <button onClick={() => handleBookingAction(b.id, 'at-dock')}
                               className="px-2 py-1 rounded text-xs text-white" style={{ backgroundColor: '#f59e0b' }}>A quai</button>
@@ -605,7 +656,7 @@ export default function ReceptionBooking() {
                             <button onClick={() => handleBookingAction(b.id, 'departed')}
                               className="px-2 py-1 rounded text-xs text-white" style={{ backgroundColor: '#22c55e' }}>Parti</button>
                           )}
-                          {!['COMPLETED', 'CANCELLED', 'REFUSED'].includes(b.status) && (
+                          {canEdit(b) && !['COMPLETED', 'CANCELLED', 'REFUSED'].includes(b.status) && (
                             <>
                               <button onClick={() => handleBookingAction(b.id, 'refuse')}
                                 className="px-2 py-1 rounded text-xs" style={{ color: '#ef4444', backgroundColor: '#ef444420' }}>Refuser</button>
@@ -613,8 +664,10 @@ export default function ReceptionBooking() {
                                 className="px-2 py-1 rounded text-xs" style={{ color: '#6b7280', backgroundColor: '#6b728020' }}>Annuler</button>
                             </>
                           )}
-                          <button onClick={() => handleDeleteBooking(b.id)}
-                            className="px-2 py-1 rounded text-xs" style={{ color: '#ef4444', backgroundColor: '#ef444410' }}>Suppr.</button>
+                          {canEdit(b) && (
+                            <button onClick={() => handleDeleteBooking(b.id)}
+                              className="px-2 py-1 rounded text-xs" style={{ color: '#ef4444', backgroundColor: '#ef444410' }}>Suppr.</button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -724,7 +777,13 @@ export default function ReceptionBooking() {
           <div className="w-full max-w-md rounded-xl border shadow-2xl p-6"
             style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
             onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold mb-4" style={{ color: 'var(--text-primary)' }}>{editBookingId ? 'Modifier booking' : 'Nouveau booking'}</h2>
+            {(() => {
+              const editedBooking = editBookingId ? bookings.find((b) => b.id === editBookingId) : null
+              const readOnly = editedBooking ? !canEdit(editedBooking) : false
+              return (<>
+            <h2 className="text-lg font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
+              {readOnly ? 'Detail booking' : (editBookingId ? 'Modifier booking' : 'Nouveau booking')}
+            </h2>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -781,14 +840,20 @@ export default function ReceptionBooking() {
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={() => setShowBookDialog(false)} className="px-4 py-2 rounded-lg text-sm"
-                style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>Annuler</button>
-              <button onClick={handleSaveBooking}
-                disabled={saving || !bkDockType || !bkStartTime || !bkPallets}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-                style={{ backgroundColor: 'var(--color-primary)' }}>
-                {saving ? 'Enregistrement...' : (editBookingId ? 'Enregistrer' : 'Creer')}
+                style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>
+                {readOnly ? 'Fermer' : 'Annuler'}
               </button>
+              {!readOnly && (
+                <button onClick={handleSaveBooking}
+                  disabled={saving || !bkDockType || !bkStartTime || !bkPallets}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--color-primary)' }}>
+                  {saving ? 'Enregistrement...' : (editBookingId ? 'Enregistrer' : 'Creer')}
+                </button>
+              )}
             </div>
+              </>)
+            })()}
           </div>
         </div>
       )}
