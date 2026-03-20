@@ -1,4 +1,5 @@
-/* Composant impression etiquettes reprises / Pickup label print component */
+/* Composant impression etiquettes reprises / Pickup label print component
+   Impression sur Zebra ZD421 — format A6 105x148.5mm, 1 etiquette par label */
 
 import { useEffect, useRef, useCallback } from 'react'
 import JsBarcode from 'jsbarcode'
@@ -44,44 +45,57 @@ function BarcodeLabel({
     if (svgRef.current) {
       JsBarcode(svgRef.current, label.label_code, {
         format: 'CODE128',
-        width: 1.5,
-        height: 50,
+        width: 2,
+        height: 60,
         displayValue: false,
-        margin: 4,
+        margin: 2,
       })
     }
   }, [label.label_code])
 
   return (
     <div className="pickup-label-card" style={{
-      border: '1px solid #333',
-      borderRadius: '6px',
-      padding: '10px',
-      pageBreakInside: 'avoid',
+      width: '105mm',
+      height: '148.5mm',
+      padding: '6mm',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      gap: '4px',
+      justifyContent: 'center',
+      gap: '3mm',
+      boxSizing: 'border-box',
+      pageBreakAfter: 'always',
     }}>
-      <div style={{ fontWeight: 'bold', fontSize: '11px', textAlign: 'center' }}>
+      <div style={{ fontWeight: 'bold', fontSize: '16px', textAlign: 'center', textTransform: 'uppercase' }}>
         {PICKUP_LABEL_HEADERS[pickupType || 'CONTAINER'] || 'REPRISE CONTENANTS'}
       </div>
-      <svg ref={svgRef} />
-      <div style={{ fontSize: '10px', fontFamily: 'monospace', textAlign: 'center' }}>
+
+      <svg ref={svgRef} style={{ maxWidth: '90mm' }} />
+
+      <div style={{ fontSize: '12px', fontFamily: 'monospace', textAlign: 'center', letterSpacing: '1px' }}>
         {label.label_code}
       </div>
-      <div style={{ fontSize: '10px', textAlign: 'center' }}>
-        <strong>{pdvCode}</strong> - {pdvName}
+
+      <div style={{ fontSize: '14px', textAlign: 'center', fontWeight: 'bold', marginTop: '2mm' }}>
+        {pdvCode}
       </div>
+      <div style={{ fontSize: '12px', textAlign: 'center' }}>
+        {pdvName}
+      </div>
+
       {supportTypeImageUrl && (
         <img
           src={supportTypeImageUrl}
           alt={supportTypeName}
-          style={{ width: 60, height: 60, objectFit: 'contain' }}
+          style={{ width: '20mm', height: '20mm', objectFit: 'contain' }}
         />
       )}
-      <div style={{ fontSize: '10px', textAlign: 'center' }}>
-        {supportTypeName} &mdash; {label.sequence_number}/{total}
+
+      <div style={{ fontSize: '13px', textAlign: 'center', fontWeight: 'bold' }}>
+        {supportTypeName}
+      </div>
+      <div style={{ fontSize: '11px', textAlign: 'center', color: '#666' }}>
+        {label.sequence_number} / {total}
       </div>
     </div>
   )
@@ -89,51 +103,51 @@ function BarcodeLabel({
 
 export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pickupType, supportTypeImageUrl, onClose }: PickupLabelPrintProps) {
   const handlePrint = useCallback(() => {
-    // Injecter @page portrait dans le <head> avant impression
     const styleId = 'pickup-label-print-style'
-    // Supprimer si deja present
     document.getElementById(styleId)?.remove()
 
     const style = document.createElement('style')
     style.id = styleId
     style.textContent = `
-      @page { size: A4 portrait !important; margin: 10mm; }
+      @page {
+        size: 105mm 148.5mm;
+        margin: 0;
+      }
       @media print {
-        /* Masquer tout sauf les etiquettes */
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          width: 105mm !important;
+        }
         body > *:not(#pickup-label-print-root) { display: none !important; }
         #pickup-label-print-root > .pickup-label-no-print { display: none !important; }
         #pickup-label-print-root {
           position: fixed !important;
           left: 0; top: 0;
-          width: 100%; height: auto;
-          z-index: 99999;
-          background: white !important;
-        }
-        .pickup-label-grid {
-          display: grid !important;
-          grid-template-columns: repeat(2, 1fr) !important;
-          gap: 10px !important;
+          width: 105mm !important;
         }
         .pickup-label-card {
+          page-break-after: always;
           page-break-inside: avoid;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
+        }
+        .pickup-label-card:last-child {
+          page-break-after: auto;
         }
       }
     `
     document.head.appendChild(style)
 
-    // Imprimer
     setTimeout(() => {
       window.print()
-      // Nettoyer apres impression
-      setTimeout(() => { document.getElementById(styleId)?.remove() }, 500)
+      setTimeout(() => { document.getElementById(styleId)?.remove() }, 1000)
     }, 100)
   }, [])
 
   return (
     <div id="pickup-label-print-root">
-      {/* Boutons (masques a l'impression) */}
+      {/* Boutons */}
       <div className="pickup-label-no-print" style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
         <button
           onClick={handlePrint}
@@ -151,23 +165,24 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
         </button>
       </div>
 
-      {/* Grille d'etiquettes */}
-      <div className="pickup-label-grid" style={{
+      {/* Preview : grille 2 colonnes a l'ecran, 1 par page a l'impression */}
+      <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: '12px',
+        gridTemplateColumns: 'repeat(auto-fill, 105mm)',
+        gap: '8px',
       }}>
         {labels.map((label) => (
-          <BarcodeLabel
-            key={label.id}
-            label={label}
-            pdvCode={pdvCode}
-            pdvName={pdvName}
-            supportTypeName={supportTypeName}
-            pickupType={pickupType}
-            supportTypeImageUrl={supportTypeImageUrl}
-            total={labels.length}
-          />
+          <div key={label.id} style={{ border: '1px dashed #ccc', borderRadius: '4px' }}>
+            <BarcodeLabel
+              label={label}
+              pdvCode={pdvCode}
+              pdvName={pdvName}
+              supportTypeName={supportTypeName}
+              pickupType={pickupType}
+              supportTypeImageUrl={supportTypeImageUrl}
+              total={labels.length}
+            />
+          </div>
         ))}
       </div>
     </div>
