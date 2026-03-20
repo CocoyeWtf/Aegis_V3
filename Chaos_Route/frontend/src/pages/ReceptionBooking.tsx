@@ -849,7 +849,7 @@ export default function ReceptionBooking() {
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={() => setShowBookDialog(false)} className="px-4 py-2 rounded-lg text-sm"
                 style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>
-                {readOnly ? 'Fermer' : 'Annuler'}
+                Fermer
               </button>
               {!readOnly && !['COMPLETED', 'CANCELLED', 'REFUSED'].includes(editedBooking?.status || '') && (
                 <button onClick={handleSaveBooking}
