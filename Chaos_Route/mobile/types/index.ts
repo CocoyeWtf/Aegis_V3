@@ -68,6 +68,7 @@ export interface DriverTour {
   vehicle_code?: string
   vehicle_name?: string
   driver_name?: string
+  temperature_type?: string
   stops: DriverTourStop[]
 }
 

@@ -29,6 +29,7 @@ from app.models.tour_manifest_line import TourManifestLine
 from app.models.base_logistics import BaseLogistics
 from app.models.contract import Contract
 from app.models.pickup_request import PickupLabel, PickupRequest, PickupMovement, LabelStatus, PickupType, MovementType
+from app.models.temperature_check import TemperatureCheck, TempCheckpoint
 from app.schemas.mobile import (
     AvailableTourRead,
     DriverTourRead,
@@ -204,6 +205,7 @@ async def _build_tour_read(tour: Tour, db: AsyncSession) -> DriverTourRead:
         vehicle_code=contract.vehicle_code if contract else None,
         vehicle_name=contract.vehicle_name if contract else None,
         driver_name=tour.driver_name,
+        temperature_type=tour.temperature_type,
         stops=_build_tour_stops(tour.stops, pdv_map, support_counts, pickup_label_counts, pickup_summary_map),
     )
 
@@ -369,6 +371,50 @@ async def get_driver_tour(
         raise HTTPException(status_code=404, detail="Tour not found")
 
     return await _build_tour_read(tour, db)
+
+
+@router.post("/tour/{tour_id}/temp-check")
+async def driver_temp_check(
+    tour_id: int,
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(require_device_tour_access),
+):
+    """Controle temperature chauffeur / Driver temperature check (departure + each stop).
+
+    Body: { checkpoint: "DEPARTURE_CHECK"|"STOP_CHECK", tour_stop_id?: int,
+            cooling_unit_ok: bool, setpoint_ok: bool, setpoint_temperature: float }
+    """
+    checkpoint_str = data.get("checkpoint", "STOP_CHECK")
+    try:
+        checkpoint = TempCheckpoint(checkpoint_str)
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"Checkpoint invalide: {checkpoint_str}")
+
+    cooling_ok = data.get("cooling_unit_ok", False)
+    setpoint_ok = data.get("setpoint_ok", False)
+    setpoint_temp = data.get("setpoint_temperature", 0.0)
+    tour_stop_id = data.get("tour_stop_id")
+
+    # Temperature = setpoint si chauffeur confirme OK, sinon 999 pour marquer NOK
+    temperature = float(setpoint_temp) if (cooling_ok and setpoint_ok) else 999.0
+    notes = "OK" if (cooling_ok and setpoint_ok) else "NOK — chauffeur a signale un probleme"
+
+    check = TemperatureCheck(
+        tour_id=tour_id,
+        tour_stop_id=tour_stop_id,
+        checkpoint=checkpoint,
+        temperature=temperature,
+        setpoint_temperature=float(setpoint_temp),
+        cooling_unit_ok=bool(cooling_ok and setpoint_ok),
+        device_id=device.id,
+        timestamp=_now_iso(),
+        notes=notes,
+    )
+    db.add(check)
+    await db.flush()
+
+    return {"id": check.id, "ok": bool(cooling_ok and setpoint_ok)}
 
 
 @router.post("/switch-driver")

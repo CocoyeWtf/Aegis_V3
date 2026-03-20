@@ -200,6 +200,7 @@ class DriverTourRead(BaseModel):
     vehicle_code: str | None = None
     vehicle_name: str | None = None
     driver_name: str | None = None
+    temperature_type: str | None = None
     stops: list[DriverTourStopRead] = []
 
 

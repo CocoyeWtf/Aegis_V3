@@ -1,12 +1,17 @@
-/* Scanner QR PDV / PDV QR scanner screen */
+/* Scanner QR PDV / PDV QR scanner screen.
+   Apres scan reussi, controle temperature obligatoire si tour temperature. */
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native'
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import api from '../../../../../services/api'
 import { COLORS } from '../../../../../constants/config'
 import { TorchToggleButton } from '../../../../../components/TorchToggleButton'
+import { TempCheckModal } from '../../../../../components/TempCheckModal'
+import type { DriverTour } from '../../../../../types'
+
+const TEMP_TYPES_REQUIRING_CHECK = ['FRAIS', 'GEL', 'BI_TEMP', 'TRI_TEMP']
 
 export default function ScanPdvScreen() {
   const { id, stopId } = useLocalSearchParams<{ id: string; stopId: string }>()
@@ -17,8 +22,28 @@ export default function ScanPdvScreen() {
   const [torchOn, setTorchOn] = useState(false)
   const scannedRef = useRef(false)
 
+  // Temperature check state
+  const [showTempCheck, setShowTempCheck] = useState(false)
+  const [tourTempType, setTourTempType] = useState<string | null>(null)
+  const [isFirstStop, setIsFirstStop] = useState(false)
+
   const tourId = Number(id)
   const tourStopId = Number(stopId)
+
+  // Charger le tour pour connaitre le temperature_type / Load tour to know temperature_type
+  useEffect(() => {
+    api.get<DriverTour>(`/driver/tour/${tourId}`).then(({ data }) => {
+      setTourTempType(data.temperature_type || null)
+      // Premier stop = tour pas encore IN_PROGRESS / First stop = tour not yet IN_PROGRESS
+      setIsFirstStop(data.status === 'VALIDATED' || data.status === 'DRAFT')
+    }).catch(() => {})
+  }, [tourId])
+
+  const needsTempCheck = tourTempType != null && TEMP_TYPES_REQUIRING_CHECK.includes(tourTempType)
+
+  const navigateToSupports = () => {
+    router.replace(`/tour/${tourId}/stop/${tourStopId}/supports`)
+  }
 
   const handleBarCodeScanned = async ({ data: rawData }: { data: string }) => {
     const data = rawData.trim()
@@ -32,12 +57,16 @@ export default function ScanPdvScreen() {
         scanned_pdv_code: data,
         timestamp: new Date().toISOString(),
       })
-      Alert.alert('Succes', 'PDV valide ! Passez au scan des supports.', [
-        {
-          text: 'OK',
-          onPress: () => router.replace(`/tour/${tourId}/stop/${tourStopId}/supports`),
-        },
-      ])
+
+      if (needsTempCheck) {
+        // Montrer le controle temperature avant de continuer / Show temp check before proceeding
+        setLoading(false)
+        setShowTempCheck(true)
+      } else {
+        Alert.alert('Succes', 'PDV valide ! Passez au scan des supports.', [
+          { text: 'OK', onPress: navigateToSupports },
+        ])
+      }
     } catch (e: unknown) {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur'
       Alert.alert('Erreur', detail, [
@@ -98,6 +127,25 @@ export default function ScanPdvScreen() {
       <TouchableOpacity onPress={() => router.back()} style={styles.cancelBtn}>
         <Text style={styles.cancelText}>Annuler</Text>
       </TouchableOpacity>
+
+      {/* Modal controle temperature / Temperature check modal */}
+      {needsTempCheck && (
+        <TempCheckModal
+          visible={showTempCheck}
+          tourId={tourId}
+          tourStopId={tourStopId}
+          checkpoint={isFirstStop ? 'DEPARTURE_CHECK' : 'STOP_CHECK'}
+          temperatureType={tourTempType!}
+          onComplete={() => {
+            setShowTempCheck(false)
+            navigateToSupports()
+          }}
+          onCancel={() => {
+            setShowTempCheck(false)
+            router.back()
+          }}
+        />
+      )}
     </View>
   )
 }
