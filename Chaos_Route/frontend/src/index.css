@@ -48,8 +48,6 @@ body {
    mais on conserve les couleurs d'accent (orange, rouge, vert) pour
    garder la même lisibilité qu'à l'écran. */
 @media print {
-  @page { margin: 10mm; }
-
   /* Fond blanc, texte noir, couleurs d'accent conservées / White bg, black text, accent colors kept */
   :root {
     --bg-primary: #fff !important;

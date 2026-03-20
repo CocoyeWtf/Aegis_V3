@@ -1,5 +1,4 @@
-/* Composant impression etiquettes reprises / Pickup label print component
-   Ouvre une fenetre dediee pour forcer portrait / Opens dedicated window to force portrait */
+/* Composant impression etiquettes reprises / Pickup label print component */
 
 import { useEffect, useRef, useCallback } from 'react'
 import JsBarcode from 'jsbarcode'
@@ -54,7 +53,7 @@ function BarcodeLabel({
   }, [label.label_code])
 
   return (
-    <div className="label-card" style={{
+    <div className="pickup-label-card" style={{
       border: '1px solid #333',
       borderRadius: '6px',
       padding: '10px',
@@ -78,7 +77,6 @@ function BarcodeLabel({
         <img
           src={supportTypeImageUrl}
           alt={supportTypeName}
-          className="label-img"
           style={{ width: 60, height: 60, objectFit: 'contain' }}
         />
       )}
@@ -90,83 +88,53 @@ function BarcodeLabel({
 }
 
 export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pickupType, supportTypeImageUrl, onClose }: PickupLabelPrintProps) {
-  const gridRef = useRef<HTMLDivElement>(null)
-
   const handlePrint = useCallback(() => {
-    if (!gridRef.current) return
+    // Injecter @page portrait dans le <head> avant impression
+    const styleId = 'pickup-label-print-style'
+    // Supprimer si deja present
+    document.getElementById(styleId)?.remove()
 
-    // Ouvrir une fenetre dediee pour controler @page / Open dedicated window
-    const printWindow = window.open('', '_blank', 'width=800,height=600')
-    if (!printWindow) {
-      alert('Le navigateur a bloque la fenetre popup. Autorisez les popups pour ce site.')
-      return
-    }
-
-    // Copier le contenu HTML des etiquettes
-    const content = gridRef.current.innerHTML
-
-    printWindow.document.write(`<!DOCTYPE html>
-<html>
-<head>
-<title>Etiquettes reprises</title>
-<style>
-  @page {
-    size: A4 portrait;
-    margin: 10mm;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, Helvetica, sans-serif; }
-  .label-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    padding: 0;
-  }
-  .label-card {
-    border: 1px solid #333;
-    border-radius: 6px;
-    padding: 10px;
-    page-break-inside: avoid;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-  }
-  .label-img {
-    width: 60px;
-    height: 60px;
-    object-fit: contain;
-  }
-</style>
-</head>
-<body>
-<div class="label-grid">
-${content}
-</div>
-</body>
-</html>`)
-    printWindow.document.close()
-
-    // Attendre le chargement des images puis imprimer
-    printWindow.onload = () => {
-      setTimeout(() => {
-        printWindow.print()
-        printWindow.close()
-      }, 300)
-    }
-    // Fallback si onload ne se declenche pas
-    setTimeout(() => {
-      if (!printWindow.closed) {
-        printWindow.print()
-        printWindow.close()
+    const style = document.createElement('style')
+    style.id = styleId
+    style.textContent = `
+      @page { size: A4 portrait !important; margin: 10mm; }
+      @media print {
+        /* Masquer tout sauf les etiquettes */
+        body > *:not(#pickup-label-print-root) { display: none !important; }
+        #pickup-label-print-root > .pickup-label-no-print { display: none !important; }
+        #pickup-label-print-root {
+          position: fixed !important;
+          left: 0; top: 0;
+          width: 100%; height: auto;
+          z-index: 99999;
+          background: white !important;
+        }
+        .pickup-label-grid {
+          display: grid !important;
+          grid-template-columns: repeat(2, 1fr) !important;
+          gap: 10px !important;
+        }
+        .pickup-label-card {
+          page-break-inside: avoid;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
       }
-    }, 1500)
+    `
+    document.head.appendChild(style)
+
+    // Imprimer
+    setTimeout(() => {
+      window.print()
+      // Nettoyer apres impression
+      setTimeout(() => { document.getElementById(styleId)?.remove() }, 500)
+    }, 100)
   }, [])
 
   return (
-    <div>
-      {/* Boutons / Buttons */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+    <div id="pickup-label-print-root">
+      {/* Boutons (masques a l'impression) */}
+      <div className="pickup-label-no-print" style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
         <button
           onClick={handlePrint}
           className="px-4 py-2 rounded-lg text-sm font-medium text-white"
@@ -183,8 +151,8 @@ ${content}
         </button>
       </div>
 
-      {/* Grille d'etiquettes (preview + source pour impression) / Label grid */}
-      <div ref={gridRef} className="label-grid" style={{
+      {/* Grille d'etiquettes */}
+      <div className="pickup-label-grid" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(2, 1fr)',
         gap: '12px',
