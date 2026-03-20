@@ -117,10 +117,10 @@ const PRINT_CSS_A4 = `
   }
 `
 
-/* CSS impression Zebra : 1 etiquette par page, taille label / Zebra print: 1 label per page */
+/* CSS impression Zebra : 1 etiquette par page, taille label x2 / Zebra print: 1 label per page, doubled */
 const PRINT_CSS_ZEBRA = `
   @page {
-    size: 105mm 148.5mm;
+    size: 210mm 297mm;
     margin: 0;
   }
   @media print {
@@ -128,7 +128,7 @@ const PRINT_CSS_ZEBRA = `
     html, body {
       margin: 0 !important;
       padding: 0 !important;
-      width: 105mm !important;
+      width: 210mm !important;
       background: #fff !important;
     }
     body * { visibility: hidden; }
@@ -137,15 +137,15 @@ const PRINT_CSS_ZEBRA = `
       position: fixed;
       left: 0;
       top: 0;
-      width: 105mm !important;
+      width: 210mm !important;
       display: block !important;
       padding: 0 !important;
     }
     .label-card {
       visibility: visible;
-      width: 105mm !important;
-      height: 148.5mm !important;
-      padding: 6mm !important;
+      width: 210mm !important;
+      height: 297mm !important;
+      padding: 12mm !important;
       margin: 0 !important;
       border: none !important;
       border-radius: 0 !important;
@@ -154,15 +154,15 @@ const PRINT_CSS_ZEBRA = `
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 3mm;
+      gap: 6mm;
       page-break-after: always;
       page-break-inside: avoid;
       background: #fff !important;
       color: #000 !important;
     }
     .label-card:last-child { page-break-after: auto; }
-    .label-card svg { max-width: 90mm !important; height: auto !important; }
-    .label-card div { font-size: 14px !important; }
+    .label-card svg { max-width: 180mm !important; height: auto !important; }
+    .label-card div { font-size: 28px !important; }
     .label-img {
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
