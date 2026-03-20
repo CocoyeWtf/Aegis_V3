@@ -748,17 +748,21 @@ export default function PdvPickupRequests() {
                     {req.notes || '—'}
                   </td>
                   <td className="text-center px-4 py-3">
-                    <button
-                      onClick={() => handlePrint(req)}
-                      className="px-3 py-1 rounded text-xs font-medium"
-                      style={{
-                        backgroundColor: 'var(--bg-tertiary)',
-                        color: 'var(--text-primary)',
-                      }}
-                      title="Imprimer les etiquettes"
-                    >
-                      Etiquettes
-                    </button>
+                    {req.status === 'PICKED_UP' || req.status === 'RECEIVED' ? (
+                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Scanne</span>
+                    ) : (
+                      <button
+                        onClick={() => handlePrint(req)}
+                        className="px-3 py-1 rounded text-xs font-medium"
+                        style={{
+                          backgroundColor: 'var(--bg-tertiary)',
+                          color: 'var(--text-primary)',
+                        }}
+                        title="Imprimer les etiquettes"
+                      >
+                        Etiquettes
+                      </button>
+                    )}
                   </td>
                 </tr>
               )
