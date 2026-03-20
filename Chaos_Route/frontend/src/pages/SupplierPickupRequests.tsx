@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../services/api'
 import type {
-  SupplierPickupRequest, SupplierPickupLine, StockAlert,
+  SupplierPickupRequest, StockAlert,
   Supplier, SupportType,
 } from '../types'
 
