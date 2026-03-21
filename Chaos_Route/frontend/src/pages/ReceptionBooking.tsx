@@ -423,13 +423,13 @@ export default function ReceptionBooking() {
     setShowConfigDialog(true)
   }
 
-  const openNewBooking = (dockType?: string, startTime?: string, dockNum?: number) => {
+  const openNewBooking = (dockType?: string, startTime?: string) => {
     setEditBookingId(null)
     setBkDockType(dockType || dockTypes[0] || 'SEC')
     setBkStartTime(startTime || timeSlots[0] || '06:00')
     setBkPallets(''); setBkSupplier(''); setBkOrderNum('')
     setBkLocked(false); setBkNotes('')
-    setBkDockNum(dockNum ? String(dockNum) : '')
+    setBkDockNum('')  // Toujours auto-assignation
     setShowBookDialog(true)
   }
 
@@ -771,7 +771,7 @@ export default function ReceptionBooking() {
                               cursor: booking || !selectedBaseId ? 'default' : 'pointer',
                               padding: '0 3px',
                             }}
-                            onClick={() => !booking && selectedBaseId && openNewBooking(col.dockType, slotTime, col.dockNumber)}
+                            onClick={() => !booking && selectedBaseId && openNewBooking(col.dockType, slotTime)}
                           >
                             {booking ? renderBookingBlock(booking, slotTime) : null}
                           </div>
