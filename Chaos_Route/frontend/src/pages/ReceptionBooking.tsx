@@ -176,17 +176,18 @@ export default function ReceptionBooking() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
+      // Fetch en parallele, chaque appel independant / Parallel fetch, each independent
       const [baseRes, configRes, bookingRes] = await Promise.all([
-        api.get('/bases/'),
-        api.get('/reception-booking/dock-configs/', { params: { base_id: selectedBaseId || undefined } }),
+        api.get('/bases/').catch(() => ({ data: [] })),
+        api.get('/reception-booking/dock-configs/', { params: { base_id: selectedBaseId || undefined } }).catch(() => ({ data: [] })),
         api.get('/reception-booking/bookings/', {
           params: { base_id: selectedBaseId || undefined, date: selectedDate },
-        }),
+        }).catch(() => ({ data: [] })),
       ])
       setBases(baseRes.data)
       setConfigs(configRes.data)
       setBookings(bookingRes.data)
-      // Fetch overrides separement pour ne pas bloquer le reste / Fetch overrides separately
+      // Fetch overrides separement / Fetch overrides separately
       if (selectedBaseId) {
         try {
           const ovRes = await api.get('/reception-booking/schedule-overrides/', {
