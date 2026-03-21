@@ -217,64 +217,6 @@ export default function ReceptionBooking() {
     }
   }, [])
 
-  // Polling toutes les 20s pour détecter les nouvelles arrivées / Poll every 20s for new arrivals
-  useEffect(() => {
-    if (!isReception && !isGate) return
-    if (!selectedBaseId) return
-
-    const poll = async () => {
-      try {
-        const res = await api.get('/reception-booking/bookings/', {
-          params: { base_id: selectedBaseId, date: selectedDate, status: 'CHECKED_IN' },
-        })
-        const freshCheckedIn: Booking[] = res.data
-        const newArrivals = freshCheckedIn.filter((b) => !knownCheckedInIds.current.has(b.id))
-
-        if (knownCheckedInIds.current.size > 0 && newArrivals.length > 0) {
-          // Nouvelles arrivees detectees / New arrivals detected
-          for (const b of newArrivals) {
-            const msg = `${b.supplier_name || 'Chauffeur'} arrive — ${b.pallet_count} pal. ${DOCK_TYPE_LABELS[b.dock_type] || b.dock_type}`
-            setNotifications((prev) => [{ id: b.id, message: msg, time: new Date().toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) }, ...prev].slice(0, 10))
-
-            // Son
-            try { notifSound.current?.play() } catch { /* silent */ }
-
-            // Notification navigateur / Browser notification
-            if (Notification.permission === 'granted') {
-              new Notification('Chauffeur arrive', { body: msg, icon: '/favicon.ico' })
-            }
-          }
-          // Rafraichir les donnees principales / Refresh main data
-          fetchData()
-        }
-
-        // Mettre a jour les IDs connus / Update known IDs
-        knownCheckedInIds.current = new Set(freshCheckedIn.map((b) => b.id))
-      } catch { /* silent */ }
-    }
-
-    // Premier chargement : initialiser les IDs connus sans notifier / First load: init without notifying
-    const init = async () => {
-      try {
-        const res = await api.get('/reception-booking/bookings/', {
-          params: { base_id: selectedBaseId, date: selectedDate, status: 'CHECKED_IN' },
-        })
-        knownCheckedInIds.current = new Set((res.data as Booking[]).map((b) => b.id))
-      } catch { /* silent */ }
-    }
-    init()
-
-    const interval = setInterval(poll, 20000)
-    return () => clearInterval(interval)
-  }, [isReception, isGate, selectedBaseId, selectedDate, fetchData])
-
-  // Demander permission notifications navigateur / Request browser notification permission
-  useEffect(() => {
-    if ((isReception || isGate) && typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      Notification.requestPermission()
-    }
-  }, [isReception, isGate])
-
   // Garde : check-in
   const [gateOrderNum, setGateOrderNum] = useState('')
   const [gatePlate, setGatePlate] = useState('')
@@ -322,6 +264,50 @@ export default function ReceptionBooking() {
   }, [selectedBaseId, selectedDate])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // Polling toutes les 20s pour détecter les nouvelles arrivées / Poll every 20s for new arrivals
+  useEffect(() => {
+    if (!isReception && !isGate) return
+    if (!selectedBaseId) return
+
+    const poll = async () => {
+      try {
+        const res = await api.get('/reception-booking/bookings/', {
+          params: { base_id: selectedBaseId, date: selectedDate, status: 'CHECKED_IN' },
+        })
+        const freshCheckedIn: Booking[] = res.data
+        const newArrivals = freshCheckedIn.filter((b) => !knownCheckedInIds.current.has(b.id))
+
+        if (knownCheckedInIds.current.size > 0 && newArrivals.length > 0) {
+          for (const b of newArrivals) {
+            const msg = `${b.supplier_name || 'Chauffeur'} arrive — ${b.pallet_count} pal. ${DOCK_TYPE_LABELS[b.dock_type] || b.dock_type}`
+            setNotifications((prev) => [{ id: b.id, message: msg, time: new Date().toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) }, ...prev].slice(0, 10))
+            try { notifSound.current?.play() } catch { /* silent */ }
+            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+              new Notification('Chauffeur arrive', { body: msg, icon: '/favicon.ico' })
+            }
+          }
+          fetchData()
+        }
+        knownCheckedInIds.current = new Set(freshCheckedIn.map((b) => b.id))
+      } catch { /* silent */ }
+    }
+
+    api.get('/reception-booking/bookings/', {
+      params: { base_id: selectedBaseId, date: selectedDate, status: 'CHECKED_IN' },
+    }).then((res) => {
+      knownCheckedInIds.current = new Set((res.data as Booking[]).map((b) => b.id))
+    }).catch(() => {})
+
+    const interval = setInterval(poll, 20000)
+    return () => clearInterval(interval)
+  }, [isReception, isGate, selectedBaseId, selectedDate, fetchData])
+
+  useEffect(() => {
+    if ((isReception || isGate) && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+  }, [isReception, isGate])
 
   // Charger pickups si vue transport / Fetch pickups for transport view
   const fetchPickups = useCallback(async () => {
