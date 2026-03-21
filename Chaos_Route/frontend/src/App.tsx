@@ -29,6 +29,7 @@ const Operations = lazy(() => import('./pages/Operations'))
 const GuardPost = lazy(() => import('./pages/GuardPost'))
 const GuardPostDelivery = lazy(() => import('./pages/GuardPostDelivery'))
 const SupplierPortal = lazy(() => import('./pages/SupplierPortal'))
+const DriverKiosk = lazy(() => import('./pages/DriverKiosk'))
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'))
 const RoleManagement = lazy(() => import('./pages/admin/RoleManagement'))
 const AuditLog = lazy(() => import('./pages/AuditLog'))
@@ -77,6 +78,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/supplier-portal" element={<SupplierPortal />} />
+        <Route path="/driver-kiosk" element={<DriverKiosk />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/map-detached" element={<DetachedMap />} />
           <Route element={<MainLayout />}>

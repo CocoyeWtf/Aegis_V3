@@ -1020,14 +1020,37 @@ async def create_booking(
     await db.flush()
 
     for order_data in data.orders:
-        db.add(BookingOrder(
+        bo = BookingOrder(
             booking_id=booking.id, order_number=order_data.order_number,
             pallet_count=order_data.pallet_count, cnuf=order_data.cnuf,
             filiale=order_data.filiale, operation=order_data.operation,
             delivery_date_required=order_data.delivery_date_required,
             delivery_time_requested=order_data.delivery_time_requested,
             supplier_name=order_data.supplier_name,
-        ))
+        )
+        db.add(bo)
+        await db.flush()
+
+        # Reconciliation inverse : enrichir depuis OrderImport si non reconcilie / Reverse reconcile
+        oi_result = await db.execute(
+            select(OrderImport).where(
+                OrderImport.order_number == order_data.order_number,
+                OrderImport.reconciled == False,
+            ).limit(1)
+        )
+        oi = oi_result.scalar_one_or_none()
+        if oi:
+            bo.cnuf = bo.cnuf or oi.cnuf
+            bo.filiale = bo.filiale or oi.filiale
+            bo.operation = bo.operation or oi.operation
+            bo.pallet_count = bo.pallet_count or oi.pallet_count
+            bo.delivery_date_required = bo.delivery_date_required or oi.delivery_date
+            bo.delivery_time_requested = bo.delivery_time_requested or oi.delivery_time
+            bo.article_count = oi.article_count
+            bo.supplier_name = bo.supplier_name or oi.supplier_name
+            bo.reconciled = True
+            oi.reconciled = True
+            oi.booking_id = booking.id
 
     await db.flush()
     await _log_booking_audit(db, booking.id, "CREATE", user, {
