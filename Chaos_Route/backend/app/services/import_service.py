@@ -302,4 +302,5 @@ class ImportService:
                        "capacity_eqp", "capacity_weight_kg", "has_tailgate", "tailgate_type"],
         "distances": ["origin_type", "origin_id", "destination_type", "destination_id", "distance_km", "duration_minutes"],
         "km-tax": ["origin_type", "origin_id", "destination_type", "destination_id", "tax_per_km"],
+        "cnuf-temperatures": ["cnuf", "filiale", "temperature_type", "label", "base_id"],
     }

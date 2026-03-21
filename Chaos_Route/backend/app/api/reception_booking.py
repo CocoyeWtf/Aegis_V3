@@ -1850,6 +1850,14 @@ async def import_orders(
         except Exception as e:
             errors.append(f"Ligne {r + 1}: {e}")
 
+    # Pre-charger les mappings CNUF → température / Pre-load CNUF → temperature mappings
+    from app.models.cnuf_temperature import CnufTemperature
+    cnuf_temp_result = await db.execute(select(CnufTemperature))
+    cnuf_temp_map: dict[tuple[str, str], str] = {
+        (ct.cnuf, ct.filiale): ct.temperature_type
+        for ct in cnuf_temp_result.scalars().all()
+    }
+
     # Inserer / Insert
     batch_id = str(uuid.uuid4())[:8]
     from zoneinfo import ZoneInfo
@@ -1888,6 +1896,12 @@ async def import_orders(
             bo.reconciled = True
             oi.reconciled = True
             oi.booking_id = bo.booking_id
+            # Auto-remplir temperature_type du booking via table CNUF / Auto-fill booking temperature from CNUF table
+            temp_key = (data_dict["cnuf"], data_dict["filiale"])
+            if temp_key in cnuf_temp_map:
+                booking_obj = await db.get(Booking, bo.booking_id)
+                if booking_obj and not booking_obj.temperature_type:
+                    booking_obj.temperature_type = cnuf_temp_map[temp_key]
             reconciled += 1
 
         db.add(oi)
@@ -1917,3 +1931,77 @@ async def list_imports(
     query = query.order_by(OrderImport.id.desc()).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
+
+
+# ─── Nettoyage bookings sans dock_number / Cleanup bookings without dock ────
+
+
+@router.get("/fix/no-dock/")
+async def list_bookings_no_dock(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("booking-reception", "update")),
+):
+    """Liste les bookings sans dock_number assigné / List bookings without dock number."""
+    result = await db.execute(
+        select(Booking).where(
+            Booking.dock_number.is_(None),
+            Booking.status.notin_([BookingStatus.CANCELLED, BookingStatus.REFUSED]),
+        ).order_by(Booking.booking_date.desc(), Booking.start_time)
+    )
+    bookings = result.scalars().all()
+    return [
+        {
+            "id": b.id, "base_id": b.base_id, "dock_type": b.dock_type.value if hasattr(b.dock_type, 'value') else b.dock_type,
+            "booking_date": b.booking_date, "start_time": b.start_time, "end_time": b.end_time,
+            "pallet_count": b.pallet_count, "supplier_name": b.supplier_name, "status": b.status.value if hasattr(b.status, 'value') else b.status,
+        }
+        for b in bookings
+    ]
+
+
+@router.post("/fix/no-dock/auto-assign/")
+async def auto_assign_docks(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("booking-reception", "update")),
+):
+    """Auto-assigne un quai libre aux bookings sans dock_number.
+    Auto-assign a free dock to bookings without dock number."""
+    result = await db.execute(
+        select(Booking).where(
+            Booking.dock_number.is_(None),
+            Booking.status.notin_([BookingStatus.CANCELLED, BookingStatus.REFUSED]),
+        ).order_by(Booking.booking_date, Booking.start_time)
+    )
+    bookings = result.scalars().all()
+
+    fixed = 0
+    skipped = 0
+    errors: list[str] = []
+
+    for b in bookings:
+        dt = b.dock_type.value if hasattr(b.dock_type, 'value') else b.dock_type
+        # Trouver la config pour cette base/type
+        cfg_q = select(DockConfig).where(
+            DockConfig.base_id == b.base_id,
+            DockConfig.dock_type == DockType(dt),
+        )
+        cfg = (await db.execute(cfg_q)).scalar_one_or_none()
+        if not cfg:
+            errors.append(f"Booking #{b.id}: pas de config {dt} pour base {b.base_id}")
+            skipped += 1
+            continue
+
+        dock_num = await _find_free_dock(
+            db, b.base_id, b.booking_date, dt,
+            b.start_time, b.end_time, cfg.dock_count,
+        )
+        if dock_num is None:
+            # Assigner quai 1 par défaut si aucun libre (booking historique)
+            dock_num = 1
+            errors.append(f"Booking #{b.id} ({b.booking_date} {b.start_time}): aucun quai libre, assigne Q1")
+
+        b.dock_number = dock_num
+        fixed += 1
+
+    await db.flush()
+    return {"fixed": fixed, "skipped": skipped, "errors": errors}

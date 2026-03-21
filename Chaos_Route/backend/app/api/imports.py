@@ -16,6 +16,7 @@ from app.models.volume import Volume
 from app.models.contract import Contract
 from app.models.distance_matrix import DistanceMatrix
 from app.models.km_tax import KmTax
+from app.models.cnuf_temperature import CnufTemperature
 from app.models.tour import Tour
 from app.models.tour_manifest_line import TourManifestLine
 from app.models.user import User
@@ -35,6 +36,7 @@ ENTITY_MODEL_MAP = {
     "contracts": Contract,
     "distances": DistanceMatrix,
     "km-tax": KmTax,
+    "cnuf-temperatures": CnufTemperature,
 }
 
 # Champs obligatoires par entité / Required fields per entity
@@ -48,6 +50,7 @@ REQUIRED_FIELDS = {
     "contracts": {"code", "transporter_name", "region_id"},
     "distances": {"origin_type", "origin_id", "destination_type", "destination_id", "distance_km", "duration_minutes"},
     "km-tax": {"origin_type", "origin_id", "destination_type", "destination_id", "tax_per_km"},
+    "cnuf-temperatures": {"cnuf", "filiale", "temperature_type"},
 }
 
 _NA_VALUES = {"#n/a", "#na", "n/a", "na", "#ref!", "#value!", "#div/0!", "-", "null", "none", "nan"}
@@ -153,6 +156,7 @@ UNIQUE_KEY_FIELDS = {
     "volumes": None,
     "distances": None,
     "km-tax": None,
+    "cnuf-temperatures": None,
 }
 
 

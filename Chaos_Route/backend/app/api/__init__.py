@@ -50,6 +50,12 @@ from app.api import (
     reception_booking,
     sms,
     gdpr,
+    cnuf_temperature,
+    gic_invoices,
+    beer_consignments,
+    container_anomalies,
+    bottle_sorting,
+    container_report,
 )
 
 api_router = APIRouter(prefix="/api")
@@ -100,3 +106,9 @@ api_router.include_router(temperature.router, prefix="/temperature", tags=["temp
 api_router.include_router(reception_booking.router, prefix="/reception-booking", tags=["reception-booking"])
 api_router.include_router(sms.router, prefix="/sms", tags=["sms"])
 api_router.include_router(gdpr.router, prefix="/gdpr", tags=["gdpr"])
+api_router.include_router(cnuf_temperature.router, prefix="/cnuf-temperatures", tags=["cnuf-temperatures"])
+api_router.include_router(gic_invoices.router, prefix="/gic-invoices", tags=["gic-invoices"])
+api_router.include_router(beer_consignments.router, prefix="/beer-consignments", tags=["beer-consignments"])
+api_router.include_router(container_anomalies.router, prefix="/container-anomalies", tags=["container-anomalies"])
+api_router.include_router(bottle_sorting.router, prefix="/bottle-sorting", tags=["bottle-sorting"])
+api_router.include_router(container_report.router, prefix="/container-report", tags=["container-report"])

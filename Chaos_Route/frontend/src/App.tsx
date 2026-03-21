@@ -31,6 +31,8 @@ const GuardPostDelivery = lazy(() => import('./pages/GuardPostDelivery'))
 const SupplierPortal = lazy(() => import('./pages/SupplierPortal'))
 const DriverKiosk = lazy(() => import('./pages/DriverKiosk'))
 const ContainerDashboard = lazy(() => import('./pages/ContainerDashboard'))
+const ContainerMap = lazy(() => import('./pages/ContainerMap'))
+const GicBilling = lazy(() => import('./pages/GicBilling'))
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'))
 const RoleManagement = lazy(() => import('./pages/admin/RoleManagement'))
 const AuditLog = lazy(() => import('./pages/AuditLog'))
@@ -61,7 +63,13 @@ const BaseContainerStock = lazy(() => import('./pages/BaseContainerStock'))
 const SupplierPickupRequests = lazy(() => import('./pages/SupplierPickupRequests'))
 const CollectionRequests = lazy(() => import('./pages/CollectionRequests'))
 const TemperatureControl = lazy(() => import('./pages/TemperatureControl'))
+const CnufTemperatureManagement = lazy(() => import('./pages/CnufTemperatureManagement'))
 const ReceptionBookingPage = lazy(() => import('./pages/ReceptionBooking'))
+const BeerConsignments = lazy(() => import('./pages/BeerConsignments'))
+const ContainerAnomalies = lazy(() => import('./pages/ContainerAnomalies'))
+const ContainerPrep = lazy(() => import('./pages/ContainerPrep'))
+const BottleSorting = lazy(() => import('./pages/BottleSorting'))
+const ContainerReport = lazy(() => import('./pages/ContainerReport'))
 
 function Loading() {
   return (
@@ -101,6 +109,8 @@ export default function App() {
             <Route path="/loaders" element={<LoaderManagement />} />
             <Route path="/operations" element={<Operations />} />
             <Route path="/container-dashboard" element={<ContainerDashboard />} />
+            <Route path="/container-map" element={<ContainerMap />} />
+            <Route path="/gic-billing" element={<GicBilling />} />
             <Route path="/guard-post" element={<GuardPost />} />
             <Route path="/guard-post-delivery" element={<GuardPostDelivery />} />
             <Route path="/audit" element={<AuditLog />} />
@@ -131,7 +141,13 @@ export default function App() {
             <Route path="/supplier-pickups" element={<SupplierPickupRequests />} />
             <Route path="/collection-requests" element={<CollectionRequests />} />
             <Route path="/temperature" element={<TemperatureControl />} />
+            <Route path="/cnuf-temperatures" element={<CnufTemperatureManagement />} />
             <Route path="/reception-booking" element={<ReceptionBookingPage />} />
+            <Route path="/beer-consignments" element={<BeerConsignments />} />
+            <Route path="/container-anomalies" element={<ContainerAnomalies />} />
+            <Route path="/container-prep" element={<ContainerPrep />} />
+            <Route path="/bottle-sorting" element={<BottleSorting />} />
+            <Route path="/container-report" element={<ContainerReport />} />
             <Route path="/help" element={<Help />} />
           </Route>
         </Route>

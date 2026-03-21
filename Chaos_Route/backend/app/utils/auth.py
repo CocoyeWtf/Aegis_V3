@@ -54,6 +54,10 @@ RESOURCES = [
     "booking-appros",
     "booking-gate",
     "booking-reception",
+    "cnuf-temperatures",
+    "beer-consignments",
+    "container-anomalies",
+    "bottle-sorting",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

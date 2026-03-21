@@ -221,6 +221,78 @@ async def adjust_base_stock(
     return {"status": "ok", "new_stock": stock.current_stock}
 
 
+class PrepLine(BaseModel):
+    """Ligne de préparation / Preparation line."""
+    support_type_id: int
+    quantity: int  # nombre d'unités individuelles
+    stacks: int = 0  # nombre de piles complètes (informatif)
+
+
+class PrepBatch(BaseModel):
+    """Lot de préparation livraison / Delivery preparation batch."""
+    base_id: int
+    lines: list[PrepLine]
+    reference: str | None = None
+    notes: str | None = None
+
+
+@router.post("/prep-batch")
+async def prep_batch(
+    data: PrepBatch,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("base-container-stock", "update")),
+):
+    """Prépare un lot de contenants pour livraison (batch multi-types).
+    Prepare a container batch for delivery (multi-type)."""
+    valid_lines = [l for l in data.lines if l.quantity > 0]
+    if not valid_lines:
+        return {"status": "ok", "lines": []}
+
+    now = _now_iso()
+
+    # Lock batch unique trié par support_type_id (anti-deadlock)
+    st_ids = sorted({l.support_type_id for l in valid_lines})
+    stock_result = await db.execute(
+        select(BaseContainerStock).where(
+            BaseContainerStock.base_id == data.base_id,
+            BaseContainerStock.support_type_id.in_(st_ids),
+        ).order_by(BaseContainerStock.support_type_id).with_for_update()
+    )
+    stock_map = {s.support_type_id: s for s in stock_result.scalars()}
+
+    results = []
+    for line in valid_lines:
+        stock = stock_map.get(line.support_type_id)
+        if not stock:
+            results.append({"support_type_id": line.support_type_id, "error": "Pas de stock"})
+            continue
+        if stock.current_stock < line.quantity:
+            results.append({"support_type_id": line.support_type_id, "error": f"Stock insuffisant ({stock.current_stock} < {line.quantity})"})
+            continue
+        stock.current_stock -= line.quantity
+        stock.last_updated_at = now
+        ref = data.reference or ""
+        if line.stacks > 0:
+            ref += f" ({line.stacks} piles)"
+        db.add(BaseContainerMovement(
+            base_id=data.base_id,
+            support_type_id=line.support_type_id,
+            movement_type=BaseMovementType.DELIVERY_PREP,
+            quantity=-line.quantity,
+            reference=ref.strip(),
+            timestamp=now,
+            user_id=user.id,
+            notes=data.notes,
+        ))
+        results.append({
+            "support_type_id": line.support_type_id,
+            "qty_removed": line.quantity,
+            "new_stock": stock.current_stock,
+        })
+    await db.flush()
+    return {"status": "ok", "lines": results}
+
+
 @router.get("/movements/", response_model=list[BaseMovementRead])
 async def list_base_movements(
     base_id: int | None = None,

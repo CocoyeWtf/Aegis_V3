@@ -62,6 +62,13 @@ api.interceptors.response.use(
       try {
         const { data } = await axios.post('/api/auth/refresh', { refresh_token: refreshToken })
         setTokens(data.access_token, data.refresh_token)
+        // Rafraîchir les permissions depuis le backend / Refresh permissions from backend
+        try {
+          const { data: meData } = await axios.get('/api/auth/me', {
+            headers: { Authorization: `Bearer ${data.access_token}` },
+          })
+          useAuthStore.getState().setUser(meData)
+        } catch { /* non-bloquant — on continue avec les anciennes permissions */ }
         processQueue(null, data.access_token)
         originalRequest.headers.Authorization = `Bearer ${data.access_token}`
         return api(originalRequest)
@@ -125,6 +132,30 @@ export async function downloadExport(entity: string, format: 'csv' | 'xlsx' = 'x
   link.click()
   link.remove()
   window.URL.revokeObjectURL(url)
+}
+
+/* Fetch wrapper avec gestion token automatique / Fetch wrapper with auto token handling.
+   Utilise l'instance axios avec intercepteurs / Uses the axios instance with interceptors. */
+export async function apiFetch(url: string, init?: RequestInit): Promise<unknown> {
+  const method = init?.method?.toUpperCase() || 'GET'
+  const headers: Record<string, string> = {}
+  if (init?.headers) {
+    const h = init.headers as Record<string, string>
+    Object.keys(h).forEach((k) => { headers[k] = h[k] })
+  }
+  const config: Record<string, unknown> = { headers }
+  if (init?.body) {
+    if (typeof init.body === 'string') {
+      config.data = JSON.parse(init.body)
+    } else {
+      config.data = init.body
+    }
+  }
+  const res = method === 'POST' ? await api.post(url, config.data, { headers })
+    : method === 'PUT' ? await api.put(url, config.data, { headers })
+    : method === 'DELETE' ? await api.delete(url, { headers })
+    : await api.get(url, { headers, params: undefined })
+  return res.data
 }
 
 export default api

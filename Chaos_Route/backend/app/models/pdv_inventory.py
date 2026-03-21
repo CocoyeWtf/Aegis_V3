@@ -35,6 +35,7 @@ class PdvStock(Base):
     pdv_id = Column(Integer, ForeignKey("pdvs.id"), nullable=False, index=True)
     support_type_id = Column(Integer, ForeignKey("support_types.id"), nullable=False)
     current_stock = Column(Integer, nullable=False, default=0)
+    puo = Column(Integer, nullable=True)  # Parc Unités autorisé / Authorized stock level
     last_inventory_at = Column(String, nullable=True)  # ISO 8601
     last_inventory_device_id = Column(Integer, nullable=True)
     last_inventoried_by = Column(String, nullable=True)

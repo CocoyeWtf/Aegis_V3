@@ -108,6 +108,15 @@ export interface Carrier {
 
 export type TemperatureClass = 'SEC' | 'FRAIS' | 'GEL'
 
+export interface CnufTemperature {
+  id: number
+  cnuf: string
+  filiale: string
+  temperature_type: string
+  label?: string
+  base_id?: number
+}
+
 export interface Volume {
   id: number
   pdv_id: number
@@ -1021,8 +1030,64 @@ export interface PdvStockDetail {
   support_type_code: string
   support_type_name: string
   current_stock: number
+  puo: number | null
+  unit_value: number | null
   last_inventory_at: string | null
   last_inventoried_by: string | null
+}
+
+export interface PuoOverageItem {
+  pdv_id: number
+  pdv_code: string
+  pdv_name: string
+  support_type_id: number
+  support_type_code: string
+  support_type_name: string
+  current_stock: number
+  puo: number
+  overage: number
+  unit_value: number
+  overage_value: number
+}
+
+export interface PuoOverageReport {
+  items: PuoOverageItem[]
+  total_overage_units: number
+  total_overage_value: number
+  pdv_count: number
+}
+
+// --- Facturation GIC / GIC billing ---
+export interface GicInvoiceLine {
+  id: number
+  pdv_id: number
+  pdv_code: string
+  pdv_name: string
+  support_type_id: number
+  support_type_code: string
+  support_type_name: string
+  current_stock: number
+  puo: number
+  overage: number
+  unit_value: number
+  overage_value: number
+}
+
+export interface GicInvoice {
+  id: number
+  period_label: string
+  period_start: string
+  period_end: string
+  total_overage_units: number
+  total_overage_value: number
+  pdv_count: number
+  line_count: number
+  status: string
+  generated_at: string
+  generated_by?: string
+  notes?: string
+  base_id?: number
+  lines?: GicInvoiceLine[]
 }
 
 export interface PdvInventoryRecord {

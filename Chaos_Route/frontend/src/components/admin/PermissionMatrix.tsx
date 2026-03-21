@@ -32,6 +32,7 @@ const RESOURCE_GROUPS: ResourceGroup[] = [
       { resource: 'devices', label: 'Appareils mobiles' },
       { resource: 'carriers', label: 'Transporteurs' },
       { resource: 'suppliers', label: 'Fournisseurs' },
+      { resource: 'cnuf-temperatures', label: 'CNUF / Temperature' },
     ],
   },
   {
@@ -57,6 +58,9 @@ const RESOURCE_GROUPS: ResourceGroup[] = [
       { resource: 'waybill-archives', label: 'Registre CMR' },
       { resource: 'base-container-stock', label: 'Stock contenants base' },
       { resource: 'supplier-pickups', label: 'Reprises fournisseurs' },
+      { resource: 'beer-consignments', label: 'Consignes biere' },
+      { resource: 'container-anomalies', label: 'Anomalies contenants' },
+      { resource: 'bottle-sorting', label: 'Tri vidanges' },
       { resource: 'temperature', label: 'Controle temperature' },
       { resource: 'booking-appros', label: 'Booking — Appros' },
       { resource: 'booking-gate', label: 'Booking — Poste de garde' },

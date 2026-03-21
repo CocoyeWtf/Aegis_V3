@@ -53,6 +53,11 @@ from app.models.waybill_archive import WaybillArchive, CMRStatus
 from app.models.pdv_inventory import PdvInventory, PdvStock
 from app.models.base_zone import BaseZone
 from app.models.base_container_stock import BaseContainerStock, BaseContainerMovement, BaseMovementType, BaseInventoryType
+from app.models.cnuf_temperature import CnufTemperature
+from app.models.gic_invoice import GicInvoice, GicInvoiceLine, GicInvoiceStatus
+from app.models.beer_consignment import BeerConsignmentTx, BeerConsignmentBalance, BeerTransactionType
+from app.models.container_anomaly import ContainerAnomaly, AnomalyPhoto, AnomalyComment, AnomalyStatus, AnomalyCategory, AnomalySeverity
+from app.models.bottle_sorting import BottleBrand, SortingSession, SortingLine, SortingStatus, BottleFormat, SortingRule
 
 __all__ = [
     "Country",
@@ -134,4 +139,23 @@ __all__ = [
     "BaseContainerMovement",
     "BaseMovementType",
     "BaseInventoryType",
+    "CnufTemperature",
+    "GicInvoice",
+    "GicInvoiceLine",
+    "GicInvoiceStatus",
+    "BeerConsignmentTx",
+    "BeerConsignmentBalance",
+    "BeerTransactionType",
+    "ContainerAnomaly",
+    "AnomalyPhoto",
+    "AnomalyComment",
+    "AnomalyStatus",
+    "AnomalyCategory",
+    "AnomalySeverity",
+    "BottleBrand",
+    "SortingSession",
+    "SortingLine",
+    "SortingStatus",
+    "BottleFormat",
+    "SortingRule",
 ]

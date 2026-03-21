@@ -6,6 +6,23 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts'
 import api from '../services/api'
+import { apiFetch } from '../services/api'
+
+interface BeerStats {
+  pdv_with_balance: number
+  total_crate_balance: number
+  total_delivered: number
+  total_returned: number
+  total_balance_value: number
+  return_rate: number
+}
+
+interface AnomalyStats {
+  total: number
+  open: number
+  critical: number
+  total_impact: number
+}
 
 interface BaseStock {
   id: number; base_id: number; base_code: string; base_name: string
@@ -46,21 +63,29 @@ export default function ContainerDashboard() {
   const [bases, setBases] = useState<Base[]>([])
   const [selectedBaseId, setSelectedBaseId] = useState<number | ''>('')
   const [loading, setLoading] = useState(true)
+  const [puoOverages, setPuoOverages] = useState<{ pdv_count: number; total_overage_units: number; total_overage_value: number } | null>(null)
+  const [beerStats, setBeerStats] = useState<BeerStats | null>(null)
+  const [anomalyStats, setAnomalyStats] = useState<AnomalyStats | null>(null)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [stockRes, stRes, mvRes, baseRes] = await Promise.all([
+      const [stockRes, stRes, mvRes, baseRes, puoRes] = await Promise.all([
         api.get('/base-container-stock/', { params: { base_id: selectedBaseId || undefined } }).catch(() => ({ data: [] })),
         api.get('/support-types/').catch(() => ({ data: [] })),
         api.get('/base-container-stock/movements/', { params: { base_id: selectedBaseId || undefined, limit: 200 } }).catch(() => ({ data: [] })),
         api.get('/bases/').catch(() => ({ data: [] })),
+        api.get('/pdv-stock/puo/overages/').catch(() => ({ data: null })),
       ])
       setStocks(stockRes.data)
       setSupportTypes(stRes.data.filter((s: SupportType) => s.is_active))
       setMovements(mvRes.data)
       setBases(baseRes.data)
+      if (puoRes.data) setPuoOverages(puoRes.data)
     } catch { /* silent */ } finally { setLoading(false) }
+    // Fetch beer & anomaly stats (non-bloquant)
+    apiFetch('/api/beer-consignments/stats/').then(d => setBeerStats(d)).catch(() => {})
+    apiFetch('/api/container-anomalies/board/').then(d => setAnomalyStats(d?.stats || null)).catch(() => {})
   }, [selectedBaseId])
 
   useEffect(() => { fetchData() }, [fetchData])
@@ -174,7 +199,7 @@ export default function ContainerDashboard() {
           )}
 
           {/* ── KPI cards du haut ── */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <div className="rounded-xl border p-4 text-center" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
               <div className="text-3xl font-bold" style={{ color: 'var(--color-primary)' }}>
                 {stockByType.length}
@@ -192,6 +217,17 @@ export default function ContainerDashboard() {
                 {totalValue > 0 ? `${totalValue.toLocaleString()} EUR` : '—'}
               </div>
               <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Valeur immobilisee</div>
+            </div>
+            <div className="rounded-xl border p-4 text-center cursor-pointer hover:opacity-80"
+              onClick={() => navigate('/pdv-stock')}
+              style={{
+                borderColor: puoOverages && puoOverages.pdv_count > 0 ? '#ef4444' : 'var(--border-color)',
+                backgroundColor: 'var(--bg-secondary)',
+              }}>
+              <div className="text-3xl font-bold" style={{ color: puoOverages && puoOverages.pdv_count > 0 ? '#ef4444' : '#22c55e' }}>
+                {puoOverages ? puoOverages.pdv_count : '—'}
+              </div>
+              <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>PDV en depassement PUO</div>
             </div>
             <div className="rounded-xl border p-4 text-center" style={{ borderColor: alerts.filter(a => a.severity !== 'info').length > 0 ? '#ef4444' : 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
               <div className="text-3xl font-bold" style={{ color: alerts.length > 0 ? '#ef4444' : '#22c55e' }}>
@@ -321,13 +357,91 @@ export default function ContainerDashboard() {
             </div>
           </div>
 
+          {/* ── KPI Bière & Anomalies ── */}
+          {(beerStats || anomalyStats) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Consignes bière */}
+              {beerStats && (
+                <div className="rounded-xl border p-4 cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => navigate('/beer-consignments')}
+                  style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                  <h3 className="text-sm font-bold mb-3" style={{ color: '#f59e0b' }}>
+                    Consignes Biere
+                  </h3>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <div className="text-2xl font-bold" style={{ color: '#f59e0b' }}>
+                        {beerStats.total_crate_balance.toLocaleString()}
+                      </div>
+                      <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Casiers en circulation</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold" style={{
+                        color: beerStats.return_rate >= 90 ? '#22c55e' : beerStats.return_rate >= 70 ? '#f59e0b' : '#ef4444'
+                      }}>
+                        {beerStats.return_rate}%
+                      </div>
+                      <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Taux retour</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+                        {beerStats.pdv_with_balance}
+                      </div>
+                      <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>PDV avec solde</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Anomalies */}
+              {anomalyStats && (
+                <div className="rounded-xl border p-4 cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => navigate('/container-anomalies')}
+                  style={{
+                    borderColor: anomalyStats.critical > 0 ? '#ef4444' : 'var(--border-color)',
+                    backgroundColor: 'var(--bg-secondary)',
+                  }}>
+                  <h3 className="text-sm font-bold mb-3" style={{ color: anomalyStats.open > 0 ? '#ef4444' : '#22c55e' }}>
+                    Anomalies Contenants
+                  </h3>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <div className="text-2xl font-bold" style={{ color: anomalyStats.open > 0 ? '#ef4444' : '#22c55e' }}>
+                        {anomalyStats.open}
+                      </div>
+                      <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>A traiter</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold" style={{ color: anomalyStats.critical > 0 ? '#ef4444' : 'var(--text-primary)' }}>
+                        {anomalyStats.critical}
+                      </div>
+                      <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Critiques</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold" style={{ color: '#f59e0b' }}>
+                        {anomalyStats.total_impact.toLocaleString()} EUR
+                      </div>
+                      <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Impact</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── Liens rapides ── */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
             {[
               { label: 'Stock base', path: '/base-container-stock', color: '#3b82f6' },
               { label: 'Stock PDV', path: '/pdv-stock', color: '#22c55e' },
-              { label: 'Suivi consignes', path: '/consignments', color: '#f97316' },
-              { label: 'Types contenants', path: '/admin/support-types', color: '#a855f7' },
+              { label: 'Carte PUO', path: '/container-map', color: '#ef4444' },
+              { label: 'Consignes biere', path: '/beer-consignments', color: '#f59e0b' },
+              { label: 'Tri vidanges', path: '/bottle-sorting', color: '#8b5cf6' },
+              { label: 'Anomalies', path: '/container-anomalies', color: '#ef4444' },
+              { label: 'Mise a disposition', path: '/container-prep', color: '#06b6d4' },
+              { label: 'Facturation GIC', path: '/gic-billing', color: '#f97316' },
+              { label: 'Rapport complet', path: '/container-report', color: '#a855f7' },
+              { label: 'Types contenants', path: '/support-types', color: '#6b7280' },
             ].map((link) => (
               <button key={link.path} onClick={() => navigate(link.path)}
                 className="rounded-xl border p-3 text-sm font-medium text-center hover:opacity-80 transition-opacity"

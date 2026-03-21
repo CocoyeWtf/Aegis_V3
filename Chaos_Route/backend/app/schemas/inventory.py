@@ -22,6 +22,7 @@ class PdvStockRead(BaseModel):
     pdv_id: int
     support_type_id: int
     current_stock: int
+    puo: int | None = None
     last_inventory_at: str | None
     last_inventoried_by: str | None
 
@@ -35,8 +36,45 @@ class PdvStockDetail(BaseModel):
     support_type_code: str
     support_type_name: str
     current_stock: int
+    puo: int | None = None
+    unit_value: float | None = None
     last_inventory_at: str | None
     last_inventoried_by: str | None
+
+
+class PuoUpdate(BaseModel):
+    """Mise à jour du PUO pour un couple PDV × type / Update PUO for a PDV × type pair."""
+    pdv_id: int
+    support_type_id: int
+    puo: int | None = None
+
+
+class PuoBulkUpdate(BaseModel):
+    """Mise à jour en masse des PUO / Bulk PUO update."""
+    updates: list[PuoUpdate]
+
+
+class PuoOverageItem(BaseModel):
+    """Un dépassement PUO / A PUO overage item."""
+    pdv_id: int
+    pdv_code: str
+    pdv_name: str
+    support_type_id: int
+    support_type_code: str
+    support_type_name: str
+    current_stock: int
+    puo: int
+    overage: int
+    unit_value: float
+    overage_value: float
+
+
+class PuoOverageReport(BaseModel):
+    """Rapport de dépassements PUO / PUO overage report."""
+    items: list[PuoOverageItem]
+    total_overage_units: int
+    total_overage_value: float
+    pdv_count: int
 
 
 class PdvInventoryRead(BaseModel):
