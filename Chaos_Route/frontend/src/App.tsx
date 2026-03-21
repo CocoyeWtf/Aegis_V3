@@ -30,6 +30,7 @@ const GuardPost = lazy(() => import('./pages/GuardPost'))
 const GuardPostDelivery = lazy(() => import('./pages/GuardPostDelivery'))
 const SupplierPortal = lazy(() => import('./pages/SupplierPortal'))
 const DriverKiosk = lazy(() => import('./pages/DriverKiosk'))
+const ContainerDashboard = lazy(() => import('./pages/ContainerDashboard'))
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'))
 const RoleManagement = lazy(() => import('./pages/admin/RoleManagement'))
 const AuditLog = lazy(() => import('./pages/AuditLog'))
@@ -99,6 +100,7 @@ export default function App() {
             <Route path="/transporter-summary" element={<TransporterSummary />} />
             <Route path="/loaders" element={<LoaderManagement />} />
             <Route path="/operations" element={<Operations />} />
+            <Route path="/container-dashboard" element={<ContainerDashboard />} />
             <Route path="/guard-post" element={<GuardPost />} />
             <Route path="/guard-post-delivery" element={<GuardPostDelivery />} />
             <Route path="/audit" element={<AuditLog />} />
