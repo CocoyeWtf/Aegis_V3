@@ -2,6 +2,7 @@
    Planning visuel par type de quai, creneaux 15min, config, reservations, import */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import api from '../services/api'
 import { useAuthStore } from '../stores/useAuthStore'
 
@@ -92,6 +93,8 @@ function formatDateFr(dateStr: string) {
 }
 
 export default function ReceptionBooking() {
+  const [searchParams] = useSearchParams()
+  const viewParam = searchParams.get('view') as 'appros' | 'gate' | 'reception' | null
   const user = useAuthStore((s) => s.user)
   const [bases, setBases] = useState<Base[]>([])
   const [configs, setConfigs] = useState<DockConfig[]>([])
@@ -646,30 +649,39 @@ export default function ReceptionBooking() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
-          Booking reception
+          {viewParam === 'gate' ? 'Poste de garde — Check-in / Depart' :
+           viewParam === 'appros' ? 'Booking fournisseurs' :
+           viewParam === 'reception' ? 'Reception quais' :
+           'Booking reception'}
         </h1>
-        <div className="flex gap-2">
-          <button onClick={() => setTab('planning')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${tab === 'planning' ? 'text-white' : ''}`}
-            style={{ backgroundColor: tab === 'planning' ? 'var(--color-primary)' : 'var(--bg-tertiary)', color: tab === 'planning' ? 'white' : 'var(--text-primary)' }}>
-            Planning
-          </button>
-          <button onClick={() => setTab('config')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium`}
-            style={{ backgroundColor: tab === 'config' ? 'var(--color-primary)' : 'var(--bg-tertiary)', color: tab === 'config' ? 'white' : 'var(--text-primary)' }}>
-            Configuration
-          </button>
-          <button onClick={() => setTab('import')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium`}
-            style={{ backgroundColor: tab === 'import' ? 'var(--color-primary)' : 'var(--bg-tertiary)', color: tab === 'import' ? 'white' : 'var(--text-primary)' }}>
-            Import
-          </button>
-          <button onClick={() => setTab('calendar')}
-            className="px-3 py-1.5 rounded-lg text-sm font-medium"
-            style={{ backgroundColor: tab === 'calendar' ? 'var(--color-primary)' : 'var(--bg-tertiary)', color: tab === 'calendar' ? 'white' : 'var(--text-primary)' }}>
-            Calendrier
-          </button>
-        </div>
+        {viewParam !== 'gate' && (
+          <div className="flex gap-2">
+            <button onClick={() => setTab('planning')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium ${tab === 'planning' ? 'text-white' : ''}`}
+              style={{ backgroundColor: tab === 'planning' ? 'var(--color-primary)' : 'var(--bg-tertiary)', color: tab === 'planning' ? 'white' : 'var(--text-primary)' }}>
+              Planning
+            </button>
+            {(viewParam === 'reception' || viewParam === null) && (
+              <button onClick={() => setTab('config')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium`}
+                style={{ backgroundColor: tab === 'config' ? 'var(--color-primary)' : 'var(--bg-tertiary)', color: tab === 'config' ? 'white' : 'var(--text-primary)' }}>
+                Configuration
+              </button>
+            )}
+            {(viewParam === 'appros' || viewParam === null) && (
+              <button onClick={() => setTab('import')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium`}
+                style={{ backgroundColor: tab === 'import' ? 'var(--color-primary)' : 'var(--bg-tertiary)', color: tab === 'import' ? 'white' : 'var(--text-primary)' }}>
+                Import
+              </button>
+            )}
+            <button onClick={() => setTab('calendar')}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium"
+              style={{ backgroundColor: tab === 'calendar' ? 'var(--color-primary)' : 'var(--bg-tertiary)', color: tab === 'calendar' ? 'white' : 'var(--text-primary)' }}>
+              Calendrier
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Filtres */}
@@ -703,8 +715,8 @@ export default function ReceptionBooking() {
         </span>
       </div>
 
-      {/* ─── VUE GARDE (si uniquement garde, pas appros/reception) ─── */}
-      {isGate && !isAppros && !isReception && (
+      {/* ─── VUE GARDE ─── */}
+      {(viewParam === 'gate' || (isGate && !isAppros && !isReception && !viewParam)) && (
         <div className="space-y-4">
           {/* Check-in arrivee */}
           <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>

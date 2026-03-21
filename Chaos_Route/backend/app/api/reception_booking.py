@@ -50,7 +50,7 @@ async def _log_booking_audit(
         action=action,
         changes=json.dumps(changes, ensure_ascii=False) if changes else None,
         user=user.username,
-        timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        timestamp=_now_iso(),
     ))
 
 
@@ -80,7 +80,9 @@ DOCK_COMPAT = {DockType.FRAIS: [DockType.FRAIS, DockType.GEL]}
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    """Heure locale Belgique / Local Belgian time."""
+    from zoneinfo import ZoneInfo
+    return datetime.now(ZoneInfo("Europe/Brussels")).isoformat(timespec="seconds")
 
 
 def _add_minutes(time_str: str, minutes: int) -> str:
@@ -1368,7 +1370,8 @@ async def import_orders(
 
     # Inserer / Insert
     batch_id = str(uuid.uuid4())[:8]
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    from zoneinfo import ZoneInfo
+    today = datetime.now(ZoneInfo("Europe/Brussels")).strftime("%Y-%m-%d")
     imported = 0
     reconciled = 0
 

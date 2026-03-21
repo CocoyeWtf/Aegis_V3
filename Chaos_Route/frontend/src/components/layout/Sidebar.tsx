@@ -63,6 +63,7 @@ const navGroups: NavGroup[] = [
       { path: '/transporter-summary', label: 'nav.transporterSummary', icon: '🧾', resource: 'tour-history' },
       { path: '/aide-decision', label: 'Aide à la décision', icon: '🧠', resource: 'aide-decision' },
       { path: '/collection-requests', label: 'Enlevements fournisseurs', icon: '🚚', resource: 'collection-requests' },
+      { path: '/reception-booking?view=appros', label: 'Booking fournisseurs', icon: '📅', resource: 'booking-appros' },
     ],
   },
   {
@@ -80,7 +81,7 @@ const navGroups: NavGroup[] = [
       { path: '/base-container-stock', label: 'Stock contenants base', icon: '🏗️', resource: 'base-container-stock' },
       { path: '/supplier-pickups', label: 'Reprises fournisseurs', icon: '🔄', resource: 'supplier-pickups' },
       { path: '/temperature', label: 'Controle temperature', icon: '🌡️', resource: 'temperature' },
-      { path: '/reception-booking', label: 'Booking reception', icon: '📅', resource: 'booking-appros', resources: ['booking-appros', 'booking-gate', 'booking-reception'] },
+      { path: '/reception-booking?view=reception', label: 'Reception quais', icon: '📅', resource: 'booking-reception' },
     ],
   },
   {
@@ -116,7 +117,16 @@ const navGroups: NavGroup[] = [
       { path: '/reports/vehicle', label: 'Rapport vehicules', icon: '🚚', resource: 'reports' },
     ],
   },
-  { key: 'guardPost', label: 'nav.guardPost', icon: '🚧', path: '/guard-post', resource: 'guard-post', hideForPdv: true },
+  {
+    key: 'guardPost',
+    label: 'nav.guardPost',
+    icon: '🚧',
+    hideForPdv: true,
+    children: [
+      { path: '/guard-post', label: 'Poste de garde', icon: '🚧', resource: 'guard-post' },
+      { path: '/reception-booking?view=gate', label: 'Check-in / Depart', icon: '🚛', resource: 'booking-gate' },
+    ],
+  },
   {
     key: 'admin',
     label: 'nav.admin',
