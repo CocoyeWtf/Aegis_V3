@@ -27,6 +27,7 @@ const TransporterSummary = lazy(() => import('./pages/TransporterSummary'))
 const LoaderManagement = lazy(() => import('./pages/LoaderManagement'))
 const Operations = lazy(() => import('./pages/Operations'))
 const GuardPost = lazy(() => import('./pages/GuardPost'))
+const GuardPostDelivery = lazy(() => import('./pages/GuardPostDelivery'))
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'))
 const RoleManagement = lazy(() => import('./pages/admin/RoleManagement'))
 const AuditLog = lazy(() => import('./pages/AuditLog'))
@@ -95,6 +96,7 @@ export default function App() {
             <Route path="/loaders" element={<LoaderManagement />} />
             <Route path="/operations" element={<Operations />} />
             <Route path="/guard-post" element={<GuardPost />} />
+            <Route path="/guard-post-delivery" element={<GuardPostDelivery />} />
             <Route path="/audit" element={<AuditLog />} />
             <Route path="/admin/users" element={<UserManagement />} />
             <Route path="/admin/roles" element={<RoleManagement />} />
