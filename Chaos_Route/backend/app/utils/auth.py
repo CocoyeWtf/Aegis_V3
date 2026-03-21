@@ -51,7 +51,9 @@ RESOURCES = [
     "supplier-pickups",
     "collection-requests",
     "temperature",
-    "reception-booking",
+    "booking-appros",
+    "booking-gate",
+    "booking-reception",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

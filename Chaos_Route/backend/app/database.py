@@ -55,6 +55,7 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
     # Ajouter les colonnes manquantes sur tables existantes /
     # Add missing columns on existing tables
+    await _migrate_enum_values()
     await _migrate_missing_columns()
     # Generer les QR/badge codes manquants / Backfill missing QR/badge codes
     await _backfill_qr_codes()
@@ -109,6 +110,30 @@ async def _cleanup_old_gps(days: int = 30):
         ), {"cutoff": cutoff})
         if result.rowcount:
             print(f"[cleanup] {result.rowcount} GPS positions removed (tours before {cutoff})")
+
+
+async def _migrate_enum_values():
+    """Ajouter les nouvelles valeurs aux types enum PostgreSQL / Add new enum values to PostgreSQL enum types."""
+    if _is_sqlite:
+        return
+    enum_updates = [
+        ("bookingstatus", ["UNLOADING", "DOCK_LEFT"]),
+        ("dockeventtype", ["UNLOADING", "DOCK_LEFT", "SITE_LEFT"]),
+    ]
+    async with engine.begin() as conn:
+        for enum_name, new_values in enum_updates:
+            # Lire les valeurs existantes / Read existing values
+            result = await conn.execute(text(
+                "SELECT enumlabel FROM pg_enum WHERE enumtypid = "
+                "(SELECT oid FROM pg_type WHERE typname = :enum_name)"
+            ), {"enum_name": enum_name})
+            existing = {row[0] for row in result.fetchall()}
+            for val in new_values:
+                if val not in existing:
+                    await conn.execute(text(
+                        f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS '{val}'"
+                    ))
+                    print(f"[migrate] Added enum value {enum_name}.{val}")
 
 
 async def _migrate_missing_columns():

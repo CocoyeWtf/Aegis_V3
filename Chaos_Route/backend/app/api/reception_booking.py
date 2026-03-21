@@ -50,19 +50,26 @@ async def _log_booking_audit(
     ))
 
 
+def _user_has_permission(user: User, resource: str, action: str) -> bool:
+    """Verifier si l'utilisateur a une permission specifique / Check if user has a specific permission."""
+    if user.is_superadmin:
+        return True
+    for role in user.roles:
+        for perm in role.permissions:
+            if (perm.resource == resource and perm.action == action) or (perm.resource == "*" and perm.action == "*"):
+                return True
+    return False
+
+
 def _user_can_edit_booking(user: User, booking: Booking) -> bool:
     """Verifier si l'utilisateur peut modifier ce booking / Check if user can edit this booking.
-    Createur du booking OU permission reception-booking:update OU superadmin.
+    Createur du booking OU permission booking-appros:update OU superadmin.
     """
     if user.is_superadmin:
         return True
     if booking.created_by_user_id == user.id:
         return True
-    for role in user.roles:
-        for perm in role.permissions:
-            if perm.resource == "reception-booking" and perm.action == "update":
-                return True
-    return False
+    return _user_has_permission(user, "booking-appros", "update")
 
 # Polyvalence : FRAIS peut recevoir du GEL / FRAIS docks can receive GEL
 DOCK_COMPAT = {DockType.FRAIS: [DockType.FRAIS, DockType.GEL]}
@@ -98,7 +105,7 @@ def _calc_duration(pallet_count: int, config: DockConfig) -> int:
 async def list_dock_configs(
     base_id: int | None = None,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("reception-booking", "read")),
+    user: User = Depends(get_current_user),
 ):
     """Lister les configs quais / List dock configs."""
     query = select(DockConfig).options(selectinload(DockConfig.schedules))
@@ -127,7 +134,7 @@ async def list_dock_configs(
 async def create_dock_config(
     data: DockConfigCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("reception-booking", "create")),
+    user: User = Depends(require_permission("booking-reception", "create")),
 ):
     """Creer une config quai / Create dock config."""
     existing = await db.execute(
@@ -173,7 +180,7 @@ async def update_dock_config(
     config_id: int,
     data: DockConfigUpdate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("reception-booking", "update")),
+    user: User = Depends(require_permission("booking-reception", "update")),
 ):
     """Modifier une config quai / Update dock config."""
     cfg = await db.get(DockConfig, config_id, options=[selectinload(DockConfig.schedules)])
@@ -217,7 +224,7 @@ async def update_dock_config(
 async def delete_dock_config(
     config_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("reception-booking", "delete")),
+    user: User = Depends(require_permission("booking-reception", "delete")),
 ):
     cfg = await db.get(DockConfig, config_id)
     if not cfg:
@@ -381,7 +388,7 @@ def _booking_to_read(b: Booking) -> BookingRead:
 async def create_booking(
     data: BookingCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("reception-booking", "create")),
+    user: User = Depends(require_permission("booking-appros", "create")),
 ):
     """Creer un booking / Create a booking."""
     # Charger config du type de quai / Load dock type config
@@ -486,7 +493,7 @@ async def update_booking(
     user: User = Depends(get_current_user),
 ):
     """Modifier un booking / Update a booking.
-    Seul le createur ou un profil avec reception-booking:update peut modifier.
+    Seul le createur ou un profil avec booking-appros:update peut modifier.
     """
     result = await db.execute(
         select(Booking).where(Booking.id == booking_id)
@@ -562,7 +569,7 @@ async def move_booking(
     booking_id: int,
     data: BookingMoveSlot,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("reception-booking", "update")),
+    user: User = Depends(require_permission("booking-appros", "update")),
 ):
     """Deplacer un booking (drag & drop) / Move a booking (drag & drop)."""
     result = await db.execute(
@@ -620,7 +627,7 @@ async def merge_bookings(
     booking_id: int,
     other_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("reception-booking", "update")),
+    user: User = Depends(require_permission("booking-appros", "update")),
 ):
     """Grouper un booking dans un autre / Merge booking into another."""
     main_result = await db.execute(
@@ -707,7 +714,7 @@ async def mark_at_dock(
     booking_id: int,
     data: dict,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("reception-booking", "update")),
+    user: User = Depends(require_permission("booking-reception", "update")),
 ):
     """Chauffeur a quai / Driver at dock."""
     booking = await db.get(Booking, booking_id)
@@ -730,23 +737,93 @@ async def mark_at_dock(
     return {"ok": True}
 
 
+@router.post("/bookings/{booking_id}/unloading")
+async def mark_unloading(
+    booking_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("booking-reception", "update")),
+):
+    """Debut dechargement / Start unloading (reception)."""
+    booking = await db.get(Booking, booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking non trouve")
+    if booking.status != BookingStatus.AT_DOCK:
+        raise HTTPException(status_code=422, detail=f"Statut actuel: {booking.status.value} — doit etre AT_DOCK")
+
+    booking.status = BookingStatus.UNLOADING
+    db.add(BookingDockEvent(
+        booking_id=booking_id, event_type=DockEventType.UNLOADING,
+        dock_number=booking.dock_number, timestamp=_now_iso(), user_id=user.id,
+    ))
+    await _log_booking_audit(db, booking_id, "UNLOADING", user, {"dock_number": booking.dock_number})
+    await db.flush()
+    return {"ok": True}
+
+
+@router.post("/bookings/{booking_id}/dock-left")
+async def mark_dock_left(
+    booking_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("booking-reception", "update")),
+):
+    """Parti du quai / Left dock (reception)."""
+    booking = await db.get(Booking, booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking non trouve")
+    if booking.status not in (BookingStatus.AT_DOCK, BookingStatus.UNLOADING):
+        raise HTTPException(status_code=422, detail=f"Statut actuel: {booking.status.value} — doit etre AT_DOCK ou UNLOADING")
+
+    booking.status = BookingStatus.DOCK_LEFT
+    db.add(BookingDockEvent(
+        booking_id=booking_id, event_type=DockEventType.DOCK_LEFT,
+        dock_number=booking.dock_number, timestamp=_now_iso(), user_id=user.id,
+    ))
+    await _log_booking_audit(db, booking_id, "DOCK_LEFT", user, {"dock_number": booking.dock_number})
+    await db.flush()
+    return {"ok": True}
+
+
+@router.post("/bookings/{booking_id}/site-departure")
+async def mark_site_departure(
+    booking_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("booking-gate", "update")),
+):
+    """Parti du site / Left site (guard post)."""
+    booking = await db.get(Booking, booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking non trouve")
+    if booking.status != BookingStatus.DOCK_LEFT:
+        raise HTTPException(status_code=422, detail=f"Statut actuel: {booking.status.value} — doit etre DOCK_LEFT")
+
+    booking.status = BookingStatus.COMPLETED
+    db.add(BookingDockEvent(
+        booking_id=booking_id, event_type=DockEventType.SITE_LEFT,
+        dock_number=booking.dock_number, timestamp=_now_iso(), user_id=user.id,
+    ))
+    await _log_booking_audit(db, booking_id, "SITE_LEFT", user, {"dock_number": booking.dock_number})
+    await db.flush()
+    return {"ok": True}
+
+
+# Legacy endpoint — garde la compatibilite / Keep backward compat
 @router.post("/bookings/{booking_id}/departed")
 async def mark_departed(
     booking_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("reception-booking", "update")),
+    user: User = Depends(require_permission("booking-reception", "update")),
 ):
-    """Chauffeur parti du quai / Driver departed from dock."""
+    """LEGACY — redirige vers dock-left / Legacy — redirects to dock-left."""
     booking = await db.get(Booking, booking_id)
     if not booking:
         raise HTTPException(status_code=404, detail="Booking non trouve")
 
-    booking.status = BookingStatus.COMPLETED
+    booking.status = BookingStatus.DOCK_LEFT
     db.add(BookingDockEvent(
-        booking_id=booking_id, event_type=DockEventType.DEPARTED,
+        booking_id=booking_id, event_type=DockEventType.DOCK_LEFT,
         dock_number=booking.dock_number, timestamp=_now_iso(), user_id=user.id,
     ))
-    await _log_booking_audit(db, booking_id, "DEPARTED", user, {"dock_number": booking.dock_number})
+    await _log_booking_audit(db, booking_id, "DOCK_LEFT", user, {"dock_number": booking.dock_number})
     await db.flush()
     return {"ok": True}
 
@@ -758,7 +835,7 @@ async def refuse_booking(
     booking_id: int,
     data: BookingRefusalCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("reception-booking", "update")),
+    user: User = Depends(require_permission("booking-reception", "update")),
 ):
     """Refuser un booking (motif obligatoire) / Refuse a booking (reason mandatory)."""
     booking = await db.get(Booking, booking_id)
@@ -782,7 +859,7 @@ async def refuse_booking(
 async def import_orders(
     file: UploadFile,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("reception-booking", "create")),
+    user: User = Depends(require_permission("booking-appros", "create")),
 ):
     """Import du carnet de commandes XLS / Import order book XLS.
     Sheet 'Lst Rd Ouvert Detail', groupement par Rd."""
@@ -944,7 +1021,7 @@ async def list_imports(
     reconciled: bool | None = None,
     limit: int = Query(default=200, le=2000),
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("reception-booking", "read")),
+    user: User = Depends(require_permission("booking-appros", "read")),
 ):
     """Lister les imports / List imported orders."""
     query = select(OrderImport)

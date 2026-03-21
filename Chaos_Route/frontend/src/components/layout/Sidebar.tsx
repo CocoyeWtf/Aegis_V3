@@ -12,6 +12,7 @@ interface NavItem {
   label: string
   icon: string
   resource: string
+  resources?: string[]  // Alternative: visible si au moins un de ces resources est lisible
   superadminOnly?: boolean
 }
 
@@ -79,7 +80,7 @@ const navGroups: NavGroup[] = [
       { path: '/base-container-stock', label: 'Stock contenants base', icon: '🏗️', resource: 'base-container-stock' },
       { path: '/supplier-pickups', label: 'Reprises fournisseurs', icon: '🔄', resource: 'supplier-pickups' },
       { path: '/temperature', label: 'Controle temperature', icon: '🌡️', resource: 'temperature' },
-      { path: '/reception-booking', label: 'Booking reception', icon: '📅', resource: 'reception-booking' },
+      { path: '/reception-booking', label: 'Booking reception', icon: '📅', resource: 'booking-appros', resources: ['booking-appros', 'booking-gate', 'booking-reception'] },
     ],
   },
   {
@@ -219,8 +220,12 @@ export function Sidebar({ forceCollapsed = false }: SidebarProps) {
   }, [popoverGroup])
 
   /* Filtrage RBAC + superadmin / RBAC filtering + superadmin-only items */
-  const canSeeItem = (child: NavItem) =>
-    hasPermission(child.resource, 'read') && (!child.superadminOnly || isSuperadmin)
+  const canSeeItem = (child: NavItem) => {
+    const canRead = child.resources
+      ? child.resources.some((r) => hasPermission(r, 'read'))
+      : hasPermission(child.resource, 'read')
+    return canRead && (!child.superadminOnly || isSuperadmin)
+  }
 
   const visibleGroups = navGroups.filter((group) => {
     if (isPdvUser && group.hideForPdv) return false

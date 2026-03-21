@@ -50,13 +50,15 @@ const DOCK_TYPE_COLORS: Record<string, string> = {
   SEC: '#a3a3a3', FRAIS: '#3b82f6', GEL: '#8b5cf6', FFL: '#22c55e',
 }
 const STATUS_LABELS: Record<string, string> = {
-  DRAFT: 'Brouillon', CONFIRMED: 'Confirme', CHECKED_IN: 'Arrive',
-  AT_DOCK: 'A quai', COMPLETED: 'Termine', CANCELLED: 'Annule',
+  DRAFT: 'Planifie', CONFIRMED: 'Confirme', CHECKED_IN: 'Arrive sur site',
+  AT_DOCK: 'A quai', UNLOADING: 'Dechargement', DOCK_LEFT: 'Parti du quai',
+  COMPLETED: 'Parti du site', CANCELLED: 'Annule',
   REFUSED: 'Refuse', NO_SHOW: 'Absent',
 }
 const STATUS_COLORS: Record<string, string> = {
   DRAFT: '#737373', CONFIRMED: '#f97316', CHECKED_IN: '#3b82f6',
-  AT_DOCK: '#f59e0b', COMPLETED: '#22c55e', CANCELLED: '#6b7280',
+  AT_DOCK: '#f59e0b', UNLOADING: '#a855f7', DOCK_LEFT: '#06b6d4',
+  COMPLETED: '#22c55e', CANCELLED: '#6b7280',
   REFUSED: '#ef4444', NO_SHOW: '#ef4444',
 }
 const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
@@ -83,13 +85,24 @@ export default function ReceptionBooking() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10))
   const [selectedDockType, setSelectedDockType] = useState<string>('')
 
+  // Helpers permissions par role / Permission helpers per role
+  const hasPerm = useCallback((resource: string, action: string) => {
+    if (!user) return false
+    if (user.is_superadmin) return true
+    return user.permissions.includes(`${resource}:${action}`) || user.permissions.includes('*:*')
+  }, [user])
+
+  const isAppros = useMemo(() => hasPerm('booking-appros', 'update'), [hasPerm])
+  const isGate = useMemo(() => hasPerm('booking-gate', 'update'), [hasPerm])
+  const isReception = useMemo(() => hasPerm('booking-reception', 'update'), [hasPerm])
+
   // Verifier si l'utilisateur peut modifier un booking / Check if user can edit a booking
   const canEdit = useCallback((b: Booking) => {
     if (!user) return false
     if (user.is_superadmin) return true
-    if (b.created_by_user_id === user.id) return true
-    return user.permissions.includes('reception-booking:update') || user.permissions.includes('*:*')
-  }, [user])
+    if (b.created_by_user_id === user.id && isAppros) return true
+    return isAppros
+  }, [user, isAppros])
 
   // Dialogs
   const [tab, setTab] = useState<'planning' | 'config' | 'import'>('planning')
@@ -257,8 +270,12 @@ export default function ReceptionBooking() {
         const dock = prompt('Numero de quai :')
         if (!dock) return
         await api.post(`/reception-booking/bookings/${bookingId}/at-dock`, { dock_number: Number(dock) })
-      } else if (action === 'departed') {
-        await api.post(`/reception-booking/bookings/${bookingId}/departed`)
+      } else if (action === 'unloading') {
+        await api.post(`/reception-booking/bookings/${bookingId}/unloading`)
+      } else if (action === 'dock-left') {
+        await api.post(`/reception-booking/bookings/${bookingId}/dock-left`)
+      } else if (action === 'site-departure') {
+        await api.post(`/reception-booking/bookings/${bookingId}/site-departure`)
       } else if (action === 'refuse') {
         const reason = prompt('Motif du refus (obligatoire) :')
         if (!reason) return
@@ -806,47 +823,65 @@ export default function ReceptionBooking() {
               )}
             </div>
 
-            {/* Boutons actions / Action buttons */}
-            {editedBooking && !readOnly && (
+            {/* Boutons actions par role / Action buttons per role */}
+            {editedBooking && (
               <div className="mt-4 pt-3 border-t flex flex-wrap gap-2" style={{ borderColor: 'var(--border-color)' }}>
-                {/* A quai — quand le chauffeur est arrive (CHECKED_IN) */}
-                {editedBooking.status === 'CHECKED_IN' && (
+                {/* ── RECEPTION : assigner quai (CHECKED_IN → AT_DOCK) ── */}
+                {isReception && editedBooking.status === 'CHECKED_IN' && (
                   <button onClick={() => { handleBookingAction(editedBooking.id, 'at-dock'); setShowBookDialog(false) }}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
-                    style={{ backgroundColor: '#f59e0b' }}>
-                    A quai
+                    style={{ backgroundColor: STATUS_COLORS.AT_DOCK }}>
+                    Assigner quai
                   </button>
                 )}
-                {/* Parti — quand le chauffeur est a quai (AT_DOCK) */}
-                {editedBooking.status === 'AT_DOCK' && (
-                  <button onClick={() => { handleBookingAction(editedBooking.id, 'departed'); setShowBookDialog(false) }}
+                {/* ── RECEPTION : debut dechargement (AT_DOCK → UNLOADING) ── */}
+                {isReception && editedBooking.status === 'AT_DOCK' && (
+                  <button onClick={() => { handleBookingAction(editedBooking.id, 'unloading'); setShowBookDialog(false) }}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
-                    style={{ backgroundColor: '#22c55e' }}>
-                    Parti (termine)
+                    style={{ backgroundColor: STATUS_COLORS.UNLOADING }}>
+                    Debut dechargement
                   </button>
                 )}
-                {/* Refuser — DRAFT, CONFIRMED ou CHECKED_IN */}
-                {['DRAFT', 'CONFIRMED', 'CHECKED_IN'].includes(editedBooking.status) && (
+                {/* ── RECEPTION : parti du quai (AT_DOCK|UNLOADING → DOCK_LEFT) ── */}
+                {isReception && ['AT_DOCK', 'UNLOADING'].includes(editedBooking.status) && (
+                  <button onClick={() => { handleBookingAction(editedBooking.id, 'dock-left'); setShowBookDialog(false) }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
+                    style={{ backgroundColor: STATUS_COLORS.DOCK_LEFT }}>
+                    Parti du quai
+                  </button>
+                )}
+                {/* ── GARDE : parti du site (DOCK_LEFT → COMPLETED) ── */}
+                {isGate && editedBooking.status === 'DOCK_LEFT' && (
+                  <button onClick={() => { handleBookingAction(editedBooking.id, 'site-departure'); setShowBookDialog(false) }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
+                    style={{ backgroundColor: STATUS_COLORS.COMPLETED }}>
+                    Parti du site
+                  </button>
+                )}
+                {/* ── RECEPTION : refuser (DRAFT/CONFIRMED/CHECKED_IN) ── */}
+                {isReception && ['DRAFT', 'CONFIRMED', 'CHECKED_IN'].includes(editedBooking.status) && (
                   <button onClick={() => { handleBookingAction(editedBooking.id, 'refuse'); setShowBookDialog(false) }}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
                     style={{ backgroundColor: '#ef4444' }}>
                     Refuser
                   </button>
                 )}
-                {/* Annuler — si pas deja COMPLETED/CANCELLED/REFUSED */}
-                {!['COMPLETED', 'CANCELLED', 'REFUSED'].includes(editedBooking.status) && (
+                {/* ── APPROS : annuler (si pas deja termine/annule/refuse) ── */}
+                {isAppros && !['COMPLETED', 'CANCELLED', 'REFUSED', 'DOCK_LEFT'].includes(editedBooking.status) && (
                   <button onClick={() => { handleBookingAction(editedBooking.id, 'cancel'); setShowBookDialog(false) }}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium border"
                     style={{ borderColor: '#6b7280', color: '#6b7280' }}>
                     Annuler
                   </button>
                 )}
-                {/* Supprimer — toujours dispo pour qui a le droit */}
-                <button onClick={() => { handleDeleteBooking(editedBooking.id); setShowBookDialog(false) }}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium ml-auto"
-                  style={{ color: '#ef4444', border: '1px solid #ef444440' }}>
-                  Supprimer
-                </button>
+                {/* ── APPROS : supprimer ── */}
+                {canEdit(editedBooking) && (
+                  <button onClick={() => { handleDeleteBooking(editedBooking.id); setShowBookDialog(false) }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium ml-auto"
+                    style={{ color: '#ef4444', border: '1px solid #ef444440' }}>
+                    Supprimer
+                  </button>
+                )}
               </div>
             )}
 
@@ -855,7 +890,7 @@ export default function ReceptionBooking() {
                 style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>
                 Fermer
               </button>
-              {!readOnly && !['COMPLETED', 'CANCELLED', 'REFUSED'].includes(editedBooking?.status || '') && (
+              {!readOnly && !['COMPLETED', 'CANCELLED', 'REFUSED', 'DOCK_LEFT'].includes(editedBooking?.status || '') && (
                 <button onClick={handleSaveBooking}
                   disabled={saving || !bkDockType || !bkStartTime || !bkPallets}
                   className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"

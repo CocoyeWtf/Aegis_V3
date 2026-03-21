@@ -23,9 +23,11 @@ class BookingStatus(str, enum.Enum):
     """Statut reservation / Booking status."""
     DRAFT = "DRAFT"
     CONFIRMED = "CONFIRMED"
-    CHECKED_IN = "CHECKED_IN"      # Chauffeur arrive a la borne
-    AT_DOCK = "AT_DOCK"            # Chauffeur a quai
-    COMPLETED = "COMPLETED"
+    CHECKED_IN = "CHECKED_IN"      # Chauffeur arrive sur site (borne/garde)
+    AT_DOCK = "AT_DOCK"            # Chauffeur a quai (reception)
+    UNLOADING = "UNLOADING"        # En cours de dechargement (reception)
+    DOCK_LEFT = "DOCK_LEFT"        # Parti du quai (reception)
+    COMPLETED = "COMPLETED"        # Parti du site (garde)
     CANCELLED = "CANCELLED"
     REFUSED = "REFUSED"
     NO_SHOW = "NO_SHOW"
@@ -35,7 +37,10 @@ class DockEventType(str, enum.Enum):
     """Type d'evenement quai / Dock event type."""
     ASSIGNED = "ASSIGNED"
     AT_DOCK = "AT_DOCK"
-    DEPARTED = "DEPARTED"
+    UNLOADING = "UNLOADING"
+    DOCK_LEFT = "DOCK_LEFT"
+    SITE_LEFT = "SITE_LEFT"
+    DEPARTED = "DEPARTED"          # Legacy — kept for existing data
 
 
 class PurchaseOrderStatus(str, enum.Enum):
