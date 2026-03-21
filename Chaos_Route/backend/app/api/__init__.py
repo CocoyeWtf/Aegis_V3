@@ -49,6 +49,7 @@ from app.api import (
     temperature,
     reception_booking,
     sms,
+    gdpr,
 )
 
 api_router = APIRouter(prefix="/api")
@@ -98,3 +99,4 @@ api_router.include_router(collection_requests.router, prefix="/collection-reques
 api_router.include_router(temperature.router, prefix="/temperature", tags=["temperature"])
 api_router.include_router(reception_booking.router, prefix="/reception-booking", tags=["reception-booking"])
 api_router.include_router(sms.router, prefix="/sms", tags=["sms"])
+api_router.include_router(gdpr.router, prefix="/gdpr", tags=["gdpr"])

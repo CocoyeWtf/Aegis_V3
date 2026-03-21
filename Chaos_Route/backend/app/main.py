@@ -85,10 +85,47 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(self)"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob:; "
+            "font-src 'self' data:; "
+            "connect-src 'self' ws: wss:; "
+            "frame-ancestors 'none'"
+        )
         return response
 
 
 app.add_middleware(SecurityHeadersMiddleware)
+
+
+# 3C. Input sanitization middleware — bloque les payloads contenant du HTML/script
+class InputSanitizationMiddleware(BaseHTTPMiddleware):
+    """Detecter les tentatives XSS dans les payloads JSON / Detect XSS attempts in JSON payloads."""
+    DANGEROUS_PATTERNS = ["<script", "javascript:", "onerror=", "onload=", "<iframe", "<object"]
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method in ("POST", "PUT", "PATCH") and request.headers.get("content-type", "").startswith("application/json"):
+            body = await request.body()
+            body_lower = body.decode("utf-8", errors="ignore").lower()
+            for pattern in self.DANGEROUS_PATTERNS:
+                if pattern in body_lower:
+                    from fastapi.responses import JSONResponse
+                    return JSONResponse(
+                        status_code=400,
+                        content={"detail": f"Contenu non autorise detecte dans la requete"},
+                    )
+            # Remonter le body pour le prochain middleware
+            from starlette.datastructures import State
+            async def receive():
+                return {"type": "http.request", "body": body}
+            request._receive = receive
+        return await call_next(request)
+
+
+app.add_middleware(InputSanitizationMiddleware)
 
 
 # 5B. Request ID tracking middleware

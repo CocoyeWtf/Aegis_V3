@@ -9,7 +9,7 @@ import calendar
 from datetime import datetime, date as date_type, timezone
 from typing import NamedTuple
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -34,6 +34,7 @@ from app.schemas.reception_booking import (
     SlotAvailability, OrderImportRead, OrderImportResult,
 )
 from app.api.deps import require_permission, get_current_user
+from app.rate_limit import limiter
 
 router = APIRouter()
 
@@ -1467,7 +1468,9 @@ async def supplier_portal_slots(
 
 
 @router.post("/supplier-portal/book/")
+@limiter.limit("10/minute")
 async def supplier_portal_book(
+    request: Request,
     data: dict,
     db: AsyncSession = Depends(get_db),
 ):
@@ -1531,7 +1534,9 @@ async def supplier_portal_book(
 # ─── Check-in borne chauffeur ───
 
 @router.post("/checkin/", response_model=BookingCheckinRead, status_code=201)
+@limiter.limit("20/minute")
 async def driver_checkin(
+    request: Request,
     data: BookingCheckinCreate,
     db: AsyncSession = Depends(get_db),
 ):
@@ -1736,9 +1741,17 @@ async def import_orders(
     Sheet 'Lst Rd Ouvert Detail', groupement par Rd."""
     import xlrd
 
+    # Validation securite upload / Upload security validation
+    if file.filename:
+        ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+        if ext not in ("xls", "xlsx"):
+            raise HTTPException(status_code=400, detail="Type de fichier non autorise (xls/xlsx uniquement)")
+
     content = await file.read()
-    if len(content) > 10 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Fichier trop volumineux (max 10 Mo)")
+    if len(content) > 5 * 1024 * 1024:  # 5 Mo max
+        raise HTTPException(status_code=400, detail="Fichier trop volumineux (max 5 Mo)")
+    if len(content) < 100:
+        raise HTTPException(status_code=400, detail="Fichier vide ou trop petit")
 
     try:
         wb = xlrd.open_workbook(file_contents=content)
