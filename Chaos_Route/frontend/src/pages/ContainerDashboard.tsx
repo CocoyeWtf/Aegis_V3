@@ -37,13 +37,6 @@ const MOVEMENT_COLORS: Record<string, string> = {
   INVENTORY_ADJUSTMENT: '#a855f7',
   BASE_INVENTORY: '#06b6d4',
 }
-const MOVEMENT_LABELS: Record<string, string> = {
-  RECEIVED_FROM_PDV: 'Retour PDV',
-  DELIVERY_PREP: 'Prep. livraison',
-  SUPPLIER_RETURN: 'Retour fournisseur',
-  INVENTORY_ADJUSTMENT: 'Ajustement inventaire',
-  BASE_INVENTORY: 'Inventaire mobile',
-}
 
 export default function ContainerDashboard() {
   const navigate = useNavigate()
