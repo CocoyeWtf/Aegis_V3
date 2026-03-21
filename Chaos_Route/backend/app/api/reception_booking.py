@@ -26,7 +26,7 @@ from app.models.audit import AuditLog
 from app.schemas.reception_booking import (
     DockConfigCreate, DockConfigRead, DockConfigUpdate,
     DockScheduleOverrideCreate, DockScheduleOverrideRead, DockScheduleOverrideUpdate,
-    DayAvailabilitySummary, SuggestedSlot,
+    DayAvailabilitySummary, SuggestedSlot, BookingKpi,
     BookingCreate, BookingRead, BookingUpdate, BookingMoveSlot,
     BookingCheckinCreate, BookingCheckinRead,
     BookingRefusalCreate,
@@ -456,6 +456,206 @@ async def get_calendar_availability(
                     booking_count=bk_cnt, pallet_total=bk_pal,
                 ))
     return result
+
+
+# ─── KPI / Stats ───
+
+@router.get("/kpi/", response_model=BookingKpi)
+async def get_booking_kpi(
+    base_id: int,
+    date_from: str,
+    date_to: str,
+    dock_type: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """KPI booking : taux exploitation, retards, temps d'attente / Booking KPIs."""
+    from sqlalchemy import func as sqlfunc
+    from zoneinfo import ZoneInfo
+
+    # ── Charger configs pour calculer capacite theorique / Load configs for theoretical capacity ──
+    cfg_query = select(DockConfig).where(DockConfig.base_id == base_id).options(
+        selectinload(DockConfig.schedules), selectinload(DockConfig.overrides)
+    )
+    if dock_type:
+        cfg_query = cfg_query.where(DockConfig.dock_type == DockType(dock_type))
+    cfgs = (await db.execute(cfg_query)).scalars().all()
+
+    # ── Charger tous les bookings de la periode / Load all bookings for the period ──
+    bk_query = select(Booking).where(
+        Booking.base_id == base_id,
+        Booking.booking_date >= date_from,
+        Booking.booking_date <= date_to,
+    ).options(selectinload(Booking.checkin), selectinload(Booking.dock_events))
+    if dock_type:
+        bk_query = bk_query.where(Booking.dock_type == DockType(dock_type))
+    all_bookings = (await bk_query.execute(bk_query) if False else
+                    (await db.execute(bk_query)).scalars().all())
+
+    # ── Capacite theorique par jour / Theoretical capacity per day ──
+    MAX_PAL_PER_TRUCK = 33
+    total_max_pallets = 0
+    total_max_trucks = 0
+    daily_capacity: dict[str, int] = {}  # date → max_pallets
+
+    d_from = date_type.fromisoformat(date_from)
+    d_to = date_type.fromisoformat(date_to)
+    current = d_from
+    while current <= d_to:
+        date_str = current.isoformat()
+        day_max_pal = 0
+        day_max_trucks = 0
+        for cfg in cfgs:
+            resolved = _resolve_schedule(cfg, date_str)
+            if not resolved:
+                continue
+            window_min = _time_to_minutes(resolved.close_time) - _time_to_minutes(resolved.open_time)
+            if window_min <= 0:
+                continue
+            # Duree d'un camion 33 palettes sur ce type de quai
+            dur_33 = _calc_duration(MAX_PAL_PER_TRUCK, cfg)
+            if dur_33 <= 0:
+                continue
+            trucks_per_dock = window_min // dur_33
+            day_trucks = trucks_per_dock * resolved.dock_count
+            day_pal = day_trucks * MAX_PAL_PER_TRUCK
+            day_max_pal += day_pal
+            day_max_trucks += day_trucks
+
+        daily_capacity[date_str] = day_max_pal
+        total_max_pallets += day_max_pal
+        total_max_trucks += day_max_trucks
+        current = date_type.fromordinal(current.toordinal() + 1)
+
+    # ── Stats reelles / Actual stats ──
+    active_bookings = [b for b in all_bookings if b.status not in (BookingStatus.CANCELLED, BookingStatus.REFUSED, BookingStatus.NO_SHOW)]
+    actual_pallets = sum(b.pallet_count for b in active_bookings)
+    actual_trucks = len(active_bookings)
+
+    utilization = (actual_pallets / total_max_pallets * 100) if total_max_pallets > 0 else 0.0
+
+    # ── Temps d'attente et duree a quai / Wait times and dock duration ──
+    wait_times: list[float] = []
+    dock_times: list[float] = []
+    delays: list[float] = []
+    supplier_delays: dict[str, list[float]] = {}
+    carrier_delays: dict[str, list[float]] = {}
+
+    for b in all_bookings:
+        if b.status in (BookingStatus.CANCELLED,):
+            continue
+
+        # Retard arrivee : checkin_time vs start_time prevu / Arrival delay
+        if b.checkin and b.start_time:
+            try:
+                checkin_str = b.checkin.checkin_time
+                # Extraire l'heure du timestamp ISO
+                checkin_hour = checkin_str[11:16] if len(checkin_str) > 16 else checkin_str[:5]
+                delay = _time_to_minutes(checkin_hour) - _time_to_minutes(b.start_time)
+                delays.append(delay)
+                # Par fournisseur
+                supplier = b.supplier_name or 'Inconnu'
+                supplier_delays.setdefault(supplier, []).append(delay)
+                # Par plaque (transporteur)
+                plate = b.checkin.license_plate or 'Inconnue'
+                carrier_delays.setdefault(plate, []).append(delay)
+            except (ValueError, IndexError):
+                pass
+
+        # Temps entre events dock / Time between dock events
+        events = sorted(b.dock_events or [], key=lambda e: e.timestamp)
+        ev_map: dict[str, str] = {}
+        for ev in events:
+            et = ev.event_type.value if hasattr(ev.event_type, 'value') else ev.event_type
+            ev_map[et] = ev.timestamp
+
+        # Attente : checkin → at_dock
+        if b.checkin and 'AT_DOCK' in ev_map:
+            try:
+                ci_h = b.checkin.checkin_time[11:16]
+                ad_h = ev_map['AT_DOCK'][11:16]
+                wait = _time_to_minutes(ad_h) - _time_to_minutes(ci_h)
+                if wait >= 0:
+                    wait_times.append(wait)
+            except (ValueError, IndexError):
+                pass
+
+        # Duree a quai : at_dock → dock_left ou departed
+        dock_end_key = 'DOCK_LEFT' if 'DOCK_LEFT' in ev_map else ('DEPARTED' if 'DEPARTED' in ev_map else None)
+        if 'AT_DOCK' in ev_map and dock_end_key:
+            try:
+                ad_h = ev_map['AT_DOCK'][11:16]
+                dl_h = ev_map[dock_end_key][11:16]
+                dur = _time_to_minutes(dl_h) - _time_to_minutes(ad_h)
+                if dur >= 0:
+                    dock_times.append(dur)
+            except (ValueError, IndexError):
+                pass
+
+    avg_wait = round(sum(wait_times) / len(wait_times), 1) if wait_times else None
+    avg_dock = round(sum(dock_times) / len(dock_times), 1) if dock_times else None
+    avg_delay = round(sum(delays) / len(delays), 1) if delays else None
+
+    # ── Top retardataires (retard moyen > 0) / Top latecomers ──
+    late_suppliers = []
+    for name, dlist in supplier_delays.items():
+        avg_d = sum(dlist) / len(dlist)
+        if avg_d > 0:
+            late_suppliers.append({"name": name, "avg_delay_min": round(avg_d, 1), "count": len(dlist)})
+    late_suppliers.sort(key=lambda x: -x["avg_delay_min"])
+
+    late_carriers = []
+    for plate, dlist in carrier_delays.items():
+        avg_d = sum(dlist) / len(dlist)
+        if avg_d > 0:
+            late_carriers.append({"plate": plate, "avg_delay_min": round(avg_d, 1), "count": len(dlist)})
+    late_carriers.sort(key=lambda x: -x["avg_delay_min"])
+
+    # ── Stats par jour / Daily stats ──
+    daily_stats = []
+    bookings_by_date: dict[str, list] = {}
+    for b in active_bookings:
+        bookings_by_date.setdefault(b.booking_date, []).append(b)
+
+    current = d_from
+    while current <= d_to:
+        ds = current.isoformat()
+        day_bks = bookings_by_date.get(ds, [])
+        day_pal = sum(b.pallet_count for b in day_bks)
+        day_cap = daily_capacity.get(ds, 0)
+        daily_stats.append({
+            "date": ds,
+            "pallets": day_pal,
+            "trucks": len(day_bks),
+            "utilization_pct": round(day_pal / day_cap * 100, 1) if day_cap > 0 else 0,
+        })
+        current = date_type.fromordinal(current.toordinal() + 1)
+
+    # Compteurs statuts
+    status_counts = {}
+    for b in all_bookings:
+        s = b.status.value if hasattr(b.status, 'value') else b.status
+        status_counts[s] = status_counts.get(s, 0) + 1
+
+    return BookingKpi(
+        period_from=date_from, period_to=date_to,
+        theoretical_max_pallets=total_max_pallets,
+        actual_pallets=actual_pallets,
+        utilization_pct=round(utilization, 1),
+        theoretical_max_trucks=total_max_trucks,
+        actual_trucks=actual_trucks,
+        avg_wait_minutes=avg_wait,
+        avg_dock_minutes=avg_dock,
+        avg_delay_minutes=avg_delay,
+        total_bookings=len(all_bookings),
+        completed=status_counts.get('COMPLETED', 0),
+        refused=status_counts.get('REFUSED', 0),
+        no_show=status_counts.get('NO_SHOW', 0),
+        cancelled=status_counts.get('CANCELLED', 0),
+        late_suppliers=late_suppliers[:10],
+        late_carriers=late_carriers[:10],
+        daily_stats=daily_stats,
+    )
 
 
 # ─── Suggested slots (creneaux recommandes) ───

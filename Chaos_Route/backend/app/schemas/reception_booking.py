@@ -223,6 +223,33 @@ class SlotAvailability(BaseModel):
     total_docks: int
 
 
+class BookingKpi(BaseModel):
+    """KPI booking pour une periode / Booking KPIs for a period."""
+    period_from: str
+    period_to: str
+    # Capacite / Capacity
+    theoretical_max_pallets: int    # Capacite max (33 pal/camion)
+    actual_pallets: int             # Palettes reelles bookees
+    utilization_pct: float          # Taux d'exploitation (%)
+    theoretical_max_trucks: int     # Nb max camions theorique
+    actual_trucks: int              # Nb bookings reels
+    # Temps / Timing
+    avg_wait_minutes: float | None  # Temps attente moyen (checkin → a quai)
+    avg_dock_minutes: float | None  # Duree moyenne a quai (a quai → parti quai)
+    avg_delay_minutes: float | None # Retard moyen arrivee vs heure prevue
+    # Compteurs / Counters
+    total_bookings: int
+    completed: int
+    refused: int
+    no_show: int
+    cancelled: int
+    # Top retardataires / Top latecomers
+    late_suppliers: list[dict]      # [{name, avg_delay_min, count}]
+    late_carriers: list[dict]       # [{plate, avg_delay_min, count}]
+    # Par jour / Per day
+    daily_stats: list[dict]         # [{date, pallets, trucks, utilization_pct}]
+
+
 class SuggestedSlot(BaseModel):
     start_time: str
     end_time: str

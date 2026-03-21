@@ -128,7 +128,7 @@ export default function ReceptionBooking() {
   }, [user, isAppros])
 
   // Dialogs
-  const [tab, setTab] = useState<'planning' | 'config' | 'import' | 'calendar'>('planning')
+  const [tab, setTab] = useState<'planning' | 'config' | 'import' | 'calendar' | 'stats'>('planning')
   const [showBookDialog, setShowBookDialog] = useState(false)
   const [showConfigDialog, setShowConfigDialog] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -157,6 +157,12 @@ export default function ReceptionBooking() {
 
   // Import
   const [importResult, setImportResult] = useState<{ imported: number; reconciled: number; errors: string[] } | null>(null)
+
+  // KPI
+  const [kpi, setKpi] = useState<Record<string, unknown> | null>(null)
+  const [kpiFrom, setKpiFrom] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10) })
+  const [kpiTo, setKpiTo] = useState(() => new Date().toISOString().slice(0, 10))
+  const [loadingKpi, setLoadingKpi] = useState(false)
 
   // Garde : check-in
   const [gateOrderNum, setGateOrderNum] = useState('')
@@ -205,6 +211,20 @@ export default function ReceptionBooking() {
   }, [selectedBaseId, selectedDate])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // Charger KPI / Fetch KPIs
+  const fetchKpi = useCallback(async () => {
+    if (!selectedBaseId) return
+    setLoadingKpi(true)
+    try {
+      const res = await api.get('/reception-booking/kpi/', {
+        params: { base_id: selectedBaseId, date_from: kpiFrom, date_to: kpiTo },
+      })
+      setKpi(res.data)
+    } catch { setKpi(null) } finally { setLoadingKpi(false) }
+  }, [selectedBaseId, kpiFrom, kpiTo])
+
+  useEffect(() => { if (tab === 'stats') fetchKpi() }, [tab, fetchKpi])
 
   // Charger les creneaux recommandes / Fetch suggested slots
   useEffect(() => {
@@ -679,6 +699,11 @@ export default function ReceptionBooking() {
               className="px-3 py-1.5 rounded-lg text-sm font-medium"
               style={{ backgroundColor: tab === 'calendar' ? 'var(--color-primary)' : 'var(--bg-tertiary)', color: tab === 'calendar' ? 'white' : 'var(--text-primary)' }}>
               Calendrier
+            </button>
+            <button onClick={() => setTab('stats')}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium"
+              style={{ backgroundColor: tab === 'stats' ? 'var(--color-primary)' : 'var(--bg-tertiary)', color: tab === 'stats' ? 'white' : 'var(--text-primary)' }}>
+              Stats
             </button>
           </div>
         )}
@@ -1239,6 +1264,176 @@ export default function ReceptionBooking() {
                   <span>Exception</span>
                 </div>
               </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ─── TAB: STATS / KPI ─── */}
+      {tab === 'stats' && (
+        <div className="space-y-4">
+          {!selectedBaseId ? (
+            <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>Selectionnez une base pour voir les statistiques.</div>
+          ) : (
+            <>
+              {/* Selecteur periode */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Periode :</label>
+                <input type="date" value={kpiFrom} onChange={(e) => setKpiFrom(e.target.value)}
+                  className="px-3 py-1.5 rounded-lg text-sm border"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>→</span>
+                <input type="date" value={kpiTo} onChange={(e) => setKpiTo(e.target.value)}
+                  className="px-3 py-1.5 rounded-lg text-sm border"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+                <button onClick={fetchKpi} className="px-3 py-1.5 rounded-lg text-sm font-medium text-white"
+                  style={{ backgroundColor: 'var(--color-primary)' }}>Actualiser</button>
+              </div>
+
+              {loadingKpi && <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>Calcul en cours...</div>}
+
+              {!loadingKpi && kpi && (() => {
+                const k = kpi as Record<string, unknown>
+                const utilPct = Number(k.utilization_pct || 0)
+                const utilColor = utilPct >= 80 ? '#22c55e' : utilPct >= 50 ? '#f59e0b' : '#ef4444'
+                const dailyStats = (k.daily_stats as Array<Record<string, unknown>>) || []
+                const lateSuppliers = (k.late_suppliers as Array<Record<string, unknown>>) || []
+                const lateCarriers = (k.late_carriers as Array<Record<string, unknown>>) || []
+
+                return (
+                  <>
+                    {/* ── Cartes KPI principales ── */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="rounded-xl border p-4 text-center" style={{ borderColor: utilColor, backgroundColor: `${utilColor}10` }}>
+                        <div className="text-3xl font-bold" style={{ color: utilColor }}>{utilPct}%</div>
+                        <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Taux exploitation</div>
+                        <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                          {String(k.actual_pallets)} / {String(k.theoretical_max_pallets)} pal.
+                        </div>
+                      </div>
+                      <div className="rounded-xl border p-4 text-center" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                        <div className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>{String(k.actual_trucks)}</div>
+                        <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Camions recus</div>
+                        <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                          max theorique : {String(k.theoretical_max_trucks)}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border p-4 text-center" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                        <div className="text-3xl font-bold" style={{ color: '#3b82f6' }}>
+                          {k.avg_wait_minutes != null ? `${k.avg_wait_minutes} min` : '—'}
+                        </div>
+                        <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Attente moyenne</div>
+                        <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>arrivee → quai</div>
+                      </div>
+                      <div className="rounded-xl border p-4 text-center" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                        <div className="text-3xl font-bold" style={{ color: '#a855f7' }}>
+                          {k.avg_dock_minutes != null ? `${k.avg_dock_minutes} min` : '—'}
+                        </div>
+                        <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Duree quai moyenne</div>
+                        <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>a quai → parti</div>
+                      </div>
+                    </div>
+
+                    {/* ── Compteurs statuts ── */}
+                    <div className="grid grid-cols-5 gap-2">
+                      {[
+                        { label: 'Total', value: k.total_bookings, color: 'var(--text-primary)' },
+                        { label: 'Termines', value: k.completed, color: '#22c55e' },
+                        { label: 'Refuses', value: k.refused, color: '#ef4444' },
+                        { label: 'No-show', value: k.no_show, color: '#ef4444' },
+                        { label: 'Annules', value: k.cancelled, color: '#6b7280' },
+                      ].map((s) => (
+                        <div key={s.label} className="rounded-lg p-2 text-center" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                          <div className="text-lg font-bold" style={{ color: s.color }}>{String(s.value)}</div>
+                          <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{s.label}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* ── Retard moyen + capacite ── */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Top fournisseurs en retard */}
+                      <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                        <h3 className="text-sm font-bold mb-3" style={{ color: 'var(--text-primary)' }}>
+                          Fournisseurs en retard
+                        </h3>
+                        {lateSuppliers.length === 0 ? (
+                          <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Aucun retard enregistre</div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {lateSuppliers.map((s, i) => (
+                              <div key={i} className="flex items-center justify-between text-sm">
+                                <span style={{ color: 'var(--text-primary)' }}>{String(s.name)}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#ef444420', color: '#ef4444' }}>
+                                    +{String(s.avg_delay_min)} min
+                                  </span>
+                                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>({String(s.count)}x)</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Top transporteurs en retard */}
+                      <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                        <h3 className="text-sm font-bold mb-3" style={{ color: 'var(--text-primary)' }}>
+                          Transporteurs en retard (par plaque)
+                        </h3>
+                        {lateCarriers.length === 0 ? (
+                          <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Aucun retard enregistre</div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {lateCarriers.map((c, i) => (
+                              <div key={i} className="flex items-center justify-between text-sm">
+                                <span className="font-mono" style={{ color: 'var(--text-primary)' }}>{String(c.plate)}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#ef444420', color: '#ef4444' }}>
+                                    +{String(c.avg_delay_min)} min
+                                  </span>
+                                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>({String(c.count)}x)</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* ── Evolution journaliere ── */}
+                    <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                      <h3 className="text-sm font-bold mb-3" style={{ color: 'var(--text-primary)' }}>
+                        Evolution journaliere
+                      </h3>
+                      <div className="overflow-x-auto">
+                        <div style={{ display: 'flex', gap: '2px', alignItems: 'flex-end', minHeight: '120px' }}>
+                          {dailyStats.map((d) => {
+                            const pct = Number(d.utilization_pct || 0)
+                            const barColor = pct >= 80 ? '#22c55e' : pct >= 50 ? '#f59e0b' : pct > 0 ? '#3b82f6' : 'var(--bg-tertiary)'
+                            return (
+                              <div key={String(d.date)} className="flex flex-col items-center" style={{ flex: '1', minWidth: '28px' }}>
+                                <div className="text-[9px] font-bold mb-1" style={{ color: barColor }}>
+                                  {pct > 0 ? `${pct}%` : ''}
+                                </div>
+                                <div style={{
+                                  width: '100%', maxWidth: '32px',
+                                  height: `${Math.max(4, pct)}px`,
+                                  backgroundColor: barColor,
+                                  borderRadius: '3px 3px 0 0',
+                                }} />
+                                <div className="text-[8px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                  {String(d.date).slice(8)}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )
+              })()}
             </>
           )}
         </div>
