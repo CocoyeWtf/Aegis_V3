@@ -148,6 +148,17 @@ export default function ReceptionBooking() {
   // Import
   const [importResult, setImportResult] = useState<{ imported: number; reconciled: number; errors: string[] } | null>(null)
 
+  // Override dialog
+  const [showOverrideDialog, setShowOverrideDialog] = useState(false)
+  const [editOverrideId, setEditOverrideId] = useState<number | null>(null)
+  const [ovDate, setOvDate] = useState('')
+  const [ovConfigId, setOvConfigId] = useState<number | ''>('')
+  const [ovClosed, setOvClosed] = useState(false)
+  const [ovOpenTime, setOvOpenTime] = useState('')
+  const [ovCloseTime, setOvCloseTime] = useState('')
+  const [ovDockCount, setOvDockCount] = useState('')
+  const [ovNotes, setOvNotes] = useState('')
+
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
@@ -428,6 +439,68 @@ export default function ReceptionBooking() {
     setShowBookDialog(true)
   }
 
+  // ─── Override handlers ───
+  const openOverrideDialog = (dateStr: string, dockConfigId?: number) => {
+    setOvDate(dateStr)
+    setOvConfigId(dockConfigId || (baseConfigs[0]?.id ?? ''))
+    // Chercher un override existant / Look for existing override
+    const existing = overrides.find((o) => o.override_date === dateStr && (dockConfigId ? o.dock_config_id === dockConfigId : true))
+    if (existing) {
+      setEditOverrideId(existing.id)
+      setOvConfigId(existing.dock_config_id)
+      setOvClosed(existing.is_closed)
+      setOvOpenTime(existing.open_time || '')
+      setOvCloseTime(existing.close_time || '')
+      setOvDockCount(existing.dock_count != null ? String(existing.dock_count) : '')
+      setOvNotes(existing.notes || '')
+    } else {
+      setEditOverrideId(null)
+      setOvClosed(false)
+      setOvOpenTime(''); setOvCloseTime(''); setOvDockCount(''); setOvNotes('')
+    }
+    setShowOverrideDialog(true)
+  }
+
+  const handleSaveOverride = async () => {
+    if (!ovConfigId || !ovDate) return
+    setSaving(true)
+    try {
+      const payload = {
+        dock_config_id: Number(ovConfigId),
+        override_date: ovDate,
+        is_closed: ovClosed,
+        open_time: ovOpenTime || null,
+        close_time: ovCloseTime || null,
+        dock_count: ovDockCount ? Number(ovDockCount) : null,
+        notes: ovNotes || null,
+      }
+      if (editOverrideId) {
+        await api.put(`/reception-booking/schedule-overrides/${editOverrideId}`, payload)
+      } else {
+        await api.post('/reception-booking/schedule-overrides/', payload)
+      }
+      setShowOverrideDialog(false)
+      fetchData()
+      if (tab === 'calendar') fetchCalendar()
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur'
+      alert(detail)
+    } finally { setSaving(false) }
+  }
+
+  const handleDeleteOverride = async () => {
+    if (!editOverrideId || !window.confirm('Supprimer cette exception ?')) return
+    try {
+      await api.delete(`/reception-booking/schedule-overrides/${editOverrideId}`)
+      setShowOverrideDialog(false)
+      fetchData()
+      if (tab === 'calendar') fetchCalendar()
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur'
+      alert(detail)
+    }
+  }
+
   // ─── Render helpers ───
   const renderBookingBlock = (booking: Booking, slotTime: string) => {
     // Afficher seulement sur le premier creneau du booking / Only show on first slot
@@ -623,14 +696,14 @@ export default function ReceptionBooking() {
                   {columns.map((col, ci) => (
                     <div key={ci} style={{
                       flex: '1', minWidth: '110px',
-                      border: '2px solid var(--color-primary)',
+                      border: `2px solid ${DOCK_TYPE_COLORS[col.dockType] || 'var(--color-primary)'}`,
                       borderRadius: '12px',
                       overflow: 'hidden',
                       backgroundColor: 'var(--bg-primary)',
                     }}>
-                      {/* En-tete quai / Dock header */}
+                      {/* En-tete quai / Dock header — couleur par type */}
                       <div style={{
-                        background: `linear-gradient(135deg, var(--color-primary), var(--color-primary-hover))`,
+                        background: `linear-gradient(135deg, ${DOCK_TYPE_COLORS[col.dockType] || '#737373'}, ${DOCK_TYPE_COLORS[col.dockType] || '#737373'}cc)`,
                         padding: '10px 6px',
                         textAlign: 'center',
                       }}>
@@ -835,18 +908,31 @@ export default function ReceptionBooking() {
                             minHeight: '80px',
                             backgroundColor: isToday ? 'var(--color-primary)08' : (isWeekend ? 'var(--bg-tertiary)' : 'var(--bg-primary)'),
                           }}
-                          onClick={() => { setSelectedDate(dateStr); setTab('planning') }}
                         >
-                          <div className="text-xs font-bold mb-1" style={{
-                            color: isToday ? 'var(--color-primary)' : 'var(--text-primary)',
-                          }}>
-                            {day}
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold cursor-pointer hover:underline" style={{
+                              color: isToday ? 'var(--color-primary)' : 'var(--text-primary)',
+                            }} onClick={() => { setSelectedDate(dateStr); setTab('planning') }}>
+                              {day}
+                            </span>
+                            {isReception && baseConfigs.length > 0 && (
+                              <button
+                                className="text-[8px] px-1 rounded hover:opacity-80"
+                                style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}
+                                onClick={(e) => { e.stopPropagation(); openOverrideDialog(dateStr) }}
+                                title="Ajouter/modifier exception"
+                              >+</button>
+                            )}
                           </div>
                           {dayData.length === 0 && (
                             <div className="text-[9px]" style={{ color: 'var(--text-muted)' }}>-</div>
                           )}
-                          {dayData.map((dd) => (
-                            <div key={dd.dock_type} className="text-[9px] flex items-center gap-1 mb-0.5">
+                          {dayData.map((dd) => {
+                            const cfgForType = baseConfigs.find((c) => c.dock_type === dd.dock_type)
+                            return (
+                            <div key={dd.dock_type} className="text-[9px] flex items-center gap-1 mb-0.5 group cursor-pointer"
+                              onClick={(e) => { e.stopPropagation(); if (cfgForType) openOverrideDialog(dateStr, cfgForType.id) }}
+                            >
                               <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: DOCK_TYPE_COLORS[dd.dock_type] || '#737373' }} />
                               {dd.is_closed ? (
                                 <span style={{ color: '#ef4444', textDecoration: 'line-through' }}>Ferme</span>
@@ -860,7 +946,8 @@ export default function ReceptionBooking() {
                                 <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: 'var(--color-primary)' }} title="Exception" />
                               )}
                             </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       )
                     }
@@ -892,6 +979,97 @@ export default function ReceptionBooking() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* ─── DIALOG: Override (exception calendrier) ─── */}
+      {showOverrideDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setShowOverrideDialog(false)}>
+          <div className="w-full max-w-md rounded-xl border shadow-2xl p-6"
+            style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
+            onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
+              {editOverrideId ? 'Modifier exception' : 'Nouvelle exception'}
+            </h2>
+            <div className="text-sm font-medium mb-3" style={{ color: 'var(--text-muted)' }}>
+              {formatDateFr(ovDate)}
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Type de quai</label>
+                <select value={ovConfigId} onChange={(e) => setOvConfigId(Number(e.target.value) || '')}
+                  disabled={!!editOverrideId}
+                  className="w-full px-3 py-2 rounded-lg text-sm border"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+                  <option value="">-- Choisir --</option>
+                  {baseConfigs.map((c) => (
+                    <option key={c.id} value={c.id}>{DOCK_TYPE_LABELS[c.dock_type] || c.dock_type} ({c.dock_count} quais)</option>
+                  ))}
+                </select>
+              </div>
+              <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-primary)' }}>
+                <input type="checkbox" checked={ovClosed} onChange={(e) => setOvClosed(e.target.checked)} />
+                Ferme ce jour (aucune reception)
+              </label>
+              {!ovClosed && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Ouverture</label>
+                      <input type="time" value={ovOpenTime} onChange={(e) => setOvOpenTime(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg text-sm border"
+                        style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                        placeholder="Defaut semaine type" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Fermeture</label>
+                      <input type="time" value={ovCloseTime} onChange={(e) => setOvCloseTime(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg text-sm border"
+                        style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                        placeholder="Defaut semaine type" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Nombre de quais (vide = defaut)</label>
+                    <input type="number" min={0} value={ovDockCount} onChange={(e) => setOvDockCount(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg text-sm border"
+                      style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+                  </div>
+                </>
+              )}
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Motif / notes</label>
+                <input type="text" value={ovNotes} onChange={(e) => setOvNotes(e.target.value)}
+                  placeholder="ex: Inventaire, jour ferie..."
+                  className="w-full px-3 py-2 rounded-lg text-sm border"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+              </div>
+            </div>
+            <div className="mt-5 flex justify-between">
+              <div>
+                {editOverrideId && (
+                  <button onClick={handleDeleteOverride}
+                    className="px-3 py-2 rounded-lg text-sm"
+                    style={{ color: '#ef4444', border: '1px solid #ef444440' }}>
+                    Supprimer
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setShowOverrideDialog(false)} className="px-4 py-2 rounded-lg text-sm"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>
+                  Annuler
+                </button>
+                <button onClick={handleSaveOverride}
+                  disabled={saving || !ovConfigId || !ovDate}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--color-primary)' }}>
+                  {saving ? 'Enregistrement...' : 'Enregistrer'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
