@@ -48,6 +48,7 @@ from app.api import (
     collection_requests,
     temperature,
     reception_booking,
+    sms,
 )
 
 api_router = APIRouter(prefix="/api")
@@ -96,3 +97,4 @@ api_router.include_router(supplier_pickup_requests.router, prefix="/supplier-pic
 api_router.include_router(collection_requests.router, prefix="/collection-requests", tags=["collection-requests"])
 api_router.include_router(temperature.router, prefix="/temperature", tags=["temperature"])
 api_router.include_router(reception_booking.router, prefix="/reception-booking", tags=["reception-booking"])
+api_router.include_router(sms.router, prefix="/sms", tags=["sms"])

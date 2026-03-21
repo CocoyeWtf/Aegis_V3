@@ -1572,6 +1572,15 @@ async def mark_at_dock(
         dock_number=dock_number, timestamp=_now_iso(), user_id=user.id,
     ))
     await _log_booking_audit(db, booking_id, "AT_DOCK", user, {"dock_number": dock_number})
+
+    # Envoyer SMS au chauffeur avec le numero de quai / Send SMS to driver with dock number
+    if booking.checkin and booking.checkin.phone_number:
+        from app.api.sms import queue_sms
+        base = await db.get(BaseLogistics, booking.base_id)
+        base_name = base.name if base else "la base"
+        sms_body = f"Quai {dock_number} - Presentez-vous au quai n{dock_number}. {base_name}. Ref: {booking.supplier_name or booking_id}"
+        await queue_sms(db, booking.checkin.phone_number, sms_body, booking_id=booking_id)
+
     await db.flush()
     return {"ok": True}
 
