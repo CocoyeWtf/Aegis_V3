@@ -28,6 +28,7 @@ const LoaderManagement = lazy(() => import('./pages/LoaderManagement'))
 const Operations = lazy(() => import('./pages/Operations'))
 const GuardPost = lazy(() => import('./pages/GuardPost'))
 const GuardPostDelivery = lazy(() => import('./pages/GuardPostDelivery'))
+const SupplierPortal = lazy(() => import('./pages/SupplierPortal'))
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'))
 const RoleManagement = lazy(() => import('./pages/admin/RoleManagement'))
 const AuditLog = lazy(() => import('./pages/AuditLog'))
@@ -75,6 +76,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/supplier-portal" element={<SupplierPortal />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/map-detached" element={<DetachedMap />} />
           <Route element={<MainLayout />}>

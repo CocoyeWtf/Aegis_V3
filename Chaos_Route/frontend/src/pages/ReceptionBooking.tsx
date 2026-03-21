@@ -1,7 +1,7 @@
 /* Page booking reception V2 / Supplier reception booking V2
    Planning visuel par type de quai, creneaux 15min, config, reservations, import */
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../services/api'
 import { useAuthStore } from '../stores/useAuthStore'
@@ -192,6 +192,88 @@ export default function ReceptionBooking() {
   const [kpiFrom, setKpiFrom] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10) })
   const [kpiTo, setKpiTo] = useState(() => new Date().toISOString().slice(0, 10))
   const [loadingKpi, setLoadingKpi] = useState(false)
+
+  // Notifications reception / Reception notifications
+  const [notifications, setNotifications] = useState<{ id: number; message: string; time: string }[]>([])
+  const knownCheckedInIds = useRef<Set<number>>(new Set())
+  const notifSound = useRef<HTMLAudioElement | null>(null)
+
+  // Initialiser le son de notification / Init notification sound
+  useEffect(() => {
+    // Petit beep en base64 (sine wave 440Hz, 200ms)
+    const audioCtx = typeof AudioContext !== 'undefined' ? new AudioContext() : null
+    if (audioCtx) {
+      const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.3, audioCtx.sampleRate)
+      const data = buf.getChannelData(0)
+      for (let i = 0; i < data.length; i++) {
+        data[i] = Math.sin(2 * Math.PI * 880 * i / audioCtx.sampleRate) * Math.exp(-3 * i / data.length)
+      }
+      notifSound.current = { play: () => {
+        const src = audioCtx.createBufferSource()
+        src.buffer = buf
+        src.connect(audioCtx.destination)
+        src.start()
+      }} as unknown as HTMLAudioElement
+    }
+  }, [])
+
+  // Polling toutes les 20s pour détecter les nouvelles arrivées / Poll every 20s for new arrivals
+  useEffect(() => {
+    if (!isReception && !isGate) return
+    if (!selectedBaseId) return
+
+    const poll = async () => {
+      try {
+        const res = await api.get('/reception-booking/bookings/', {
+          params: { base_id: selectedBaseId, date: selectedDate, status: 'CHECKED_IN' },
+        })
+        const freshCheckedIn: Booking[] = res.data
+        const newArrivals = freshCheckedIn.filter((b) => !knownCheckedInIds.current.has(b.id))
+
+        if (knownCheckedInIds.current.size > 0 && newArrivals.length > 0) {
+          // Nouvelles arrivees detectees / New arrivals detected
+          for (const b of newArrivals) {
+            const msg = `${b.supplier_name || 'Chauffeur'} arrive — ${b.pallet_count} pal. ${DOCK_TYPE_LABELS[b.dock_type] || b.dock_type}`
+            setNotifications((prev) => [{ id: b.id, message: msg, time: new Date().toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) }, ...prev].slice(0, 10))
+
+            // Son
+            try { notifSound.current?.play() } catch { /* silent */ }
+
+            // Notification navigateur / Browser notification
+            if (Notification.permission === 'granted') {
+              new Notification('Chauffeur arrive', { body: msg, icon: '/favicon.ico' })
+            }
+          }
+          // Rafraichir les donnees principales / Refresh main data
+          fetchData()
+        }
+
+        // Mettre a jour les IDs connus / Update known IDs
+        knownCheckedInIds.current = new Set(freshCheckedIn.map((b) => b.id))
+      } catch { /* silent */ }
+    }
+
+    // Premier chargement : initialiser les IDs connus sans notifier / First load: init without notifying
+    const init = async () => {
+      try {
+        const res = await api.get('/reception-booking/bookings/', {
+          params: { base_id: selectedBaseId, date: selectedDate, status: 'CHECKED_IN' },
+        })
+        knownCheckedInIds.current = new Set((res.data as Booking[]).map((b) => b.id))
+      } catch { /* silent */ }
+    }
+    init()
+
+    const interval = setInterval(poll, 20000)
+    return () => clearInterval(interval)
+  }, [isReception, isGate, selectedBaseId, selectedDate, fetchData])
+
+  // Demander permission notifications navigateur / Request browser notification permission
+  useEffect(() => {
+    if ((isReception || isGate) && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+  }, [isReception, isGate])
 
   // Garde : check-in
   const [gateOrderNum, setGateOrderNum] = useState('')
@@ -802,6 +884,21 @@ export default function ReceptionBooking() {
           </div>
         )}
       </div>
+
+      {/* Notifications toast */}
+      {notifications.length > 0 && (isReception || isGate) && (
+        <div className="space-y-1">
+          {notifications.slice(0, 3).map((n) => (
+            <div key={n.id} className="flex items-center gap-3 px-4 py-2 rounded-lg animate-pulse"
+              style={{ backgroundColor: `${STATUS_COLORS.CHECKED_IN}20`, border: `1px solid ${STATUS_COLORS.CHECKED_IN}` }}>
+              <span className="text-xs font-bold" style={{ color: STATUS_COLORS.CHECKED_IN }}>{n.time}</span>
+              <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{n.message}</span>
+              <button className="ml-auto text-xs" style={{ color: 'var(--text-muted)' }}
+                onClick={() => setNotifications((prev) => prev.filter((x) => x.id !== n.id))}>x</button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Filtres */}
       <div className="flex gap-3 items-center flex-wrap">

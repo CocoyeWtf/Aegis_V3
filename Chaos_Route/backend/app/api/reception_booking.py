@@ -1370,6 +1370,141 @@ async def update_pickup_status(
     return {"ok": True}
 
 
+# ─── Portail fournisseur (public) / Supplier portal (public) ───
+
+@router.get("/supplier-portal/bases/")
+async def supplier_portal_bases(db: AsyncSession = Depends(get_db)):
+    """Liste des bases pour le portail fournisseur (public) / Bases list for supplier portal."""
+    result = await db.execute(select(BaseLogistics).order_by(BaseLogistics.name))
+    return [{"id": b.id, "code": b.code, "name": b.name} for b in result.scalars().all()]
+
+@router.get("/supplier-portal/slots/")
+async def supplier_portal_slots(
+    base_id: int,
+    date: str,
+    dock_type: str,
+    pallet_count: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Creneaux disponibles pour le portail fournisseur (public) / Available slots for supplier portal."""
+    cfg_result = await db.execute(
+        select(DockConfig).where(
+            DockConfig.base_id == base_id, DockConfig.dock_type == DockType(dock_type),
+        ).options(selectinload(DockConfig.schedules), selectinload(DockConfig.overrides))
+    )
+    cfg = cfg_result.scalar_one_or_none()
+    if not cfg:
+        return []
+
+    resolved = _resolve_schedule(cfg, date)
+    if not resolved:
+        return []
+
+    duration = _calc_duration(pallet_count, cfg)
+    dock_count = resolved.dock_count
+    open_min = _time_to_minutes(resolved.open_time)
+    close_min = _time_to_minutes(resolved.close_time)
+
+    # Bookings existants / Existing bookings
+    bk_result = await db.execute(
+        select(Booking).where(
+            Booking.base_id == base_id, Booking.booking_date == date,
+            Booking.dock_type == DockType(dock_type),
+            Booking.status.notin_([BookingStatus.CANCELLED, BookingStatus.REFUSED]),
+        )
+    )
+    existing = bk_result.scalars().all()
+
+    # Trouver les creneaux libres / Find free slots
+    slots = []
+    current = open_min
+    while current + duration <= close_min:
+        slot_end = current + duration
+        # Verifier si au moins 1 quai libre / Check at least 1 dock free
+        has_free_dock = False
+        for dock_num in range(1, dock_count + 1):
+            free = True
+            for b in existing:
+                if b.dock_number != dock_num:
+                    continue
+                if _time_to_minutes(b.start_time) < slot_end and _time_to_minutes(b.end_time) > current:
+                    free = False
+                    break
+            if free:
+                has_free_dock = True
+                break
+        if has_free_dock:
+            slots.append({
+                "start_time": f"{current // 60:02d}:{current % 60:02d}",
+                "end_time": f"{slot_end // 60:02d}:{slot_end % 60:02d}",
+                "duration_minutes": duration,
+            })
+        current += 15
+    return slots
+
+
+@router.post("/supplier-portal/book/")
+async def supplier_portal_book(
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """Creer un booking depuis le portail fournisseur (public) / Create booking from supplier portal."""
+    required = ["base_id", "dock_type", "booking_date", "start_time", "pallet_count", "supplier_name"]
+    for field in required:
+        if not data.get(field):
+            raise HTTPException(status_code=422, detail=f"Champ requis: {field}")
+
+    base_id = int(data["base_id"])
+    dock_type_str = data["dock_type"]
+    booking_date = data["booking_date"]
+    start_time = data["start_time"]
+    pallet_count = int(data["pallet_count"])
+    supplier_name = data["supplier_name"]
+    order_number = data.get("order_number", "")
+    notes = data.get("notes", "")
+
+    cfg_result = await db.execute(
+        select(DockConfig).where(
+            DockConfig.base_id == base_id, DockConfig.dock_type == DockType(dock_type_str),
+        ).options(selectinload(DockConfig.schedules), selectinload(DockConfig.overrides))
+    )
+    cfg = cfg_result.scalar_one_or_none()
+    if not cfg:
+        raise HTTPException(status_code=400, detail=f"Pas de config quai {dock_type_str} pour cette base")
+
+    duration = _calc_duration(pallet_count, cfg)
+    end_time = _add_minutes(start_time, duration)
+
+    resolved = _resolve_schedule(cfg, booking_date)
+    dock_count = resolved.dock_count if resolved else cfg.dock_count
+
+    dock_number = await _find_free_dock(db, base_id, booking_date, dock_type_str, start_time, end_time, dock_count)
+    if dock_number is None:
+        raise HTTPException(status_code=409, detail="Aucun quai libre sur ce creneau")
+
+    booking = Booking(
+        base_id=base_id, dock_type=DockType(dock_type_str),
+        dock_number=dock_number, booking_date=booking_date,
+        start_time=start_time, end_time=end_time,
+        pallet_count=pallet_count, estimated_duration_minutes=duration,
+        status=BookingStatus.CONFIRMED,
+        supplier_name=supplier_name, notes=notes or None,
+        created_at=_now_iso(),
+    )
+    db.add(booking)
+    await db.flush()
+
+    if order_number:
+        db.add(BookingOrder(booking_id=booking.id, order_number=order_number))
+        await db.flush()
+
+    return {
+        "ok": True, "booking_id": booking.id,
+        "dock_number": dock_number, "start_time": start_time, "end_time": end_time,
+        "message": f"Booking confirme — Quai {dock_number}, {start_time}-{end_time}",
+    }
+
+
 # ─── Check-in borne chauffeur ───
 
 @router.post("/checkin/", response_model=BookingCheckinRead, status_code=201)
