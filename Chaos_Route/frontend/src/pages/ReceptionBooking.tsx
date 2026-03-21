@@ -1802,11 +1802,7 @@ export default function ReceptionBooking() {
                           }))}>
                             <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} />
                             <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} domain={[0, 100]} unit="%" />
-                            <Tooltip contentStyle={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '12px' }}
-                              formatter={(value: number, name: string) => [
-                                name === 'pct' ? `${value}%` : name === 'pallets' ? `${value} pal.` : `${value} camions`,
-                                name === 'pct' ? 'Exploitation' : name === 'pallets' ? 'Palettes' : 'Camions'
-                              ]} />
+                            <Tooltip contentStyle={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '12px' }} />
                             <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
                               {dailyStats.map((d, i) => {
                                 const pct = Number(d.utilization_pct || 0)
@@ -1854,7 +1850,7 @@ export default function ReceptionBooking() {
                                 { name: 'Annules', value: Number(k.cancelled || 0), fill: '#6b7280' },
                               ].filter((d) => d.value > 0)}
                               dataKey="value" cx="50%" cy="50%" outerRadius={80}
-                              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                              label={({ name, percent }: { name?: string; percent?: number }) => `${name || ''} ${((percent || 0) * 100).toFixed(0)}%`}
                               labelLine={false}
                             />
                             <Tooltip />
