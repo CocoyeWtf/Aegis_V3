@@ -73,6 +73,9 @@ class DockConfig(Base):
     schedules: Mapped[list["DockSchedule"]] = relationship(
         back_populates="dock_config", cascade="all, delete-orphan"
     )
+    overrides: Mapped[list["DockScheduleOverride"]] = relationship(
+        back_populates="dock_config", cascade="all, delete-orphan"
+    )
 
 
 # ─── DockSchedule — Horaires ouverture par jour ───
@@ -91,6 +94,27 @@ class DockSchedule(Base):
     close_time: Mapped[str] = mapped_column(String(5), nullable=False)
 
     dock_config: Mapped["DockConfig"] = relationship(back_populates="schedules")
+
+
+# ─── DockScheduleOverride — Exception calendrier pour une date specifique ───
+
+class DockScheduleOverride(Base):
+    """Exception horaire pour une date specifique / Schedule override for a specific date."""
+    __tablename__ = "dock_schedule_overrides"
+    __table_args__ = (
+        Index("ix_dockoverride_config_date", "dock_config_id", "override_date", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    dock_config_id: Mapped[int] = mapped_column(ForeignKey("dock_configs.id", ondelete="CASCADE"), nullable=False)
+    override_date: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD
+    is_closed: Mapped[bool] = mapped_column(Boolean, default=False)
+    open_time: Mapped[str | None] = mapped_column(String(5))
+    close_time: Mapped[str | None] = mapped_column(String(5))
+    dock_count: Mapped[int | None] = mapped_column(Integer)
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    dock_config: Mapped["DockConfig"] = relationship(back_populates="overrides")
 
 
 # ─── Booking — Reservation creneau ───

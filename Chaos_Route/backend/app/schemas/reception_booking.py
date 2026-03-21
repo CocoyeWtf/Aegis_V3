@@ -48,6 +48,50 @@ class DockConfigRead(BaseModel):
     base_name: str | None = None
 
 
+# ─── DockScheduleOverride ───
+
+class DockScheduleOverrideCreate(BaseModel):
+    dock_config_id: int
+    override_date: str          # YYYY-MM-DD
+    is_closed: bool = False
+    open_time: str | None = None
+    close_time: str | None = None
+    dock_count: int | None = None
+    notes: str | None = None
+
+
+class DockScheduleOverrideUpdate(BaseModel):
+    is_closed: bool | None = None
+    open_time: str | None = None
+    close_time: str | None = None
+    dock_count: int | None = None
+    notes: str | None = None
+
+
+class DockScheduleOverrideRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    dock_config_id: int
+    override_date: str
+    is_closed: bool
+    open_time: str | None = None
+    close_time: str | None = None
+    dock_count: int | None = None
+    notes: str | None = None
+
+
+class DayAvailabilitySummary(BaseModel):
+    date: str
+    dock_type: str
+    is_closed: bool
+    open_time: str | None = None
+    close_time: str | None = None
+    dock_count: int
+    has_override: bool
+    booking_count: int = 0
+    pallet_total: int = 0
+
+
 # ─── Booking ───
 
 class BookingOrderCreate(BaseModel):

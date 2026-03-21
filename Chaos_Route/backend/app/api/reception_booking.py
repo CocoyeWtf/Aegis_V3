@@ -5,7 +5,9 @@ Config quais par type, bookings, check-in, dock events, refusal, import XLS.
 import json
 import math
 import uuid
-from datetime import datetime, timezone
+import calendar
+from datetime import datetime, date as date_type, timezone
+from typing import NamedTuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from sqlalchemy import select, delete
@@ -14,7 +16,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models.reception_booking import (
-    DockConfig, DockSchedule, DockType,
+    DockConfig, DockSchedule, DockScheduleOverride, DockType,
     Booking, BookingOrder, BookingCheckin, BookingDockEvent, BookingRefusal,
     BookingStatus, DockEventType, OrderImport,
 )
@@ -23,6 +25,8 @@ from app.models.user import User
 from app.models.audit import AuditLog
 from app.schemas.reception_booking import (
     DockConfigCreate, DockConfigRead, DockConfigUpdate,
+    DockScheduleOverrideCreate, DockScheduleOverrideRead, DockScheduleOverrideUpdate,
+    DayAvailabilitySummary,
     BookingCreate, BookingRead, BookingUpdate, BookingMoveSlot,
     BookingCheckinCreate, BookingCheckinRead,
     BookingRefusalCreate,
@@ -90,6 +94,56 @@ def _time_to_minutes(time_str: str) -> int:
     return h * 60 + m
 
 
+class ResolvedSchedule(NamedTuple):
+    """Horaire resolu pour une date donnee / Resolved schedule for a given date."""
+    open_time: str
+    close_time: str
+    dock_count: int
+    is_override: bool
+
+
+def _resolve_schedule(cfg: DockConfig, date_str: str) -> ResolvedSchedule | None:
+    """Resoudre l'horaire pour une date (override > template semaine) /
+    Resolve schedule for a date (override takes precedence over weekly template)."""
+    # Chercher un override pour cette date
+    override = None
+    for ov in (cfg.overrides if hasattr(cfg, 'overrides') and cfg.overrides else []):
+        if ov.override_date == date_str:
+            override = ov
+            break
+
+    if override and override.is_closed:
+        return None  # Ferme ce jour / Closed this day
+
+    # Template semaine / Weekly template
+    d = date_type.fromisoformat(date_str)
+    dow = (d.weekday())  # 0=Lundi
+    schedule = None
+    for s in (cfg.schedules or []):
+        if s.day_of_week == dow:
+            schedule = s
+            break
+
+    if not schedule and not override:
+        return None  # Pas configure pour ce jour / Not configured for this day
+
+    # Merger override + template
+    open_t = (override.open_time if override and override.open_time else
+              (schedule.open_time if schedule else None))
+    close_t = (override.close_time if override and override.close_time else
+               (schedule.close_time if schedule else None))
+    dock_ct = (override.dock_count if override and override.dock_count is not None else
+               cfg.dock_count)
+
+    if not open_t or not close_t:
+        return None
+
+    return ResolvedSchedule(
+        open_time=open_t, close_time=close_t,
+        dock_count=dock_ct, is_override=override is not None,
+    )
+
+
 def _calc_duration(pallet_count: int, config: DockConfig) -> int:
     """Calculer duree creneau / Calculate slot duration.
     duree = setup + (palettes / productivite_h * 60) + depart, arrondi 15 min sup.
@@ -108,7 +162,7 @@ async def list_dock_configs(
     user: User = Depends(get_current_user),
 ):
     """Lister les configs quais / List dock configs."""
-    query = select(DockConfig).options(selectinload(DockConfig.schedules))
+    query = select(DockConfig).options(selectinload(DockConfig.schedules), selectinload(DockConfig.overrides))
     if base_id:
         query = query.where(DockConfig.base_id == base_id)
     result = await db.execute(query)
@@ -230,6 +284,176 @@ async def delete_dock_config(
     if not cfg:
         raise HTTPException(status_code=404, detail="Config non trouvee")
     await db.delete(cfg)
+
+
+# ─── Schedule Overrides CRUD (exceptions calendrier) ───
+
+@router.get("/schedule-overrides/", response_model=list[DockScheduleOverrideRead])
+async def list_schedule_overrides(
+    base_id: int | None = None,
+    dock_config_id: int | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Lister les exceptions horaires / List schedule overrides."""
+    query = select(DockScheduleOverride)
+    if dock_config_id:
+        query = query.where(DockScheduleOverride.dock_config_id == dock_config_id)
+    elif base_id:
+        cfg_ids = (await db.execute(
+            select(DockConfig.id).where(DockConfig.base_id == base_id)
+        )).scalars().all()
+        if cfg_ids:
+            query = query.where(DockScheduleOverride.dock_config_id.in_(cfg_ids))
+        else:
+            return []
+    if date_from:
+        query = query.where(DockScheduleOverride.override_date >= date_from)
+    if date_to:
+        query = query.where(DockScheduleOverride.override_date <= date_to)
+    result = await db.execute(query.order_by(DockScheduleOverride.override_date))
+    return result.scalars().all()
+
+
+@router.post("/schedule-overrides/", response_model=DockScheduleOverrideRead, status_code=201)
+async def create_schedule_override(
+    data: DockScheduleOverrideCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("booking-reception", "create")),
+):
+    """Creer une exception horaire / Create a schedule override."""
+    cfg = await db.get(DockConfig, data.dock_config_id)
+    if not cfg:
+        raise HTTPException(status_code=404, detail="Config quai non trouvee")
+    # Verifier doublon
+    existing = await db.execute(
+        select(DockScheduleOverride).where(
+            DockScheduleOverride.dock_config_id == data.dock_config_id,
+            DockScheduleOverride.override_date == data.override_date,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Une exception existe deja pour cette date et ce type de quai")
+    ov = DockScheduleOverride(**data.model_dump())
+    db.add(ov)
+    await db.flush()
+    return ov
+
+
+@router.put("/schedule-overrides/{override_id}", response_model=DockScheduleOverrideRead)
+async def update_schedule_override(
+    override_id: int,
+    data: DockScheduleOverrideUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("booking-reception", "update")),
+):
+    """Modifier une exception horaire / Update a schedule override."""
+    ov = await db.get(DockScheduleOverride, override_id)
+    if not ov:
+        raise HTTPException(status_code=404, detail="Exception non trouvee")
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(ov, k, v)
+    await db.flush()
+    return ov
+
+
+@router.delete("/schedule-overrides/{override_id}", status_code=204)
+async def delete_schedule_override(
+    override_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("booking-reception", "delete")),
+):
+    """Supprimer une exception horaire / Delete a schedule override."""
+    ov = await db.get(DockScheduleOverride, override_id)
+    if not ov:
+        raise HTTPException(status_code=404, detail="Exception non trouvee")
+    await db.delete(ov)
+
+
+# ─── Disponibilite calendrier / Calendar availability ───
+
+@router.get("/calendar-availability/", response_model=list[DayAvailabilitySummary])
+async def get_calendar_availability(
+    base_id: int,
+    year_month: str,
+    dock_type: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Vue calendrier : dispo par jour et type de quai / Calendar view: availability per day and dock type."""
+    # Parse mois
+    try:
+        year, month = int(year_month[:4]), int(year_month[5:7])
+    except (ValueError, IndexError):
+        raise HTTPException(status_code=422, detail="Format attendu: YYYY-MM")
+
+    _, days_in_month = calendar.monthrange(year, month)
+    date_from = f"{year:04d}-{month:02d}-01"
+    date_to = f"{year:04d}-{month:02d}-{days_in_month:02d}"
+
+    # Charger configs + overrides + bookings counts
+    cfg_query = select(DockConfig).where(DockConfig.base_id == base_id).options(
+        selectinload(DockConfig.schedules), selectinload(DockConfig.overrides)
+    )
+    if dock_type:
+        cfg_query = cfg_query.where(DockConfig.dock_type == DockType(dock_type))
+    cfgs = (await db.execute(cfg_query)).scalars().all()
+
+    # Compter bookings par (date, dock_type)
+    booking_query = (
+        select(Booking.booking_date, Booking.dock_type,
+               select(Booking.id).correlate(None).where(False).label("_"))  # placeholder
+    )
+    # Simplification : charger tous les bookings actifs du mois pour la base
+    from sqlalchemy import func
+    bk_stats = {}
+    bk_result = await db.execute(
+        select(
+            Booking.booking_date, Booking.dock_type,
+            func.count(Booking.id).label("cnt"),
+            func.coalesce(func.sum(Booking.pallet_count), 0).label("pal"),
+        )
+        .where(
+            Booking.base_id == base_id,
+            Booking.booking_date >= date_from,
+            Booking.booking_date <= date_to,
+            Booking.status.notin_([BookingStatus.CANCELLED, BookingStatus.REFUSED]),
+        )
+        .group_by(Booking.booking_date, Booking.dock_type)
+    )
+    for row in bk_result:
+        dt_val = row.dock_type.value if isinstance(row.dock_type, DockType) else row.dock_type
+        bk_stats[(row.booking_date, dt_val)] = (row.cnt, row.pal)
+
+    # Generer un DayAvailabilitySummary par (date, dock_type)
+    result = []
+    for day in range(1, days_in_month + 1):
+        date_str = f"{year:04d}-{month:02d}-{day:02d}"
+        for cfg in cfgs:
+            resolved = _resolve_schedule(cfg, date_str)
+            dt_val = cfg.dock_type.value if isinstance(cfg.dock_type, DockType) else cfg.dock_type
+            bk_cnt, bk_pal = bk_stats.get((date_str, dt_val), (0, 0))
+
+            if resolved is None:
+                # Verifier si ferme par override ou juste pas configure
+                has_ov = any(ov.override_date == date_str for ov in (cfg.overrides or []))
+                result.append(DayAvailabilitySummary(
+                    date=date_str, dock_type=dt_val,
+                    is_closed=has_ov, open_time=None, close_time=None,
+                    dock_count=0, has_override=has_ov,
+                    booking_count=bk_cnt, pallet_total=bk_pal,
+                ))
+            else:
+                result.append(DayAvailabilitySummary(
+                    date=date_str, dock_type=dt_val,
+                    is_closed=False,
+                    open_time=resolved.open_time, close_time=resolved.close_time,
+                    dock_count=resolved.dock_count, has_override=resolved.is_override,
+                    booking_count=bk_cnt, pallet_total=bk_pal,
+                ))
+    return result
 
 
 # ─── Slot availability ───

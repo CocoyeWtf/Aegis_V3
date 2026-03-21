@@ -34,6 +34,18 @@ interface BookingRefusal {
   refused_by_user_id: number; timestamp: string; notes?: string
 }
 
+interface DockScheduleOverride {
+  id: number; dock_config_id: number; override_date: string
+  is_closed: boolean; open_time?: string; close_time?: string
+  dock_count?: number; notes?: string
+}
+
+interface DayAvailability {
+  date: string; dock_type: string; is_closed: boolean
+  open_time?: string; close_time?: string; dock_count: number
+  has_override: boolean; booking_count: number; pallet_total: number
+}
+
 interface Booking {
   id: number; base_id: number; dock_type: string; dock_number?: number
   booking_date: string; start_time: string; end_time: string
@@ -79,11 +91,14 @@ export default function ReceptionBooking() {
   const [bases, setBases] = useState<Base[]>([])
   const [configs, setConfigs] = useState<DockConfig[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [overrides, setOverrides] = useState<DockScheduleOverride[]>([])
+  const [calendarData, setCalendarData] = useState<DayAvailability[]>([])
   const [loading, setLoading] = useState(true)
 
   const [selectedBaseId, setSelectedBaseId] = useState<number | ''>('')
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10))
   const [selectedDockType, setSelectedDockType] = useState<string>('')
+  const [calendarMonth, setCalendarMonth] = useState(new Date().toISOString().slice(0, 7)) // YYYY-MM
 
   // Helpers permissions par role / Permission helpers per role
   const hasPerm = useCallback((resource: string, action: string) => {
@@ -105,7 +120,7 @@ export default function ReceptionBooking() {
   }, [user, isAppros])
 
   // Dialogs
-  const [tab, setTab] = useState<'planning' | 'config' | 'import'>('planning')
+  const [tab, setTab] = useState<'planning' | 'config' | 'import' | 'calendar'>('planning')
   const [showBookDialog, setShowBookDialog] = useState(false)
   const [showConfigDialog, setShowConfigDialog] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -136,20 +151,37 @@ export default function ReceptionBooking() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [baseRes, configRes, bookingRes] = await Promise.all([
+      const [baseRes, configRes, bookingRes, overrideRes] = await Promise.all([
         api.get('/bases/'),
         api.get('/reception-booking/dock-configs/', { params: { base_id: selectedBaseId || undefined } }),
         api.get('/reception-booking/bookings/', {
           params: { base_id: selectedBaseId || undefined, date: selectedDate },
         }),
+        selectedBaseId ? api.get('/reception-booking/schedule-overrides/', {
+          params: { base_id: selectedBaseId, date_from: selectedDate.slice(0, 8) + '01', date_to: selectedDate.slice(0, 8) + '31' },
+        }) : Promise.resolve({ data: [] }),
       ])
       setBases(baseRes.data)
       setConfigs(configRes.data)
       setBookings(bookingRes.data)
+      setOverrides(overrideRes.data)
     } catch { /* silent */ } finally { setLoading(false) }
   }, [selectedBaseId, selectedDate])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // Charger calendrier quand onglet calendrier actif / Load calendar when calendar tab active
+  const fetchCalendar = useCallback(async () => {
+    if (!selectedBaseId) return
+    try {
+      const res = await api.get('/reception-booking/calendar-availability/', {
+        params: { base_id: selectedBaseId, year_month: calendarMonth },
+      })
+      setCalendarData(res.data)
+    } catch { /* silent */ }
+  }, [selectedBaseId, calendarMonth])
+
+  useEffect(() => { if (tab === 'calendar') fetchCalendar() }, [tab, fetchCalendar])
 
   // Configs pour la base selectionnee / Configs for selected base
   const baseConfigs = useMemo(() =>
@@ -181,15 +213,25 @@ export default function ReceptionBooking() {
     for (const dt of typesToShow) {
       const cfg = baseConfigs.find((c) => c.dock_type === dt)
       if (!cfg) continue
-      const schedule = cfg.schedules.find((s) => s.day_of_week === selectedDow)
-      if (!schedule) continue
 
-      const open = timeToMinutes(schedule.open_time)
-      const close = timeToMinutes(schedule.close_time)
+      // Resoudre horaire : override > template semaine / Resolve: override > weekly template
+      const ov = overrides.find((o) => o.dock_config_id === cfg.id && o.override_date === selectedDate)
+      if (ov && ov.is_closed) continue // Ferme ce jour
+
+      const schedule = cfg.schedules.find((s) => s.day_of_week === selectedDow)
+      if (!schedule && !ov) continue
+
+      const openTime = ov?.open_time || schedule?.open_time
+      const closeTime = ov?.close_time || schedule?.close_time
+      if (!openTime || !closeTime) continue
+      const dockCount = ov?.dock_count ?? cfg.dock_count
+
+      const open = timeToMinutes(openTime)
+      const close = timeToMinutes(closeTime)
       if (open < earliest) earliest = open
       if (close > latest) latest = close
 
-      for (let d = 1; d <= cfg.dock_count; d++) {
+      for (let d = 1; d <= dockCount; d++) {
         cols.push({
           dockType: dt, dockNumber: d,
           label: `${DOCK_TYPE_LABELS[dt] || dt} Q${d}`,
@@ -206,7 +248,7 @@ export default function ReceptionBooking() {
     }
 
     return { columns: cols, timeSlots: slots, earliest, latest }
-  }, [baseConfigs, dockTypes, selectedDockType, selectedDow])
+  }, [baseConfigs, dockTypes, selectedDockType, selectedDow, selectedDate, overrides])
 
   // Matrice booking : [slotIndex][colIndex] / Booking matrix
   const bookingMatrix = useMemo(() => {
@@ -472,6 +514,11 @@ export default function ReceptionBooking() {
             style={{ backgroundColor: tab === 'import' ? 'var(--color-primary)' : 'var(--bg-tertiary)', color: tab === 'import' ? 'white' : 'var(--text-primary)' }}>
             Import
           </button>
+          <button onClick={() => setTab('calendar')}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium"
+            style={{ backgroundColor: tab === 'calendar' ? 'var(--color-primary)' : 'var(--bg-tertiary)', color: tab === 'calendar' ? 'white' : 'var(--text-primary)' }}>
+            Calendrier
+          </button>
         </div>
       </div>
 
@@ -721,6 +768,129 @@ export default function ReceptionBooking() {
                 )}
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── TAB: CALENDRIER ─── */}
+      {tab === 'calendar' && (
+        <div className="space-y-4">
+          {!selectedBaseId ? (
+            <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>Selectionnez une base pour voir le calendrier.</div>
+          ) : (
+            <>
+              {/* Navigation mois */}
+              <div className="flex items-center gap-3">
+                <button onClick={() => {
+                  const [y, m] = calendarMonth.split('-').map(Number)
+                  const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`
+                  setCalendarMonth(prev)
+                }} className="px-3 py-1.5 rounded-lg text-sm" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>&lt;</button>
+                <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+                  {(() => { const [y, m] = calendarMonth.split('-').map(Number); return `${MONTH_NAMES[m - 1]} ${y}` })()}
+                </span>
+                <button onClick={() => {
+                  const [y, m] = calendarMonth.split('-').map(Number)
+                  const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`
+                  setCalendarMonth(next)
+                }} className="px-3 py-1.5 rounded-lg text-sm" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>&gt;</button>
+              </div>
+
+              {/* Grille calendrier */}
+              <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                {/* En-tete jours / Day headers */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                  {DAY_LABELS.map((d) => (
+                    <div key={d} className="text-xs font-semibold text-center py-2" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border-color)' }}>
+                      {d}
+                    </div>
+                  ))}
+                </div>
+                {/* Cellules jours / Day cells */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                  {(() => {
+                    const [year, month] = calendarMonth.split('-').map(Number)
+                    const firstDay = new Date(year, month - 1, 1).getDay()
+                    const startOffset = (firstDay + 6) % 7 // 0=Lundi
+                    const daysInMonth = new Date(year, month, 0).getDate()
+                    const cells = []
+
+                    // Cellules vides avant le 1er du mois
+                    for (let i = 0; i < startOffset; i++) {
+                      cells.push(<div key={`e-${i}`} style={{ borderBottom: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)', minHeight: '80px' }} />)
+                    }
+
+                    for (let day = 1; day <= daysInMonth; day++) {
+                      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                      const dayData = calendarData.filter((d) => d.date === dateStr)
+                      const isToday = dateStr === new Date().toISOString().slice(0, 10)
+                      const isWeekend = ((startOffset + day - 1) % 7) >= 5
+
+                      cells.push(
+                        <div key={day}
+                          className="p-1.5 cursor-pointer hover:opacity-80"
+                          style={{
+                            borderBottom: '1px solid var(--border-color)',
+                            borderRight: '1px solid var(--border-color)',
+                            minHeight: '80px',
+                            backgroundColor: isToday ? 'var(--color-primary)08' : (isWeekend ? 'var(--bg-tertiary)' : 'var(--bg-primary)'),
+                          }}
+                          onClick={() => { setSelectedDate(dateStr); setTab('planning') }}
+                        >
+                          <div className="text-xs font-bold mb-1" style={{
+                            color: isToday ? 'var(--color-primary)' : 'var(--text-primary)',
+                          }}>
+                            {day}
+                          </div>
+                          {dayData.length === 0 && (
+                            <div className="text-[9px]" style={{ color: 'var(--text-muted)' }}>-</div>
+                          )}
+                          {dayData.map((dd) => (
+                            <div key={dd.dock_type} className="text-[9px] flex items-center gap-1 mb-0.5">
+                              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: DOCK_TYPE_COLORS[dd.dock_type] || '#737373' }} />
+                              {dd.is_closed ? (
+                                <span style={{ color: '#ef4444', textDecoration: 'line-through' }}>Ferme</span>
+                              ) : (
+                                <span style={{ color: 'var(--text-primary)' }}>
+                                  {dd.open_time?.slice(0, 5)}-{dd.close_time?.slice(0, 5)} · {dd.dock_count}q
+                                  {dd.booking_count > 0 && <span style={{ color: 'var(--color-primary)' }}> · {dd.booking_count}bk</span>}
+                                </span>
+                              )}
+                              {dd.has_override && (
+                                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: 'var(--color-primary)' }} title="Exception" />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    }
+
+                    // Cellules vides apres la fin du mois
+                    const total = startOffset + daysInMonth
+                    const remaining = total % 7 === 0 ? 0 : 7 - (total % 7)
+                    for (let i = 0; i < remaining; i++) {
+                      cells.push(<div key={`f-${i}`} style={{ borderBottom: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)', minHeight: '80px' }} />)
+                    }
+
+                    return cells
+                  })()}
+                </div>
+              </div>
+
+              {/* Legende */}
+              <div className="flex items-center gap-4 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                {baseConfigs.map((cfg) => (
+                  <div key={cfg.dock_type} className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DOCK_TYPE_COLORS[cfg.dock_type] }} />
+                    <span>{DOCK_TYPE_LABELS[cfg.dock_type]} ({cfg.dock_count} quais)</span>
+                  </div>
+                ))}
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }} />
+                  <span>Exception</span>
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}
