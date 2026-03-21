@@ -55,6 +55,11 @@ interface Booking {
   orders: BookingOrder[]; checkin?: BookingCheckin; refusal?: BookingRefusal
 }
 
+interface SuggestedSlot {
+  start_time: string; end_time: string; dock_number: number
+  score: number; reason: string
+}
+
 const DOCK_TYPE_LABELS: Record<string, string> = {
   SEC: 'Sec', FRAIS: 'Frais', GEL: 'Gel', FFL: 'FFL',
 }
@@ -135,6 +140,8 @@ export default function ReceptionBooking() {
   const [bkLocked, setBkLocked] = useState(false)
   const [bkDockNum, setBkDockNum] = useState('')
   const [bkNotes, setBkNotes] = useState('')
+  const [suggestions, setSuggestions] = useState<SuggestedSlot[]>([])
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false)
 
   // Config form
   const [cfgDockType, setCfgDockType] = useState('SEC')
@@ -187,6 +194,29 @@ export default function ReceptionBooking() {
   }, [selectedBaseId, selectedDate])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // Charger les creneaux recommandes / Fetch suggested slots
+  useEffect(() => {
+    if (!showBookDialog || editBookingId || !selectedBaseId || !bkDockType || !bkPallets) {
+      setSuggestions([])
+      return
+    }
+    const pallets = Number(bkPallets)
+    if (pallets <= 0) { setSuggestions([]); return }
+
+    let cancelled = false
+    setLoadingSuggestions(true)
+    api.get('/reception-booking/suggested-slots/', {
+      params: { base_id: selectedBaseId, date: selectedDate, dock_type: bkDockType, pallet_count: pallets },
+    }).then((res) => {
+      if (!cancelled) setSuggestions(res.data)
+    }).catch(() => {
+      if (!cancelled) setSuggestions([])
+    }).finally(() => {
+      if (!cancelled) setLoadingSuggestions(false)
+    })
+    return () => { cancelled = true }
+  }, [showBookDialog, editBookingId, selectedBaseId, selectedDate, bkDockType, bkPallets])
 
   // Charger calendrier quand onglet calendrier actif / Load calendar when calendar tab active
   const fetchCalendar = useCallback(async () => {
@@ -1187,6 +1217,41 @@ export default function ReceptionBooking() {
                   )}
                 </div>
               </div>
+              {/* Creneaux recommandes — seulement en creation / Suggested slots — create only */}
+              {!editBookingId && bkPallets && Number(bkPallets) > 0 && (
+                <div className="rounded-lg border p-3" style={{ borderColor: 'var(--color-primary)', backgroundColor: 'var(--color-primary)08' }}>
+                  <div className="text-xs font-semibold mb-2" style={{ color: 'var(--color-primary)' }}>
+                    Creneaux recommandes
+                  </div>
+                  {loadingSuggestions && (
+                    <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Calcul en cours...</div>
+                  )}
+                  {!loadingSuggestions && suggestions.length === 0 && (
+                    <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Aucune suggestion disponible</div>
+                  )}
+                  {!loadingSuggestions && suggestions.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {suggestions.map((s, i) => (
+                        <button key={i}
+                          onClick={() => setBkStartTime(s.start_time)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-all"
+                          style={{
+                            borderColor: bkStartTime === s.start_time ? 'var(--color-primary)' : 'var(--border-color)',
+                            backgroundColor: bkStartTime === s.start_time ? 'var(--color-primary)' : 'var(--bg-tertiary)',
+                            color: bkStartTime === s.start_time ? 'white' : 'var(--text-primary)',
+                          }}>
+                          <span className="font-bold">{s.start_time}-{s.end_time}</span>
+                          <span className="ml-1.5 opacity-70">Q{s.dock_number}</span>
+                          <span className="ml-1.5 opacity-60">({s.reason})</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
+                    Ou choisissez un horaire libre ci-dessus
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Fournisseur</label>
                 <input type="text" value={bkSupplier} onChange={(e) => setBkSupplier(e.target.value)} disabled={readOnly}

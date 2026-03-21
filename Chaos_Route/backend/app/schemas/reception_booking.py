@@ -223,6 +223,14 @@ class SlotAvailability(BaseModel):
     total_docks: int
 
 
+class SuggestedSlot(BaseModel):
+    start_time: str
+    end_time: str
+    dock_number: int
+    score: int          # 0-100, plus haut = meilleur
+    reason: str         # Explication courte du score
+
+
 # ─── OrderImport ───
 
 class OrderImportRead(BaseModel):

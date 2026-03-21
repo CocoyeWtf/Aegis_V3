@@ -26,7 +26,7 @@ from app.models.audit import AuditLog
 from app.schemas.reception_booking import (
     DockConfigCreate, DockConfigRead, DockConfigUpdate,
     DockScheduleOverrideCreate, DockScheduleOverrideRead, DockScheduleOverrideUpdate,
-    DayAvailabilitySummary,
+    DayAvailabilitySummary, SuggestedSlot,
     BookingCreate, BookingRead, BookingUpdate, BookingMoveSlot,
     BookingCheckinCreate, BookingCheckinRead,
     BookingRefusalCreate,
@@ -454,6 +454,135 @@ async def get_calendar_availability(
                     booking_count=bk_cnt, pallet_total=bk_pal,
                 ))
     return result
+
+
+# ─── Suggested slots (creneaux recommandes) ───
+
+@router.get("/suggested-slots/", response_model=list[SuggestedSlot])
+async def get_suggested_slots(
+    base_id: int,
+    date: str,
+    dock_type: str,
+    pallet_count: int,
+    max_results: int = Query(default=3, le=10),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Proposer les meilleurs creneaux pour un booking / Suggest best slots for a booking.
+    Score base sur : combler les trous, grouper sur peu de quais, debut de journee."""
+
+    # Charger config + schedules + overrides
+    cfg_result = await db.execute(
+        select(DockConfig).where(
+            DockConfig.base_id == base_id, DockConfig.dock_type == DockType(dock_type),
+        ).options(selectinload(DockConfig.schedules), selectinload(DockConfig.overrides))
+    )
+    cfg = cfg_result.scalar_one_or_none()
+    if not cfg:
+        return []
+
+    resolved = _resolve_schedule(cfg, date)
+    if not resolved:
+        return []
+
+    duration = _calc_duration(pallet_count, cfg)
+    dock_count = resolved.dock_count
+    open_min = _time_to_minutes(resolved.open_time)
+    close_min = _time_to_minutes(resolved.close_time)
+
+    # Charger bookings existants du jour pour ce type / Load existing bookings
+    bk_result = await db.execute(
+        select(Booking).where(
+            Booking.base_id == base_id,
+            Booking.booking_date == date,
+            Booking.dock_type == DockType(dock_type),
+            Booking.status.notin_([BookingStatus.CANCELLED, BookingStatus.REFUSED]),
+        )
+    )
+    existing = bk_result.scalars().all()
+
+    # Construire occupation par quai : liste de (start_min, end_min) / Build occupation per dock
+    dock_occ: dict[int, list[tuple[int, int]]] = {d: [] for d in range(1, dock_count + 1)}
+    for b in existing:
+        if b.dock_number and b.dock_number in dock_occ:
+            dock_occ[b.dock_number].append((_time_to_minutes(b.start_time), _time_to_minutes(b.end_time)))
+    for d in dock_occ:
+        dock_occ[d].sort()
+
+    # Scanner tous les slots possibles par pas de 15 min / Scan all possible slots in 15min steps
+    candidates: list[tuple[int, int, int, str]] = []  # (score, start_min, dock_num, reason)
+
+    for dock_num in range(1, dock_count + 1):
+        occ = dock_occ[dock_num]
+        slot_start = open_min
+
+        while slot_start + duration <= close_min:
+            slot_end = slot_start + duration
+
+            # Verifier pas de collision / Check no collision
+            collision = False
+            for (bs, be) in occ:
+                if bs < slot_end and be > slot_start:
+                    collision = True
+                    break
+            if collision:
+                slot_start += 15
+                continue
+
+            # ── Calcul du score / Score calculation ──
+            score = 50  # Base
+            reason_parts = []
+
+            # 1. Accolé à un booking existant (pas de trou) → +20
+            touches_before = any(be == slot_start for (_, be) in occ)
+            touches_after = any(bs == slot_end for (bs, _) in occ)
+            if touches_before and touches_after:
+                score += 30
+                reason_parts.append("comble un trou")
+            elif touches_before or touches_after:
+                score += 20
+                reason_parts.append("accole")
+
+            # 2. Debut de journee (premier slot) → +10
+            if slot_start == open_min and not occ:
+                score += 10
+                reason_parts.append("debut journee")
+
+            # 3. Quai le plus rempli (grouper) → +15 max
+            fill_ratio = len(occ) / max(1, (close_min - open_min) // 15)
+            if fill_ratio > 0.3:
+                score += min(15, int(fill_ratio * 20))
+                reason_parts.append("quai bien rempli")
+
+            # 4. Eviter le debut (laisser marge) si deja des bookings → -5 pour le tout premier slot
+            # 5. Penaliser les creneaux tardifs → -1 par heure apres midi
+            hours_after_noon = max(0, (slot_start - 720) / 60)
+            if hours_after_noon > 0:
+                score -= min(10, int(hours_after_noon * 2))
+
+            reason = ", ".join(reason_parts) if reason_parts else "creneau libre"
+            candidates.append((score, slot_start, dock_num, reason))
+            slot_start += 15
+
+    # Trier par score desc, deduplicquer par heure (garder le meilleur quai) / Sort and deduplicate
+    candidates.sort(key=lambda c: (-c[0], c[1]))
+    seen_times: set[int] = set()
+    results: list[SuggestedSlot] = []
+    for score, start_min, dock_num, reason in candidates:
+        if start_min in seen_times:
+            continue
+        seen_times.add(start_min)
+        results.append(SuggestedSlot(
+            start_time=f"{start_min // 60:02d}:{start_min % 60:02d}",
+            end_time=f"{(start_min + duration) // 60:02d}:{(start_min + duration) % 60:02d}",
+            dock_number=dock_num,
+            score=min(100, max(0, score)),
+            reason=reason,
+        ))
+        if len(results) >= max_results:
+            break
+
+    return results
 
 
 # ─── Slot availability ───
