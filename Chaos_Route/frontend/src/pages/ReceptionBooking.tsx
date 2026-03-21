@@ -162,20 +162,27 @@ export default function ReceptionBooking() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [baseRes, configRes, bookingRes, overrideRes] = await Promise.all([
+      const [baseRes, configRes, bookingRes] = await Promise.all([
         api.get('/bases/'),
         api.get('/reception-booking/dock-configs/', { params: { base_id: selectedBaseId || undefined } }),
         api.get('/reception-booking/bookings/', {
           params: { base_id: selectedBaseId || undefined, date: selectedDate },
         }),
-        selectedBaseId ? api.get('/reception-booking/schedule-overrides/', {
-          params: { base_id: selectedBaseId, date_from: selectedDate.slice(0, 8) + '01', date_to: selectedDate.slice(0, 8) + '31' },
-        }) : Promise.resolve({ data: [] }),
       ])
       setBases(baseRes.data)
       setConfigs(configRes.data)
       setBookings(bookingRes.data)
-      setOverrides(overrideRes.data)
+      // Fetch overrides separement pour ne pas bloquer le reste / Fetch overrides separately
+      if (selectedBaseId) {
+        try {
+          const ovRes = await api.get('/reception-booking/schedule-overrides/', {
+            params: { base_id: selectedBaseId, date_from: selectedDate.slice(0, 8) + '01', date_to: selectedDate.slice(0, 8) + '31' },
+          })
+          setOverrides(ovRes.data)
+        } catch { setOverrides([]) }
+      } else {
+        setOverrides([])
+      }
     } catch { /* silent */ } finally { setLoading(false) }
   }, [selectedBaseId, selectedDate])
 
@@ -632,11 +639,45 @@ export default function ReceptionBooking() {
           {loading && <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>Chargement...</div>}
 
           {!loading && columns.length === 0 && selectedBaseId && (
-            <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
-              Aucune configuration de quai pour cette base ce jour.
-              <button onClick={() => setTab('config')} className="ml-2 underline" style={{ color: 'var(--color-primary)' }}>
-                Configurer
-              </button>
+            <div className="space-y-4">
+              <div className="text-center py-4" style={{ color: 'var(--text-muted)' }}>
+                Pas de planning configure pour ce jour.
+                <button onClick={() => setTab('config')} className="ml-2 underline" style={{ color: 'var(--color-primary)' }}>
+                  Configurer semaine type
+                </button>
+                {isReception && (
+                  <button onClick={() => openOverrideDialog(selectedDate)} className="ml-2 underline" style={{ color: 'var(--color-primary)' }}>
+                    Ouvrir ce jour (exception)
+                  </button>
+                )}
+              </div>
+              {/* Bookings existants sans planning / Existing bookings without planning grid */}
+              {bookings.length > 0 && (
+                <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                  <div className="text-sm font-bold mb-3" style={{ color: 'var(--text-primary)' }}>
+                    {bookings.length} booking(s) existant(s) ce jour
+                  </div>
+                  <div className="space-y-2">
+                    {bookings.map((b) => (
+                      <div key={b.id} className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:opacity-80"
+                        style={{ backgroundColor: 'var(--bg-tertiary)', borderLeft: `4px solid ${STATUS_COLORS[b.status] || '#737373'}` }}
+                        onClick={() => openEditBooking(b)}>
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full text-white"
+                          style={{ backgroundColor: STATUS_COLORS[b.status] || '#737373' }}>
+                          {STATUS_LABELS[b.status] || b.status}
+                        </span>
+                        <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                          {b.supplier_name || 'Sans nom'}
+                        </span>
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                          {b.start_time}-{b.end_time} · {b.pallet_count} pal. · {DOCK_TYPE_LABELS[b.dock_type] || b.dock_type}
+                          {b.dock_number ? ` Q${b.dock_number}` : ''}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
