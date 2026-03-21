@@ -39,7 +39,7 @@ class GicInvoice(Base):
     generated_at: Mapped[str] = mapped_column(String(30), nullable=False)  # ISO 8601
     generated_by: Mapped[str | None] = mapped_column(String(100))
     notes: Mapped[str | None] = mapped_column(Text)
-    base_id: Mapped[int | None] = mapped_column(ForeignKey("base_logistics.id"))
+    base_id: Mapped[int | None] = mapped_column(ForeignKey("bases_logistics.id"))
 
     # Relations
     lines: Mapped[list["GicInvoiceLine"]] = relationship(back_populates="invoice", cascade="all, delete-orphan")
