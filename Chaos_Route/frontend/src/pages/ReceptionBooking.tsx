@@ -1517,8 +1517,8 @@ export default function ReceptionBooking() {
                     Annuler
                   </button>
                 )}
-                {/* ── APPROS : supprimer ── */}
-                {canEdit(editedBooking) && (
+                {/* ── APPROS : supprimer — seulement si pas encore termine/annule/refuse ── */}
+                {canEdit(editedBooking) && !['COMPLETED', 'CANCELLED', 'REFUSED', 'DOCK_LEFT'].includes(editedBooking.status) && (
                   <button onClick={() => { handleDeleteBooking(editedBooking.id); setShowBookDialog(false) }}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium ml-auto"
                     style={{ color: '#ef4444', border: '1px solid #ef444440' }}>
