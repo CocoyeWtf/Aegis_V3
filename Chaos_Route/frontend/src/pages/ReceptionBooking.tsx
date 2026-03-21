@@ -1171,10 +1171,20 @@ export default function ReceptionBooking() {
                     style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Quai (optionnel)</label>
-                  <input type="number" min={1} value={bkDockNum} onChange={(e) => setBkDockNum(e.target.value)} disabled={readOnly}
-                    className="w-full px-3 py-2 rounded-lg text-sm border disabled:opacity-60"
-                    style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>
+                    Quai {editBookingId ? '' : '(auto)'}
+                  </label>
+                  {editBookingId ? (
+                    <div className="w-full px-3 py-2 rounded-lg text-sm border"
+                      style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+                      {bkDockNum ? `Q${bkDockNum}` : 'Non assigne'}
+                    </div>
+                  ) : (
+                    <div className="w-full px-3 py-2 rounded-lg text-sm border"
+                      style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-muted)' }}>
+                      Attribution automatique
+                    </div>
+                  )}
                 </div>
               </div>
               <div>

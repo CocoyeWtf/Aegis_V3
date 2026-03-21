@@ -640,18 +640,35 @@ async def create_booking(
     duration = _calc_duration(data.pallet_count, cfg)
     end_time = _add_minutes(data.start_time, duration)
 
-    # Verifier collision si dock_number specifie / Check collision if dock specified
-    if data.dock_number:
-        await _check_collision(db, data.base_id, data.booking_date, data.dock_number,
+    # Resoudre le nombre de quais (avec overrides) / Resolve dock count (with overrides)
+    cfg_full = await db.execute(
+        select(DockConfig).where(DockConfig.id == cfg.id)
+        .options(selectinload(DockConfig.schedules), selectinload(DockConfig.overrides))
+    )
+    cfg_loaded = cfg_full.scalar_one()
+    resolved = _resolve_schedule(cfg_loaded, data.booking_date)
+    dock_count = resolved.dock_count if resolved else cfg.dock_count
+
+    # Auto-assignation quai si non precise / Auto-assign dock if not specified
+    dock_number = data.dock_number
+    if not dock_number:
+        dock_number = await _find_free_dock(
+            db, data.base_id, data.booking_date, data.dock_type,
+            data.start_time, end_time, dock_count,
+        )
+        if dock_number is None:
+            raise HTTPException(status_code=409, detail=f"Aucun quai {data.dock_type} libre sur ce creneau ({data.start_time}-{end_time})")
+    else:
+        await _check_collision(db, data.base_id, data.booking_date, dock_number,
                                data.start_time, end_time, exclude_id=None)
 
     now = _now_iso()
     booking = Booking(
         base_id=data.base_id, dock_type=DockType(data.dock_type),
-        dock_number=data.dock_number, booking_date=data.booking_date,
+        dock_number=dock_number, booking_date=data.booking_date,
         start_time=data.start_time, end_time=end_time,
         pallet_count=data.pallet_count, estimated_duration_minutes=duration,
-        status=BookingStatus.CONFIRMED if data.dock_number else BookingStatus.DRAFT,
+        status=BookingStatus.CONFIRMED,
         is_locked=data.is_locked, supplier_name=data.supplier_name,
         temperature_type=data.temperature_type, notes=data.notes,
         created_by_user_id=user.id, created_at=now,
@@ -681,6 +698,36 @@ async def create_booking(
                  selectinload(Booking.dock_events), selectinload(Booking.refusal))
     )
     return _booking_to_read(result.scalar_one())
+
+
+async def _find_free_dock(db: AsyncSession, base_id: int, date: str, dock_type: str,
+                          start_time: str, end_time: str, dock_count: int) -> int | None:
+    """Trouver le premier quai libre / Find first available dock for the time slot."""
+    result = await db.execute(
+        select(Booking).where(
+            Booking.base_id == base_id,
+            Booking.booking_date == date,
+            Booking.dock_type == DockType(dock_type),
+            Booking.status.notin_([BookingStatus.CANCELLED, BookingStatus.REFUSED]),
+        )
+    )
+    existing = result.scalars().all()
+    new_start = _time_to_minutes(start_time)
+    new_end = _time_to_minutes(end_time)
+
+    for dock_num in range(1, dock_count + 1):
+        is_free = True
+        for b in existing:
+            if b.dock_number != dock_num:
+                continue
+            b_start = _time_to_minutes(b.start_time)
+            b_end = _time_to_minutes(b.end_time)
+            if b_start < new_end and b_end > new_start:
+                is_free = False
+                break
+        if is_free:
+            return dock_num
+    return None
 
 
 async def _check_collision(db: AsyncSession, base_id: int, date: str, dock_number: int,
