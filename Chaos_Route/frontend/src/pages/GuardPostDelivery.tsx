@@ -3,8 +3,6 @@
    Gère les départs et retours des chauffeurs livraison (tournées PDV). */
 
 import { useState, useEffect, useCallback } from 'react'
-import api from '../services/api'
-import { useAuthStore } from '../stores/useAuthStore'
 
 interface DeliveryEntry {
   id?: number
@@ -21,7 +19,6 @@ const STATUS_COLORS = { OUT: '#f59e0b', RETURNED: '#22c55e' }
 const STATUS_LABELS = { OUT: 'En livraison', RETURNED: 'Rentre' }
 
 export default function GuardPostDelivery() {
-  const user = useAuthStore((s) => s.user)
   const [entries, setEntries] = useState<DeliveryEntry[]>([])
   const [driverName, setDriverName] = useState('')
   const [plate, setPlate] = useState('')
