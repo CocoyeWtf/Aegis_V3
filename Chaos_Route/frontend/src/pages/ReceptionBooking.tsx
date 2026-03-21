@@ -108,7 +108,7 @@ function formatDateFr(dateStr: string) {
 
 export default function ReceptionBooking() {
   const [searchParams] = useSearchParams()
-  const viewParam = searchParams.get('view') as 'appros' | 'gate' | 'reception' | null
+  const viewParam = searchParams.get('view') as 'appros' | 'gate' | 'reception' | 'transport' | null
   const user = useAuthStore((s) => s.user)
   const [bases, setBases] = useState<Base[]>([])
   const [configs, setConfigs] = useState<DockConfig[]>([])
@@ -177,7 +177,6 @@ export default function ReceptionBooking() {
 
   // Transport pickups
   const [pickups, setPickups] = useState<Booking[]>([])
-  const [carriers, setCarriers] = useState<{ id: number; name: string }[]>([])
 
   // KPI
   const [kpi, setKpi] = useState<Record<string, unknown> | null>(null)
@@ -236,12 +235,8 @@ export default function ReceptionBooking() {
   // Charger pickups si vue transport / Fetch pickups for transport view
   const fetchPickups = useCallback(async () => {
     try {
-      const [pRes, cRes] = await Promise.all([
-        api.get('/reception-booking/pickups/', { params: { base_id: selectedBaseId || undefined } }),
-        api.get('/carriers/').catch(() => ({ data: [] })),
-      ])
+      const pRes = await api.get('/reception-booking/pickups/', { params: { base_id: selectedBaseId || undefined } })
       setPickups(pRes.data)
-      setCarriers(cRes.data)
     } catch { /* silent */ }
   }, [selectedBaseId])
 
