@@ -514,7 +514,7 @@ export default function ReceptionBooking() {
 
       {/* ─── VUE GARDE ─── */}
       {(viewParam === 'gate' || (isGate && !isAppros && !isReception && !viewParam)) && (
-        <GateView bookings={bookings} checkedInBookings={checkedInBookings} atDockBookings={atDockBookings} dockLeftBookings={dockLeftBookings} fetchData={fetchData} />
+        <GateView checkedInBookings={checkedInBookings} atDockBookings={atDockBookings} dockLeftBookings={dockLeftBookings} fetchData={fetchData} />
       )}
 
       {/* ─── VUE TRANSPORT ─── */}

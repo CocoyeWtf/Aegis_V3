@@ -3,7 +3,6 @@
    Tabs: PDV balances | Transaction history | New transaction */
 
 import { useState, useEffect, useCallback } from 'react'
-import { DataTable } from '../components/ui/DataTable'
 import { apiFetch } from '../services/api'
 
 /* ─── Types locaux / Local types ─────────────────────────────────────── */
@@ -343,21 +342,43 @@ export default function BeerConsignments() {
 
       {/* Tab content */}
       {tab === 'balances' && (
-        <DataTable
-          data={balances}
-          columns={balanceCols}
-          searchKeys={['pdv_code', 'pdv_name', 'support_type_name']}
-          searchPlaceholder="Rechercher PDV ou type..."
-        />
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85em' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid var(--border-primary)' }}>
+                {balanceCols.map(c => <th key={c.key} style={{ padding: '8px', textAlign: 'left', color: 'var(--text-muted)' }}>{c.header}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {balances.map((r, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid var(--border-primary)' }}>
+                  {balanceCols.map(c => <td key={c.key} style={{ padding: '8px', color: 'var(--text-primary)' }}>{c.render ? c.render(r) : (r as unknown as Record<string, unknown>)[c.key] as string}</td>)}
+                </tr>
+              ))}
+              {balances.length === 0 && <tr><td colSpan={balanceCols.length} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Aucune donnee</td></tr>}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {tab === 'history' && (
-        <DataTable
-          data={txHistory}
-          columns={txCols}
-          searchKeys={['pdv_code', 'pdv_name', 'support_type_name', 'reference']}
-          searchPlaceholder="Rechercher..."
-        />
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85em' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid var(--border-primary)' }}>
+                {txCols.map(c => <th key={c.key} style={{ padding: '8px', textAlign: 'left', color: 'var(--text-muted)' }}>{c.header}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {txHistory.map((r, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid var(--border-primary)' }}>
+                  {txCols.map(c => <td key={c.key} style={{ padding: '8px', color: 'var(--text-primary)' }}>{c.render ? c.render(r) : (r as unknown as Record<string, unknown>)[c.key] as string}</td>)}
+                </tr>
+              ))}
+              {txHistory.length === 0 && <tr><td colSpan={txCols.length} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Aucune donnee</td></tr>}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {tab === 'new' && (

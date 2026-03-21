@@ -2,17 +2,17 @@
 
 import { useState } from 'react'
 import api from '../../services/api'
-import { Booking, STATUS_COLORS, STATUS_LABELS, DOCK_TYPE_LABELS } from './types'
+import type { Booking } from './types'
+import { STATUS_COLORS } from './types'
 
 interface Props {
-  bookings: Booking[]
   checkedInBookings: Booking[]
   atDockBookings: Booking[]
   dockLeftBookings: Booking[]
   fetchData: () => void
 }
 
-export function GateView({ bookings, checkedInBookings, atDockBookings, dockLeftBookings, fetchData }: Props) {
+export function GateView({ checkedInBookings, atDockBookings, dockLeftBookings, fetchData }: Props) {
   const [gateOrderNum, setGateOrderNum] = useState('')
   const [gatePlate, setGatePlate] = useState('')
   const [gatePhone, setGatePhone] = useState('')

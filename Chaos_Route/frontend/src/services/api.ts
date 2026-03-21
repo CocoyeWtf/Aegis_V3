@@ -136,7 +136,8 @@ export async function downloadExport(entity: string, format: 'csv' | 'xlsx' = 'x
 
 /* Fetch wrapper avec gestion token automatique / Fetch wrapper with auto token handling.
    Utilise l'instance axios avec intercepteurs / Uses the axios instance with interceptors. */
-export async function apiFetch(url: string, init?: RequestInit): Promise<unknown> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function apiFetch(url: string, init?: RequestInit): Promise<any> {
   const method = init?.method?.toUpperCase() || 'GET'
   const headers: Record<string, string> = {}
   if (init?.headers) {

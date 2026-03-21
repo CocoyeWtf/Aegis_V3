@@ -2,10 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import api from '../../services/api'
-import {
-  DockConfig, DockScheduleOverride, DayAvailability,
-  DOCK_TYPE_LABELS, DOCK_TYPE_COLORS, DAY_LABELS, MONTH_NAMES, formatDateFr,
-} from './types'
+import type { DockConfig, DockScheduleOverride, DayAvailability } from './types'
+import { DOCK_TYPE_LABELS, DOCK_TYPE_COLORS, DAY_LABELS, MONTH_NAMES } from './types'
 
 interface Props {
   selectedBaseId: number | ''

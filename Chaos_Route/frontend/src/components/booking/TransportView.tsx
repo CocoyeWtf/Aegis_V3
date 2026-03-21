@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import api from '../../services/api'
-import { Booking, PICKUP_STATUS_LABELS, PICKUP_STATUS_COLORS, DOCK_TYPE_LABELS, DOCK_TYPE_COLORS } from './types'
+import type { Booking } from './types'
+import { PICKUP_STATUS_LABELS, PICKUP_STATUS_COLORS, DOCK_TYPE_LABELS, DOCK_TYPE_COLORS } from './types'
 
 interface Props {
   pickups: Booking[]
