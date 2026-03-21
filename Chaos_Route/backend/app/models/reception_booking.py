@@ -43,6 +43,16 @@ class DockEventType(str, enum.Enum):
     DEPARTED = "DEPARTED"          # Legacy — kept for existing data
 
 
+class PickupStatus(str, enum.Enum):
+    """Statut enlevement transport / Pickup status for transport team."""
+    PENDING = "PENDING"            # Demande appros, en attente transport
+    ASSIGNED = "ASSIGNED"          # Transporteur assigne
+    PICKED_UP = "PICKED_UP"       # Marchandise enlevee chez fournisseur
+    IN_TRANSIT = "IN_TRANSIT"     # En route vers base
+    DELIVERED = "DELIVERED"        # Arrive sur base (= booking CHECKED_IN)
+    CANCELLED = "CANCELLED"
+
+
 class PurchaseOrderStatus(str, enum.Enum):
     """Statut commande / Purchase order status."""
     PENDING = "PENDING"
@@ -144,9 +154,21 @@ class Booking(Base):
     created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[str | None] = mapped_column(String(32))
 
+    # Enlevement transport / Pickup by transport team
+    is_pickup: Mapped[bool] = mapped_column(Boolean, default=False)
+    pickup_date: Mapped[str | None] = mapped_column(String(10))       # Date enlevement chez fournisseur
+    pickup_address: Mapped[str | None] = mapped_column(Text)
+    pickup_status: Mapped[str | None] = mapped_column(String(20))     # PickupStatus value
+    carrier_id: Mapped[int | None] = mapped_column(ForeignKey("carriers.id"))
+    carrier_price: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    carrier_ref: Mapped[str | None] = mapped_column(String(50))       # Ref interne transport
+    pickup_notes: Mapped[str | None] = mapped_column(Text)
+    is_internal_fleet: Mapped[bool] = mapped_column(Boolean, default=False)  # Flotte interne vs sous-traitant
+
     # Relations
     base: Mapped["BaseLogistics"] = relationship()
     created_by: Mapped["User | None"] = relationship()
+    carrier: Mapped["Carrier | None"] = relationship(foreign_keys=[carrier_id])
     orders: Mapped[list["BookingOrder"]] = relationship(
         back_populates="booking", cascade="all, delete-orphan"
     )

@@ -18,8 +18,9 @@ from app.database import get_db
 from app.models.reception_booking import (
     DockConfig, DockSchedule, DockScheduleOverride, DockType,
     Booking, BookingOrder, BookingCheckin, BookingDockEvent, BookingRefusal,
-    BookingStatus, DockEventType, OrderImport,
+    BookingStatus, DockEventType, OrderImport, PickupStatus,
 )
+from app.models.carrier import Carrier
 from app.models.base_logistics import BaseLogistics
 from app.models.user import User
 from app.models.audit import AuditLog
@@ -27,7 +28,7 @@ from app.schemas.reception_booking import (
     DockConfigCreate, DockConfigRead, DockConfigUpdate,
     DockScheduleOverrideCreate, DockScheduleOverrideRead, DockScheduleOverrideUpdate,
     DayAvailabilitySummary, SuggestedSlot, BookingKpi,
-    BookingCreate, BookingRead, BookingUpdate, BookingMoveSlot,
+    BookingCreate, BookingRead, BookingUpdate, BookingMoveSlot, PickupAssign,
     BookingCheckinCreate, BookingCheckinRead,
     BookingRefusalCreate,
     SlotAvailability, OrderImportRead, OrderImportResult,
@@ -913,6 +914,13 @@ def _booking_to_read(b: Booking) -> BookingRead:
         is_locked=b.is_locked, supplier_name=b.supplier_name,
         temperature_type=b.temperature_type, notes=b.notes,
         created_by_user_id=b.created_by_user_id, created_at=b.created_at,
+        is_pickup=b.is_pickup or False, pickup_date=b.pickup_date,
+        pickup_address=b.pickup_address, pickup_status=b.pickup_status,
+        carrier_id=b.carrier_id,
+        carrier_name=b.carrier.name if hasattr(b, 'carrier') and b.carrier else None,
+        carrier_price=float(b.carrier_price) if b.carrier_price else None,
+        carrier_ref=b.carrier_ref, pickup_notes=b.pickup_notes,
+        is_internal_fleet=b.is_internal_fleet or False,
         orders=[{
             "id": o.id, "booking_id": o.booking_id, "order_number": o.order_number,
             "pallet_count": o.pallet_count, "cnuf": o.cnuf, "filiale": o.filiale,
@@ -1003,6 +1011,10 @@ async def create_booking(
         is_locked=data.is_locked, supplier_name=data.supplier_name,
         temperature_type=data.temperature_type, notes=data.notes,
         created_by_user_id=user.id, created_at=now,
+        is_pickup=data.is_pickup,
+        pickup_date=data.pickup_date if data.is_pickup else None,
+        pickup_address=data.pickup_address if data.is_pickup else None,
+        pickup_status=PickupStatus.PENDING.value if data.is_pickup else None,
     )
     db.add(booking)
     await db.flush()
@@ -1266,6 +1278,96 @@ async def merge_bookings(
     await db.flush()
     await db.refresh(main, ["orders", "checkin", "dock_events", "refusal"])
     return _booking_to_read(main)
+
+
+# ─── Transport : gestion enlevements ───
+
+@router.get("/pickups/", response_model=list[BookingRead])
+async def list_pickups(
+    base_id: int | None = None,
+    pickup_status: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Lister les demandes d'enlevement / List pickup requests for transport team."""
+    query = (
+        select(Booking).where(Booking.is_pickup == True)
+        .options(
+            selectinload(Booking.orders), selectinload(Booking.checkin),
+            selectinload(Booking.dock_events), selectinload(Booking.refusal),
+        )
+    )
+    if base_id:
+        query = query.where(Booking.base_id == base_id)
+    if pickup_status:
+        query = query.where(Booking.pickup_status == pickup_status)
+    if date_from:
+        query = query.where(Booking.pickup_date >= date_from)
+    if date_to:
+        query = query.where(Booking.pickup_date <= date_to)
+    query = query.order_by(Booking.pickup_date.asc(), Booking.booking_date.asc())
+    result = await db.execute(query)
+    return [_booking_to_read(b) for b in result.scalars().all()]
+
+
+@router.put("/pickups/{booking_id}/assign")
+async def assign_pickup(
+    booking_id: int,
+    data: PickupAssign,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("booking-appros", "update")),
+):
+    """Assigner un transporteur a un enlevement / Assign carrier to a pickup."""
+    booking = await db.get(Booking, booking_id)
+    if not booking or not booking.is_pickup:
+        raise HTTPException(status_code=404, detail="Enlevement non trouve")
+
+    if data.carrier_id:
+        carrier = await db.get(Carrier, data.carrier_id)
+        if not carrier:
+            raise HTTPException(status_code=404, detail="Transporteur non trouve")
+
+    booking.carrier_id = data.carrier_id
+    booking.is_internal_fleet = data.is_internal_fleet
+    booking.carrier_price = data.carrier_price
+    booking.carrier_ref = data.carrier_ref
+    booking.pickup_notes = data.pickup_notes
+    booking.pickup_status = PickupStatus.ASSIGNED.value
+
+    await _log_booking_audit(db, booking_id, "PICKUP_ASSIGNED", user, {
+        "carrier_id": data.carrier_id, "price": data.carrier_price,
+        "internal": data.is_internal_fleet,
+    })
+    await db.flush()
+    return {"ok": True}
+
+
+@router.put("/pickups/{booking_id}/status")
+async def update_pickup_status(
+    booking_id: int,
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("booking-appros", "update")),
+):
+    """Mettre a jour le statut enlevement / Update pickup status."""
+    booking = await db.get(Booking, booking_id)
+    if not booking or not booking.is_pickup:
+        raise HTTPException(status_code=404, detail="Enlevement non trouve")
+
+    new_status = data.get("pickup_status")
+    if new_status not in [s.value for s in PickupStatus]:
+        raise HTTPException(status_code=422, detail=f"Statut invalide: {new_status}")
+
+    old_status = booking.pickup_status
+    booking.pickup_status = new_status
+
+    await _log_booking_audit(db, booking_id, "PICKUP_STATUS", user, {
+        "from": old_status, "to": new_status,
+    })
+    await db.flush()
+    return {"ok": True}
 
 
 # ─── Check-in borne chauffeur ───

@@ -53,6 +53,12 @@ interface Booking {
   pallet_count: number; estimated_duration_minutes: number
   status: string; is_locked: boolean; supplier_name?: string
   temperature_type?: string; notes?: string; created_by_user_id?: number
+  // Enlevement / Pickup
+  is_pickup: boolean; pickup_date?: string; pickup_address?: string
+  pickup_status?: string; carrier_id?: number; carrier_name?: string
+  carrier_price?: number; carrier_ref?: string; pickup_notes?: string
+  is_internal_fleet?: boolean
+  // Relations
   orders: BookingOrder[]; checkin?: BookingCheckin; refusal?: BookingRefusal
 }
 
@@ -78,6 +84,14 @@ const STATUS_COLORS: Record<string, string> = {
   AT_DOCK: '#f59e0b', UNLOADING: '#a855f7', DOCK_LEFT: '#06b6d4',
   COMPLETED: '#22c55e', CANCELLED: '#6b7280',
   REFUSED: '#ef4444', NO_SHOW: '#ef4444',
+}
+const PICKUP_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'En attente', ASSIGNED: 'Transporteur assigne', PICKED_UP: 'Enleve',
+  IN_TRANSIT: 'En transit', DELIVERED: 'Livre sur base', CANCELLED: 'Annule',
+}
+const PICKUP_STATUS_COLORS: Record<string, string> = {
+  PENDING: '#737373', ASSIGNED: '#f97316', PICKED_UP: '#3b82f6',
+  IN_TRANSIT: '#a855f7', DELIVERED: '#22c55e', CANCELLED: '#6b7280',
 }
 const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 
@@ -143,6 +157,9 @@ export default function ReceptionBooking() {
   const [bkLocked, setBkLocked] = useState(false)
   const [bkDockNum, setBkDockNum] = useState('')
   const [bkNotes, setBkNotes] = useState('')
+  const [bkIsPickup, setBkIsPickup] = useState(false)
+  const [bkPickupDate, setBkPickupDate] = useState('')
+  const [bkPickupAddress, setBkPickupAddress] = useState('')
   const [suggestions, setSuggestions] = useState<SuggestedSlot[]>([])
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
 
@@ -157,6 +174,10 @@ export default function ReceptionBooking() {
 
   // Import
   const [importResult, setImportResult] = useState<{ imported: number; reconciled: number; errors: string[] } | null>(null)
+
+  // Transport pickups
+  const [pickups, setPickups] = useState<Booking[]>([])
+  const [carriers, setCarriers] = useState<{ id: number; name: string }[]>([])
 
   // KPI
   const [kpi, setKpi] = useState<Record<string, unknown> | null>(null)
@@ -211,6 +232,20 @@ export default function ReceptionBooking() {
   }, [selectedBaseId, selectedDate])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // Charger pickups si vue transport / Fetch pickups for transport view
+  const fetchPickups = useCallback(async () => {
+    try {
+      const [pRes, cRes] = await Promise.all([
+        api.get('/reception-booking/pickups/', { params: { base_id: selectedBaseId || undefined } }),
+        api.get('/carriers/').catch(() => ({ data: [] })),
+      ])
+      setPickups(pRes.data)
+      setCarriers(cRes.data)
+    } catch { /* silent */ }
+  }, [selectedBaseId])
+
+  useEffect(() => { if (viewParam === 'transport') fetchPickups() }, [viewParam, fetchPickups])
 
   // Charger KPI / Fetch KPIs
   const fetchKpi = useCallback(async () => {
@@ -374,6 +409,9 @@ export default function ReceptionBooking() {
           supplier_name: bkSupplier || null,
           is_locked: bkLocked,
           notes: bkNotes || null,
+          is_pickup: bkIsPickup,
+          pickup_date: bkIsPickup && bkPickupDate ? bkPickupDate : null,
+          pickup_address: bkIsPickup && bkPickupAddress ? bkPickupAddress : null,
           orders: bkOrderNum ? [{ order_number: bkOrderNum }] : [],
         })
       }
@@ -490,7 +528,8 @@ export default function ReceptionBooking() {
     setBkStartTime(startTime || timeSlots[0] || '06:00')
     setBkPallets(''); setBkSupplier(''); setBkOrderNum('')
     setBkLocked(false); setBkNotes('')
-    setBkDockNum('')  // Toujours auto-assignation
+    setBkDockNum('')
+    setBkIsPickup(false); setBkPickupDate(''); setBkPickupAddress('')
     setShowBookDialog(true)
   }
 
@@ -504,6 +543,9 @@ export default function ReceptionBooking() {
     setBkLocked(b.is_locked)
     setBkNotes(b.notes || '')
     setBkDockNum(b.dock_number ? String(b.dock_number) : '')
+    setBkIsPickup(b.is_pickup || false)
+    setBkPickupDate(b.pickup_date || '')
+    setBkPickupAddress(b.pickup_address || '')
     setShowBookDialog(true)
   }
 
@@ -632,6 +674,9 @@ export default function ReceptionBooking() {
           {booking.orders.some((o) => o.reconciled) && (
             <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#22c55e' }} title="Rapproche avec import" />
           )}
+          {booking.is_pickup && (
+            <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#f59e0b' }} title="Enlevement transport" />
+          )}
           {booking.is_locked && (
             <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#ef4444' }} title="Verrouille — ne pas deplacer/refuser" />
           )}
@@ -671,10 +716,11 @@ export default function ReceptionBooking() {
         <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
           {viewParam === 'gate' ? 'Poste de garde — Check-in / Depart' :
            viewParam === 'appros' ? 'Booking fournisseurs' :
+           viewParam === 'transport' ? 'Enlevements transport' :
            viewParam === 'reception' ? 'Reception quais' :
            'Booking reception'}
         </h1>
-        {viewParam !== 'gate' && (
+        {viewParam !== 'gate' && viewParam !== 'transport' && (
           <div className="flex gap-2">
             <button onClick={() => setTab('planning')}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium ${tab === 'planning' ? 'text-white' : ''}`}
@@ -851,6 +897,88 @@ export default function ReceptionBooking() {
         </div>
       )}
 
+      {/* ─── VUE TRANSPORT (enlevements) ─── */}
+      {viewParam === 'transport' && (
+        <div className="space-y-4">
+          {/* Compteurs par statut pickup */}
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+            {(['PENDING', 'ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED'] as const).map((s) => {
+              const count = pickups.filter((p) => p.pickup_status === s).length
+              return (
+                <div key={s} className="rounded-lg p-2 text-center" style={{ backgroundColor: `${PICKUP_STATUS_COLORS[s]}15` }}>
+                  <div className="text-lg font-bold" style={{ color: PICKUP_STATUS_COLORS[s] }}>{count}</div>
+                  <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{PICKUP_STATUS_LABELS[s]}</div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Liste des enlevements */}
+          <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="px-4 py-2 border-b" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)' }}>
+              <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                {pickups.length} enlevement(s)
+              </span>
+            </div>
+            {pickups.length === 0 ? (
+              <div className="text-center py-8 text-sm" style={{ color: 'var(--text-muted)' }}>Aucune demande d'enlevement</div>
+            ) : (
+              <div className="divide-y" style={{ borderColor: 'var(--border-color)' }}>
+                {pickups.map((p) => (
+                  <div key={p.id} className="px-4 py-3 flex items-center gap-4 hover:opacity-90 cursor-pointer"
+                    style={{ backgroundColor: 'var(--bg-primary)' }}
+                    onClick={() => openEditBooking(p)}>
+                    {/* Statut pickup */}
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full text-white flex-shrink-0"
+                      style={{ backgroundColor: PICKUP_STATUS_COLORS[p.pickup_status || 'PENDING'] }}>
+                      {PICKUP_STATUS_LABELS[p.pickup_status || 'PENDING']}
+                    </span>
+                    {/* Fournisseur */}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+                        {p.supplier_name || 'Sans nom'}
+                      </div>
+                      <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                        {p.pickup_address || 'Adresse non renseignee'}
+                      </div>
+                    </div>
+                    {/* Dates */}
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-xs" style={{ color: 'var(--text-primary)' }}>
+                        Enlevement: <strong>{p.pickup_date || '?'}</strong>
+                      </div>
+                      <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                        Reception base: {p.booking_date} {p.start_time}
+                      </div>
+                    </div>
+                    {/* Palettes + type */}
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>{p.pallet_count} pal.</div>
+                      <div className="text-[10px]" style={{ color: DOCK_TYPE_COLORS[p.dock_type] }}>{DOCK_TYPE_LABELS[p.dock_type]}</div>
+                    </div>
+                    {/* Transporteur */}
+                    <div className="text-right flex-shrink-0" style={{ minWidth: '100px' }}>
+                      {p.carrier_name ? (
+                        <>
+                          <div className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{p.carrier_name}</div>
+                          {p.carrier_price != null && (
+                            <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{p.carrier_price} EUR</div>
+                          )}
+                        </>
+                      ) : p.is_internal_fleet ? (
+                        <div className="text-xs" style={{ color: '#3b82f6' }}>Flotte interne</div>
+                      ) : (
+                        <div className="text-xs" style={{ color: '#ef4444' }}>Non assigne</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ─── FILE D'ATTENTE RECEPTION (bandeau au-dessus du planning) ─── */}
       {isReception && checkedInBookings.length > 0 && tab === 'planning' && (
         <div className="rounded-xl border p-3" style={{ borderColor: STATUS_COLORS.CHECKED_IN, backgroundColor: `${STATUS_COLORS.CHECKED_IN}10` }}>
@@ -954,6 +1082,10 @@ export default function ReceptionBooking() {
                 <div className="flex items-center gap-1">
                   <span className="inline-block w-3 h-2 rounded-sm" style={{ backgroundColor: '#6b728030', border: '1px solid #6b7280' }} />
                   <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Annule</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#f59e0b' }} />
+                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Enlevement</span>
                 </div>
                 <span className="ml-auto text-[10px]" style={{ color: 'var(--text-muted)' }}>
                   {minutesToTime(earliest)} - {minutesToTime(latest)}
@@ -1654,6 +1786,47 @@ export default function ReceptionBooking() {
                 <input type="checkbox" checked={bkLocked} onChange={(e) => setBkLocked(e.target.checked)} disabled={readOnly} />
                 Non deplacable (risque rupture)
               </label>
+
+              {/* Enlevement / Pickup toggle */}
+              <div className="rounded-lg border p-3" style={{ borderColor: bkIsPickup ? '#f59e0b' : 'var(--border-color)', backgroundColor: bkIsPickup ? '#f59e0b08' : 'transparent' }}>
+                <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-primary)' }}>
+                  <input type="checkbox" checked={bkIsPickup} onChange={(e) => setBkIsPickup(e.target.checked)} disabled={readOnly} />
+                  Enlevement par nos equipes transport
+                </label>
+                {bkIsPickup && (
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Date enlevement</label>
+                      <input type="date" value={bkPickupDate} onChange={(e) => setBkPickupDate(e.target.value)} disabled={readOnly}
+                        className="w-full px-3 py-2 rounded-lg text-sm border disabled:opacity-60"
+                        style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Adresse enlevement</label>
+                      <input type="text" value={bkPickupAddress} onChange={(e) => setBkPickupAddress(e.target.value)} disabled={readOnly}
+                        placeholder="Adresse fournisseur"
+                        className="w-full px-3 py-2 rounded-lg text-sm border disabled:opacity-60"
+                        style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+                    </div>
+                  </div>
+                )}
+                {/* Info pickup status si edition */}
+                {editBookingId && bkIsPickup && (() => {
+                  const eb = bookings.find(b => b.id === editBookingId)
+                  if (!eb?.pickup_status) return null
+                  return (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs px-2 py-0.5 rounded-full text-white"
+                        style={{ backgroundColor: PICKUP_STATUS_COLORS[eb.pickup_status] || '#737373' }}>
+                        {PICKUP_STATUS_LABELS[eb.pickup_status] || eb.pickup_status}
+                      </span>
+                      {eb.carrier_name && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Transporteur: {eb.carrier_name}</span>}
+                      {eb.carrier_price != null && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{eb.carrier_price} EUR</span>}
+                    </div>
+                  )
+                })()}
+              </div>
+
               <div>
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Notes</label>
                 <textarea rows={2} value={bkNotes} onChange={(e) => setBkNotes(e.target.value)} disabled={readOnly}

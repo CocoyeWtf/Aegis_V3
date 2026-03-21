@@ -116,7 +116,7 @@ class BookingOrderRead(BookingOrderCreate):
 class BookingCreate(BaseModel):
     base_id: int
     dock_type: str
-    booking_date: str      # YYYY-MM-DD
+    booking_date: str      # YYYY-MM-DD (date reception sur base)
     start_time: str        # HH:MM
     pallet_count: int
     dock_number: int | None = None
@@ -125,6 +125,10 @@ class BookingCreate(BaseModel):
     is_locked: bool = False
     notes: str | None = None
     orders: list[BookingOrderCreate] = []
+    # Enlevement / Pickup
+    is_pickup: bool = False
+    pickup_date: str | None = None       # Date enlevement chez fournisseur
+    pickup_address: str | None = None
 
 
 class BookingUpdate(BaseModel):
@@ -138,6 +142,19 @@ class BookingUpdate(BaseModel):
     supplier_name: str | None = None
     temperature_type: str | None = None
     notes: str | None = None
+    # Enlevement / Pickup
+    is_pickup: bool | None = None
+    pickup_date: str | None = None
+    pickup_address: str | None = None
+
+
+class PickupAssign(BaseModel):
+    """Assignation transport pour enlevement / Transport assignment for pickup."""
+    carrier_id: int | None = None
+    is_internal_fleet: bool = False
+    carrier_price: float | None = None
+    carrier_ref: str | None = None
+    pickup_notes: str | None = None
 
 
 class BookingMoveSlot(BaseModel):
@@ -207,6 +224,18 @@ class BookingRead(BaseModel):
     notes: str | None = None
     created_by_user_id: int | None = None
     created_at: str | None = None
+    # Enlevement / Pickup
+    is_pickup: bool = False
+    pickup_date: str | None = None
+    pickup_address: str | None = None
+    pickup_status: str | None = None
+    carrier_id: int | None = None
+    carrier_name: str | None = None     # Enrichi depuis carrier relation
+    carrier_price: float | None = None
+    carrier_ref: str | None = None
+    pickup_notes: str | None = None
+    is_internal_fleet: bool = False
+    # Relations
     orders: list[BookingOrderRead] = []
     checkin: BookingCheckinRead | None = None
     dock_events: list[BookingDockEventRead] = []
