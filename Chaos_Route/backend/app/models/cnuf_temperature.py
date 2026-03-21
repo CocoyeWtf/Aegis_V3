@@ -21,7 +21,7 @@ class CnufTemperature(Base):
     filiale: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
     temperature_type: Mapped[str] = mapped_column(String(10), nullable=False)  # SEC, FRAIS, GEL, FFL
     label: Mapped[str | None] = mapped_column(String(150))  # Description libre / Free description
-    base_id: Mapped[int | None] = mapped_column(ForeignKey("base_logistics.id"))
+    base_id: Mapped[int | None] = mapped_column(ForeignKey("bases_logistics.id"))
 
     # Relations
     base: Mapped["BaseLogistics | None"] = relationship()
