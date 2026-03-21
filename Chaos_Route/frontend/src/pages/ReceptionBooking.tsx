@@ -3,6 +3,8 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts'
 import api from '../services/api'
 import { useAuthStore } from '../stores/useAuthStore'
 
@@ -95,6 +97,28 @@ const PICKUP_STATUS_COLORS: Record<string, string> = {
 }
 const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 
+// ─── DnD components ───
+function DraggableBooking({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id })
+  return (
+    <div ref={setNodeRef} {...listeners} {...attributes}
+      style={{ opacity: isDragging ? 0.3 : 1, cursor: 'grab' }}>
+      {children}
+    </div>
+  )
+}
+
+function DroppableCell({ id, children, style, onClick }: {
+  id: string; children: React.ReactNode; style?: React.CSSProperties; onClick?: () => void
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id })
+  return (
+    <div ref={setNodeRef} style={{ ...style, outline: isOver ? '2px solid var(--color-primary)' : undefined }} onClick={onClick}>
+      {children}
+    </div>
+  )
+}
+
 function timeToMinutes(t: string) { const [h, m] = t.split(':').map(Number); return h * 60 + m }
 function minutesToTime(m: number) { return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}` }
 
@@ -186,6 +210,9 @@ export default function ReceptionBooking() {
   const [assignRef, setAssignRef] = useState('')
   const [assignNotes, setAssignNotes] = useState('')
   const [pickupFilter, setPickupFilter] = useState<string>('')
+
+  // Drag & drop
+  const [dragBookingId, setDragBookingId] = useState<number | null>(null)
 
   // KPI
   const [kpi, setKpi] = useState<Record<string, unknown> | null>(null)
@@ -656,6 +683,49 @@ export default function ReceptionBooking() {
   const checkedInBookings = useMemo(() => bookings.filter((b) => b.status === 'CHECKED_IN'), [bookings])
   const atDockBookings = useMemo(() => bookings.filter((b) => ['AT_DOCK', 'UNLOADING'].includes(b.status)), [bookings])
   const dockLeftBookings = useMemo(() => bookings.filter((b) => b.status === 'DOCK_LEFT'), [bookings])
+
+  // ─── Drag & drop handlers ───
+  const handleDragStart = (event: DragStartEvent) => {
+    const id = String(event.active.id)
+    if (id.startsWith('booking-')) {
+      setDragBookingId(Number(id.replace('booking-', '')))
+    }
+  }
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    setDragBookingId(null)
+    const { active, over } = event
+    if (!over) return
+
+    const bookingId = Number(String(active.id).replace('booking-', ''))
+    const dropId = String(over.id) // format: "drop-{slotTime}-{colIndex}"
+    if (!dropId.startsWith('drop-')) return
+
+    const parts = dropId.split('-')
+    const slotTime = `${parts[1]}:${parts[2]}`
+    const colIdx = Number(parts[3])
+    const col = columns[colIdx]
+    if (!col) return
+
+    const booking = bookings.find((b) => b.id === bookingId)
+    if (!booking) return
+    // Ne pas bouger si meme position
+    if (booking.start_time === slotTime && booking.dock_number === col.dockNumber && booking.dock_type === col.dockType) return
+
+    try {
+      await api.put(`/reception-booking/bookings/${bookingId}`, {
+        dock_type: col.dockType,
+        dock_number: col.dockNumber,
+        start_time: slotTime,
+      })
+      fetchData()
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur deplacement'
+      alert(detail)
+    }
+  }
+
+  const draggedBooking = dragBookingId ? bookings.find((b) => b.id === dragBookingId) : null
 
   // ─── Transport handlers ───
   const openAssignDialog = (booking: Booking) => {
@@ -1254,6 +1324,7 @@ export default function ReceptionBooking() {
               </div>
 
               <div className="overflow-x-auto" style={{ padding: '12px' }}>
+              <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
                   {/* Colonne horaires / Time column */}
                   <div style={{ width: '52px', flexShrink: 0, paddingTop: '52px' }}>
@@ -1301,7 +1372,8 @@ export default function ReceptionBooking() {
                         const isHalf = slotTime.endsWith(':30')
                         const booking = bookingMatrix[si]?.[ci] || null
                         return (
-                          <div
+                          <DroppableCell
+                            id={`drop-${slotTime.replace(':', '-')}-${ci}`}
                             key={slotTime}
                             style={{
                               height: '28px',
@@ -1312,13 +1384,33 @@ export default function ReceptionBooking() {
                             }}
                             onClick={() => !booking && selectedBaseId && openNewBooking(col.dockType, slotTime)}
                           >
-                            {booking ? renderBookingBlock(booking, slotTime) : null}
-                          </div>
+                            {booking ? (
+                              booking.start_time === slotTime && isAppros ? (
+                                <DraggableBooking id={`booking-${booking.id}`}>
+                                  {renderBookingBlock(booking, slotTime)}
+                                </DraggableBooking>
+                              ) : renderBookingBlock(booking, slotTime)
+                            ) : null}
+                          </DroppableCell>
                         )
                       })}
                     </div>
                   ))}
                 </div>
+                {/* DragOverlay — affiche le booking en cours de deplacement */}
+                <DragOverlay>
+                  {draggedBooking && (
+                    <div style={{
+                      padding: '6px 10px', borderRadius: '8px',
+                      backgroundColor: 'var(--color-primary)', color: 'white',
+                      fontSize: '12px', fontWeight: 600, boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {draggedBooking.supplier_name || 'Booking'} — {draggedBooking.pallet_count} pal.
+                    </div>
+                  )}
+                </DragOverlay>
+              </DndContext>
               </div>
             </div>
           )}
@@ -1694,34 +1786,80 @@ export default function ReceptionBooking() {
                       </div>
                     </div>
 
-                    {/* ── Evolution journaliere ── */}
+                    {/* ── Graphiques Recharts ── */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Barres taux exploitation par jour */}
+                      <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                        <h3 className="text-sm font-bold mb-3" style={{ color: 'var(--text-primary)' }}>
+                          Taux exploitation par jour
+                        </h3>
+                        <ResponsiveContainer width="100%" height={200}>
+                          <BarChart data={dailyStats.map((d) => ({
+                            day: String(d.date).slice(5),
+                            pct: Number(d.utilization_pct || 0),
+                            pallets: Number(d.pallets || 0),
+                            trucks: Number(d.trucks || 0),
+                          }))}>
+                            <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                            <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} domain={[0, 100]} unit="%" />
+                            <Tooltip contentStyle={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '12px' }}
+                              formatter={(value: number, name: string) => [
+                                name === 'pct' ? `${value}%` : name === 'pallets' ? `${value} pal.` : `${value} camions`,
+                                name === 'pct' ? 'Exploitation' : name === 'pallets' ? 'Palettes' : 'Camions'
+                              ]} />
+                            <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
+                              {dailyStats.map((d, i) => {
+                                const pct = Number(d.utilization_pct || 0)
+                                return <Cell key={i} fill={pct >= 80 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#3b82f6'} />
+                              })}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      {/* Barres palettes par jour */}
+                      <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                        <h3 className="text-sm font-bold mb-3" style={{ color: 'var(--text-primary)' }}>
+                          Palettes par jour
+                        </h3>
+                        <ResponsiveContainer width="100%" height={200}>
+                          <BarChart data={dailyStats.map((d) => ({
+                            day: String(d.date).slice(5),
+                            pallets: Number(d.pallets || 0),
+                            trucks: Number(d.trucks || 0),
+                          }))}>
+                            <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                            <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                            <Tooltip contentStyle={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '12px' }} />
+                            <Bar dataKey="pallets" fill="#f97316" radius={[4, 4, 0, 0]} name="Palettes" />
+                            <Bar dataKey="trucks" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Camions" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    {/* Pie chart statuts */}
                     <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
                       <h3 className="text-sm font-bold mb-3" style={{ color: 'var(--text-primary)' }}>
-                        Evolution journaliere
+                        Repartition par statut
                       </h3>
-                      <div className="overflow-x-auto">
-                        <div style={{ display: 'flex', gap: '2px', alignItems: 'flex-end', minHeight: '120px' }}>
-                          {dailyStats.map((d) => {
-                            const pct = Number(d.utilization_pct || 0)
-                            const barColor = pct >= 80 ? '#22c55e' : pct >= 50 ? '#f59e0b' : pct > 0 ? '#3b82f6' : 'var(--bg-tertiary)'
-                            return (
-                              <div key={String(d.date)} className="flex flex-col items-center" style={{ flex: '1', minWidth: '28px' }}>
-                                <div className="text-[9px] font-bold mb-1" style={{ color: barColor }}>
-                                  {pct > 0 ? `${pct}%` : ''}
-                                </div>
-                                <div style={{
-                                  width: '100%', maxWidth: '32px',
-                                  height: `${Math.max(4, pct)}px`,
-                                  backgroundColor: barColor,
-                                  borderRadius: '3px 3px 0 0',
-                                }} />
-                                <div className="text-[8px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                                  {String(d.date).slice(8)}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '24px' }}>
+                        <ResponsiveContainer width={200} height={200}>
+                          <PieChart>
+                            <Pie
+                              data={[
+                                { name: 'Termines', value: Number(k.completed || 0), fill: '#22c55e' },
+                                { name: 'Refuses', value: Number(k.refused || 0), fill: '#ef4444' },
+                                { name: 'No-show', value: Number(k.no_show || 0), fill: '#f59e0b' },
+                                { name: 'Annules', value: Number(k.cancelled || 0), fill: '#6b7280' },
+                              ].filter((d) => d.value > 0)}
+                              dataKey="value" cx="50%" cy="50%" outerRadius={80}
+                              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                              labelLine={false}
+                            />
+                            <Tooltip />
+                          </PieChart>
+                        </ResponsiveContainer>
                       </div>
                     </div>
                   </>
