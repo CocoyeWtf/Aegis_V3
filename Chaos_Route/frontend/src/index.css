@@ -1,11 +1,17 @@
-@import "leaflet/dist/leaflet.css" layer(leaflet);
 @import "tailwindcss";
 
-/* Leaflet doit prendre priorité sur les resets Tailwind / Leaflet must override Tailwind resets */
-@layer leaflet {
-  .leaflet-container {
-    z-index: 0;
-  }
+/* Contrer les resets Tailwind v4 preflight qui cassent Leaflet /
+   Override Tailwind v4 preflight resets that break Leaflet
+   Preflight: img,video { max-width:100%; height:auto }
+              img,svg { display:block; vertical-align:middle } */
+.leaflet-container img {
+  max-width: none !important;
+  max-height: none !important;
+  height: auto;
+}
+.leaflet-container .leaflet-tile-pane img {
+  height: 256px;
+  width: 256px;
 }
 
 /* Chaos RouteManager - Dark/Light theme variables */
