@@ -54,13 +54,14 @@ const RESOURCE_GROUPS: ResourceGroup[] = [
       { resource: 'tracking', label: 'Suivi chauffeurs' },
       { resource: 'pickup-requests', label: 'Reprises / Reception base' },
       { resource: 'declarations', label: 'Declarations chauffeur' },
-      { resource: 'consignment-movements', label: 'Suivi consignes' },
       { resource: 'waybill-archives', label: 'Registre CMR' },
-      { resource: 'base-container-stock', label: 'Stock contenants base' },
-      { resource: 'supplier-pickups', label: 'Reprises fournisseurs' },
-      { resource: 'beer-consignments', label: 'Consignes biere' },
-      { resource: 'container-anomalies', label: 'Anomalies contenants' },
-      { resource: 'bottle-sorting', label: 'Tri vidanges' },
+      // ── Contenants — masqué en attente activation (backlog) ──
+      // { resource: 'consignment-movements', label: 'Suivi consignes' },
+      // { resource: 'base-container-stock', label: 'Stock contenants base' },
+      // { resource: 'supplier-pickups', label: 'Reprises fournisseurs' },
+      // { resource: 'beer-consignments', label: 'Consignes biere' },
+      // { resource: 'container-anomalies', label: 'Anomalies contenants' },
+      // { resource: 'bottle-sorting', label: 'Tri vidanges' },
       { resource: 'temperature', label: 'Controle temperature' },
       { resource: 'booking-appros', label: 'Booking — Appros' },
       { resource: 'booking-gate', label: 'Booking — Poste de garde' },
@@ -70,7 +71,7 @@ const RESOURCE_GROUPS: ResourceGroup[] = [
   {
     key: 'pdvOps', label: 'PDV', icon: '🏪',
     resources: [
-      { resource: 'pdv-stock', label: 'Stock contenants PDV' },
+      // { resource: 'pdv-stock', label: 'Stock contenants PDV' },  // backlog contenants
     ],
   },
   {
