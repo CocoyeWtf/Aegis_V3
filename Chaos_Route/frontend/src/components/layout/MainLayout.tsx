@@ -1,10 +1,11 @@
 /* Layout principal / Main layout wrapper */
 
-import { useEffect } from 'react'
+import { Suspense, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
+import { ChunkErrorBoundary } from '../ErrorBoundary'
 import { useAppStore } from '../../stores/useAppStore'
 
 export function MainLayout() {
@@ -27,7 +28,15 @@ export function MainLayout() {
       <div className="flex flex-col flex-1 overflow-hidden">
         {!isFullscreen && <div className="print-hide"><Header /></div>}
         <main className="flex-1 overflow-y-auto p-6 relative" style={{ backgroundColor: 'var(--bg-primary)' }}>
+          <ChunkErrorBoundary>
+          <Suspense fallback={
+            <div className="flex items-center justify-center h-64">
+              <div className="text-lg" style={{ color: 'var(--text-muted)' }}>Chargement...</div>
+            </div>
+          }>
           <Outlet />
+          </Suspense>
+          </ChunkErrorBoundary>
           {/* Bouton flottant quitter plein écran / Floating exit fullscreen button */}
           {isFullscreen && (
             <button

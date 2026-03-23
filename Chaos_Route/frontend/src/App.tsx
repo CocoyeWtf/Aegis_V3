@@ -83,14 +83,13 @@ function Loading() {
 export default function App() {
   return (
     <ChunkErrorBoundary>
-    <Suspense fallback={<Loading />}>
       <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/supplier-portal" element={<SupplierPortal />} />
-        <Route path="/driver-kiosk" element={<DriverKiosk />} />
+        <Route path="/login" element={<Suspense fallback={<Loading />}><Login /></Suspense>} />
+        <Route path="/reset-password" element={<Suspense fallback={<Loading />}><ResetPassword /></Suspense>} />
+        <Route path="/supplier-portal" element={<Suspense fallback={<Loading />}><SupplierPortal /></Suspense>} />
+        <Route path="/driver-kiosk" element={<Suspense fallback={<Loading />}><DriverKiosk /></Suspense>} />
         <Route element={<ProtectedRoute />}>
-          <Route path="/map-detached" element={<DetachedMap />} />
+          <Route path="/map-detached" element={<Suspense fallback={<Loading />}><DetachedMap /></Suspense>} />
           <Route element={<MainLayout />}>
             <Route path="/" element={<DefaultRedirect><Dashboard /></DefaultRedirect>} />
             <Route path="/countries" element={<CountryRegion />} />
@@ -154,7 +153,6 @@ export default function App() {
           </Route>
         </Route>
       </Routes>
-    </Suspense>
     </ChunkErrorBoundary>
   )
 }
