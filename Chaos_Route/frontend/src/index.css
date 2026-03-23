@@ -1,4 +1,12 @@
+@import "leaflet/dist/leaflet.css" layer(leaflet);
 @import "tailwindcss";
+
+/* Leaflet doit prendre priorité sur les resets Tailwind / Leaflet must override Tailwind resets */
+@layer leaflet {
+  .leaflet-container {
+    z-index: 0;
+  }
+}
 
 /* Chaos RouteManager - Dark/Light theme variables */
 :root {
