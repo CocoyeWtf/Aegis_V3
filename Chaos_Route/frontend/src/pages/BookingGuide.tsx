@@ -189,7 +189,7 @@ function MockPlanningGrid() {
           >
             {h}
           </div>
-          {docks.map((d, di) => {
+          {docks.map((_d, di) => {
             const bk = bookings.find(b => b.dock === di && b.start === ri)
             const occupied = bookings.some(b => b.dock === di && ri > b.start && ri < b.start + b.span)
             return (
