@@ -88,11 +88,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(self)"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
             "style-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data: blob:; "
+            "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://raw.githubusercontent.com https://cdnjs.cloudflare.com; "
             "font-src 'self' data:; "
-            "connect-src 'self' ws: wss:; "
+            "connect-src 'self' ws: wss: https://*.tile.openstreetmap.org; "
             "frame-ancestors 'none'"
         )
         return response
