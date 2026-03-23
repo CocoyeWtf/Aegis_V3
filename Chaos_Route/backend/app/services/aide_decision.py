@@ -330,19 +330,19 @@ class AideDecisionService:
         num_pdvs = len(pdv_ids)
         num_nodes = num_pdvs + 1  # depot + PDVs
 
-        # Demands (EQP par nœud)
+        # Demands (EQP par nœud) — int obligatoire pour OR-Tools
         demands = [0]  # depot
         for pid in pdv_ids:
-            demands.append(pdv_agg[pid]["eqp_count"])
+            demands.append(int(pdv_agg[pid]["eqp_count"]))
 
-        # Service times (minutes par nœud)
+        # Service times (minutes par nœud) — int obligatoire pour OR-Tools
         service_times = [0]  # depot
         for pid in pdv_ids:
             pdv = pdvs.get(pid)
-            eqp = pdv_agg[pid]["eqp_count"]
+            eqp = float(pdv_agg[pid]["eqp_count"])
             dock = (pdv.dock_time_minutes if pdv and pdv.dock_time_minutes else DEFAULT_DOCK_TIME)
             unload = (pdv.unload_time_per_eqp_minutes if pdv and pdv.unload_time_per_eqp_minutes else DEFAULT_UNLOAD_PER_EQP)
-            service_times.append(dock + eqp * unload)
+            service_times.append(int(dock + eqp * unload))
 
         # Time windows (earliest, deadline) en minutes
         time_windows: list[tuple[int, int]] = [(0, MAX_DAILY_MINUTES)]  # depot
