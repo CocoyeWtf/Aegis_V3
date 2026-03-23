@@ -74,6 +74,7 @@ const navGroups: NavGroup[] = [
     children: [
       { path: '/reception-booking?view=appros', label: 'Booking fournisseurs', icon: '📅', resource: 'booking-appros' },
       { path: '/reception-booking?view=transport', label: 'Enlevements transport', icon: '🚛', resource: 'booking-appros' },
+      { path: '/guide-booking', label: 'Guide booking', icon: '📖', resource: 'booking-appros' },
     ],
   },
   {

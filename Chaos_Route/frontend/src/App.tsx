@@ -70,6 +70,7 @@ const ContainerAnomalies = lazy(() => import('./pages/ContainerAnomalies'))
 const ContainerPrep = lazy(() => import('./pages/ContainerPrep'))
 const BottleSorting = lazy(() => import('./pages/BottleSorting'))
 const ContainerReport = lazy(() => import('./pages/ContainerReport'))
+const BookingGuide = lazy(() => import('./pages/BookingGuide'))
 
 function Loading() {
   return (
@@ -148,6 +149,7 @@ export default function App() {
             <Route path="/container-prep" element={<ContainerPrep />} />
             <Route path="/bottle-sorting" element={<BottleSorting />} />
             <Route path="/container-report" element={<ContainerReport />} />
+            <Route path="/guide-booking" element={<BookingGuide />} />
             <Route path="/help" element={<Help />} />
           </Route>
         </Route>
