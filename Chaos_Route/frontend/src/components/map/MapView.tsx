@@ -74,10 +74,19 @@ function ZoomTracker({ onZoomChange }: { onZoomChange: (z: number) => void }) {
   return null
 }
 
-/* Invalide la taille de la carte quand le panneau est redimensionné / Invalidate map size on panel resize */
+/* Invalide la taille de la carte au montage + quand le panneau est redimensionné /
+   Invalidate map size on mount + when panel is resized */
 function MapResizeHandler({ resizeSignal }: { resizeSignal: number }) {
   const map = useMap()
 
+  /* Invalidation au montage — la carte peut se monter avant que le conteneur ait sa taille finale /
+     Invalidate on mount — map may mount before container has final size */
+  useEffect(() => {
+    const timer = setTimeout(() => map.invalidateSize(), 100)
+    return () => clearTimeout(timer)
+  }, [map])
+
+  /* Invalidation sur resize signal (drag panneau, etc.) / Invalidate on resize signal */
   useEffect(() => {
     if (resizeSignal === 0) return
     const timer = setTimeout(() => map.invalidateSize(), 50)
