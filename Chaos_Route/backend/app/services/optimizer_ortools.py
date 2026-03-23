@@ -66,6 +66,39 @@ def solve_cvrptw(data: ORToolsInput) -> tuple[list[RawTour], list[int]]:
     if num_nodes <= 1 or num_vehicles == 0:
         return [], list(range(1, num_nodes))
 
+    # ── Validation des données / Input data validation ──
+    assert len(data.demands) == num_nodes, (
+        f"demands length {len(data.demands)} != num_nodes {num_nodes}"
+    )
+    assert len(data.service_times) == num_nodes, (
+        f"service_times length {len(data.service_times)} != num_nodes {num_nodes}"
+    )
+    assert len(data.time_windows) == num_nodes, (
+        f"time_windows length {len(data.time_windows)} != num_nodes {num_nodes}"
+    )
+    assert len(data.distance_matrix) == num_nodes, (
+        f"distance_matrix rows {len(data.distance_matrix)} != num_nodes {num_nodes}"
+    )
+    assert len(data.time_matrix) == num_nodes, (
+        f"time_matrix rows {len(data.time_matrix)} != num_nodes {num_nodes}"
+    )
+    for i, row in enumerate(data.distance_matrix):
+        assert len(row) == num_nodes, (
+            f"distance_matrix[{i}] cols {len(row)} != num_nodes {num_nodes}"
+        )
+    for i, row in enumerate(data.time_matrix):
+        assert len(row) == num_nodes, (
+            f"time_matrix[{i}] cols {len(row)} != num_nodes {num_nodes}"
+        )
+    if data.km_tax_matrix:
+        assert len(data.km_tax_matrix) == num_nodes, (
+            f"km_tax_matrix rows {len(data.km_tax_matrix)} != num_nodes {num_nodes}"
+        )
+    log.info(
+        "OR-Tools input validated: %d nodes, %d vehicles, demands=%s, capacities=%s",
+        num_nodes, num_vehicles, data.demands[:5], [s.capacity_eqp for s in data.vehicles[:5]],
+    )
+
     # 1. Manager & modèle / Manager & model
     manager = pywrapcp.RoutingIndexManager(num_nodes, num_vehicles, 0)
     routing = pywrapcp.RoutingModel(manager)
@@ -77,14 +110,16 @@ def solve_cvrptw(data: ORToolsInput) -> tuple[list[RawTour], list[int]]:
         cost_per_km = slot.cost_per_km_cents  # centimes/km
 
         def _cost_cb(from_index: int, to_index: int, _cpm=cost_per_km, _has_tax=has_tax) -> int:
-            from_node = manager.IndexToNode(from_index)
-            to_node = manager.IndexToNode(to_index)
-            dist_m = data.distance_matrix[from_node][to_node]
-            # coût carburant = cost_per_km_cents × distance_km
-            fuel = (_cpm * dist_m) // 1000
-            # taxe km forfaitaire par arc / flat km tax per arc
-            tax = data.km_tax_matrix[from_node][to_node] if _has_tax else 0
-            return int((fuel + tax) * data.cost_multiplier)
+            try:
+                from_node = manager.IndexToNode(from_index)
+                to_node = manager.IndexToNode(to_index)
+                dist_m = data.distance_matrix[from_node][to_node]
+                fuel = (_cpm * dist_m) // 1000
+                tax = data.km_tax_matrix[from_node][to_node] if _has_tax else 0
+                return int((fuel + tax) * data.cost_multiplier)
+            except Exception:
+                log.exception("cost_cb error: from_index=%s, to_index=%s", from_index, to_index)
+                return 0
 
         cb_idx = routing.RegisterTransitCallback(_cost_cb)
         cost_callback_indices.append(cb_idx)
@@ -96,8 +131,12 @@ def solve_cvrptw(data: ORToolsInput) -> tuple[list[RawTour], list[int]]:
 
     # 4. Dimension Capacity / Capacity dimension
     def _demand_cb(from_index: int) -> int:
-        node = manager.IndexToNode(from_index)
-        return data.demands[node]
+        try:
+            node = manager.IndexToNode(from_index)
+            return data.demands[node]
+        except Exception:
+            log.exception("demand_cb error: from_index=%s", from_index)
+            return 0
 
     demand_cb_idx = routing.RegisterUnaryTransitCallback(_demand_cb)
     vehicle_capacities = [slot.capacity_eqp for slot in data.vehicles]
@@ -111,11 +150,15 @@ def solve_cvrptw(data: ORToolsInput) -> tuple[list[RawTour], list[int]]:
 
     # 5. Dimension Time / Time dimension
     def _time_cb(from_index: int, to_index: int) -> int:
-        from_node = manager.IndexToNode(from_index)
-        to_node = manager.IndexToNode(to_index)
-        travel = data.time_matrix[from_node][to_node]
-        service = data.service_times[from_node]
-        return travel + service
+        try:
+            from_node = manager.IndexToNode(from_index)
+            to_node = manager.IndexToNode(to_index)
+            travel = data.time_matrix[from_node][to_node]
+            service = data.service_times[from_node]
+            return travel + service
+        except Exception:
+            log.exception("time_cb error: from_index=%s, to_index=%s", from_index, to_index)
+            return 0
 
     time_cb_idx = routing.RegisterTransitCallback(_time_cb)
     routing.AddDimension(

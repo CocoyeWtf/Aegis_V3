@@ -68,6 +68,7 @@ def _time_to_minutes(t: str | None) -> int | None:
 
 def _minutes_to_time(m: int) -> str:
     """Convertir minutes en HH:MM / Convert minutes to HH:MM."""
+    m = int(m)
     if m < 0:
         m = 0
     h = m // 60
@@ -472,7 +473,17 @@ class AideDecisionService:
             "OR-Tools L2: %d PDVs, %d vehicle slots, time_limit=%ds",
             num_pdvs, len(vehicles), request.time_limit_seconds,
         )
-        raw_tours, dropped_indices = solve_cvrptw(ortools_input)
+        try:
+            raw_tours, dropped_indices = solve_cvrptw(ortools_input)
+        except Exception:
+            log.exception("OR-Tools L2: solver crashed — fallback Niveau 1")
+            warnings.append(
+                "Erreur interne OR-Tools — fallback calcul simple"
+            )
+            return self._build_tours_level1(
+                request, base, pdv_agg, pdv_ids, pdvs,
+                dist_cache, dur_cache, contracts, fuel_price, km_tax_cache
+            )
         log.info(
             "OR-Tools L2: %d tours trouvés, %d PDVs droppés",
             len(raw_tours), len(dropped_indices),
