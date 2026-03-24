@@ -111,53 +111,35 @@ function BarcodeLabel({
         </div>
       </div>
 
-      {/* Talon droit / Right stub — 50mm, 3 bandes */}
+      {/* Talon droit / Right stub — 50mm, 3 bandes identiques au volet principal */}
       <div style={{
         flex: '0 0 33.3%',
         display: 'flex',
         flexDirection: 'column',
       }}>
-        {/* Bande haute 5cm — numero + type */}
-        <div style={{
-          flex: '0 0 55.5%',
-          padding: '4px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: '2px',
-          borderBottom: '1px solid #999',
-        }}>
-          <div style={{ fontSize: '18px', fontWeight: 900, lineHeight: 1 }}>{bigNum}</div>
-          <div style={{ fontSize: '7px', fontWeight: 700, textTransform: 'uppercase', textAlign: 'center' }}>{header}</div>
-          <svg ref={svgStubTopRef} style={{ maxWidth: '100%', height: 'auto' }} />
-        </div>
-        {/* Bande milieu 2cm — support / libelle */}
-        <div style={{
-          flex: '0 0 22.2%',
-          padding: '2px 4px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          borderBottom: '1px solid #999',
-          fontSize: '7px',
-        }}>
-          <div style={{ fontWeight: 600, fontSize: '6px' }}>{supportTypeName}</div>
-          <svg ref={svgStubMidRef} style={{ maxWidth: '100%', height: 'auto' }} />
-        </div>
-        {/* Bande basse 2cm — code scannable */}
-        <div style={{
-          flex: '0 0 22.2%',
-          padding: '2px 4px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          fontSize: '6px',
-          fontFamily: 'monospace',
-        }}>
-          <svg ref={svgStubBotRef} style={{ maxWidth: '100%', height: 'auto' }} />
-          <div style={{ fontSize: '5px' }}>{label.label_code}</div>
-        </div>
+        {[
+          { ref: svgStubTopRef, flex: '0 0 55.5%' },
+          { ref: svgStubMidRef, flex: '0 0 22.2%' },
+          { ref: svgStubBotRef, flex: '0 0 22.2%' },
+        ].map((band, i) => (
+          <div key={i} style={{
+            flex: band.flex,
+            padding: '2px 3px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '1px',
+            borderBottom: i < 2 ? '1px solid #999' : undefined,
+            overflow: 'hidden',
+          }}>
+            <div style={{ fontSize: i === 0 ? '16px' : '10px', fontWeight: 900, lineHeight: 1 }}>{bigNum}</div>
+            <div style={{ fontSize: i === 0 ? '6px' : '5px', fontWeight: 700, textTransform: 'uppercase', textAlign: 'center' }}>{header}</div>
+            <div style={{ fontSize: i === 0 ? '5px' : '4px', textAlign: 'center' }}>SA Base de VLB</div>
+            <div style={{ fontSize: i === 0 ? '5px' : '4px', textAlign: 'center' }}>{supportTypeName} — {label.sequence_number}/{total}</div>
+            <svg ref={band.ref} style={{ maxWidth: '100%', height: 'auto' }} />
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -189,18 +171,26 @@ function buildLabelHtml(
         <div class="support">${supportTypeName} &mdash; ${seqNum}/${total}</div>
       </div>
       <div class="right">
-        <div class="stub-top">
+        <div class="stub stub-top">
           <div class="stub-num">${bigNum}</div>
           <div class="stub-header">${header}</div>
+          <div class="stub-base">SA Base de VLB</div>
+          <div class="stub-info">${supportTypeName} — ${seqNum}/${total}</div>
           <svg id="bc-stub1-${seqNum}"></svg>
         </div>
-        <div class="stub-mid">
-          <div class="stub-value">${supportTypeName}</div>
+        <div class="stub stub-mid">
+          <div class="stub-num-sm">${bigNum}</div>
+          <div class="stub-header-sm">${header}</div>
+          <div class="stub-info-sm">SA Base de VLB</div>
+          <div class="stub-info-sm">${supportTypeName} — ${seqNum}/${total}</div>
           <svg id="bc-stub2-${seqNum}"></svg>
         </div>
-        <div class="stub-bot">
+        <div class="stub stub-bot">
+          <div class="stub-num-sm">${bigNum}</div>
+          <div class="stub-header-sm">${header}</div>
+          <div class="stub-info-sm">SA Base de VLB</div>
+          <div class="stub-info-sm">${supportTypeName} — ${seqNum}/${total}</div>
           <svg id="bc-stub3-${seqNum}"></svg>
-          <div class="stub-code">${labelCode}</div>
         </div>
       </div>
     </div>
@@ -283,41 +273,26 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
     display: flex;
     flex-direction: column;
   }
-  .stub-top {
-    height: 50mm;
-    padding: 2mm;
+  .stub {
+    padding: 1.5mm 2mm;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1mm;
-    border-bottom: 0.3mm solid #999;
+    gap: 0.5mm;
+    overflow: hidden;
   }
-  .stub-num { font-size: 20pt; font-weight: 900; line-height: 1; }
-  .stub-header { font-size: 7pt; font-weight: 700; text-transform: uppercase; text-align: center; }
+  .stub-top { height: 50mm; border-bottom: 0.3mm solid #999; }
+  .stub-mid { height: 20mm; border-bottom: 0.3mm solid #999; }
+  .stub-bot { height: 20mm; }
   .right svg { max-width: 45mm; height: auto; }
-  .stub-mid {
-    height: 20mm;
-    padding: 1.5mm 2mm;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    border-bottom: 0.3mm solid #999;
-    font-size: 7pt;
-  }
-  .stub-label { color: #555; }
-  .stub-value { font-weight: 600; }
-  .stub-bot {
-    height: 20mm;
-    padding: 1.5mm 2mm;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    font-size: 6pt;
-    font-family: monospace;
-  }
-  .stub-code { word-break: break-all; }
-  .stub-num2 { font-size: 10pt; font-weight: 900; margin-top: 1mm; }
+  .stub-num { font-size: 18pt; font-weight: 900; line-height: 1; }
+  .stub-header { font-size: 6pt; font-weight: 700; text-transform: uppercase; text-align: center; }
+  .stub-base { font-size: 5pt; }
+  .stub-info { font-size: 5pt; }
+  .stub-num-sm { font-size: 10pt; font-weight: 900; line-height: 1; }
+  .stub-header-sm { font-size: 4.5pt; font-weight: 700; text-transform: uppercase; text-align: center; }
+  .stub-info-sm { font-size: 4pt; text-align: center; }
 </style>
 </head>
 <body>
