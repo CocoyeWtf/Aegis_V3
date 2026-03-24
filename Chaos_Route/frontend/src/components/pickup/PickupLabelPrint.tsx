@@ -49,20 +49,20 @@ function BarcodeLabel({
   supportTypeImageUrl?: string | null
   total: number
 }) {
-  const svgRef = useRef<SVGSVGElement>(null)
+  const svgMainRef = useRef<SVGSVGElement>(null)
+  const svgStubTopRef = useRef<SVGSVGElement>(null)
+  const svgStubMidRef = useRef<SVGSVGElement>(null)
+  const svgStubBotRef = useRef<SVGSVGElement>(null)
   const header = PICKUP_LABEL_HEADERS[pickupType || 'CONTAINER'] || 'RETOUR CONTENANT'
   const bigNum = fmtPdvCode(pdvCode)
 
   useEffect(() => {
-    if (svgRef.current) {
-      JsBarcode(svgRef.current, label.label_code, {
-        format: 'CODE128',
-        width: 1.2,
-        height: 30,
-        displayValue: false,
-        margin: 2,
-      })
-    }
+    const mainOpts = { format: 'CODE128' as const, width: 1.2, height: 30, displayValue: false, margin: 2 }
+    const stubOpts = { format: 'CODE128' as const, width: 0.8, height: 16, displayValue: false, margin: 1 }
+    if (svgMainRef.current) JsBarcode(svgMainRef.current, label.label_code, mainOpts)
+    if (svgStubTopRef.current) JsBarcode(svgStubTopRef.current, label.label_code, stubOpts)
+    if (svgStubMidRef.current) JsBarcode(svgStubMidRef.current, label.label_code, stubOpts)
+    if (svgStubBotRef.current) JsBarcode(svgStubBotRef.current, label.label_code, stubOpts)
   }, [label.label_code])
 
   return (
@@ -101,7 +101,7 @@ function BarcodeLabel({
           <strong>{pdvCode}</strong> — {pdvName}
         </div>
         <div style={{ textAlign: 'center', margin: '2px 0' }}>
-          <svg ref={svgRef} style={{ maxWidth: '100%', height: 'auto' }} />
+          <svg ref={svgMainRef} style={{ maxWidth: '100%', height: 'auto' }} />
         </div>
         <div style={{ fontSize: '7px', fontFamily: 'monospace', textAlign: 'center', letterSpacing: '0.5px' }}>
           {label.label_code}
@@ -130,7 +130,7 @@ function BarcodeLabel({
         }}>
           <div style={{ fontSize: '18px', fontWeight: 900, lineHeight: 1 }}>{bigNum}</div>
           <div style={{ fontSize: '7px', fontWeight: 700, textTransform: 'uppercase', textAlign: 'center' }}>{header}</div>
-          <div style={{ fontSize: '7px', textAlign: 'center' }}>{pdvCode}</div>
+          <svg ref={svgStubTopRef} style={{ maxWidth: '100%', height: 'auto' }} />
         </div>
         {/* Bande milieu 2cm — support / libelle */}
         <div style={{
@@ -142,8 +142,8 @@ function BarcodeLabel({
           borderBottom: '1px solid #999',
           fontSize: '7px',
         }}>
-          <div>Libelle :</div>
-          <div style={{ fontWeight: 600 }}>{supportTypeName}</div>
+          <div style={{ fontWeight: 600, fontSize: '6px' }}>{supportTypeName}</div>
+          <svg ref={svgStubMidRef} style={{ maxWidth: '100%', height: 'auto' }} />
         </div>
         {/* Bande basse 2cm — code scannable */}
         <div style={{
@@ -155,8 +155,8 @@ function BarcodeLabel({
           fontSize: '6px',
           fontFamily: 'monospace',
         }}>
-          <div>{label.label_code}</div>
-          <div style={{ fontWeight: 700, fontSize: '8px' }}>{bigNum}</div>
+          <svg ref={svgStubBotRef} style={{ maxWidth: '100%', height: 'auto' }} />
+          <div style={{ fontSize: '5px' }}>{label.label_code}</div>
         </div>
       </div>
     </div>
@@ -192,15 +192,15 @@ function buildLabelHtml(
         <div class="stub-top">
           <div class="stub-num">${bigNum}</div>
           <div class="stub-header">${header}</div>
-          <div class="stub-pdv">${pdvCode}</div>
+          <svg id="bc-stub1-${seqNum}"></svg>
         </div>
         <div class="stub-mid">
-          <div class="stub-label">Libelle :</div>
           <div class="stub-value">${supportTypeName}</div>
+          <svg id="bc-stub2-${seqNum}"></svg>
         </div>
         <div class="stub-bot">
+          <svg id="bc-stub3-${seqNum}"></svg>
           <div class="stub-code">${labelCode}</div>
-          <div class="stub-num2">${bigNum}</div>
         </div>
       </div>
     </div>
@@ -295,7 +295,7 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
   }
   .stub-num { font-size: 20pt; font-weight: 900; line-height: 1; }
   .stub-header { font-size: 7pt; font-weight: 700; text-transform: uppercase; text-align: center; }
-  .stub-pdv { font-size: 8pt; }
+  .right svg { max-width: 45mm; height: auto; }
   .stub-mid {
     height: 20mm;
     padding: 1.5mm 2mm;
@@ -326,12 +326,13 @@ ${labelsHtml}
 <script>
   document.querySelectorAll('svg[id^="bc-"]').forEach(function(svg) {
     var code = svg.closest('.label').querySelector('.code').textContent.trim();
+    var isStub = svg.id.indexOf('stub') !== -1;
     JsBarcode(svg, code, {
       format: 'CODE128',
-      width: 1.8,
-      height: 35,
+      width: isStub ? 0.8 : 1.8,
+      height: isStub ? 12 : 35,
       displayValue: false,
-      margin: 2,
+      margin: isStub ? 1 : 2,
       lineColor: '#000',
       background: '#fff'
     });
