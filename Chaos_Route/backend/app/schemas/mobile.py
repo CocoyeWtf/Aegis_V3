@@ -15,12 +15,14 @@ DEVICE_PROFILE_LABELS = {
 
 class MobileDeviceCreate(BaseModel):
     friendly_name: str | None = None
+    imei: str | None = None
     base_id: int | None = None
     profile: str = "DRIVER"  # DRIVER, BASE_RECEPTION, INVENTORY
 
 class MobileDeviceUpdate(BaseModel):
     device_identifier: str | None = None
     friendly_name: str | None = None
+    imei: str | None = None
     base_id: int | None = None
     is_active: bool | None = None
     profile: str | None = None  # DRIVER, BASE_RECEPTION, INVENTORY
@@ -30,6 +32,7 @@ class MobileDeviceRead(BaseModel):
     id: int
     device_identifier: str | None = None
     friendly_name: str | None = None
+    imei: str | None = None
     registration_code: str
     base_id: int | None = None
     is_active: bool

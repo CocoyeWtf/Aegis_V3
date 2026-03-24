@@ -21,6 +21,7 @@ class MobileDevice(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     device_identifier: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True)  # UUID du tel, rempli a l'enregistrement
     friendly_name: Mapped[str | None] = mapped_column(String(100))
+    imei: Mapped[str | None] = mapped_column(String(20), unique=True, nullable=True)  # IMEI du telephone (15 chiffres)
     registration_code: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)  # UUID court pour QR
     base_id: Mapped[int | None] = mapped_column(ForeignKey("bases_logistics.id"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

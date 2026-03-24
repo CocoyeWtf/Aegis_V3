@@ -446,6 +446,7 @@ export interface MobileDevice {
   id: number
   device_identifier: string | null
   friendly_name?: string
+  imei?: string | null
   registration_code: string
   base_id?: number | null
   is_active: boolean

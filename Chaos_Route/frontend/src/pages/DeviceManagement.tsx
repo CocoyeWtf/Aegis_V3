@@ -29,10 +29,10 @@ export default function DeviceManagement() {
   const [bases, setBases] = useState<BaseLogistics[]>([])
   const [loading, setLoading] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
-  const [form, setForm] = useState({ friendly_name: '', base_id: '' as string, profile: 'DRIVER' })
+  const [form, setForm] = useState({ friendly_name: '', imei: '', base_id: '' as string, profile: 'DRIVER' })
   const [qrDevice, setQrDevice] = useState<MobileDevice | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
-  const [editForm, setEditForm] = useState({ friendly_name: '', base_id: '' as string, profile: 'DRIVER' })
+  const [editForm, setEditForm] = useState({ friendly_name: '', imei: '', base_id: '' as string, profile: 'DRIVER' })
   const [serverUrl, setServerUrl] = useState(() => getServerBaseUrl())
   const [confirmAction, setConfirmAction] = useState<{ type: ConfirmActionType; deviceId: number; deviceName: string } | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
@@ -57,10 +57,11 @@ export default function DeviceManagement() {
     try {
       const { data } = await api.post<MobileDevice>('/devices/', {
         friendly_name: form.friendly_name || null,
+        imei: form.imei || null,
         base_id: form.base_id ? Number(form.base_id) : null,
         profile: form.profile,
       })
-      setForm({ friendly_name: '', base_id: '', profile: 'DRIVER' })
+      setForm({ friendly_name: '', imei: '', base_id: '', profile: 'DRIVER' })
       setShowCreate(false)
       setQrDevice(data)
       loadDevices()
@@ -75,6 +76,7 @@ export default function DeviceManagement() {
     try {
       await api.put(`/devices/${id}`, {
         friendly_name: editForm.friendly_name || null,
+        imei: editForm.imei || null,
         base_id: editForm.base_id ? Number(editForm.base_id) : null,
         profile: editForm.profile,
       })
@@ -151,6 +153,7 @@ export default function DeviceManagement() {
     setEditingId(d.id)
     setEditForm({
       friendly_name: d.friendly_name || '',
+      imei: d.imei || '',
       base_id: d.base_id ? String(d.base_id) : '',
       profile: d.profile || 'DRIVER',
     })
@@ -202,13 +205,22 @@ export default function DeviceManagement() {
       {showCreate && (
         <div className="mb-4 p-4 rounded-xl border" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}>
           <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Nouvel appareil</h3>
-          <div className="grid grid-cols-4 gap-3 mb-3">
+          <div className="grid grid-cols-5 gap-3 mb-3">
             <div>
               <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Nom de l'appareil</label>
               <input type="text" value={form.friendly_name} onChange={(e) => setForm({ ...form, friendly_name: e.target.value })}
                 placeholder="Ex: Phone-01"
                 className="w-full px-3 py-2 rounded-lg border text-sm"
                 style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>N° IMEI</label>
+              <input type="text" value={form.imei} onChange={(e) => setForm({ ...form, imei: e.target.value.replace(/\D/g, '').slice(0, 15) })}
+                placeholder="Ex: 355321082345678"
+                maxLength={15}
+                className="w-full px-3 py-2 rounded-lg border text-sm font-mono"
+                style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+              <span className="text-[10px] mt-0.5 block" style={{ color: 'var(--text-muted)' }}>15 chiffres — taper *#06# sur le telephone</span>
             </div>
             <div>
               <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Base</label>
@@ -313,6 +325,7 @@ export default function DeviceManagement() {
             <thead>
               <tr style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                 <th className="px-3 py-2 text-left font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Nom</th>
+                <th className="px-3 py-2 text-left font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>IMEI</th>
                 <th className="px-3 py-2 text-left font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Statut</th>
                 <th className="px-3 py-2 text-left font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Identifiant</th>
                 <th className="px-3 py-2 text-left font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Base</th>
@@ -336,6 +349,12 @@ export default function DeviceManagement() {
                       <td className="px-3 py-2 whitespace-nowrap">
                         <input type="text" value={editForm.friendly_name} onChange={(e) => setEditForm({ ...editForm, friendly_name: e.target.value })}
                           className="w-full px-2 py-1 rounded border text-xs"
+                          style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <input type="text" value={editForm.imei} onChange={(e) => setEditForm({ ...editForm, imei: e.target.value.replace(/\D/g, '').slice(0, 15) })}
+                          maxLength={15} placeholder="IMEI"
+                          className="w-full px-2 py-1 rounded border text-xs font-mono"
                           style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap">
@@ -369,6 +388,7 @@ export default function DeviceManagement() {
                   ) : (
                     <>
                       <td className="px-3 py-2 font-semibold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{d.friendly_name || '—'}</td>
+                      <td className="px-3 py-2 font-mono text-xs whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{d.imei || '—'}</td>
                       <td className="px-3 py-2 whitespace-nowrap">
                         {isRegistered(d)
                           ? <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#22c55e22', color: '#22c55e' }}>Enregistre</span>
