@@ -24,9 +24,11 @@ interface PickupLabelPrintProps {
   onClose: () => void
 }
 
-/** Formater le sequence_number en 5 chiffres / Format seq number to 5 digits */
-function fmtSeq(n: number): string {
-  return String(n).padStart(5, '0')
+/** Formater le code PDV en 5 chiffres si numerique, sinon tel quel / Format PDV code */
+function fmtPdvCode(code: string): string {
+  const num = parseInt(code, 10)
+  if (!isNaN(num)) return String(num).padStart(5, '0')
+  return code
 }
 
 /* ── Apercu ecran / Screen preview ── */
@@ -49,7 +51,7 @@ function BarcodeLabel({
 }) {
   const svgRef = useRef<SVGSVGElement>(null)
   const header = PICKUP_LABEL_HEADERS[pickupType || 'CONTAINER'] || 'RETOUR CONTENANT'
-  const bigNum = fmtSeq(label.sequence_number)
+  const bigNum = fmtPdvCode(pdvCode)
 
   useEffect(() => {
     if (svgRef.current) {
@@ -173,7 +175,8 @@ function buildLabelHtml(
   pickupType: string,
 ): string {
   const header = PICKUP_LABEL_HEADERS[pickupType] || 'RETOUR CONTENANT'
-  const bigNum = String(seqNum).padStart(5, '0')
+  const numPdv = parseInt(pdvCode, 10)
+  const bigNum = !isNaN(numPdv) ? String(numPdv).padStart(5, '0') : pdvCode
   return `
     <div class="label">
       <div class="left">
