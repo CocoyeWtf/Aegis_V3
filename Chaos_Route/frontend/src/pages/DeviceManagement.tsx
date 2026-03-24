@@ -193,7 +193,7 @@ export default function DeviceManagement() {
           Gestion des appareils
         </h1>
         <button
-          onClick={() => { setShowCreate(true); setForm({ friendly_name: '', base_id: '', profile: 'DRIVER' }) }}
+          onClick={() => { setShowCreate(true); setForm({ friendly_name: '', imei: '', base_id: '', profile: 'DRIVER' }) }}
           className="px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-80"
           style={{ backgroundColor: 'var(--color-primary)', color: '#fff' }}
         >
