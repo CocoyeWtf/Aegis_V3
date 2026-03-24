@@ -21,6 +21,8 @@ export interface FieldDef {
   hidden?: (formData: Record<string, unknown>) => boolean
   /** Nombre de colonnes occupées dans la grille / Number of grid columns to span (default: 1, textarea/multicheck auto full) */
   colSpan?: number
+  /** Texte d'aide sous le champ / Helper text below the field */
+  helperText?: string
 }
 
 /** Taille du dialogue / Dialog size */
@@ -345,6 +347,9 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
                     className="w-full px-3 py-2 rounded-lg text-sm border outline-none focus:ring-1"
                     style={inputStyle}
                   />
+                )}
+                {field.helperText && (
+                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{field.helperText}</p>
                 )}
               </div>
             )

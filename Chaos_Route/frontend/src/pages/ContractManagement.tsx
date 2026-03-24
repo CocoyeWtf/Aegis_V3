@@ -103,10 +103,10 @@ export default function ContractManagement() {
   const fields: FieldDef[] = [
     // Identification
     { key: 'code', label: t('common.code'), type: 'text', required: true },
-    { key: 'transporter_name', label: t('contracts.transporterName'), type: 'text' },
     {
-      key: 'carrier_id', label: 'Transporteur (fiche)', type: 'searchable-select',
+      key: 'carrier_id', label: 'Transporteur', type: 'searchable-select', required: true,
       options: carriers.map((c) => ({ value: String(c.id), label: `${c.code} — ${c.name}` })),
+      helperText: 'Si le transporteur ne figure pas dans la liste, ajoutez-le d\'abord dans Referentiel > Transporteurs.',
     },
     // Véhicule
     { key: 'vehicle_code', label: t('contracts.vehicleCode'), type: 'text' },
@@ -174,11 +174,16 @@ export default function ContractManagement() {
         importEntity="contracts"
         exportEntity="contracts"
         allowDuplicate
-        transformPayload={(d) => ({
-          ...d,
-          region_id: Number(d.region_id),
-          carrier_id: d.carrier_id ? Number(d.carrier_id) : null,
-        })}
+        transformPayload={(d) => {
+          const cid = d.carrier_id ? Number(d.carrier_id) : null
+          const carrier = carriers.find((c) => c.id === cid)
+          return {
+            ...d,
+            region_id: Number(d.region_id),
+            carrier_id: cid,
+            transporter_name: carrier?.name ?? d.transporter_name ?? '',
+          }
+        }}
         formSize="lg"
       />
 
