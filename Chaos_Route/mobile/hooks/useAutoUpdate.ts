@@ -38,7 +38,10 @@ export function useAutoUpdate() {
         const apkPath = data.apk_url
         if (!minVersion || !apkPath) return
 
-        const currentVersion = Constants.expoConfig?.version || '0.0.0'
+        const currentVersion = Constants.expoConfig?.version
+          || Constants.manifest?.version
+          || Constants.manifest2?.extra?.expoClient?.version
+        if (!currentVersion) return  // version inconnue → ne pas declencher
         if (!isVersionOlder(currentVersion, minVersion)) return
 
         // Version obsolete — proposer la mise a jour
