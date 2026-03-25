@@ -33,7 +33,17 @@ export default function BaseReceptionScreen() {
       .finally(() => setLoading(false))
   }, [])
 
-  /* Scanner un code barre etiquette / Scan a pickup label barcode */
+  /* Compteur combis recus / Combi receive counter */
+  const [combiReceives, setCombiReceives] = useState<Array<{ id: number; barcode: string; pdv_name?: string }>>([])
+
+  /* Charger les receptions combis du jour / Load today's combi receives */
+  useEffect(() => {
+    api.get('/driver/combi-receives/')
+      .then(({ data }) => setCombiReceives(data.map((s: any) => ({ id: s.id, barcode: s.barcode, pdv_name: s.pdv_name }))))
+      .catch(() => {})
+  }, [])
+
+  /* Scanner un code barre etiquette ou combi / Scan a pickup label or combi barcode */
   const handleBarCodeScanned = useCallback(({ data: rawData }: { data: string }) => {
     const data = rawData.trim()
     // Anti-doublon : 3 secondes
@@ -42,26 +52,42 @@ export default function BaseReceptionScreen() {
     lastScanRef.current = data
     lastScanTimeRef.current = now
 
-    // Verifier que c'est un code RET-xxx
-    if (!data.startsWith('RET-')) return
+    const isCombi = /^RM\d{4,8}$/i.test(data)
+    const isLabel = data.startsWith('RET-')
+    if (!isCombi && !isLabel) return
 
     Vibration.vibrate(100)
     setLastScanned(data)
     setTimeout(() => setLastScanned(''), 2000)
 
-    // Envoyer au serveur / Send to server
-    api.post<BaseReceiveScan>(`/driver/base-receive/${encodeURIComponent(data)}`)
-      .then(({ data: scan }) => {
-        setScans((prev) => {
-          // Anti-doublon dans la liste
-          if (prev.find((s) => s.label_code === scan.label_code)) return prev
-          return [scan, ...prev]
+    if (isCombi) {
+      // Reception combi / Combi reception
+      const ts = new Date().toISOString()
+      api.post('/driver/combi-receive/', { barcode: data.toUpperCase(), timestamp: ts })
+        .then(({ data: scan }) => {
+          setCombiReceives((prev) => {
+            if (prev.find((s) => s.barcode === scan.barcode)) return prev
+            return [{ id: scan.id, barcode: scan.barcode, pdv_name: scan.pdv_name }, ...prev]
+          })
         })
-      })
-      .catch((err) => {
-        const detail = err?.response?.data?.detail || 'Erreur scan'
-        Alert.alert('Erreur', detail)
-      })
+        .catch((err) => {
+          const detail = err?.response?.data?.detail || 'Erreur reception combi'
+          Alert.alert('Erreur', detail)
+        })
+    } else {
+      // Reception etiquette / Label reception
+      api.post<BaseReceiveScan>(`/driver/base-receive/${encodeURIComponent(data)}`)
+        .then(({ data: scan }) => {
+          setScans((prev) => {
+            if (prev.find((s) => s.label_code === scan.label_code)) return prev
+            return [scan, ...prev]
+          })
+        })
+        .catch((err) => {
+          const detail = err?.response?.data?.detail || 'Erreur scan'
+          Alert.alert('Erreur', detail)
+        })
+    }
   }, [])
 
   /* Permission camera / Camera permission */
@@ -114,7 +140,7 @@ export default function BaseReceptionScreen() {
           {lastScanned ? (
             <Text style={styles.scanSuccess}>{lastScanned}</Text>
           ) : (
-            <Text style={styles.scanHint}>Pointez une etiquette retour RET-xxx</Text>
+            <Text style={styles.scanHint}>Scannez etiquettes (RET) ou combis (RM)</Text>
           )}
         </View>
       </View>
@@ -122,7 +148,7 @@ export default function BaseReceptionScreen() {
       {/* Compteur / Counter */}
       <View style={styles.counter}>
         <Text style={styles.counterText}>
-          {scans.length} etiquette(s) receptionnee(s)
+          {scans.length} etiquette(s) + {combiReceives.length} combi(s) receptionne(s)
         </Text>
       </View>
 
