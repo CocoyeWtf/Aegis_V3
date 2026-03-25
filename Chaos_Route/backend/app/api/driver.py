@@ -77,7 +77,7 @@ async def get_device_info(
     allowed = (device.allowed_features or ",".join(ALL_DEVICE_FEATURES)).split(",")
 
     # Version minimale requise — a incrementer APRES upload du nouvel APK sur le serveur
-    min_version = "1.2.0"
+    min_version = "1.3.0"
 
     return {
         "friendly_name": device.friendly_name,
