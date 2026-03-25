@@ -29,6 +29,7 @@ from app.models.tour_manifest_line import TourManifestLine
 from app.models.base_logistics import BaseLogistics
 from app.models.contract import Contract
 from app.models.pickup_request import PickupLabel, PickupRequest, PickupMovement, LabelStatus, PickupType, MovementType
+from app.models.combi_scan import CombiScan, ScanContext
 from app.models.temperature_check import TemperatureCheck, TempCheckpoint
 from app.schemas.mobile import (
     AvailableTourRead,
@@ -46,6 +47,7 @@ from app.schemas.mobile import (
     SupportScanRead,
 )
 from app.schemas.pickup import PickupLabelRead
+from app.schemas.combi_scan import CombiScanCreate, CombiScanRead, CombiReceiveCreate
 from app.schemas.inventory import InventorySubmit
 from app.api.deps import get_authenticated_device, require_device_tour_access
 from app.api.ws_tracking import manager
@@ -1669,3 +1671,215 @@ async def verify_kiosk_password(
     """Verifier mot de passe kiosque / Verify kiosk password."""
     password = data.get("password", "")
     return {"valid": password == KIOSK_PASSWORD}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Scans combis / Combi scans
+# ═══════════════════════════════════════════════════════════════════
+
+
+@router.post("/combi-scan/", response_model=CombiScanRead)
+async def scan_combi_at_pdv(
+    data: CombiScanCreate,
+    device: MobileDevice = Depends(get_authenticated_device),
+    db: AsyncSession = Depends(get_db),
+):
+    """Scan d'un combi au PDV par le chauffeur / Scan a combi at PDV by driver.
+    Le chauffeur a prealablement scanne le code-barres PDV pour identifier le point de vente.
+    """
+    _check_device_feature(device, "pickups")
+
+    # Resoudre le PDV depuis le code scanne (essayer tel quel + zero-padded)
+    pdv_code = data.pdv_code_scanned.strip()
+    result = await db.execute(select(PDV).where(PDV.code == pdv_code))
+    pdv = result.scalar_one_or_none()
+    if not pdv:
+        # Essayer avec zero-padding (ex: "2805" -> "02805")
+        padded = pdv_code.zfill(5)
+        result = await db.execute(select(PDV).where(PDV.code == padded))
+        pdv = result.scalar_one_or_none()
+    if not pdv:
+        raise HTTPException(status_code=404, detail=f"PDV inconnu: {pdv_code}")
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    scan = CombiScan(
+        barcode=data.barcode.strip().upper(),
+        scan_context=ScanContext.PICKUP,
+        pdv_id=pdv.id,
+        pdv_code_scanned=pdv.code,
+        device_id=device.id,
+        timestamp=data.timestamp,
+        latitude=data.latitude,
+        longitude=data.longitude,
+        accuracy=data.accuracy,
+        scan_date=today,
+    )
+    db.add(scan)
+    await db.flush()
+
+    return CombiScanRead(
+        id=scan.id,
+        barcode=scan.barcode,
+        scan_context=scan.scan_context.value,
+        pdv_id=scan.pdv_id,
+        pdv_code_scanned=scan.pdv_code_scanned,
+        pdv_name=pdv.name,
+        device_id=scan.device_id,
+        timestamp=scan.timestamp,
+        latitude=scan.latitude,
+        longitude=scan.longitude,
+        accuracy=scan.accuracy,
+        scan_date=scan.scan_date,
+    )
+
+
+@router.get("/combi-scans/", response_model=list[CombiScanRead])
+async def list_combi_scans_today(
+    device: MobileDevice = Depends(get_authenticated_device),
+    db: AsyncSession = Depends(get_db),
+):
+    """Liste des scans combi du jour pour cet appareil / Today's combi scans for this device."""
+    _check_device_feature(device, "pickups")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    result = await db.execute(
+        select(CombiScan)
+        .where(
+            CombiScan.device_id == device.id,
+            CombiScan.scan_date == today,
+            CombiScan.scan_context == ScanContext.PICKUP,
+        )
+        .order_by(CombiScan.id.desc())
+    )
+    scans = result.scalars().all()
+
+    # Charger les noms PDV
+    pdv_ids = {s.pdv_id for s in scans if s.pdv_id}
+    pdv_names: dict[int, str] = {}
+    if pdv_ids:
+        pdv_result = await db.execute(select(PDV.id, PDV.name).where(PDV.id.in_(pdv_ids)))
+        pdv_names = {row[0]: row[1] for row in pdv_result.all()}
+
+    return [
+        CombiScanRead(
+            id=s.id,
+            barcode=s.barcode,
+            scan_context=s.scan_context.value,
+            pdv_id=s.pdv_id,
+            pdv_code_scanned=s.pdv_code_scanned,
+            pdv_name=pdv_names.get(s.pdv_id) if s.pdv_id else None,
+            device_id=s.device_id,
+            timestamp=s.timestamp,
+            latitude=s.latitude,
+            longitude=s.longitude,
+            accuracy=s.accuracy,
+            scan_date=s.scan_date,
+        )
+        for s in scans
+    ]
+
+
+@router.post("/combi-receive/", response_model=CombiScanRead)
+async def receive_combi_at_base(
+    data: CombiReceiveCreate,
+    device: MobileDevice = Depends(get_authenticated_device),
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-scan d'un combi a la base / Combi re-scan at base reception."""
+    _check_device_feature(device, "base_reception")
+
+    barcode = data.barcode.strip().upper()
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # Trouver le scan chauffeur correspondant (meme barcode, contexte PICKUP)
+    pickup_result = await db.execute(
+        select(CombiScan)
+        .where(
+            CombiScan.barcode == barcode,
+            CombiScan.scan_context == ScanContext.PICKUP,
+        )
+        .order_by(CombiScan.id.desc())
+        .limit(1)
+    )
+    pickup_scan = pickup_result.scalar_one_or_none()
+
+    scan = CombiScan(
+        barcode=barcode,
+        scan_context=ScanContext.RECEPTION,
+        pdv_id=pickup_scan.pdv_id if pickup_scan else None,
+        pdv_code_scanned=pickup_scan.pdv_code_scanned if pickup_scan else None,
+        device_id=device.id,
+        timestamp=data.timestamp,
+        latitude=data.latitude,
+        longitude=data.longitude,
+        accuracy=data.accuracy,
+        scan_date=today,
+    )
+    db.add(scan)
+    await db.flush()
+
+    pdv_name = None
+    if scan.pdv_id:
+        pdv_r = await db.execute(select(PDV.name).where(PDV.id == scan.pdv_id))
+        pdv_name = pdv_r.scalar_one_or_none()
+
+    return CombiScanRead(
+        id=scan.id,
+        barcode=scan.barcode,
+        scan_context=scan.scan_context.value,
+        pdv_id=scan.pdv_id,
+        pdv_code_scanned=scan.pdv_code_scanned,
+        pdv_name=pdv_name,
+        device_id=scan.device_id,
+        timestamp=scan.timestamp,
+        latitude=scan.latitude,
+        longitude=scan.longitude,
+        accuracy=scan.accuracy,
+        scan_date=scan.scan_date,
+    )
+
+
+@router.get("/combi-receives/", response_model=list[CombiScanRead])
+async def list_combi_receives_today(
+    device: MobileDevice = Depends(get_authenticated_device),
+    db: AsyncSession = Depends(get_db),
+):
+    """Liste des receptions combi du jour / Today's combi receptions at base."""
+    _check_device_feature(device, "base_reception")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    result = await db.execute(
+        select(CombiScan)
+        .where(
+            CombiScan.device_id == device.id,
+            CombiScan.scan_date == today,
+            CombiScan.scan_context == ScanContext.RECEPTION,
+        )
+        .order_by(CombiScan.id.desc())
+    )
+    scans = result.scalars().all()
+
+    pdv_ids = {s.pdv_id for s in scans if s.pdv_id}
+    pdv_names: dict[int, str] = {}
+    if pdv_ids:
+        pdv_r = await db.execute(select(PDV.id, PDV.name).where(PDV.id.in_(pdv_ids)))
+        pdv_names = {row[0]: row[1] for row in pdv_r.all()}
+
+    return [
+        CombiScanRead(
+            id=s.id,
+            barcode=s.barcode,
+            scan_context=s.scan_context.value,
+            pdv_id=s.pdv_id,
+            pdv_code_scanned=s.pdv_code_scanned,
+            pdv_name=pdv_names.get(s.pdv_id) if s.pdv_id else None,
+            device_id=s.device_id,
+            timestamp=s.timestamp,
+            latitude=s.latitude,
+            longitude=s.longitude,
+            accuracy=s.accuracy,
+            scan_date=s.scan_date,
+        )
+        for s in scans
+    ]

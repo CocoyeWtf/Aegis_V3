@@ -58,6 +58,7 @@ from app.models.gic_invoice import GicInvoice, GicInvoiceLine, GicInvoiceStatus
 from app.models.beer_consignment import BeerConsignmentTx, BeerConsignmentBalance, BeerTransactionType
 from app.models.container_anomaly import ContainerAnomaly, AnomalyPhoto, AnomalyComment, AnomalyStatus, AnomalyCategory, AnomalySeverity
 from app.models.bottle_sorting import BottleBrand, SortingSession, SortingLine, SortingStatus, BottleFormat, SortingRule
+from app.models.combi_scan import CombiScan, ScanContext
 
 __all__ = [
     "Country",
@@ -158,4 +159,6 @@ __all__ = [
     "SortingStatus",
     "BottleFormat",
     "SortingRule",
+    "CombiScan",
+    "ScanContext",
 ]

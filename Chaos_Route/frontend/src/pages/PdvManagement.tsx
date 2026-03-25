@@ -7,6 +7,7 @@ import { CrudPage } from '../components/data/CrudPage'
 import type { Column } from '../components/data/DataTable'
 import type { FieldDef } from '../components/data/FormDialog'
 import { useApi } from '../hooks/useApi'
+import { PdvBarcodePrint } from '../components/pdv/PdvBarcodePrint'
 import type { PDV, Region, VehicleType } from '../types'
 import { VEHICLE_TYPE_DEFAULTS } from '../types'
 
@@ -14,6 +15,7 @@ export default function PdvManagement() {
   const { t } = useTranslation()
   const { data: regions } = useApi<Region>('/regions')
   const [qrPdv, setQrPdv] = useState<PDV | null>(null)
+  const [barcodePdv, setBarcodePdv] = useState<PDV | null>(null)
   const printRef = useRef<HTMLDivElement>(null)
 
   const vehicleTypeOptions = (Object.keys(VEHICLE_TYPE_DEFAULTS) as VehicleType[]).map((vt) => ({
@@ -34,15 +36,24 @@ export default function PdvManagement() {
 
   const columns: Column<PDV>[] = [
     {
-      key: 'qr' as keyof PDV, label: 'QR', width: '50px',
+      key: 'qr' as keyof PDV, label: '', width: '70px',
       render: (row) => (
-        <button
-          onClick={(e) => { e.stopPropagation(); setQrPdv(row) }}
-          title="QR Code"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: '2px 6px' }}
-        >
-          ⊞
-        </button>
+        <span style={{ display: 'flex', gap: '2px' }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); setQrPdv(row) }}
+            title="QR Code"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '2px 4px' }}
+          >
+            ⊞
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); setBarcodePdv(row) }}
+            title="Code-barres PDV"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '2px 4px' }}
+          >
+            |||
+          </button>
+        </span>
       ),
     },
     { key: 'code', label: t('common.code'), width: '100px', filterable: true },
@@ -219,6 +230,16 @@ export default function PdvManagement() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modale code-barres PDV / PDV barcode modal */}
+      {barcodePdv && (
+        <PdvBarcodePrint
+          pdvCode={barcodePdv.code}
+          pdvName={barcodePdv.name}
+          pdvCity={barcodePdv.city}
+          onClose={() => setBarcodePdv(null)}
+        />
       )}
     </>
   )
