@@ -326,17 +326,9 @@ export default function TourListScreen() {
           {hasFeature('pickups') && (
             <TouchableOpacity
               style={styles.quickActionBtn}
-              onPress={() => router.push('/standalone-pickups')}
-            >
-              <Text style={styles.quickActionText}>Scanner reprises</Text>
-            </TouchableOpacity>
-          )}
-          {hasFeature('pickups') && (
-            <TouchableOpacity
-              style={[styles.quickActionBtn, { backgroundColor: '#8b5cf622', borderColor: '#8b5cf644' }]}
               onPress={() => router.push('/combi-scan')}
             >
-              <Text style={[styles.quickActionText, { color: '#8b5cf6' }]}>Scan contenants</Text>
+              <Text style={styles.quickActionText}>Scanner reprises</Text>
             </TouchableOpacity>
           )}
           {hasFeature('base_reception') && (
