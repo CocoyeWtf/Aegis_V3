@@ -75,11 +75,17 @@ async def get_device_info(
         base = await db.get(BaseLogistics, device.base_id)
         base_name = base.name if base else None
     allowed = (device.allowed_features or ",".join(ALL_DEVICE_FEATURES)).split(",")
+
+    # Version minimale requise — a incrementer apres chaque build APK
+    min_version = "1.3.0"
+
     return {
         "friendly_name": device.friendly_name,
         "base_name": base_name,
         "registration_code": device.registration_code,
         "allowed_features": allowed,
+        "min_version": min_version,
+        "apk_url": "/apk/cmro-driver.apk",
     }
 
 
