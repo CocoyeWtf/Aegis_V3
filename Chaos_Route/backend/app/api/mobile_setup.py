@@ -33,7 +33,7 @@ async def get_app_version():
         "version": APP_VERSION,
         "build_number": APP_BUILD_NUMBER,
         "download_url": f"{base_url}/app/download/cmro-driver.apk" if apk_exists else None,
-        "force_update": True,
+        "force_update": False,
     }
 
 
