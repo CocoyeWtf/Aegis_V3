@@ -121,17 +121,13 @@ export default function CombiScanScreen() {
       setLoading(true)
       try {
         // Verifier que le PDV existe via l'API PDV
-        const { data: pdvs } = await api.get(`/pdvs/?search=${searchCode}`)
-        const pdv = pdvs.find((p: any) => p.code === searchCode || p.code === searchCode.padStart(5, '0'))
-        if (!pdv) {
-          Alert.alert('PDV inconnu', `Aucun PDV trouve avec le code ${searchCode}`)
-          return
-        }
+        const { data: pdv } = await api.get(`/driver/validate-pdv/${encodeURIComponent(searchCode)}`)
         setActivePdv({ code: pdv.code, name: pdv.name })
         setLastScanned(`PDV ${pdv.code} — ${pdv.name}`)
         setTimeout(() => setLastScanned(''), 3000)
-      } catch {
-        Alert.alert('Erreur', 'Impossible de verifier le PDV')
+      } catch (err: any) {
+        const detail = err?.response?.data?.detail || 'Impossible de verifier le PDV'
+        Alert.alert('PDV non trouve', detail)
       } finally {
         setLoading(false)
       }

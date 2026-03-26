@@ -1884,3 +1884,24 @@ async def list_combi_receives_today(
         )
         for s in scans
     ]
+
+
+@router.get("/validate-pdv/{code}")
+async def validate_pdv_code(
+    code: str,
+    device: MobileDevice = Depends(get_authenticated_device),
+    db: AsyncSession = Depends(get_db),
+):
+    """Valider un code PDV scanne / Validate a scanned PDV code.
+    Pas besoin de permission pdvs:read - accessible par tout appareil enregistre.
+    """
+    pdv_code = code.strip()
+    result = await db.execute(select(PDV).where(PDV.code == pdv_code))
+    pdv = result.scalar_one_or_none()
+    if not pdv:
+        padded = pdv_code.zfill(5)
+        result = await db.execute(select(PDV).where(PDV.code == padded))
+        pdv = result.scalar_one_or_none()
+    if not pdv:
+        raise HTTPException(status_code=404, detail=f"PDV inconnu: {pdv_code}")
+    return {"id": pdv.id, "code": pdv.code, "name": pdv.name, "city": pdv.city}
