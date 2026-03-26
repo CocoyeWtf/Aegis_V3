@@ -348,9 +348,9 @@ const styles = StyleSheet.create({
   pdvRequired: { backgroundColor: '#f59e0b18', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f59e0b44' },
   pdvRequiredText: { color: '#f59e0b', fontWeight: '700', fontSize: 14, textAlign: 'center' },
 
-  cameraSection: { height: 200, position: 'relative' },
+  cameraSection: { height: 250, backgroundColor: '#000' },
   camera: { flex: 1 },
-  cameraOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center', paddingBottom: 8 },
+  cameraOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center' },
   scanLine: { width: '70%', height: 2, backgroundColor: COLORS.primary, borderRadius: 1, marginBottom: 6, opacity: 0.8 },
   scanSuccess: { color: COLORS.success, fontWeight: '700', fontSize: 14, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
   scanHint: { color: COLORS.white, fontSize: 12, opacity: 0.8, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
