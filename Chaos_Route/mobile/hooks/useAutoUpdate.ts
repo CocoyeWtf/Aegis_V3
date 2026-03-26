@@ -1,25 +1,18 @@
 /* Hook mise a jour automatique APK / Auto-update APK hook.
-   Compare la version installee avec la version minimale du serveur.
-   Si obsolete : telecharge le nouvel APK et lance l'installateur Android. */
+   Utilise expo-application pour lire la version native (jamais undefined).
+   Compare build_number (entier) — ne declenche la MAJ que si le serveur a un numero superieur. */
 
 import { useEffect, useRef, useState } from 'react'
 import { Alert, Platform } from 'react-native'
-import Constants from 'expo-constants'
+import * as Application from 'expo-application'
 import * as FileSystem from 'expo-file-system'
 import * as IntentLauncher from 'expo-intent-launcher'
 import api from '../services/api'
 import { useDeviceStore } from '../stores/useDeviceStore'
 
-/** Comparer deux versions semver (ex: "1.2.0" vs "1.3.0") / Compare semver versions */
-function isVersionOlder(current: string, required: string): boolean {
-  const c = current.split('.').map(Number)
-  const r = required.split('.').map(Number)
-  for (let i = 0; i < 3; i++) {
-    if ((c[i] || 0) < (r[i] || 0)) return true
-    if ((c[i] || 0) > (r[i] || 0)) return false
-  }
-  return false
-}
+/** Version native compilee — jamais undefined sur appareil / Native compiled version — never undefined on device */
+const LOCAL_VERSION = Application.nativeApplicationVersion ?? '0.0.0'
+const LOCAL_BUILD = Number(Application.nativeBuildVersion ?? '0')
 
 export function useAutoUpdate() {
   const [updating, setUpdating] = useState(false)
@@ -34,41 +27,30 @@ export function useAutoUpdate() {
     const check = async () => {
       try {
         const { data } = await api.get('/driver/device-info')
-        const minVersion = data.min_version
+        const minBuild = data.min_build_number
         const apkPath = data.apk_url
-        if (!minVersion || !apkPath) return
+        if (!minBuild || !apkPath) return
 
-        const currentVersion = Constants.expoConfig?.version
-          || Constants.manifest?.version
-          || Constants.manifest2?.extra?.expoClient?.version
-        if (!currentVersion) return  // version inconnue → ne pas declencher
-        if (!isVersionOlder(currentVersion, minVersion)) return
+        // Comparer par build_number (entier) — uniquement si serveur > local
+        if (LOCAL_BUILD >= minBuild) return
 
-        // Version obsolete — proposer la mise a jour
         const serverBase = api.defaults.baseURL?.replace(/\/api\/?$/, '') || ''
         const apkUrl = apkPath.startsWith('http') ? apkPath : `${serverBase}${apkPath}`
 
         Alert.alert(
           'Mise a jour disponible',
-          `Une nouvelle version (${minVersion}) est disponible. Version actuelle : ${currentVersion}.\n\nLa mise a jour va se telecharger automatiquement.`,
+          `Version ${data.min_version || '?'} disponible (actuelle: ${LOCAL_VERSION}, build ${LOCAL_BUILD}).\n\nLa mise a jour va se telecharger.`,
           [
-            {
-              text: 'Mettre a jour',
-              onPress: () => downloadAndInstall(apkUrl),
-            },
-            {
-              text: 'Plus tard',
-              style: 'cancel',
-            },
+            { text: 'Mettre a jour', onPress: () => downloadAndInstall(apkUrl) },
+            { text: 'Plus tard', style: 'cancel' },
           ],
         )
       } catch {
-        // Silencieux si pas de reseau
+        // Silencieux si pas de reseau ou erreur API
       }
     }
 
-    // Attendre 2s apres le lancement pour ne pas bloquer le rendu
-    const timer = setTimeout(check, 2000)
+    const timer = setTimeout(check, 3000)
     return () => clearTimeout(timer)
   }, [isRegistered])
 
@@ -79,17 +61,16 @@ export function useAutoUpdate() {
     try {
       const localUri = `${FileSystem.cacheDirectory}cmro-driver-update.apk`
 
-      // Supprimer l'ancien fichier si existant
+      // Nettoyer l'ancien fichier cache / Clean old cached APK
       const info = await FileSystem.getInfoAsync(localUri)
-      if (info.exists) await FileSystem.deleteAsync(localUri)
+      if (info.exists) await FileSystem.deleteAsync(localUri, { idempotent: true })
 
-      // Telecharger avec progression
       const download = FileSystem.createDownloadResumable(
         apkUrl,
         localUri,
         {},
-        (downloadProgress) => {
-          const pct = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite
+        (dp) => {
+          const pct = dp.totalBytesWritten / dp.totalBytesExpectedToWrite
           setProgress(Math.round(pct * 100))
         },
       )
@@ -101,11 +82,11 @@ export function useAutoUpdate() {
         return
       }
 
-      // Lancer l'installateur Android via content URI
+      // Lancer l'installateur Android / Launch Android installer
       const contentUri = await FileSystem.getContentUriAsync(result.uri)
       await IntentLauncher.startActivityAsync('android.intent.action.INSTALL_PACKAGE', {
         data: contentUri,
-        flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+        flags: 1 | 0x10000000,  // FLAG_GRANT_READ_URI_PERMISSION | FLAG_ACTIVITY_NEW_TASK
         type: 'application/vnd.android.package-archive',
       })
     } catch (err) {
