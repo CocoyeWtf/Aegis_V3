@@ -32,11 +32,27 @@ interface ScanEntry {
   status: string
 }
 
+/** Extraire un code PDV depuis un QR/barcode (peut contenir une URL ou juste le code) */
+function extractPdvCode(data: string): string | null {
+  // Code numerique pur (3-6 chiffres) — ex: "02805"
+  if (/^\d{3,6}$/.test(data)) return data
+  // Code alphanumerique court (max 20 chars, pas RM ni RET) — ex: "PDV02805"
+  if (/^[A-Za-z0-9_-]{2,20}$/.test(data) && !data.startsWith('RET-') && !/^RM\d/i.test(data)) return data
+  // URL contenant un code PDV — ex: "https://xxx/pdv/02805" ou "https://xxx?code=02805"
+  const urlMatch = data.match(/\/pdv\/([A-Za-z0-9_-]+)/) || data.match(/[?&]code=([A-Za-z0-9_-]+)/)
+  if (urlMatch) return urlMatch[1]
+  // Dernier segment numerique d'une URL
+  const lastNumMatch = data.match(/\/(\d{3,6})(?:[/?#]|$)/)
+  if (lastNumMatch) return lastNumMatch[1]
+  return null
+}
+
 /** Detecter le type de code-barres / Detect barcode type */
-function detectBarcodeType(data: string): ScanType | null {
-  if (/^RM\d{4,8}$/i.test(data)) return 'COMBI'
-  if (data.startsWith('RET-')) return 'LABEL'
-  if (/^\d{3,6}$/.test(data)) return 'PDV'
+function detectBarcodeType(data: string): { type: ScanType; pdvCode?: string } | null {
+  if (/^RM\d{4,8}$/i.test(data)) return { type: 'COMBI' }
+  if (data.startsWith('RET-')) return { type: 'LABEL' }
+  const pdvCode = extractPdvCode(data)
+  if (pdvCode) return { type: 'PDV', pdvCode }
   return null
 }
 
@@ -86,26 +102,29 @@ export default function CombiScanScreen() {
   }, [])
 
   const handleBarCodeScanned = useCallback(async ({ data: rawData }: { data: string }) => {
-    const data = rawData.trim().toUpperCase()
+    const data = rawData.trim()
     const now = Date.now()
     if (data === lastScanRef.current && now - lastScanTimeRef.current < 3000) return
     lastScanRef.current = data
     lastScanTimeRef.current = now
 
-    const type = detectBarcodeType(data)
-    if (!type) return
+    const detected = detectBarcodeType(data.toUpperCase())
+    if (!detected) return
+
+    const { type, pdvCode: extractedPdvCode } = detected
 
     Vibration.vibrate(100)
 
     // Phase 1 : Scan PDV
     if (type === 'PDV') {
+      const searchCode = extractedPdvCode || data
       setLoading(true)
       try {
         // Verifier que le PDV existe via l'API PDV
-        const { data: pdvs } = await api.get(`/pdvs/?search=${data}`)
-        const pdv = pdvs.find((p: any) => p.code === data || p.code === data.padStart(5, '0'))
+        const { data: pdvs } = await api.get(`/pdvs/?search=${searchCode}`)
+        const pdv = pdvs.find((p: any) => p.code === searchCode || p.code === searchCode.padStart(5, '0'))
         if (!pdv) {
-          Alert.alert('PDV inconnu', `Aucun PDV trouve avec le code ${data}`)
+          Alert.alert('PDV inconnu', `Aucun PDV trouve avec le code ${searchCode}`)
           return
         }
         setActivePdv({ code: pdv.code, name: pdv.name })
