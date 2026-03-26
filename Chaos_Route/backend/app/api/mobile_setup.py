@@ -18,8 +18,10 @@ APK_DIR = Path(__file__).resolve().parent.parent.parent / "apk"
 
 # Version courante de l'app mobile / Current mobile app version
 # Mettre a jour a chaque build APK / Update on each APK build
-APP_VERSION = "1.2.0"
-APP_BUILD_NUMBER = 4
+# IMPORTANT : build_number doit etre STRICTEMENT SUPERIEUR a celui dans l'APK sur le serveur
+# pour declencher la mise a jour. Egal ou inferieur = pas de mise a jour.
+APP_VERSION = "1.6.0"
+APP_BUILD_NUMBER = 7
 
 
 @router.get("/app/version")
@@ -31,7 +33,7 @@ async def get_app_version():
         "version": APP_VERSION,
         "build_number": APP_BUILD_NUMBER,
         "download_url": f"{base_url}/app/download/cmro-driver.apk" if apk_exists else None,
-        "force_update": False,
+        "force_update": True,
     }
 
 
