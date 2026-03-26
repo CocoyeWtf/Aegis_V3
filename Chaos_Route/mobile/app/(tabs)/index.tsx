@@ -16,13 +16,11 @@ import { TourCard } from '../../components/TourCard'
 import { useDeviceStore } from '../../stores/useDeviceStore'
 import { COLORS } from '../../constants/config'
 import { TorchToggleButton } from '../../components/TorchToggleButton'
-import { useAutoUpdate } from '../../hooks/useAutoUpdate'
 import type { DriverTour, AvailableTour } from '../../types'
 
 export default function TourListScreen() {
   const router = useRouter()
   const hasFeature = useDeviceStore((s) => s.hasFeature)
-  const { updating, progress } = useAutoUpdate()
   const [tours, setTours] = useState<DriverTour[]>([])
   const [availableTours, setAvailableTours] = useState<AvailableTour[]>([])
   const [loading, setLoading] = useState(false)
@@ -306,18 +304,6 @@ export default function TourListScreen() {
           </>
         }
       />
-
-      {/* Bandeau mise a jour / Update banner */}
-      {updating && (
-        <View style={{ backgroundColor: '#f97316', paddingVertical: 8, paddingHorizontal: 16, alignItems: 'center' }}>
-          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>
-            Mise a jour en cours... {progress}%
-          </Text>
-          <View style={{ width: '100%', height: 4, backgroundColor: '#ffffff44', borderRadius: 2, marginTop: 4 }}>
-            <View style={{ width: `${progress}%`, height: 4, backgroundColor: '#fff', borderRadius: 2 }} />
-          </View>
-        </View>
-      )}
 
       {/* Barre d'actions en bas / Bottom action bar */}
       <View style={styles.bottomBar}>
