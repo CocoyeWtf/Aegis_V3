@@ -47,6 +47,23 @@ export default function ContractManagement() {
       render: (row) => row.carrier?.name ?? row.transporter_name ?? '—',
       filterValue: (row) => row.carrier?.name ?? row.transporter_name ?? '',
     },
+    {
+      key: 'id' as keyof Contract,
+      label: '',
+      width: '70px',
+      render: (row) => (
+        <button
+          className="text-xs px-2 py-1 rounded transition-colors hover:opacity-80"
+          style={{ color: 'var(--color-primary)', backgroundColor: 'rgba(249,115,22,0.1)' }}
+          onClick={(e) => {
+            e.stopPropagation()
+            setScheduleContract(row)
+          }}
+        >
+          Planning
+        </button>
+      ),
+    },
     { key: 'vehicle_code' as keyof Contract, label: t('contracts.vehicleCode'), width: '100px', filterable: true },
     { key: 'vehicle_name' as keyof Contract, label: t('contracts.vehicleName'), width: '130px', filterable: true },
     {
@@ -63,7 +80,7 @@ export default function ContractManagement() {
       render: (row) => row.fixed_daily_cost != null ? `${row.fixed_daily_cost} €` : '—',
     },
     {
-      key: 'vacation' as keyof Contract, label: t('contracts.vacation'), width: '100px',
+      key: 'vacation' as keyof Contract, label: t('contracts.vacation'), width: '100px', defaultHidden: true,
       render: (row) => row.vacation != null ? `${row.vacation} €` : '—',
     },
     {
@@ -71,32 +88,15 @@ export default function ContractManagement() {
       render: (row) => row.cost_per_km != null ? `${row.cost_per_km} €` : '—',
     },
     {
-      key: 'consumption_coefficient' as keyof Contract, label: t('contracts.consumptionCoefficient'), width: '100px',
+      key: 'consumption_coefficient' as keyof Contract, label: t('contracts.consumptionCoefficient'), width: '100px', defaultHidden: true,
       render: (row) => row.consumption_coefficient != null ? String(row.consumption_coefficient) : '—',
     },
-    { key: 'start_date', label: t('common.startDate'), width: '100px', render: (row) => formatDate(row.start_date) },
-    { key: 'end_date', label: t('common.endDate'), width: '100px', render: (row) => formatDate(row.end_date) },
+    { key: 'start_date', label: t('common.startDate'), width: '100px', defaultHidden: true, render: (row) => formatDate(row.start_date) },
+    { key: 'end_date', label: t('common.endDate'), width: '100px', defaultHidden: true, render: (row) => formatDate(row.end_date) },
     {
       key: 'region_id', label: t('common.region'), width: '100px', filterable: true,
       render: (row) => regions.find((r) => r.id === row.region_id)?.name || '—',
       filterValue: (row) => regions.find((r) => r.id === row.region_id)?.name || '',
-    },
-    {
-      key: 'id' as keyof Contract,
-      label: t('contracts.schedule'),
-      width: '90px',
-      render: (row) => (
-        <button
-          className="text-xs px-2 py-1 rounded transition-colors hover:opacity-80"
-          style={{ color: 'var(--color-primary)', backgroundColor: 'rgba(249,115,22,0.1)' }}
-          onClick={(e) => {
-            e.stopPropagation()
-            setScheduleContract(row)
-          }}
-        >
-          {t('contracts.schedule')}
-        </button>
-      ),
     },
   ]
 
