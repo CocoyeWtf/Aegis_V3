@@ -314,15 +314,24 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
     return formatTime(currentMin)
   }
 
-  /* Détection chevauchement client-side / Client-side overlap detection */
-  const detectOverlap = (tour: Tour, departureTime: string, contractId: number): GanttTour | null => {
+  /* Détection chevauchement client-side — compare date+heure /
+     Client-side overlap detection — compares full date+time */
+  const detectOverlap = (tour: Tour, departureTime: string, contractId: number, deliveryDate?: string): GanttTour | null => {
     const estReturn = estimateReturn(tour, departureTime)
     if (!estReturn) return null
+    /* Date effective du tour qu'on planifie / Effective date of the tour being scheduled */
+    const tourDate = deliveryDate || tour.delivery_date || selectedDate
+    /* Construire datetime complet pour la comparaison / Build full datetime for comparison */
+    const depDT = `${tourDate}T${departureTime}`
+    const retDT = `${tourDate}T${estReturn}`
     for (const tl of timeline) {
       if (tl.contract_id !== contractId) continue
       if (tl.tour_id === tour.id) continue
       if (!tl.departure_time || !tl.return_time) continue
-      if (departureTime < tl.return_time && estReturn > tl.departure_time) {
+      const tlDate = tl.delivery_date || tl.tour_date
+      const tlDepDT = `${tlDate}T${tl.departure_time}`
+      const tlRetDT = `${tlDate}T${tl.return_time}`
+      if (depDT < tlRetDT && retDT > tlDepDT) {
         return tl
       }
     }
@@ -809,7 +818,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                   (input.mode === 'mixte' && !!input.contractId && !!input.vehicleId)
                 )
                 const estReturn = !isScheduled && input.time && canSchedule ? estimateReturn(tour, input.time) : null
-                const overlap = !isScheduled && input.time && input.contractId ? detectOverlap(tour, input.time, input.contractId) : null
+                const overlap = !isScheduled && input.time && input.contractId ? detectOverlap(tour, input.time, input.contractId, input.deliveryDate) : null
 
                 return (
                   <div
