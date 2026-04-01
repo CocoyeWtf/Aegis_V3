@@ -668,6 +668,7 @@ async def tour_timeline(
             "vehicle_name": c.vehicle_name if c else None,
             "contract_code": c.code if c else None,
             "transporter_name": c.transporter_name if c else None,
+            "driver_name": tour.driver_name,
             "departure_time": tour.departure_time,
             "return_time": tour.return_time,
             "total_eqp": tour.total_eqp,

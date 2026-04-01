@@ -13,6 +13,7 @@ export interface GanttTour {
   vehicle_code: string | null
   vehicle_name: string | null
   transporter_name: string | null
+  driver_name: string | null
   departure_time: string | null
   return_time: string | null
   total_eqp: number | null
@@ -191,10 +192,15 @@ export function TourGantt({
                 <line x1={0} y1={y} x2={width} y2={y} stroke="var(--border-color)" strokeWidth={0.5} opacity={0.3} />
               )}
 
-              {/* Code tour / Tour code label */}
-              <text x={8} y={barCenterY + 4} fill={isHighlighted ? 'var(--color-primary)' : 'var(--text-primary)'} fontSize={11} fontWeight="bold" fontFamily="inherit">
+              {/* Code tour + chauffeur / Tour code + driver label */}
+              <text x={8} y={tour.driver_name ? barCenterY - 1 : barCenterY + 4} fill={isHighlighted ? 'var(--color-primary)' : 'var(--text-primary)'} fontSize={11} fontWeight="bold" fontFamily="inherit">
                 {tour.code}
               </text>
+              {tour.driver_name && (
+                <text x={8} y={barCenterY + 11} fill="var(--text-muted)" fontSize={9} fontFamily="inherit">
+                  {tour.driver_name}
+                </text>
+              )}
 
               {/* Barre principale / Main bar */}
               {depMin !== null && retMin !== null && (

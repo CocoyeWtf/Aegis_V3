@@ -93,6 +93,8 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
 
   /* Filtre activité / Activity filter */
   const [activityFilter, setActivityFilter] = useState('ALL')
+  /* Filtre chauffeur / Driver filter */
+  const [driverFilter, setDriverFilter] = useState('ALL')
 
   /* Expansion boites / Box expansion */
   const [expandedTourId, setExpandedTourId] = useState<number | null>(null)
@@ -243,11 +245,25 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
   const unscheduledTours = useMemo(() => tours.filter((t) => !t.departure_time), [tours])
   const scheduledTours = useMemo(() => tours.filter((t) => t.departure_time), [tours])
 
-  /* Filtrer par activité / Filter by activity (temperature_type) */
+  /* Liste unique des chauffeurs pour le filtre / Unique driver list for filter */
+  const driverNames = useMemo(() => {
+    const names = new Set<string>()
+    for (const t of tours) {
+      if (t.driver_name) names.add(t.driver_name)
+    }
+    for (const tl of timeline) {
+      if (tl.driver_name) names.add(tl.driver_name)
+    }
+    return Array.from(names).sort()
+  }, [tours, timeline])
+
+  /* Filtrer par activité et chauffeur / Filter by activity and driver */
   const filteredTours = useMemo(() => {
-    if (activityFilter === 'ALL') return tours
-    return tours.filter(t => t.temperature_type === activityFilter)
-  }, [tours, activityFilter])
+    let result = tours
+    if (activityFilter !== 'ALL') result = result.filter(t => t.temperature_type === activityFilter)
+    if (driverFilter !== 'ALL') result = result.filter(t => t.driver_name === driverFilter)
+    return result
+  }, [tours, activityFilter, driverFilter])
 
   /* Liste unique triée: planifiés d'abord par heure départ, puis non-planifiés /
      Unified sorted list: scheduled first by departure time, then unscheduled */
@@ -621,6 +637,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
         vehicle_code: null,
         vehicle_name: null,
         transporter_name: null,
+        driver_name: tour.driver_name ?? null,
         departure_time: tour.departure_time ?? null,
         return_time: tour.return_time ?? null,
         total_eqp: tour.total_eqp ?? null,
@@ -740,6 +757,26 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
             ))}
           </div>
         </div>
+
+        {/* Filtre chauffeur / Driver filter */}
+        {driverNames.length > 0 && (
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+              Chauffeur
+            </label>
+            <select
+              className="px-2 py-2 text-xs rounded-lg border"
+              style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+              value={driverFilter}
+              onChange={(e) => setDriverFilter(e.target.value)}
+            >
+              <option value="ALL">Tous</option>
+              {driverNames.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="ml-auto flex items-center gap-4 text-right">
           <div>
