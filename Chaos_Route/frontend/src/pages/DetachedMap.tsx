@@ -6,7 +6,7 @@ import { useAppStore } from '../stores/useAppStore'
 import { MapView } from '../components/map/MapView'
 
 export default function DetachedMap() {
-  const { ready, theme, regionId, selectedPdvIds, pdvVolumeStatusMap, pdvEqpMap, routeCoords, pickupByPdv, sendPdvClick } =
+  const { ready, theme, regionId, selectedPdvIds, pdvVolumeStatusMap, pdvEqpMap, routeCoords, pickupByPdv, sendPdvClick, sendPdvContextMenu } =
     useDetachedMapReceiver()
 
   const { setSelectedRegion } = useAppStore()
@@ -42,6 +42,7 @@ export default function DetachedMap() {
     <div style={{ width: '100vw', height: '100vh' }}>
       <MapView
         onPdvClick={sendPdvClick}
+        onPdvContextMenu={sendPdvContextMenu}
         selectedPdvIds={selectedPdvIds}
         pdvVolumeStatusMap={pdvVolumeStatusMap}
         pdvEqpMap={pdvEqpMap}

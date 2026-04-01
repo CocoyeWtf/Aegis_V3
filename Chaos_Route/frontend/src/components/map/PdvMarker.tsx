@@ -134,6 +134,7 @@ function makeMultiTempLabelIcon(
 interface PdvMarkerProps {
   pdv: PDV
   onClick?: (pdv: PDV) => void
+  onContextMenu?: (pdv: PDV) => void
   selected?: boolean
   volumeStatus?: PdvVolumeStatus
   pickupSummary?: PdvPickupSummary
@@ -142,7 +143,7 @@ interface PdvMarkerProps {
   zoomLevel?: number
 }
 
-export function PdvMarker({ pdv, onClick, selected, volumeStatus = 'none', pickupSummary, showLabel, eqpByTemp, zoomLevel = 10 }: PdvMarkerProps) {
+export function PdvMarker({ pdv, onClick, onContextMenu, selected, volumeStatus = 'none', pickupSummary, showLabel, eqpByTemp, zoomLevel = 10 }: PdvMarkerProps) {
   const eqpCount = eqpByTemp ? Object.values(eqpByTemp).reduce((a, b) => a + b, 0) : undefined
   if (!pdv.latitude || !pdv.longitude) return null
 
@@ -183,7 +184,10 @@ export function PdvMarker({ pdv, onClick, selected, volumeStatus = 'none', picku
     <Marker
       position={[pdv.latitude, pdv.longitude]}
       icon={icon}
-      eventHandlers={onClick ? { click: () => onClick(pdv) } : undefined}
+      eventHandlers={{
+        ...(onClick ? { click: () => onClick(pdv) } : {}),
+        ...(onContextMenu ? { contextmenu: (e: L.LeafletMouseEvent) => { e.originalEvent.preventDefault(); onContextMenu(pdv) } } : {}),
+      }}
     >
       <Tooltip>
         <div style={{ fontSize: '12px' }}>

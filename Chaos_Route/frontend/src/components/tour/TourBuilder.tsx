@@ -175,6 +175,20 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     return ids
   }, [currentStops, volumes])
 
+  /* PDV entièrement consommés — tous leurs volumes disponibles sont dans le tour.
+     Les PDV partiellement consommés (découpage) restent visibles sur la carte. /
+     Fully consumed PDVs — all their available volumes are in the tour.
+     Partially consumed PDVs (split) remain visible on the map. */
+  const fullyConsumedPdvIds = useMemo(() => {
+    const ids = new Set<number>()
+    for (const pdvId of assignedPdvIds) {
+      const pdvVols = volumes.filter(v => v.pdv_id === pdvId)
+      const allConsumed = pdvVols.length > 0 && pdvVols.every(v => consumedVolumeIds.has(v.id))
+      if (allConsumed) ids.add(pdvId)
+    }
+    return ids
+  }, [assignedPdvIds, consumedVolumeIds, volumes])
+
   /* Pas de filtrage par base — tous les volumes du jour / No base filtering — all volumes for the day */
   const filteredVolumes = volumes
 
@@ -213,35 +227,49 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     [tourTemperatures],
   )
 
-  /* Statut volume par PDV pour la carte, filtré par température / Volume status per PDV for map, filtered by temperature */
+  /* Statut volume par PDV pour la carte, filtré par température.
+     Un PDV reste 'unassigned' s'il a encore des volumes non consommés (découpage). /
+     Volume status per PDV for map, filtered by temperature.
+     A PDV stays 'unassigned' if it still has unconsumed volumes (split). */
   const pdvVolumeStatusMap = useMemo(() => {
     const m = new Map<number, PdvVolumeStatus>()
     for (const v of allDayVolumes) {
       if (tempFilters.size > 0 && !tempFilters.has(v.temperature_class)) continue
-      if (!v.tour_id) m.set(v.pdv_id, 'unassigned')
+      /* Volume non affecté à un autre tour ET non consommé par le tour en cours → unassigned /
+         Not assigned to another tour AND not consumed by current tour → unassigned */
+      if (!v.tour_id && !consumedVolumeIds.has(v.id)) {
+        m.set(v.pdv_id, 'unassigned')
+      }
     }
     for (const v of allDayVolumes) {
       if (tempFilters.size > 0 && !tempFilters.has(v.temperature_class)) continue
-      if (v.tour_id) m.set(v.pdv_id, 'assigned')
-    }
-    for (const id of assignedPdvIds) {
-      m.set(id, 'assigned')
+      if (v.tour_id || consumedVolumeIds.has(v.id)) {
+        /* Ne pas écraser 'unassigned' — le PDV a encore des volumes restants /
+           Don't overwrite 'unassigned' — the PDV still has remaining volumes */
+        if (!m.has(v.pdv_id)) m.set(v.pdv_id, 'assigned')
+      }
     }
     return m
-  }, [allDayVolumes, assignedPdvIds, tempFilters])
+  }, [allDayVolumes, consumedVolumeIds, tempFilters])
 
-  /* EQC par PDV ventilé par température, filtré par chips température /
-     EQC per PDV broken down by temperature class, filtered by temperature chips */
+  /* EQC par PDV ventilé par température — uniquement les volumes restants
+     (non consommés par le tour en cours, non affectés à un autre tour).
+     Après découpage, seul le restant non planifié apparaît sur la carte. /
+     EQC per PDV by temperature — only remaining volumes
+     (not consumed by current tour, not assigned to another tour).
+     After split, only unplanned remainder shows on the map. */
   const pdvEqpMap = useMemo(() => {
     const m = new Map<number, Record<string, number>>()
     for (const v of allDayVolumes) {
       if (tempFilters.size > 0 && !tempFilters.has(v.temperature_class)) continue
+      /* Ignorer les volumes déjà planifiés / Skip already-planned volumes */
+      if (v.tour_id || consumedVolumeIds.has(v.id)) continue
       const existing = m.get(v.pdv_id) || {}
       existing[v.temperature_class] = (existing[v.temperature_class] || 0) + v.eqp_count
       m.set(v.pdv_id, existing)
     }
     return m
-  }, [allDayVolumes, tempFilters])
+  }, [allDayVolumes, consumedVolumeIds, tempFilters])
 
   const pdvMap = useMemo(() => new Map(pdvs.map((p) => [p.id, p])), [pdvs])
 
@@ -534,6 +562,17 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     })
   }
 
+  /* Clic droit sur pastille carte → ouvrir le dialogue de découpage /
+     Right-click on map marker → open split dialog */
+  const handlePdvContextMenu = useCallback((pdv: PDV) => {
+    if (tourMode === 'pickup') return
+    const vol = filteredVolumes.find((v) => v.pdv_id === pdv.id && !consumedVolumeIds.has(v.id))
+    if (!vol) return
+    const maxEqp = selectedVehicleType ? Math.max(remaining115, 0) : vol.eqp_count
+    setSplitDialog({ volume: vol, maxEqp })
+    setSplitEqp(Math.min(vol.eqp_count, maxEqp))
+  }, [tourMode, filteredVolumes, consumedVolumeIds, selectedVehicleType, remaining115])
+
   const handlePdvClick = (pdv: PDV) => {
     if (tourMode === 'pickup') {
       const summary = pickupByPdv.get(pdv.id)
@@ -548,7 +587,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
 
   /* Carte détachable / Detachable map */
   const { isDetached, detach, attach } = useDetachedMap({
-    selectedPdvIds: assignedPdvIds,
+    selectedPdvIds: fullyConsumedPdvIds,
     pdvVolumeStatusMap,
     pdvEqpMap,
     routeCoords,
@@ -556,6 +595,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     theme,
     regionId: selectedRegionId,
     onPdvClick: handlePdvClick,
+    onPdvContextMenu: handlePdvContextMenu,
   })
 
   /* Sauvegarder comme brouillon (sans contrat) / Save as draft (no contract) */
@@ -893,7 +933,8 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                   <div className="flex-1 min-h-0">
                   <MapView
                     onPdvClick={handlePdvClick}
-                    selectedPdvIds={assignedPdvIds}
+                    onPdvContextMenu={handlePdvContextMenu}
+                    selectedPdvIds={fullyConsumedPdvIds}
                     pdvVolumeStatusMap={pdvVolumeStatusMap}
                     pdvEqpMap={pdvEqpMap}
                     pickupByPdv={pickupByPdv}
@@ -998,7 +1039,8 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
           <div className="min-h-[400px]">
             <MapView
               onPdvClick={handlePdvClick}
-              selectedPdvIds={assignedPdvIds}
+              onPdvContextMenu={handlePdvContextMenu}
+              selectedPdvIds={fullyConsumedPdvIds}
               pdvVolumeStatusMap={pdvVolumeStatusMap}
               pdvEqpMap={pdvEqpMap}
               pickupByPdv={pickupByPdv}
