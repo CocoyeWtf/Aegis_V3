@@ -80,6 +80,20 @@ export function TourGantt({
     return () => ro.disconnect()
   }, [])
 
+  /* Molette → scroll horizontal (évite de devoir descendre jusqu'au scrollbar) /
+     Wheel → horizontal scroll (avoids having to scroll down to reach scrollbar) */
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth) return  /* pas de scroll H nécessaire / no H scroll needed */
+      e.preventDefault()
+      el.scrollLeft += e.deltaY || e.deltaX
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
   const headerH = headerHeightProp ?? DEFAULT_HEADER_HEIGHT
 
   /* Axe temps — largeur minimum garantie par heure / Time axis — guaranteed min width per hour */
