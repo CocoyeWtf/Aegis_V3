@@ -46,6 +46,7 @@ const PdvDeliverySchedule = lazy(() => import('./pages/PdvDeliverySchedule'))
 const SurchargeTypes = lazy(() => import('./pages/SurchargeTypes'))
 const AideDecision = lazy(() => import('./pages/AideDecision'))
 const DetachedMap = lazy(() => import('./pages/DetachedMap'))
+const DetachedGantt = lazy(() => import('./pages/DetachedGantt'))
 const PhoneSetupGuide = lazy(() => import('./pages/PhoneSetupGuide'))
 const VehicleManagement = lazy(() => import('./pages/VehicleManagement'))
 const InspectionManagement = lazy(() => import('./pages/InspectionManagement'))
@@ -90,6 +91,7 @@ export default function App() {
         <Route path="/driver-kiosk" element={<Suspense fallback={<Loading />}><DriverKiosk /></Suspense>} />
         <Route element={<ProtectedRoute />}>
           <Route path="/map-detached" element={<Suspense fallback={<Loading />}><DetachedMap /></Suspense>} />
+          <Route path="/gantt-detached" element={<Suspense fallback={<Loading />}><DetachedGantt /></Suspense>} />
           <Route element={<MainLayout />}>
             <Route path="/" element={<DefaultRedirect><Dashboard /></DefaultRedirect>} />
             <Route path="/countries" element={<CountryRegion />} />

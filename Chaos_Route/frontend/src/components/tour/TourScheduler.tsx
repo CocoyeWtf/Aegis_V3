@@ -52,7 +52,7 @@ interface TourSchedulerProps {
 
 export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps) {
   const { t } = useTranslation()
-  const { selectedRegionId } = useAppStore()
+  const { selectedRegionId, theme } = useAppStore()
 
   const regionParams = selectedRegionId ? { region_id: selectedRegionId } : undefined
   const { data: bases } = useApi<BaseLogistics>('/bases', regionParams)
@@ -1226,7 +1226,27 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
 
         {/* Panneau droit — Gantt SVG / Right panel — SVG Gantt */}
         <div className="min-w-[200px] flex-1">
-          <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border-color)' }}>
+          <div className="relative rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border-color)' }}>
+            {/* Bouton détacher Gantt / Detach Gantt button */}
+            <button
+              className="absolute top-1 right-1 z-10 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors"
+              style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)', border: '1px solid var(--border-color)' }}
+              onClick={() => {
+                const w = screen.width
+                const h = screen.height
+                window.open(
+                  `/gantt-detached?date=${selectedDate}&theme=${theme}&regionId=${selectedRegionId ?? ''}`,
+                  'chaos-route-gantt',
+                  `width=${Math.round(w * 0.7)},height=${Math.round(h * 0.5)},left=0,top=${Math.round(h * 0.5)},menubar=no,toolbar=no,location=no,status=no`,
+                )
+              }}
+              title="Détacher la timeline"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+              Détacher
+            </button>
             <TourGantt
               tours={ganttData}
               highlightedTourId={highlightedTourId}

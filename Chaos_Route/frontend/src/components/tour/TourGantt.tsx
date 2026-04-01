@@ -41,6 +41,7 @@ const ROW_HEIGHT = 40
 const DEFAULT_HEADER_HEIGHT = 26
 const LABEL_WIDTH = 80
 const PADDING_RIGHT = 16
+const MIN_PX_PER_HOUR = 50  /* largeur minimum par heure pour lisibilité / min width per hour for readability */
 /* Mini-barres stops / Stop mini-bars */
 const STOP_BAR_H = 10
 const STOP_ROW_H = 16
@@ -66,14 +67,14 @@ export function TourGantt({
   expandedTourId,
 }: TourGanttProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [width, setWidth] = useState(400)
+  const [containerWidth, setContainerWidth] = useState(400)
 
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    setWidth(el.clientWidth)
+    setContainerWidth(el.clientWidth)
     const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) setWidth(entry.contentRect.width)
+      for (const entry of entries) setContainerWidth(entry.contentRect.width)
     })
     ro.observe(el)
     return () => ro.disconnect()
@@ -81,11 +82,14 @@ export function TourGantt({
 
   const headerH = headerHeightProp ?? DEFAULT_HEADER_HEIGHT
 
-  /* Axe temps / Time axis */
+  /* Axe temps — largeur minimum garantie par heure / Time axis — guaranteed min width per hour */
   const startMin = startHour * 60
   const endMin = endHour * 60
   const totalMin = endMin - startMin
-  const chartWidth = width - LABEL_WIDTH - PADDING_RIGHT
+  const totalHours = endHour - startHour
+  const minChartWidth = totalHours * MIN_PX_PER_HOUR
+  const chartWidth = Math.max(containerWidth - LABEL_WIDTH - PADDING_RIGHT, minChartWidth)
+  const width = chartWidth + LABEL_WIDTH + PADDING_RIGHT
   const toX = (minutes: number) => LABEL_WIDTH + ((minutes - startMin) / totalMin) * chartWidth
 
   /* Heure actuelle / Current time */
@@ -122,7 +126,7 @@ export function TourGantt({
   const svgHeight = headerH + totalBodyHeight + 4
 
   return (
-    <div ref={containerRef} className="w-full overflow-hidden">
+    <div ref={containerRef} className="w-full overflow-x-auto">
       <svg width={width} height={Math.max(svgHeight, 60)} style={{ display: 'block' }}>
         {/* Fond / Background */}
         <rect width={width} height={Math.max(svgHeight, 60)} fill="var(--bg-secondary)" rx={8} />
