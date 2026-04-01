@@ -831,90 +831,92 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                     onClick={() => setHighlightedTourId(tour.id)}
                   >
                     {/* === Ligne 1 — Résumé compact / Line 1 — Compact summary === */}
-                    <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 px-3 py-1.5">
-                      {/* Flèche expand */}
-                      <button
-                        className="text-xs shrink-0 w-4 text-center"
-                        style={{ color: 'var(--text-muted)' }}
-                        onClick={(e) => { e.stopPropagation(); setExpandedTourId(isExpanded ? null : tour.id) }}
-                      >
-                        {isExpanded ? '▾' : '▸'}
-                      </button>
+                    <div className="px-3 py-1.5">
+                      <div className="flex items-center gap-2">
+                        {/* Flèche expand */}
+                        <button
+                          className="text-xs shrink-0 w-4 text-center"
+                          style={{ color: 'var(--text-muted)' }}
+                          onClick={(e) => { e.stopPropagation(); setExpandedTourId(isExpanded ? null : tour.id) }}
+                        >
+                          {isExpanded ? '▾' : '▸'}
+                        </button>
 
-                      {/* Code tour */}
-                      <span className="text-sm font-bold shrink-0" style={{ color: 'var(--color-primary)' }}>
-                        {tour.code}
-                      </span>
+                        {/* Code tour */}
+                        <span className="text-sm font-bold shrink-0" style={{ color: 'var(--color-primary)' }}>
+                          {tour.code}
+                        </span>
 
-                      {/* Badge reprise / Pickup tour badge */}
-                      {tour.is_pickup_tour && (
+                        {/* Badge reprise / Pickup tour badge */}
+                        {tour.is_pickup_tour && (
+                          <span
+                            className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
+                            style={{ backgroundColor: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}
+                          >
+                            Reprise
+                          </span>
+                        )}
+
+                        {/* Badge vehicule */}
                         <span
                           className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
-                          style={{ backgroundColor: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}
+                          style={{ backgroundColor: 'rgba(249,115,22,0.15)', color: 'var(--color-primary)' }}
                         >
-                          Reprise
+                          {getVehicleLabel(tour)}({tour.capacity_eqp ?? 0})
                         </span>
-                      )}
 
-                      {/* Badge vehicule */}
-                      <span
-                        className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
-                        style={{ backgroundColor: 'rgba(249,115,22,0.15)', color: 'var(--color-primary)' }}
-                      >
-                        {getVehicleLabel(tour)}({tour.capacity_eqp ?? 0})
-                      </span>
+                        {/* Badge activité / Activity badge */}
+                        {tour.temperature_type && (
+                          <span
+                            className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
+                            style={{
+                              backgroundColor: tour.temperature_type === 'GEL' ? 'rgba(30,64,175,0.15)'
+                                : tour.temperature_type === 'FRAIS' ? 'rgba(59,130,246,0.15)'
+                                : 'rgba(249,115,22,0.15)',
+                              color: tour.temperature_type === 'GEL' ? '#1e40af'
+                                : tour.temperature_type === 'FRAIS' ? '#3b82f6'
+                                : 'var(--color-primary)',
+                            }}
+                          >
+                            {TEMPERATURE_TYPE_LABELS[tour.temperature_type as TemperatureType] ?? tour.temperature_type}
+                          </span>
+                        )}
 
-                      {/* Badge activité / Activity badge */}
-                      {tour.temperature_type && (
-                        <span
-                          className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
-                          style={{
-                            backgroundColor: tour.temperature_type === 'GEL' ? 'rgba(30,64,175,0.15)'
-                              : tour.temperature_type === 'FRAIS' ? 'rgba(59,130,246,0.15)'
-                              : 'rgba(249,115,22,0.15)',
-                            color: tour.temperature_type === 'GEL' ? '#1e40af'
-                              : tour.temperature_type === 'FRAIS' ? '#3b82f6'
-                              : 'var(--color-primary)',
-                          }}
-                        >
-                          {TEMPERATURE_TYPE_LABELS[tour.temperature_type as TemperatureType] ?? tour.temperature_type}
+                        {/* Total EQC + km */}
+                        <span className="ml-auto text-xs font-bold shrink-0" style={{ color: 'var(--text-primary)' }}>
+                          = {tour.total_eqp ?? 0} EQC
                         </span>
-                      )}
+                        <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>
+                          {tour.total_km ?? 0} km
+                        </span>
 
-                      {/* PDVs inline */}
-                      <span className="text-[10px] min-w-0" style={{ color: 'var(--text-muted)' }}>
+                        {/* Badge statut pour planifiés / Status badge for scheduled */}
+                        {isScheduled && (
+                          <span
+                            className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase shrink-0"
+                            style={{
+                              backgroundColor: tour.status === 'VALIDATED' ? 'rgba(34,197,94,0.15)' : 'rgba(249,115,22,0.15)',
+                              color: tour.status === 'VALIDATED' ? 'var(--color-success)' : 'var(--color-warning)',
+                            }}
+                          >
+                            {tour.status === 'VALIDATED' ? 'Valide' : 'Brouillon'}
+                          </span>
+                        )}
+
+                        {/* Indicateur violation fenêtre / Delivery window violation dot */}
+                        {windowViolations && (
+                          <span
+                            className="shrink-0 w-2.5 h-2.5 rounded-full"
+                            style={{ backgroundColor: 'var(--color-danger)' }}
+                            title={windowViolations.join(' | ')}
+                          />
+                        )}
+                      </div>
+
+                      {/* Ligne 2 — Liste complète des PDV / Line 2 — Full PDV list */}
+                      <div className="text-[10px] mt-0.5 pl-6" style={{ color: 'var(--text-muted)' }}>
                         {pdvSummary(tour)}
-                      </span>
-
-                      {/* Total EQC + km */}
-                      <span className="ml-auto text-xs font-bold shrink-0" style={{ color: 'var(--text-primary)' }}>
-                        = {tour.total_eqp ?? 0} EQC
-                      </span>
-                      <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>
-                        {tour.total_km ?? 0} km
-                      </span>
-
-                      {/* Badge statut pour planifiés / Status badge for scheduled */}
-                      {isScheduled && (
-                        <span
-                          className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase shrink-0"
-                          style={{
-                            backgroundColor: tour.status === 'VALIDATED' ? 'rgba(34,197,94,0.15)' : 'rgba(249,115,22,0.15)',
-                            color: tour.status === 'VALIDATED' ? 'var(--color-success)' : 'var(--color-warning)',
-                          }}
-                        >
-                          {tour.status === 'VALIDATED' ? 'Valide' : 'Brouillon'}
-                        </span>
-                      )}
-
-                      {/* Indicateur violation fenêtre / Delivery window violation dot */}
-                      {windowViolations && (
-                        <span
-                          className="shrink-0 w-2.5 h-2.5 rounded-full"
-                          style={{ backgroundColor: 'var(--color-danger)' }}
-                          title={windowViolations.join(' | ')}
-                        />
-                      )}
+                      </div>
                     </div>
 
                     {/* === Ligne 2 — Actions inline (no wrap) / Line 2 — Inline actions (no wrap) === */}
