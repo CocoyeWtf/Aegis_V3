@@ -12,6 +12,7 @@ type MapMessage =
   | { type: 'MAP_STATE_SYNC'; payload: MapStateSyncPayload }
   | { type: 'MAP_READY' }
   | { type: 'PDV_CLICK'; payload: PDV }
+  | { type: 'PDV_TEMP_CLICK'; payload: { pdv: PDV; temp: string } }
   | { type: 'PDV_CONTEXTMENU'; payload: PDV }
   | { type: 'MAP_CLOSING' }
 
@@ -42,6 +43,7 @@ interface UseDetachedMapOptions {
   theme: 'dark' | 'light'
   regionId: number | null
   onPdvClick: (pdv: PDV) => void
+  onPdvTempClick?: (pdv: PDV, temp: string) => void
   onPdvContextMenu?: (pdv: PDV) => void
 }
 
@@ -54,6 +56,7 @@ export function useDetachedMap({
   theme,
   regionId,
   onPdvClick,
+  onPdvTempClick,
   onPdvContextMenu,
 }: UseDetachedMapOptions) {
   const [isDetached, setIsDetached] = useState(false)
@@ -64,6 +67,8 @@ export function useDetachedMap({
   /* Refs pour garder les valeurs fraîches sans recréer le canal / Refs to keep fresh values without recreating channel */
   const onPdvClickRef = useRef(onPdvClick)
   onPdvClickRef.current = onPdvClick
+  const onPdvTempClickRef = useRef(onPdvTempClick)
+  onPdvTempClickRef.current = onPdvTempClick
   const onPdvContextMenuRef = useRef(onPdvContextMenu)
   onPdvContextMenuRef.current = onPdvContextMenu
   const themeRef = useRef(theme)
@@ -101,6 +106,8 @@ export function useDetachedMap({
         channel.postMessage({ type: 'MAP_INIT', payload: initPayload })
       } else if (msg.type === 'PDV_CLICK') {
         onPdvClickRef.current(msg.payload)
+      } else if (msg.type === 'PDV_TEMP_CLICK') {
+        onPdvTempClickRef.current?.(msg.payload.pdv, msg.payload.temp)
       } else if (msg.type === 'PDV_CONTEXTMENU') {
         onPdvContextMenuRef.current?.(msg.payload)
       } else if (msg.type === 'MAP_CLOSING') {

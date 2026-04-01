@@ -562,6 +562,15 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     })
   }
 
+  /* Clic sur carré température d'un label multi-temp → ajouter uniquement cette température /
+     Click on temperature square of multi-temp label → add only that temperature */
+  const handlePdvTempClick = useCallback((pdv: PDV, temp: string) => {
+    if (tourMode === 'pickup') return
+    const vol = filteredVolumes.find((v) => v.pdv_id === pdv.id && v.temperature_class === temp && !consumedVolumeIds.has(v.id))
+    if (!vol) return
+    handleAddVolume(vol)
+  }, [tourMode, filteredVolumes, consumedVolumeIds])
+
   /* Clic droit sur pastille carte → ouvrir le dialogue de découpage /
      Right-click on map marker → open split dialog */
   const handlePdvContextMenu = useCallback((pdv: PDV) => {
@@ -580,9 +589,13 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
       handleAddPickupPdv(pdv.id)
       return
     }
-    const vol = filteredVolumes.find((v) => v.pdv_id === pdv.id && !consumedVolumeIds.has(v.id))
-    if (!vol) return
-    handleAddVolume(vol)
+    /* Ajouter TOUS les volumes disponibles du PDV (multi-température) /
+       Add ALL available volumes for the PDV (multi-temperature) */
+    const vols = filteredVolumes.filter((v) => v.pdv_id === pdv.id && !consumedVolumeIds.has(v.id))
+    if (vols.length === 0) return
+    for (const vol of vols) {
+      handleAddVolume(vol)
+    }
   }
 
   /* Carte détachable / Detachable map */
@@ -595,6 +608,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     theme,
     regionId: selectedRegionId,
     onPdvClick: handlePdvClick,
+    onPdvTempClick: handlePdvTempClick,
     onPdvContextMenu: handlePdvContextMenu,
   })
 
@@ -933,6 +947,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                   <div className="flex-1 min-h-0">
                   <MapView
                     onPdvClick={handlePdvClick}
+                    onPdvTempClick={handlePdvTempClick}
                     onPdvContextMenu={handlePdvContextMenu}
                     selectedPdvIds={fullyConsumedPdvIds}
                     pdvVolumeStatusMap={pdvVolumeStatusMap}

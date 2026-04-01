@@ -98,6 +98,7 @@ function MapResizeHandler({ resizeSignal }: { resizeSignal: number }) {
 
 interface MapViewProps {
   onPdvClick?: (pdv: PDV) => void
+  onPdvTempClick?: (pdv: PDV, temp: string) => void
   onPdvContextMenu?: (pdv: PDV) => void
   selectedPdvIds?: Set<number>
   pdvVolumeStatusMap?: Map<number, PdvVolumeStatus>
@@ -108,7 +109,7 @@ interface MapViewProps {
   resizeSignal?: number
 }
 
-export function MapView({ onPdvClick, onPdvContextMenu, selectedPdvIds, pdvVolumeStatusMap, pdvEqpMap, pickupByPdv, routeCoords, height = '100%', resizeSignal = 0 }: MapViewProps) {
+export function MapView({ onPdvClick, onPdvTempClick, onPdvContextMenu, selectedPdvIds, pdvVolumeStatusMap, pdvEqpMap, pickupByPdv, routeCoords, height = '100%', resizeSignal = 0 }: MapViewProps) {
   const { center, zoom, showBases, showPdvs, showSuppliers, showPdvLabels } = useMapStore()
   const { selectedRegionId } = useAppStore()
   const [currentZoom, setCurrentZoom] = useState(zoom)
@@ -151,6 +152,7 @@ export function MapView({ onPdvClick, onPdvContextMenu, selectedPdvIds, pdvVolum
               key={`pdv-${pdv.id}`}
               pdv={pdv}
               onClick={onPdvClick}
+              onTempClick={onPdvTempClick}
               onContextMenu={onPdvContextMenu}
               selected={selectedPdvIds?.has(pdv.id)}
               volumeStatus={pdvVolumeStatusMap?.get(pdv.id)}

@@ -111,7 +111,7 @@ function makeMultiTempLabelIcon(
   const squaresHtml = entries
     .map(
       (e) =>
-        `<div style="flex:1;background:${TEMPERATURE_COLORS[e.tc as TemperatureClass]};color:#fff;font-size:${fontSize2}px;font-weight:700;text-align:center;padding:${padV}px ${padH}px;">${e.count}</div>`,
+        `<div data-temp="${e.tc}" style="flex:1;background:${TEMPERATURE_COLORS[e.tc as TemperatureClass]};color:#fff;font-size:${fontSize2}px;font-weight:700;text-align:center;padding:${padV}px ${padH}px;cursor:pointer;">${e.count}</div>`,
     )
     .join('')
 
@@ -134,6 +134,7 @@ function makeMultiTempLabelIcon(
 interface PdvMarkerProps {
   pdv: PDV
   onClick?: (pdv: PDV) => void
+  onTempClick?: (pdv: PDV, temp: string) => void
   onContextMenu?: (pdv: PDV) => void
   selected?: boolean
   volumeStatus?: PdvVolumeStatus
@@ -143,7 +144,7 @@ interface PdvMarkerProps {
   zoomLevel?: number
 }
 
-export function PdvMarker({ pdv, onClick, onContextMenu, selected, volumeStatus = 'none', pickupSummary, showLabel, eqpByTemp, zoomLevel = 10 }: PdvMarkerProps) {
+export function PdvMarker({ pdv, onClick, onTempClick, onContextMenu, selected, volumeStatus = 'none', pickupSummary, showLabel, eqpByTemp, zoomLevel = 10 }: PdvMarkerProps) {
   const eqpCount = eqpByTemp ? Object.values(eqpByTemp).reduce((a, b) => a + b, 0) : undefined
   if (!pdv.latitude || !pdv.longitude) return null
 
@@ -185,7 +186,17 @@ export function PdvMarker({ pdv, onClick, onContextMenu, selected, volumeStatus 
       position={[pdv.latitude, pdv.longitude]}
       icon={icon}
       eventHandlers={{
-        ...(onClick ? { click: () => onClick(pdv) } : {}),
+        ...(onClick ? { click: (e: L.LeafletMouseEvent) => {
+          /* Clic sur carré température → ajouter uniquement cette température /
+             Click on temp square → add only that temperature */
+          const target = e.originalEvent.target as HTMLElement
+          const temp = target?.getAttribute?.('data-temp')
+          if (temp && onTempClick) {
+            onTempClick(pdv, temp)
+          } else {
+            onClick(pdv)
+          }
+        } } : {}),
         ...(onContextMenu ? { contextmenu: (e: L.LeafletMouseEvent) => { e.originalEvent.preventDefault(); onContextMenu(pdv) } } : {}),
       }}
     >

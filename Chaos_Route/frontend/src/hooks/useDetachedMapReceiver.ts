@@ -12,6 +12,7 @@ type MapMessage =
   | { type: 'MAP_STATE_SYNC'; payload: MapStateSyncPayload }
   | { type: 'MAP_READY' }
   | { type: 'PDV_CLICK'; payload: PDV }
+  | { type: 'PDV_TEMP_CLICK'; payload: { pdv: PDV; temp: string } }
   | { type: 'PDV_CONTEXTMENU'; payload: PDV }
   | { type: 'MAP_CLOSING' }
 
@@ -109,10 +110,15 @@ export function useDetachedMapReceiver() {
     channelRef.current?.postMessage({ type: 'PDV_CLICK', payload: pdv })
   }, [])
 
+  /* Envoie un clic température PDV vers la fenêtre principale / Send PDV temp click to main window */
+  const sendPdvTempClick = useCallback((pdv: PDV, temp: string) => {
+    channelRef.current?.postMessage({ type: 'PDV_TEMP_CLICK', payload: { pdv, temp } })
+  }, [])
+
   /* Envoie un clic droit PDV vers la fenêtre principale / Send PDV context menu to main window */
   const sendPdvContextMenu = useCallback((pdv: PDV) => {
     channelRef.current?.postMessage({ type: 'PDV_CONTEXTMENU', payload: pdv })
   }, [])
 
-  return { ...state, sendPdvClick, sendPdvContextMenu }
+  return { ...state, sendPdvClick, sendPdvTempClick, sendPdvContextMenu }
 }
