@@ -9,6 +9,7 @@ import { ImportDialog } from './ImportDialog'
 import { useApi } from '../../hooks/useApi'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { create, update, remove, downloadExport } from '../../services/api'
+import api from '../../services/api'
 
 interface CrudPageProps<T extends { id: number }> {
   title: string
@@ -39,6 +40,8 @@ interface CrudPageProps<T extends { id: number }> {
   formSize?: FormDialogSize
   /** Ressource RBAC pour conditionner create/edit/delete / RBAC resource to gate CUD actions */
   resource?: string
+  /** Activer la suppression en masse / Enable bulk delete */
+  allowBulkDelete?: boolean
 }
 
 export function CrudPage<T extends { id: number }>({
@@ -61,6 +64,7 @@ export function CrudPage<T extends { id: number }>({
   formExtra,
   formSize,
   resource,
+  allowBulkDelete,
 }: CrudPageProps<T>) {
   const { t } = useTranslation()
   const hasPermission = useAuthStore((s) => s.hasPermission)
@@ -132,6 +136,17 @@ export function CrudPage<T extends { id: number }>({
     }
   }, [deleteId, endpoint, refetch])
 
+  const handleBulkDelete = useCallback(async (ids: number[]) => {
+    if (ids.length === 0) return
+    setSaving(true)
+    try {
+      await api.delete(`${endpoint}/bulk`, { params: { ids }, paramsSerializer: { indexes: null } })
+      refetch()
+    } finally {
+      setSaving(false)
+    }
+  }, [endpoint, refetch])
+
   return (
     <div>
       {error && (
@@ -157,6 +172,7 @@ export function CrudPage<T extends { id: number }>({
         onDuplicate={allowDuplicate && canCreate ? handleDuplicate : undefined}
         onImport={importEntity && canCreate ? () => setImportOpen(true) : undefined}
         onExport={exportEntity ? (format) => downloadExport(exportEntity, format) : undefined}
+        onBulkDelete={allowBulkDelete && canDelete ? handleBulkDelete : undefined}
       />
 
       <FormDialog

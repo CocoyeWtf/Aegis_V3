@@ -122,6 +122,7 @@ export default function VolumeManagement() {
           base_origin_id: Number(d.base_origin_id),
         }
       }}
+      allowBulkDelete
       filterData={(data) => hideAssigned ? data.filter(v => !v.tour_id) : data}
       toolbarExtra={
         <label className="flex items-center gap-2 mb-3 text-sm cursor-pointer select-none" style={{ color: 'var(--text-secondary)' }}>

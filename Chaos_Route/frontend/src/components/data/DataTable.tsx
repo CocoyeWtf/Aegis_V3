@@ -30,6 +30,7 @@ interface DataTableProps<T extends { id: number }> {
   onImport?: () => void
   onExport?: (format: 'csv' | 'xlsx') => void
   onRowClick?: (row: T) => void
+  onBulkDelete?: (ids: number[]) => void
   activeRowId?: number | null
   title?: string
   searchable?: boolean
@@ -47,6 +48,7 @@ export function DataTable<T extends { id: number }>({
   onImport,
   onExport,
   onRowClick,
+  onBulkDelete,
   activeRowId,
   title,
   searchable = true,
@@ -66,6 +68,8 @@ export function DataTable<T extends { id: number }>({
   })
   const [showColMenu, setShowColMenu] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [bulkConfirm, setBulkConfirm] = useState(false)
   const colMenuRef = useRef<HTMLDivElement>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
   const pageSize = 20
@@ -235,6 +239,15 @@ export function DataTable<T extends { id: number }>({
           <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
             ({sorted.length})
           </span>
+          {onBulkDelete && selectedIds.size > 0 && (
+            <button
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-colors"
+              style={{ backgroundColor: 'var(--color-danger)' }}
+              onClick={() => setBulkConfirm(true)}
+            >
+              Supprimer ({selectedIds.size})
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {searchable && (
@@ -353,6 +366,23 @@ export function DataTable<T extends { id: number }>({
           <table className="text-sm" style={{ tableLayout: 'auto' }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                {onBulkDelete && (
+                  <th className="px-2 py-3 text-center" style={{ width: '40px' }}>
+                    <input
+                      type="checkbox"
+                      className="accent-orange-500"
+                      checked={paged.length > 0 && paged.every((r) => selectedIds.has(r.id))}
+                      onChange={(e) => {
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev)
+                          if (e.target.checked) { for (const r of paged) next.add(r.id) }
+                          else { for (const r of paged) next.delete(r.id) }
+                          return next
+                        })
+                      }}
+                    />
+                  </th>
+                )}
                 {visibleColumns.map((col) => (
                   <th
                     key={String(col.key)}
@@ -397,6 +427,7 @@ export function DataTable<T extends { id: number }>({
               {/* Rangée de filtres par colonne / Column filter row */}
               {hasColumnFilters && (
                 <tr style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                  {onBulkDelete && <th className="px-2 pb-2 pt-0" />}
                   {visibleColumns.map((col) => (
                     <th key={`filter-${String(col.key)}`} className="px-2 pb-2 pt-0">
                       {col.filterable ? (
@@ -439,13 +470,13 @@ export function DataTable<T extends { id: number }>({
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={visibleColumns.length + 1} className="px-4 py-8 text-center" style={{ color: 'var(--text-muted)' }}>
+                  <td colSpan={visibleColumns.length + (onBulkDelete ? 1 : 0) + 1} className="px-4 py-8 text-center" style={{ color: 'var(--text-muted)' }}>
                     {t('common.loading')}
                   </td>
                 </tr>
               ) : paged.length === 0 ? (
                 <tr>
-                  <td colSpan={visibleColumns.length + 1} className="px-4 py-8 text-center" style={{ color: 'var(--text-muted)' }}>
+                  <td colSpan={visibleColumns.length + (onBulkDelete ? 1 : 0) + 1} className="px-4 py-8 text-center" style={{ color: 'var(--text-muted)' }}>
                     {t('common.noData')}
                   </td>
                 </tr>
@@ -464,6 +495,23 @@ export function DataTable<T extends { id: number }>({
                       onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = isActive ? 'rgba(249,115,22,0.08)' : 'transparent' }}
                       onClick={() => onRowClick?.(row)}
                     >
+                      {onBulkDelete && (
+                        <td className="px-2 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            className="accent-orange-500"
+                            checked={selectedIds.has(row.id)}
+                            onChange={(e) => {
+                              setSelectedIds((prev) => {
+                                const next = new Set(prev)
+                                if (e.target.checked) next.add(row.id)
+                                else next.delete(row.id)
+                                return next
+                              })
+                            }}
+                          />
+                        </td>
+                      )}
                       {visibleColumns.map((col) => (
                         <td key={String(col.key)} className="px-4 py-2.5 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                           {col.render ? col.render(row) : getCellValue(row, String(col.key))}
@@ -549,6 +597,38 @@ export function DataTable<T extends { id: number }>({
           </div>
         )}
       </div>
+
+      {/* Dialogue confirmation suppression en masse / Bulk delete confirmation */}
+      {bulkConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="rounded-xl border p-6 shadow-xl max-w-sm w-full" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}>
+            <h3 className="text-lg font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Confirmer la suppression</h3>
+            <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
+              Supprimer <strong>{selectedIds.size}</strong> ligne{selectedIds.size > 1 ? 's' : ''} sélectionnée{selectedIds.size > 1 ? 's' : ''} ?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-4 py-2 rounded-lg text-sm font-medium"
+                style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
+                onClick={() => setBulkConfirm(false)}
+              >
+                Annuler
+              </button>
+              <button
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white"
+                style={{ backgroundColor: 'var(--color-danger)' }}
+                onClick={() => {
+                  onBulkDelete?.(Array.from(selectedIds))
+                  setSelectedIds(new Set())
+                  setBulkConfirm(false)
+                }}
+              >
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -138,6 +138,19 @@ async def split_volume(
     return [volume, new_vol]
 
 
+@router.delete("/bulk", status_code=204)
+async def bulk_delete_volumes(
+    ids: list[int] = Query(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("volumes", "delete")),
+):
+    """Suppression en masse de volumes / Bulk delete volumes by IDs."""
+    if not ids:
+        return
+    from sqlalchemy import delete as sa_delete
+    await db.execute(sa_delete(Volume).where(Volume.id.in_(ids), Volume.tour_id.is_(None)))
+
+
 @router.delete("/{volume_id}", status_code=204)
 async def delete_volume(
     volume_id: int,
