@@ -831,7 +831,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                     onClick={() => setHighlightedTourId(tour.id)}
                   >
                     {/* === Ligne 1 — Résumé compact / Line 1 — Compact summary === */}
-                    <div className="flex items-center gap-2 px-3 py-1.5">
+                    <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 px-3 py-1.5">
                       {/* Flèche expand */}
                       <button
                         className="text-xs shrink-0 w-4 text-center"
@@ -881,8 +881,8 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                         </span>
                       )}
 
-                      {/* PDVs inline (tronqué) */}
-                      <span className="text-[10px] truncate min-w-0" style={{ color: 'var(--text-muted)', maxWidth: '120px' }}>
+                      {/* PDVs inline */}
+                      <span className="text-[10px] min-w-0" style={{ color: 'var(--text-muted)' }}>
                         {pdvSummary(tour)}
                       </span>
 
