@@ -244,7 +244,7 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
   }
   .base { font-size: 9pt; }
   .pdv { font-size: 9pt; margin-top: 1mm; }
-  .qr-main { width: 18mm !important; height: 18mm !important; }
+  .qr-main { width: 18mm !important; height: 18mm !important; display: block; margin: 0 auto; }
   .code {
     font-size: 7pt;
     font-family: monospace;
@@ -271,8 +271,8 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
   .stub-top { height: 50mm; border-bottom: 0.3mm solid #999; }
   .stub-mid { height: 20mm; border-bottom: 0.3mm solid #999; }
   .stub-bot { height: 20mm; }
-  .qr-stub-lg { width: 14mm !important; height: 14mm !important; }
-  .qr-stub-sm { width: 8mm !important; height: 8mm !important; }
+  .qr-stub-lg { width: 14mm !important; height: 14mm !important; display: block; margin: 0 auto; }
+  .qr-stub-sm { width: 8mm !important; height: 8mm !important; display: block; margin: 0 auto; }
   .stub-num { font-size: 18pt; font-weight: 900; line-height: 1; }
   .stub-header { font-size: 6pt; font-weight: 700; text-transform: uppercase; text-align: center; }
   .stub-base { font-size: 5pt; }
