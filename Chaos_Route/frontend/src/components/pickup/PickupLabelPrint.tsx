@@ -3,8 +3,7 @@
    Conforme au modele etiquette jaune physique existant.
    Impression via iframe isole : pas d'interference CSS, scaling proportionnel auto. */
 
-import { useEffect, useRef, useCallback } from 'react'
-import JsBarcode from 'jsbarcode'
+import { useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import type { PickupLabel, PickupTypeEnum } from '../../types'
 
@@ -47,17 +46,10 @@ function BarcodeLabel({
   pdvName: string
   supportTypeName: string
   pickupType?: PickupTypeEnum
-  supportTypeImageUrl?: string | null
   total: number
 }) {
-  const svgMainRef = useRef<SVGSVGElement>(null)
   const header = PICKUP_LABEL_HEADERS[pickupType || 'CONTAINER'] || 'RETOUR CONTENANT'
   const bigNum = fmtPdvCode(pdvCode)
-
-  useEffect(() => {
-    const mainOpts = { format: 'CODE128' as const, width: 1.2, height: 30, displayValue: false, margin: 2 }
-    if (svgMainRef.current) JsBarcode(svgMainRef.current, label.label_code, mainOpts)
-  }, [label.label_code])
 
   return (
     <div style={{
@@ -94,9 +86,8 @@ function BarcodeLabel({
         <div style={{ fontSize: '9px', textAlign: 'center', marginTop: '2px' }}>
           <strong>{pdvCode}</strong> — {pdvName}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', margin: '2px 0' }}>
-          <svg ref={svgMainRef} style={{ maxWidth: '65%', height: 'auto' }} />
-          <QRCodeSVG value={label.label_code} size={48} level="M" />
+        <div style={{ textAlign: 'center', margin: '2px 0' }}>
+          <QRCodeSVG value={label.label_code} size={64} level="M" />
         </div>
         <div style={{ fontSize: '7px', fontFamily: 'monospace', textAlign: 'center', letterSpacing: '0.5px' }}>
           {label.label_code}
@@ -113,9 +104,9 @@ function BarcodeLabel({
         flexDirection: 'column',
       }}>
         {[
-          { flex: '0 0 55.5%', qrSize: 40 },
-          { flex: '0 0 22.2%', qrSize: 22 },
-          { flex: '0 0 22.2%', qrSize: 22 },
+          { flex: '0 0 55.5%', qrSize: 44 },
+          { flex: '0 0 22.2%', qrSize: 24 },
+          { flex: '0 0 22.2%', qrSize: 24 },
         ].map((band, i) => (
           <div key={i} style={{
             flex: band.flex,
@@ -161,10 +152,7 @@ function buildLabelHtml(
         <div class="header">${header}</div>
         <div class="base">SA Base de Villers-le-Bouillet</div>
         <div class="pdv"><strong>${pdvCode}</strong> &mdash; ${pdvName}</div>
-        <div class="barcode-row">
-          <svg id="bc-${seqNum}"></svg>
-          <canvas id="qr-${seqNum}" class="qr-main"></canvas>
-        </div>
+        <canvas id="qr-${seqNum}" class="qr-main"></canvas>
         <div class="code">${labelCode}</div>
         <div class="support">${supportTypeName} &mdash; ${seqNum}/${total}</div>
       </div>
@@ -195,7 +183,7 @@ function buildLabelHtml(
   `
 }
 
-export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pickupType, supportTypeImageUrl, onClose }: PickupLabelPrintProps) {
+export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pickupType, onClose }: PickupLabelPrintProps) {
 
   const handlePrint = useCallback(() => {
     const labelsHtml = labels.map((l) =>
@@ -256,9 +244,7 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
   }
   .base { font-size: 9pt; }
   .pdv { font-size: 9pt; margin-top: 1mm; }
-  .barcode-row { display: flex; align-items: center; justify-content: center; gap: 2mm; }
-  .left svg { max-width: 60mm; height: auto; }
-  .qr-main { width: 14mm !important; height: 14mm !important; }
+  .qr-main { width: 18mm !important; height: 18mm !important; }
   .code {
     font-size: 7pt;
     font-family: monospace;
@@ -285,8 +271,8 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
   .stub-top { height: 50mm; border-bottom: 0.3mm solid #999; }
   .stub-mid { height: 20mm; border-bottom: 0.3mm solid #999; }
   .stub-bot { height: 20mm; }
-  .qr-stub-lg { width: 12mm !important; height: 12mm !important; }
-  .qr-stub-sm { width: 7mm !important; height: 7mm !important; }
+  .qr-stub-lg { width: 14mm !important; height: 14mm !important; }
+  .qr-stub-sm { width: 8mm !important; height: 8mm !important; }
   .stub-num { font-size: 18pt; font-weight: 900; line-height: 1; }
   .stub-header { font-size: 6pt; font-weight: 700; text-transform: uppercase; text-align: center; }
   .stub-base { font-size: 5pt; }
@@ -298,27 +284,13 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
 </head>
 <body>
 ${labelsHtml}
-<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3/dist/JsBarcode.all.min.js"><\/script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1/build/qrcode.min.js"><\/script>
 <script>
-  // Barcodes CODE128 (zone principale uniquement)
-  document.querySelectorAll('svg[id^="bc-"]').forEach(function(svg) {
-    var code = svg.closest('.label').querySelector('.code').textContent.trim();
-    JsBarcode(svg, code, {
-      format: 'CODE128',
-      width: 1.8,
-      height: 35,
-      displayValue: false,
-      margin: 2,
-      lineColor: '#000',
-      background: '#fff'
-    });
-  });
-  // QR codes (zone principale + talons)
   document.querySelectorAll('canvas[id^="qr-"]').forEach(function(canvas) {
     var code = canvas.closest('.label').querySelector('.code').textContent.trim();
     var isStubSm = canvas.className.indexOf('stub-sm') !== -1;
-    var size = isStubSm ? 64 : 128;
+    var isMain = canvas.className.indexOf('qr-main') !== -1;
+    var size = isMain ? 180 : isStubSm ? 80 : 140;
     QRCode.toCanvas(canvas, code, { width: size, margin: 0, errorCorrectionLevel: isStubSm ? 'L' : 'M' });
   });
 <\/script>
@@ -379,7 +351,6 @@ ${labelsHtml}
             pdvName={pdvName}
             supportTypeName={supportTypeName}
             pickupType={pickupType}
-            supportTypeImageUrl={supportTypeImageUrl}
             total={labels.length}
           />
         ))}
