@@ -152,7 +152,7 @@ function buildLabelHtml(
         <div class="header">${header}</div>
         <div class="base">SA Base de Villers-le-Bouillet</div>
         <div class="pdv"><strong>${pdvCode}</strong> &mdash; ${pdvName}</div>
-        <canvas id="qr-${seqNum}" class="qr-main"></canvas>
+        <img id="qr-${seqNum}" class="qr-main" />
         <div class="code">${labelCode}</div>
         <div class="support">${supportTypeName} &mdash; ${seqNum}/${total}</div>
       </div>
@@ -162,21 +162,21 @@ function buildLabelHtml(
           <div class="stub-header">${header}</div>
           <div class="stub-base">SA Base de VLB</div>
           <div class="stub-info">${supportTypeName} — ${seqNum}/${total}</div>
-          <canvas id="qr-stub1-${seqNum}" class="qr-stub-lg"></canvas>
+          <img id="qr-stub1-${seqNum}" class="qr-stub-lg" />
         </div>
         <div class="stub stub-mid">
           <div class="stub-num-sm">${bigNum}</div>
           <div class="stub-header-sm">${header}</div>
           <div class="stub-info-sm">SA Base de VLB</div>
           <div class="stub-info-sm">${supportTypeName} — ${seqNum}/${total}</div>
-          <canvas id="qr-stub2-${seqNum}" class="qr-stub-sm"></canvas>
+          <img id="qr-stub2-${seqNum}" class="qr-stub-sm" />
         </div>
         <div class="stub stub-bot">
           <div class="stub-num-sm">${bigNum}</div>
           <div class="stub-header-sm">${header}</div>
           <div class="stub-info-sm">SA Base de VLB</div>
           <div class="stub-info-sm">${supportTypeName} — ${seqNum}/${total}</div>
-          <canvas id="qr-stub3-${seqNum}" class="qr-stub-sm"></canvas>
+          <img id="qr-stub3-${seqNum}" class="qr-stub-sm" />
         </div>
       </div>
     </div>
@@ -286,12 +286,13 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
 ${labelsHtml}
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1/build/qrcode.min.js"><\/script>
 <script>
-  document.querySelectorAll('canvas[id^="qr-"]').forEach(function(canvas) {
-    var code = canvas.closest('.label').querySelector('.code').textContent.trim();
-    var isStubSm = canvas.className.indexOf('stub-sm') !== -1;
-    var isMain = canvas.className.indexOf('qr-main') !== -1;
-    var size = isMain ? 180 : isStubSm ? 80 : 140;
-    QRCode.toCanvas(canvas, code, { width: size, margin: 0, errorCorrectionLevel: isStubSm ? 'L' : 'M' });
+  document.querySelectorAll('img[id^="qr-"]').forEach(function(img) {
+    var code = img.closest('.label').querySelector('.code').textContent.trim();
+    var isStubSm = img.className.indexOf('stub-sm') !== -1;
+    var size = isStubSm ? 80 : 180;
+    QRCode.toDataURL(code, { width: size, margin: 0, errorCorrectionLevel: isStubSm ? 'L' : 'M' }, function(err, url) {
+      if (!err) img.src = url;
+    });
   });
 <\/script>
 </body>
