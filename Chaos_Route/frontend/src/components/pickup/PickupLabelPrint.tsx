@@ -153,7 +153,7 @@ function buildLabelHtml(
         <div class="header">${header}</div>
         <div class="base">SA Base de Villers-le-Bouillet</div>
         <div class="pdv"><strong>${pdvCode}</strong> &mdash; ${pdvName}</div>
-        <img id="qr-${seqNum}" class="qr-main" />
+        <img id="qr-${seqNum}" data-qr style="width:18mm;height:18mm" />
         <div class="code">${labelCode}</div>
         <div class="support">${supportTypeName} &mdash; ${seqNum}/${total}</div>
       </div>
@@ -163,21 +163,21 @@ function buildLabelHtml(
           <div class="stub-header">${header}</div>
           <div class="stub-base">SA Base de VLB</div>
           <div class="stub-info">${supportTypeName} — ${seqNum}/${total}</div>
-          <img id="qr-stub1-${seqNum}" class="qr-stub-lg" />
+          <img id="qr-stub1-${seqNum}" data-qr style="width:14mm;height:14mm" />
         </div>
         <div class="stub stub-mid">
           <div class="stub-num-sm">${bigNum}</div>
           <div class="stub-header-sm">${header}</div>
           <div class="stub-info-sm">SA Base de VLB</div>
           <div class="stub-info-sm">${supportTypeName} — ${seqNum}/${total}</div>
-          <img id="qr-stub2-${seqNum}" class="qr-stub-sm" />
+          <img id="qr-stub2-${seqNum}" data-qr style="width:8mm;height:8mm" />
         </div>
         <div class="stub stub-bot">
           <div class="stub-num-sm">${bigNum}</div>
           <div class="stub-header-sm">${header}</div>
           <div class="stub-info-sm">SA Base de VLB</div>
           <div class="stub-info-sm">${supportTypeName} — ${seqNum}/${total}</div>
-          <img id="qr-stub3-${seqNum}" class="qr-stub-sm" />
+          <img id="qr-stub3-${seqNum}" data-qr style="width:8mm;height:8mm" />
         </div>
       </div>
     </div>
@@ -245,7 +245,6 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
   }
   .base { font-size: 9pt; }
   .pdv { font-size: 9pt; margin-top: 1mm; }
-  .qr-main { width: 18mm; height: 18mm; align-self: center; }
   .code {
     font-size: 7pt;
     font-family: monospace;
@@ -272,8 +271,6 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
   .stub-top { height: 50mm; border-bottom: 0.3mm solid #999; }
   .stub-mid { height: 20mm; border-bottom: 0.3mm solid #999; }
   .stub-bot { height: 20mm; }
-  .qr-stub-lg { width: 14mm; height: 14mm; }
-  .qr-stub-sm { width: 8mm; height: 8mm; }
   .stub-num { font-size: 18pt; font-weight: 900; line-height: 1; }
   .stub-header { font-size: 6pt; font-weight: 700; text-transform: uppercase; text-align: center; }
   .stub-base { font-size: 5pt; }
@@ -287,11 +284,9 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
 ${labelsHtml}
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1/build/qrcode.min.js"><\/script>
 <script>
-  document.querySelectorAll('img[id^="qr-"]').forEach(function(img) {
+  document.querySelectorAll('img[data-qr]').forEach(function(img) {
     var code = img.closest('.label').querySelector('.code').textContent.trim();
-    var isStubSm = img.className.indexOf('stub-sm') !== -1;
-    var size = isStubSm ? 80 : 180;
-    QRCode.toDataURL(code, { width: size, margin: 0, errorCorrectionLevel: isStubSm ? 'L' : 'M' }, function(err, url) {
+    QRCode.toDataURL(code, { width: 200, margin: 0, errorCorrectionLevel: 'M' }, function(err, url) {
       if (!err) img.src = url;
     });
   });
