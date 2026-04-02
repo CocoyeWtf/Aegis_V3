@@ -7,10 +7,10 @@ import { useAppStore } from '../../stores/useAppStore'
 import { TourGantt, type GanttTour } from './TourGantt'
 import { TourPrintPlan } from './TourPrintPlan'
 import { formatDuration, parseTime, formatTime, formatDate, DEFAULT_DOCK_TIME, DEFAULT_UNLOAD_PER_EQP } from '../../utils/tourTimeUtils'
-import { VEHICLE_TYPE_DEFAULTS, TEMPERATURE_TYPE_LABELS } from '../../types'
+import { VEHICLE_TYPE_DEFAULTS, TEMPERATURE_TYPE_LABELS, TEMPERATURE_COLORS } from '../../types'
 import api from '../../services/api'
 import { CostBreakdown } from './CostBreakdown'
-import type { Tour, BaseLogistics, Contract, DistanceEntry, PDV, VehicleType, TemperatureType, Volume, Vehicle, AssignmentMode, AvailableVehicle } from '../../types'
+import type { Tour, BaseLogistics, Contract, DistanceEntry, PDV, VehicleType, TemperatureType, TemperatureClass, Volume, Vehicle, AssignmentMode, AvailableVehicle } from '../../types'
 
 /* Filtres activité / Activity filter options */
 const ACTIVITY_FILTERS: { key: string; label: string }[] = [
@@ -587,6 +587,19 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
               <span className="font-bold shrink-0" style={{ color: 'var(--text-primary)' }}>
                 {stop.eqp_count} EQC
               </span>
+              {/* Température par stop (bi-temp / tri-temp) / Temperature per stop */}
+              {stopVolumes.length > 0 && (tour.temperature_type === 'BI_TEMP' || tour.temperature_type === 'TRI_TEMP') && (() => {
+                const temps = [...new Set(stopVolumes.map((v) => v.temperature_class))] as TemperatureClass[]
+                return temps.map((tc) => (
+                  <span
+                    key={tc}
+                    className="px-1 rounded text-[10px] font-bold shrink-0"
+                    style={{ backgroundColor: `${TEMPERATURE_COLORS[tc]}20`, color: TEMPERATURE_COLORS[tc] }}
+                  >
+                    {tc}
+                  </span>
+                ))
+              })()}
               {dispatchInfo && (
                 <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>
                   {t('tourPlanning.dispatchInfo')} {formatDate(dispatchInfo.dispatch_date)}{dispatchInfo.dispatch_time ? ` ${dispatchInfo.dispatch_time}` : ''}
