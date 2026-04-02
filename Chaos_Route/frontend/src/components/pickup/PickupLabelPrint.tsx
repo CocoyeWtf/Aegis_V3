@@ -84,9 +84,7 @@ function BarcodeLabel({
         <div style={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
           {header}
         </div>
-        <div style={{ fontSize: '9px' }}>
-          SA Base de Villers-le-Bouillet
-        </div>
+        <div style={{ fontSize: '9px' }}>&nbsp;</div>
         <div style={{ fontSize: '9px', marginTop: '2px' }}>
           <strong>{pdvCode}</strong> — {pdvName}
         </div>
@@ -123,7 +121,7 @@ function BarcodeLabel({
           }}>
             <div style={{ fontSize: i === 0 ? '16px' : '10px', fontWeight: 900, lineHeight: 1 }}>{bigNum}</div>
             <div style={{ fontSize: i === 0 ? '6px' : '5px', fontWeight: 700, textTransform: 'uppercase', textAlign: 'center' }}>{header}</div>
-            <div style={{ fontSize: i === 0 ? '5px' : '4px', textAlign: 'center' }}>SA Base de VLB</div>
+            <div style={{ fontSize: i === 0 ? '5px' : '4px', textAlign: 'center' }}>&nbsp;</div>
             <div style={{ fontSize: i === 0 ? '5px' : '4px', textAlign: 'center' }}>{supportTypeName} — {label.sequence_number}/{total}</div>
             <QRCodeSVG value={label.label_code} size={band.qrSize} level="L" />
           </div>
@@ -153,7 +151,7 @@ function buildLabelHtml(
       <div class="left">
         <div class="big-num">${bigNum}</div>
         <div class="header">${header}</div>
-        <div class="base">SA Base de Villers-le-Bouillet</div>
+        <div class="base">&nbsp;</div>
         <div class="pdv"><strong>${pdvCode}</strong> &mdash; ${pdvName}</div>
         <img src="${qrDataUrl}" style="width:18mm;height:18mm" />
         <div class="code">${labelCode}</div>
@@ -163,21 +161,21 @@ function buildLabelHtml(
         <div class="stub stub-top">
           <div class="stub-num">${bigNum}</div>
           <div class="stub-header">${header}</div>
-          <div class="stub-base">SA Base de VLB</div>
+          <div class="stub-base">&nbsp;</div>
           <div class="stub-info">${supportTypeName} — ${seqNum}/${total}</div>
           <img src="${qrDataUrl}" style="width:14mm;height:14mm" />
         </div>
         <div class="stub stub-mid">
           <div class="stub-num-sm">${bigNum}</div>
           <div class="stub-header-sm">${header}</div>
-          <div class="stub-info-sm">SA Base de VLB</div>
+          <div class="stub-info-sm">&nbsp;</div>
           <div class="stub-info-sm">${supportTypeName} — ${seqNum}/${total}</div>
           <img src="${qrDataUrl}" style="width:8mm;height:8mm" />
         </div>
         <div class="stub stub-bot">
           <div class="stub-num-sm">${bigNum}</div>
           <div class="stub-header-sm">${header}</div>
-          <div class="stub-info-sm">SA Base de VLB</div>
+          <div class="stub-info-sm">&nbsp;</div>
           <div class="stub-info-sm">${supportTypeName} — ${seqNum}/${total}</div>
           <img src="${qrDataUrl}" style="width:8mm;height:8mm" />
         </div>
