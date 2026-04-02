@@ -152,7 +152,7 @@ function buildLabelHtml(
         <div class="header">${header}</div>
         <div class="base">SA Base de Villers-le-Bouillet</div>
         <div class="pdv"><strong>${pdvCode}</strong> &mdash; ${pdvName}</div>
-        <img id="qr-${seqNum}" class="qr-main" />
+        <div style="width:100%;text-align:center"><img id="qr-${seqNum}" class="qr-main" /></div>
         <div class="code">${labelCode}</div>
         <div class="support">${supportTypeName} &mdash; ${seqNum}/${total}</div>
       </div>
