@@ -1,9 +1,11 @@
 /* Composant impression etiquettes reprises / Pickup label print component
    Format 150 x 90mm — layout 2 zones : gauche (100mm) + talon droit (50mm).
    Conforme au modele etiquette jaune physique existant.
-   Impression via iframe isole : pas d'interference CSS, scaling proportionnel auto. */
+   Impression via iframe isole : pas d'interference CSS, scaling proportionnel auto.
+   QR codes generes cote client (pas de CDN) pour centrage fiable et pas de race condition. */
 
-import { useCallback } from 'react'
+import { useCallback, useState, useEffect } from 'react'
+import QRCode from 'qrcode'
 import { QRCodeSVG } from 'qrcode.react'
 import type { PickupLabel, PickupTypeEnum } from '../../types'
 
@@ -71,29 +73,28 @@ function BarcodeLabel({
         padding: '6px 8px',
         display: 'flex',
         flexDirection: 'column',
+        alignItems: 'center',
         justifyContent: 'center',
         gap: '2px',
         borderRight: '2px dashed #666',
       }}>
-        <div style={{ fontSize: '32px', fontWeight: 900, lineHeight: 1, textAlign: 'center' }}>
+        <div style={{ fontSize: '32px', fontWeight: 900, lineHeight: 1 }}>
           {bigNum}
         </div>
-        <div style={{ fontWeight: 700, fontSize: '11px', textAlign: 'center', textTransform: 'uppercase' }}>
+        <div style={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase' }}>
           {header}
         </div>
-        <div style={{ fontSize: '9px', textAlign: 'center' }}>
+        <div style={{ fontSize: '9px' }}>
           SA Base de Villers-le-Bouillet
         </div>
-        <div style={{ fontSize: '9px', textAlign: 'center', marginTop: '2px' }}>
+        <div style={{ fontSize: '9px', marginTop: '2px' }}>
           <strong>{pdvCode}</strong> — {pdvName}
         </div>
-        <div style={{ textAlign: 'center', margin: '2px 0' }}>
-          <QRCodeSVG value={label.label_code} size={64} level="M" />
-        </div>
-        <div style={{ fontSize: '7px', fontFamily: 'monospace', textAlign: 'center', letterSpacing: '0.5px' }}>
+        <QRCodeSVG value={label.label_code} size={64} level="M" />
+        <div style={{ fontSize: '7px', fontFamily: 'monospace', letterSpacing: '0.5px' }}>
           {label.label_code}
         </div>
-        <div style={{ fontSize: '9px', textAlign: 'center' }}>
+        <div style={{ fontSize: '9px' }}>
           {supportTypeName} &mdash; {label.sequence_number}/{total}
         </div>
       </div>
@@ -142,6 +143,7 @@ function buildLabelHtml(
   pdvName: string,
   supportTypeName: string,
   pickupType: string,
+  qrDataUrl: string,
 ): string {
   const header = PICKUP_LABEL_HEADERS[pickupType] || 'RETOUR CONTENANT'
   const numPdv = parseInt(pdvCode, 10)
@@ -153,7 +155,7 @@ function buildLabelHtml(
         <div class="header">${header}</div>
         <div class="base">SA Base de Villers-le-Bouillet</div>
         <div class="pdv"><strong>${pdvCode}</strong> &mdash; ${pdvName}</div>
-        <img id="qr-${seqNum}" data-qr style="width:18mm;height:18mm" />
+        <img src="${qrDataUrl}" style="width:18mm;height:18mm" />
         <div class="code">${labelCode}</div>
         <div class="support">${supportTypeName} &mdash; ${seqNum}/${total}</div>
       </div>
@@ -163,21 +165,21 @@ function buildLabelHtml(
           <div class="stub-header">${header}</div>
           <div class="stub-base">SA Base de VLB</div>
           <div class="stub-info">${supportTypeName} — ${seqNum}/${total}</div>
-          <img id="qr-stub1-${seqNum}" data-qr style="width:14mm;height:14mm" />
+          <img src="${qrDataUrl}" style="width:14mm;height:14mm" />
         </div>
         <div class="stub stub-mid">
           <div class="stub-num-sm">${bigNum}</div>
           <div class="stub-header-sm">${header}</div>
           <div class="stub-info-sm">SA Base de VLB</div>
           <div class="stub-info-sm">${supportTypeName} — ${seqNum}/${total}</div>
-          <img id="qr-stub2-${seqNum}" data-qr style="width:8mm;height:8mm" />
+          <img src="${qrDataUrl}" style="width:8mm;height:8mm" />
         </div>
         <div class="stub stub-bot">
           <div class="stub-num-sm">${bigNum}</div>
           <div class="stub-header-sm">${header}</div>
           <div class="stub-info-sm">SA Base de VLB</div>
           <div class="stub-info-sm">${supportTypeName} — ${seqNum}/${total}</div>
-          <img id="qr-stub3-${seqNum}" data-qr style="width:8mm;height:8mm" />
+          <img src="${qrDataUrl}" style="width:8mm;height:8mm" />
         </div>
       </div>
     </div>
@@ -186,12 +188,29 @@ function buildLabelHtml(
 
 export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pickupType, onClose, onPrinted }: PickupLabelPrintProps) {
 
+  /* Pre-generer tous les QR codes en data URL / Pre-generate all QR codes as data URLs */
+  const [qrUrls, setQrUrls] = useState<Record<string, string>>({})
+  useEffect(() => {
+    const codes = [...new Set(labels.map((l) => l.label_code))]
+    Promise.all(
+      codes.map((code) =>
+        QRCode.toDataURL(code, { width: 200, margin: 0, errorCorrectionLevel: 'M' })
+          .then((url) => [code, url] as const)
+      )
+    ).then((pairs) => setQrUrls(Object.fromEntries(pairs)))
+  }, [labels])
+
+  const allQrReady = labels.every((l) => qrUrls[l.label_code])
+
   const handlePrint = useCallback(() => {
+    if (!allQrReady) return
+
     const labelsHtml = labels.map((l) =>
       buildLabelHtml(
         l.label_code, l.sequence_number, labels.length,
         pdvCode, pdvName, supportTypeName,
         pickupType || 'CONTAINER',
+        qrUrls[l.label_code],
       )
     ).join('')
 
@@ -220,7 +239,7 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
   }
   .label:last-child { page-break-after: auto; }
 
-  /* Zone gauche 100mm */
+  /* Zone gauche 100mm — pas de flex, centrage via text-align */
   .left {
     width: 100mm;
     height: 90mm;
@@ -231,6 +250,7 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
     justify-content: center;
     gap: 1.5mm;
     border-right: 0.5mm dashed #666;
+    text-align: center;
   }
   .big-num {
     font-size: 36pt;
@@ -267,30 +287,22 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
     justify-content: center;
     gap: 0.5mm;
     overflow: hidden;
+    text-align: center;
   }
   .stub-top { height: 50mm; border-bottom: 0.3mm solid #999; }
   .stub-mid { height: 20mm; border-bottom: 0.3mm solid #999; }
   .stub-bot { height: 20mm; }
   .stub-num { font-size: 18pt; font-weight: 900; line-height: 1; }
-  .stub-header { font-size: 6pt; font-weight: 700; text-transform: uppercase; text-align: center; }
+  .stub-header { font-size: 6pt; font-weight: 700; text-transform: uppercase; }
   .stub-base { font-size: 5pt; }
   .stub-info { font-size: 5pt; }
   .stub-num-sm { font-size: 10pt; font-weight: 900; line-height: 1; }
-  .stub-header-sm { font-size: 4.5pt; font-weight: 700; text-transform: uppercase; text-align: center; }
-  .stub-info-sm { font-size: 4pt; text-align: center; }
+  .stub-header-sm { font-size: 4.5pt; font-weight: 700; text-transform: uppercase; }
+  .stub-info-sm { font-size: 4pt; }
 </style>
 </head>
 <body>
 ${labelsHtml}
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1/build/qrcode.min.js"><\/script>
-<script>
-  document.querySelectorAll('img[data-qr]').forEach(function(img) {
-    var code = img.closest('.label').querySelector('.code').textContent.trim();
-    QRCode.toDataURL(code, { width: 200, margin: 0, errorCorrectionLevel: 'M' }, function(err, url) {
-      if (!err) img.src = url;
-    });
-  });
-<\/script>
 </body>
 </html>`
 
@@ -311,9 +323,9 @@ ${labelsHtml}
         iframe.contentWindow?.print()
         onPrinted?.()
         setTimeout(() => document.body.removeChild(iframe), 3000)
-      }, 400)
+      }, 200)
     }
-  }, [labels, pdvCode, pdvName, supportTypeName, pickupType, onPrinted])
+  }, [labels, pdvCode, pdvName, supportTypeName, pickupType, onPrinted, qrUrls, allQrReady])
 
   return (
     <div>
@@ -321,7 +333,8 @@ ${labelsHtml}
       <div className="no-print" style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
         <button
           onClick={handlePrint}
-          className="px-4 py-2 rounded-lg text-sm font-medium text-white"
+          disabled={!allQrReady}
+          className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
           style={{ backgroundColor: 'var(--color-primary)' }}
         >
           Imprimer
