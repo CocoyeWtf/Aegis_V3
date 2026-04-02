@@ -179,10 +179,12 @@ export default function PdvPickupRequests() {
 
   const handlePrint = useCallback(async (req: PickupRequest) => {
     const { data } = await api.get<PickupRequest>(`/pickup-requests/${req.id}`)
-    // Incrementer le compteur d'impression / Increment print counter
-    await api.post(`/pickup-requests/${req.id}/printed`)
-    refetch()
     setPrintRequest(data)
+  }, [])
+
+  const handlePrinted = useCallback(async (reqId: number) => {
+    await api.post(`/pickup-requests/${reqId}/printed`)
+    refetch()
   }, [refetch])
 
   const handleExportCsv = useCallback(async () => {
@@ -235,6 +237,7 @@ export default function PdvPickupRequests() {
               : null
           }
           onClose={() => setPrintRequest(null)}
+          onPrinted={() => handlePrinted(printRequest.id)}
         />
       </div>
     )

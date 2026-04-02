@@ -22,6 +22,7 @@ interface PickupLabelPrintProps {
   pickupType?: PickupTypeEnum
   supportTypeImageUrl?: string | null
   onClose: () => void
+  onPrinted?: () => void
 }
 
 /** Formater le code PDV en 5 chiffres si numerique, sinon tel quel / Format PDV code */
@@ -152,7 +153,7 @@ function buildLabelHtml(
         <div class="header">${header}</div>
         <div class="base">SA Base de Villers-le-Bouillet</div>
         <div class="pdv"><strong>${pdvCode}</strong> &mdash; ${pdvName}</div>
-        <div style="width:100%;text-align:center"><img id="qr-${seqNum}" class="qr-main" /></div>
+        <img id="qr-${seqNum}" class="qr-main" />
         <div class="code">${labelCode}</div>
         <div class="support">${supportTypeName} &mdash; ${seqNum}/${total}</div>
       </div>
@@ -183,7 +184,7 @@ function buildLabelHtml(
   `
 }
 
-export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pickupType, onClose }: PickupLabelPrintProps) {
+export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pickupType, onClose, onPrinted }: PickupLabelPrintProps) {
 
   const handlePrint = useCallback(() => {
     const labelsHtml = labels.map((l) =>
@@ -244,7 +245,7 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
   }
   .base { font-size: 9pt; }
   .pdv { font-size: 9pt; margin-top: 1mm; }
-  .qr-main { width: 18mm !important; height: 18mm !important; display: block; margin: 0 auto; }
+  .qr-main { width: 18mm; height: 18mm; align-self: center; }
   .code {
     font-size: 7pt;
     font-family: monospace;
@@ -271,8 +272,8 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
   .stub-top { height: 50mm; border-bottom: 0.3mm solid #999; }
   .stub-mid { height: 20mm; border-bottom: 0.3mm solid #999; }
   .stub-bot { height: 20mm; }
-  .qr-stub-lg { width: 14mm !important; height: 14mm !important; display: block; margin: 0 auto; }
-  .qr-stub-sm { width: 8mm !important; height: 8mm !important; display: block; margin: 0 auto; }
+  .qr-stub-lg { width: 14mm; height: 14mm; }
+  .qr-stub-sm { width: 8mm; height: 8mm; }
   .stub-num { font-size: 18pt; font-weight: 900; line-height: 1; }
   .stub-header { font-size: 6pt; font-weight: 700; text-transform: uppercase; text-align: center; }
   .stub-base { font-size: 5pt; }
@@ -313,10 +314,11 @@ ${labelsHtml}
       setTimeout(() => {
         iframe.contentWindow?.focus()
         iframe.contentWindow?.print()
+        onPrinted?.()
         setTimeout(() => document.body.removeChild(iframe), 3000)
       }, 400)
     }
-  }, [labels, pdvCode, pdvName, supportTypeName, pickupType])
+  }, [labels, pdvCode, pdvName, supportTypeName, pickupType, onPrinted])
 
   return (
     <div>
