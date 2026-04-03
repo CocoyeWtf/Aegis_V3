@@ -111,6 +111,37 @@ async def _check_base_support_allowed(
         )
 
 
+async def _check_base_combi_allowed(
+    device: MobileDevice,
+    db: AsyncSession,
+) -> None:
+    """Verifier si la base du device accepte les combis / Check if device base accepts combis.
+    Bloque si au moins un support type CO est explicitement bloque pour cette base.
+    """
+    if not device.base_id:
+        return
+
+    # Chercher les support types CO bloques pour cette base
+    result = await db.execute(
+        select(BaseSupportRule)
+        .join(SupportType, BaseSupportRule.support_type_id == SupportType.id)
+        .where(
+            BaseSupportRule.base_id == device.base_id,
+            SupportType.code.startswith("CO"),
+            BaseSupportRule.allowed == False,
+        )
+    )
+    blocked = result.first()
+
+    if blocked:
+        base = await db.get(BaseLogistics, device.base_id)
+        base_name = base.name if base else f"#{device.base_id}"
+        raise HTTPException(
+            status_code=403,
+            detail=f"Les combis ne sont pas repris sur la base '{base_name}'. Contactez votre responsable.",
+        )
+
+
 @router.get("/device-info")
 async def get_device_info(
     device: MobileDevice = Depends(get_authenticated_device),
@@ -1765,6 +1796,9 @@ async def scan_combi_at_pdv(
     Le chauffeur a prealablement scanne le code-barres PDV pour identifier le point de vente.
     """
     _check_device_feature(device, "pickups")
+
+    # Verifier si la base accepte les combis / Check if base accepts combis
+    await _check_base_combi_allowed(device, db)
 
     # Resoudre le PDV depuis le code scanne (essayer tel quel + zero-padded)
     pdv_code = data.pdv_code_scanned.strip()
