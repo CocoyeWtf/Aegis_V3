@@ -32,7 +32,7 @@ export default function DeviceManagement() {
   const [form, setForm] = useState({ friendly_name: '', imei: '', base_id: '' as string, profile: 'DRIVER' })
   const [qrDevice, setQrDevice] = useState<MobileDevice | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
-  const [editForm, setEditForm] = useState({ friendly_name: '', imei: '', base_id: '' as string, profile: 'DRIVER' })
+  const [editForm, setEditForm] = useState({ friendly_name: '', imei: '', base_id: '' as string, profile: 'DRIVER', control_mode: '' as string })
   const [serverUrl, setServerUrl] = useState(() => getServerBaseUrl())
   const [confirmAction, setConfirmAction] = useState<{ type: ConfirmActionType; deviceId: number; deviceName: string } | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
@@ -79,6 +79,7 @@ export default function DeviceManagement() {
         imei: editForm.imei || null,
         base_id: editForm.base_id ? Number(editForm.base_id) : null,
         profile: editForm.profile,
+        control_mode: editForm.control_mode === '' ? null : editForm.control_mode === 'true',
       })
       setEditingId(null)
       loadDevices()
@@ -156,6 +157,7 @@ export default function DeviceManagement() {
       imei: d.imei || '',
       base_id: d.base_id ? String(d.base_id) : '',
       profile: d.profile || 'DRIVER',
+      control_mode: d.control_mode === true ? 'true' : d.control_mode === false ? 'false' : '',
     })
   }
 
@@ -330,6 +332,7 @@ export default function DeviceManagement() {
                 <th className="px-3 py-2 text-left font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Identifiant</th>
                 <th className="px-3 py-2 text-left font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Base</th>
                 <th className="px-3 py-2 text-left font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Profil</th>
+                <th className="px-3 py-2 text-center font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Controle</th>
                 <th className="px-3 py-2 text-center font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Actif</th>
                 <th className="px-3 py-2 text-center font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Actions</th>
               </tr>
@@ -379,6 +382,15 @@ export default function DeviceManagement() {
                           {DEVICE_PROFILES.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
                         </select>
                       </td>
+                      <td className="px-3 py-2 text-center whitespace-nowrap">
+                        <select value={editForm.control_mode} onChange={(e) => setEditForm({ ...editForm, control_mode: e.target.value })}
+                          className="px-2 py-1 rounded border text-xs"
+                          style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+                          <option value="">Herite</option>
+                          <option value="true">Actif</option>
+                          <option value="false">Inactif</option>
+                        </select>
+                      </td>
                       <td className="px-3 py-2 text-center whitespace-nowrap">{d.is_active ? '✓' : '✗'}</td>
                       <td className="px-3 py-2 text-center whitespace-nowrap">
                         <button onClick={() => handleUpdate(d.id)} className="text-xs font-semibold mr-2" style={{ color: 'var(--color-primary)' }}>OK</button>
@@ -398,6 +410,15 @@ export default function DeviceManagement() {
                       <td className="px-3 py-2 font-mono text-xs whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{d.device_identifier || '—'}</td>
                       <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{baseName(d.base_id)}</td>
                       <td className="px-3 py-2 text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>{profileLabel(d.profile)}</td>
+                      <td className="px-3 py-2 text-center whitespace-nowrap">
+                        {d.control_mode === true ? (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#f59e0b22', color: '#f59e0b' }}>Actif</span>
+                        ) : d.control_mode === false ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>Inactif</span>
+                        ) : (
+                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>—</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2 text-center whitespace-nowrap" style={{ color: d.is_active ? '#22c55e' : 'var(--color-danger)' }}>
                         {d.is_active ? '✓' : '✗'}
                       </td>

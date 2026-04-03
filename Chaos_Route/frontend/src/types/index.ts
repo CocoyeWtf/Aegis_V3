@@ -456,6 +456,7 @@ export interface MobileDevice {
   last_seen_at?: string | null
   profile?: string | null
   allowed_features?: string | null
+  control_mode?: boolean | null
 }
 
 export interface DeviceAssignment {
