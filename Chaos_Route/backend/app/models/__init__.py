@@ -59,6 +59,7 @@ from app.models.beer_consignment import BeerConsignmentTx, BeerConsignmentBalanc
 from app.models.container_anomaly import ContainerAnomaly, AnomalyPhoto, AnomalyComment, AnomalyStatus, AnomalyCategory, AnomalySeverity
 from app.models.bottle_sorting import BottleBrand, SortingSession, SortingLine, SortingStatus, BottleFormat, SortingRule
 from app.models.combi_scan import CombiScan, ScanContext
+from app.models.control_evidence import ControlEvidence, ControlContext
 
 __all__ = [
     "Country",
@@ -161,4 +162,6 @@ __all__ = [
     "SortingRule",
     "CombiScan",
     "ScanContext",
+    "ControlEvidence",
+    "ControlContext",
 ]

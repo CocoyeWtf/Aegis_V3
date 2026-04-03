@@ -4,9 +4,11 @@ Auth par appareil (X-Device-ID header) — pas de JWT pour le chauffeur.
 """
 
 import os
+import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 
 from app.config import settings
 from app.rate_limit import limiter
@@ -30,6 +32,8 @@ from app.models.base_logistics import BaseLogistics
 from app.models.contract import Contract
 from app.models.pickup_request import PickupLabel, PickupRequest, PickupMovement, LabelStatus, PickupType, MovementType
 from app.models.combi_scan import CombiScan, ScanContext
+from app.models.control_evidence import ControlEvidence, ControlContext
+from app.models.parameter import Parameter
 from app.models.temperature_check import TemperatureCheck, TempCheckpoint
 from app.schemas.mobile import (
     AvailableTourRead,
@@ -76,11 +80,14 @@ async def get_device_info(
         base_name = base.name if base else None
     allowed = (device.allowed_features or ",".join(ALL_DEVICE_FEATURES)).split(",")
 
+    control_mode = await _resolve_control_mode(device, db)
+
     return {
         "friendly_name": device.friendly_name,
         "base_name": base_name,
         "registration_code": device.registration_code,
         "allowed_features": allowed,
+        "control_mode": control_mode,
     }
 
 
@@ -1905,3 +1912,125 @@ async def validate_pdv_code(
     if not pdv:
         raise HTTPException(status_code=404, detail=f"PDV inconnu: {pdv_code}")
     return {"id": pdv.id, "code": pdv.code, "name": pdv.name, "city": pdv.city}
+
+
+# ── Control mode ──────────────────────────────────────────────────────────────
+
+CONTROL_PHOTOS_DIR = Path("data/photos/control")
+MAX_CONTROL_PHOTO_SIZE = 5 * 1024 * 1024  # 5 MB
+
+
+async def _resolve_control_mode(device: MobileDevice, db: AsyncSession) -> bool:
+    """Resoudre le mode controle pour un appareil / Resolve control mode for a device.
+    Priorite : per-device override > parametre regional > parametre global > false.
+    """
+    # 1. Override explicite par appareil
+    if device.control_mode is not None:
+        return device.control_mode
+
+    # 2. Parametre regional (si appareil rattache a une base avec region)
+    if device.base_id:
+        base = await db.get(BaseLogistics, device.base_id)
+        if base and base.region_id:
+            result = await db.execute(
+                select(Parameter).where(
+                    Parameter.key == "control_mode_enabled",
+                    Parameter.region_id == base.region_id,
+                )
+            )
+            param = result.scalar_one_or_none()
+            if param:
+                return param.value.lower() == "true"
+
+    # 3. Parametre global
+    result = await db.execute(
+        select(Parameter).where(
+            Parameter.key == "control_mode_enabled",
+            Parameter.region_id.is_(None),
+        )
+    )
+    param = result.scalar_one_or_none()
+    if param:
+        return param.value.lower() == "true"
+
+    return False
+
+
+@router.post("/control-evidence", status_code=201)
+async def upload_control_evidence(
+    file: UploadFile = File(...),
+    control_context: str = Form(...),
+    pdv_code_scanned: str | None = Form(None),
+    label_code: str | None = Form(None),
+    combi_barcode: str | None = Form(None),
+    latitude: float | None = Form(None),
+    longitude: float | None = Form(None),
+    accuracy: float | None = Form(None),
+    timestamp: str = Form(...),
+    device: MobileDevice = Depends(get_authenticated_device),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload preuve photographique de controle / Upload control photographic evidence."""
+    # Valider le contexte
+    try:
+        ctx = ControlContext(control_context)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Contexte invalide: {control_context}")
+
+    # Lire et valider la photo
+    content = await file.read()
+    if len(content) > MAX_CONTROL_PHOTO_SIZE:
+        raise HTTPException(status_code=400, detail="Photo trop volumineuse (max 5 MB)")
+
+    mime = file.content_type or "image/jpeg"
+    if not mime.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Seules les images sont acceptees")
+
+    # Resoudre le PDV si code fourni
+    pdv_id: int | None = None
+    if pdv_code_scanned:
+        result = await db.execute(select(PDV).where(PDV.code == pdv_code_scanned))
+        pdv = result.scalar_one_or_none()
+        if not pdv:
+            result = await db.execute(select(PDV).where(PDV.code == pdv_code_scanned.zfill(5)))
+            pdv = result.scalar_one_or_none()
+        if pdv:
+            pdv_id = pdv.id
+
+    # Sauvegarder la photo
+    now = datetime.now(timezone.utc)
+    scan_date = timestamp[:10] if len(timestamp) >= 10 else now.strftime("%Y-%m-%d")
+    ext = mime.split("/")[-1].replace("jpeg", "jpg")
+    unique_name = f"{uuid.uuid4().hex[:12]}.{ext}"
+    photo_dir = CONTROL_PHOTOS_DIR / scan_date / str(device.id)
+    photo_dir.mkdir(parents=True, exist_ok=True)
+    file_path = photo_dir / unique_name
+    file_path.write_bytes(content)
+
+    evidence = ControlEvidence(
+        control_context=ctx,
+        device_id=device.id,
+        pdv_id=pdv_id,
+        pdv_code_scanned=pdv_code_scanned,
+        label_code=label_code,
+        combi_barcode=combi_barcode,
+        latitude=latitude,
+        longitude=longitude,
+        accuracy=accuracy,
+        photo_filename=file.filename or unique_name,
+        photo_path=str(file_path),
+        photo_size=len(content),
+        photo_mime=mime,
+        timestamp=timestamp,
+        scan_date=scan_date,
+        uploaded_at=now.isoformat(timespec="seconds"),
+    )
+    db.add(evidence)
+    await db.flush()
+
+    return {
+        "id": evidence.id,
+        "control_context": evidence.control_context.value,
+        "scan_date": evidence.scan_date,
+        "photo_filename": evidence.photo_filename,
+    }

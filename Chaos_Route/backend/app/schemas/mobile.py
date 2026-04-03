@@ -26,6 +26,7 @@ class MobileDeviceUpdate(BaseModel):
     base_id: int | None = None
     is_active: bool | None = None
     profile: str | None = None  # DRIVER, BASE_RECEPTION, INVENTORY
+    control_mode: bool | None = None  # null = herite du parametre global/regional
 
 class MobileDeviceRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -42,6 +43,7 @@ class MobileDeviceRead(BaseModel):
     last_seen_at: str | None = None
     profile: str | None = "DRIVER"
     allowed_features: str | None = None
+    control_mode: bool | None = None
 
 class DeviceRegistration(BaseModel):
     """Enregistrement mobile via QR / Mobile registration via QR code."""

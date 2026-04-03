@@ -31,6 +31,7 @@ class MobileDevice(Base):
     last_seen_at: Mapped[str | None] = mapped_column(String(32))  # ISO 8601
     profile: Mapped[str | None] = mapped_column(String(30), default="DRIVER")  # DRIVER, BASE_RECEPTION, INVENTORY
     allowed_features: Mapped[str | None] = mapped_column(String(500), default="tours,pickups,declarations")  # CSV auto-derive du profil
+    control_mode: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=None)  # null = herite du parametre global/regional
 
     # Relations
     base: Mapped["BaseLogistics | None"] = relationship()

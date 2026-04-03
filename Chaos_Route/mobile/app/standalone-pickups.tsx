@@ -12,6 +12,8 @@ import { useRouter } from 'expo-router'
 import api from '../services/api'
 import { COLORS } from '../constants/config'
 import { TorchToggleButton } from '../components/TorchToggleButton'
+import { ControlPhotoCapture } from '../components/ControlPhotoCapture'
+import { useDeviceStore } from '../stores/useDeviceStore'
 import type { StandalonePickupScan } from '../types'
 
 export default function StandalonePickupsScreen() {
@@ -24,6 +26,8 @@ export default function StandalonePickupsScreen() {
   const [torchOn, setTorchOn] = useState(false)
   const lastScanRef = useRef<string>('')
   const lastScanTimeRef = useRef(0)
+  const controlMode = useDeviceStore((s) => s.controlMode)
+  const [pendingLabel, setPendingLabel] = useState<string | null>(null)
 
   /* Charger les scans du jour au montage / Load today's scans on mount */
   useEffect(() => {
@@ -49,19 +53,49 @@ export default function StandalonePickupsScreen() {
     setLastScanned(data)
     setTimeout(() => setLastScanned(''), 2000)
 
-    // Envoyer au serveur / Send to server
-    api.post<StandalonePickupScan>(`/driver/standalone-pickup/${encodeURIComponent(data)}`)
+    // Mode controle : photo obligatoire avant soumission
+    if (controlMode) {
+      setPendingLabel(data)
+      return
+    }
+
+    _submitLabel(data)
+  }, [controlMode])
+
+  const _submitLabel = useCallback((labelCode: string, photoUri?: string) => {
+    api.post<StandalonePickupScan>(`/driver/standalone-pickup/${encodeURIComponent(labelCode)}`)
       .then(({ data: scan }) => {
         setScans((prev) => {
-          // Anti-doublon dans la liste
           if (prev.find((s) => s.label_code === scan.label_code)) return prev
           return [scan, ...prev]
         })
+        // Upload evidence si photo
+        if (photoUri) {
+          const formData = new FormData()
+          formData.append('file', { uri: photoUri, type: 'image/jpeg', name: 'control.jpg' } as any)
+          formData.append('control_context', 'PICKUP')
+          formData.append('timestamp', new Date().toISOString())
+          formData.append('label_code', labelCode)
+          api.post('/driver/control-evidence', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          }).catch(() => {})
+        }
       })
       .catch((err) => {
         const detail = err?.response?.data?.detail || 'Erreur scan'
         Alert.alert('Erreur', detail)
       })
+  }, [])
+
+  const handleControlPhoto = useCallback((photoUri: string) => {
+    if (!pendingLabel) return
+    const label = pendingLabel
+    setPendingLabel(null)
+    _submitLabel(label, photoUri)
+  }, [pendingLabel, _submitLabel])
+
+  const handleControlCancel = useCallback(() => {
+    setPendingLabel(null)
   }, [])
 
   /* Permission camera / Camera permission */
@@ -83,6 +117,16 @@ export default function StandalonePickupsScreen() {
           <Text style={styles.linkText}>Retour</Text>
         </TouchableOpacity>
       </SafeAreaView>
+    )
+  }
+
+  if (pendingLabel) {
+    return (
+      <ControlPhotoCapture
+        instruction={`Photographiez la reprise ${pendingLabel}`}
+        onCapture={handleControlPhoto}
+        onCancel={handleControlCancel}
+      />
     )
   }
 

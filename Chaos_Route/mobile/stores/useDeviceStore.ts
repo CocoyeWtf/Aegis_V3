@@ -11,6 +11,7 @@ interface DeviceState {
   friendlyName: string | null    // Nom de l'appareil (depuis le serveur)
   baseName: string | null        // Nom de la base logistique
   allowedFeatures: string[]      // Fonctionnalites autorisees / Allowed features
+  controlMode: boolean           // Mode controle actif (photo obligatoire) / Control mode active
   isRegistered: boolean
   isLoading: boolean
   hasFeature: (feature: string) => boolean
@@ -28,6 +29,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
   friendlyName: null,
   baseName: null,
   allowedFeatures: ALL_FEATURES,
+  controlMode: false,
   isRegistered: false,
   isLoading: true,
 
@@ -43,9 +45,12 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       const baseName = await SecureStore.getItemAsync('base_name')
       // Charger les features depuis le cache local avant le fetch / Load cached features before fetch
       let allowedFeatures = ALL_FEATURES
+      let controlMode = false
       try {
         const cached = await SecureStore.getItemAsync('allowed_features')
         if (cached) allowedFeatures = JSON.parse(cached)
+        const cachedCtrl = await SecureStore.getItemAsync('control_mode')
+        if (cachedCtrl) controlMode = cachedCtrl === 'true'
       } catch { /* ignore */ }
       const isRegistered = !!deviceId && !!registrationCode
       set({
@@ -54,6 +59,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
         friendlyName,
         baseName,
         allowedFeatures,
+        controlMode,
         isRegistered,
         isLoading: false,
       })
@@ -78,13 +84,15 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       const friendlyName = data.friendly_name || null
       const baseName = data.base_name || null
       const allowedFeatures: string[] = Array.isArray(data.allowed_features) ? data.allowed_features : ALL_FEATURES
+      const controlMode: boolean = !!data.control_mode
       // Persister localement / Persist locally
       if (friendlyName) await SecureStore.setItemAsync('friendly_name', friendlyName)
       else await SecureStore.deleteItemAsync('friendly_name')
       if (baseName) await SecureStore.setItemAsync('base_name', baseName)
       else await SecureStore.deleteItemAsync('base_name')
       await SecureStore.setItemAsync('allowed_features', JSON.stringify(allowedFeatures))
-      set({ friendlyName, baseName, allowedFeatures })
+      await SecureStore.setItemAsync('control_mode', String(controlMode))
+      set({ friendlyName, baseName, allowedFeatures, controlMode })
     } catch {
       // Charger depuis le cache local / Load from local cache
       try {
@@ -100,7 +108,8 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
     await SecureStore.deleteItemAsync('friendly_name')
     await SecureStore.deleteItemAsync('base_name')
     await SecureStore.deleteItemAsync('allowed_features')
-    set({ deviceId: null, registrationCode: null, friendlyName: null, baseName: null, allowedFeatures: ALL_FEATURES, isRegistered: false })
+    await SecureStore.deleteItemAsync('control_mode')
+    set({ deviceId: null, registrationCode: null, friendlyName: null, baseName: null, allowedFeatures: ALL_FEATURES, controlMode: false, isRegistered: false })
   },
 }))
 

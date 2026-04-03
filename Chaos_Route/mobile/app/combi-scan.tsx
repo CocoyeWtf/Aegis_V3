@@ -17,6 +17,8 @@ import { useRouter } from 'expo-router'
 import api from '../services/api'
 import { COLORS } from '../constants/config'
 import { TorchToggleButton } from '../components/TorchToggleButton'
+import { ControlPhotoCapture } from '../components/ControlPhotoCapture'
+import { useDeviceStore } from '../stores/useDeviceStore'
 
 /* Types de scan / Scan types */
 type ScanType = 'PDV' | 'COMBI' | 'LABEL'
@@ -82,6 +84,13 @@ export default function CombiScanScreen() {
   const [torchOn, setTorchOn] = useState(false)
   const lastScanRef = useRef<string>('')
   const lastScanTimeRef = useRef(0)
+  const controlMode = useDeviceStore((s) => s.controlMode)
+  const [pendingScan, setPendingScan] = useState<{
+    type: 'COMBI' | 'LABEL'
+    data: string
+    geo: { latitude: number; longitude: number; accuracy: number } | null
+    ts: string
+  } | null>(null)
 
   /* Charger les scans combis du jour / Load today's combi scans */
   useEffect(() => {
@@ -143,12 +152,29 @@ export default function CombiScanScreen() {
     const geo = await getGeoLoc()
     const ts = new Date().toISOString()
 
+    // Mode controle : capturer photo avant de soumettre / Control mode: capture photo before submitting
+    if (controlMode && (type === 'COMBI' || type === 'LABEL')) {
+      setPendingScan({ type, data, geo, ts })
+      return
+    }
+
+    await _submitScan(type, data, geo, ts)
+    setTimeout(() => setLastScanned(''), 2000)
+  }, [activePdv, controlMode])
+
+  /** Soumettre le scan au serveur (combi ou label) / Submit scan to server */
+  const _submitScan = useCallback(async (
+    type: 'COMBI' | 'LABEL',
+    data: string,
+    geo: { latitude: number; longitude: number; accuracy: number } | null,
+    ts: string,
+    photoUri?: string,
+  ) => {
     if (type === 'COMBI') {
-      // Scan combi → POST /driver/combi-scan/
       try {
         const { data: scan } = await api.post('/driver/combi-scan/', {
           barcode: data,
-          pdv_code_scanned: activePdv.code,
+          pdv_code_scanned: activePdv!.code,
           timestamp: ts,
           latitude: geo?.latitude ?? null,
           longitude: geo?.longitude ?? null,
@@ -160,18 +186,21 @@ export default function CombiScanScreen() {
             id: `combi-${scan.id}`,
             type: 'COMBI',
             barcode: scan.barcode,
-            pdvCode: activePdv.code,
-            pdvName: activePdv.name,
+            pdvCode: activePdv!.code,
+            pdvName: activePdv!.name,
             timestamp: ts,
             status: 'OK',
           }, ...prev]
         })
         setLastScanned(`COMBI ${data}`)
+        // Upload evidence si photo fournie / Upload evidence if photo provided
+        if (photoUri) {
+          await _uploadEvidence('COMBI_SCAN', photoUri, geo, ts, { combi_barcode: data })
+        }
       } catch (err: any) {
         Alert.alert('Erreur', err?.response?.data?.detail || 'Erreur scan combi')
       }
     } else if (type === 'LABEL') {
-      // Scan etiquette reprise → POST /driver/standalone-pickup/{code}
       try {
         const { data: scan } = await api.post(`/driver/standalone-pickup/${encodeURIComponent(data)}`)
         setScans((prev) => {
@@ -188,12 +217,57 @@ export default function CombiScanScreen() {
           }, ...prev]
         })
         setLastScanned(`REPRISE ${data}`)
+        if (photoUri) {
+          await _uploadEvidence('PICKUP', photoUri, geo, ts, { label_code: data })
+        }
       } catch (err: any) {
         Alert.alert('Erreur', err?.response?.data?.detail || 'Erreur scan etiquette')
       }
     }
     setTimeout(() => setLastScanned(''), 2000)
   }, [activePdv])
+
+  /** Upload preuve photographique / Upload photographic evidence */
+  const _uploadEvidence = useCallback(async (
+    context: string,
+    photoUri: string,
+    geo: { latitude: number; longitude: number; accuracy: number } | null,
+    ts: string,
+    extra: { label_code?: string; combi_barcode?: string },
+  ) => {
+    try {
+      const formData = new FormData()
+      formData.append('file', { uri: photoUri, type: 'image/jpeg', name: 'control.jpg' } as any)
+      formData.append('control_context', context)
+      formData.append('timestamp', ts)
+      if (activePdv) formData.append('pdv_code_scanned', activePdv.code)
+      if (geo) {
+        formData.append('latitude', String(geo.latitude))
+        formData.append('longitude', String(geo.longitude))
+        formData.append('accuracy', String(geo.accuracy))
+      }
+      if (extra.label_code) formData.append('label_code', extra.label_code)
+      if (extra.combi_barcode) formData.append('combi_barcode', extra.combi_barcode)
+      await api.post('/driver/control-evidence', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+    } catch {
+      // Evidence upload silencieux — le scan a deja ete soumis / Silent — scan already submitted
+    }
+  }, [activePdv])
+
+  /** Callback photo controle capturee / Control photo captured callback */
+  const handleControlPhoto = useCallback(async (photoUri: string) => {
+    if (!pendingScan) return
+    const { type, data, geo, ts } = pendingScan
+    setPendingScan(null)
+    await _submitScan(type, data, geo, ts, photoUri)
+  }, [pendingScan, _submitScan])
+
+  /** Annulation photo controle / Cancel control photo */
+  const handleControlCancel = useCallback(() => {
+    setPendingScan(null)
+  }, [])
 
   /* Changer de PDV / Switch PDV */
   const handleChangePdv = () => {
@@ -221,6 +295,21 @@ export default function CombiScanScreen() {
 
   const combiCount = scans.filter((s) => s.type === 'COMBI').length
   const labelCount = scans.filter((s) => s.type === 'LABEL').length
+
+  // Modal photo controle / Control photo modal
+  if (pendingScan) {
+    return (
+      <ControlPhotoCapture
+        instruction={
+          pendingScan.type === 'COMBI'
+            ? `Photographiez le combi ${pendingScan.data}`
+            : `Photographiez la reprise ${pendingScan.data}`
+        }
+        onCapture={handleControlPhoto}
+        onCancel={handleControlCancel}
+      />
+    )
+  }
 
   return (
     <SafeAreaView style={styles.container}>

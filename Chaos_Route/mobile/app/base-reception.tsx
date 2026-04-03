@@ -12,6 +12,8 @@ import { useRouter } from 'expo-router'
 import api from '../services/api'
 import { COLORS } from '../constants/config'
 import { TorchToggleButton } from '../components/TorchToggleButton'
+import { ControlPhotoCapture } from '../components/ControlPhotoCapture'
+import { useDeviceStore } from '../stores/useDeviceStore'
 import type { BaseReceiveScan } from '../types'
 
 export default function BaseReceptionScreen() {
@@ -24,6 +26,8 @@ export default function BaseReceptionScreen() {
   const [torchOn, setTorchOn] = useState(false)
   const lastScanRef = useRef<string>('')
   const lastScanTimeRef = useRef(0)
+  const controlMode = useDeviceStore((s) => s.controlMode)
+  const [pendingReception, setPendingReception] = useState<{ data: string; isCombi: boolean } | null>(null)
 
   /* Charger les receptions du jour au montage / Load today's receives on mount */
   useEffect(() => {
@@ -60,34 +64,71 @@ export default function BaseReceptionScreen() {
     setLastScanned(data)
     setTimeout(() => setLastScanned(''), 2000)
 
+    // Mode controle : photo obligatoire
+    if (controlMode) {
+      setPendingReception({ data, isCombi })
+      return
+    }
+
+    _submitReception(data, isCombi)
+  }, [controlMode])
+
+  const _submitReception = useCallback((scanData: string, isCombi: boolean, photoUri?: string) => {
     if (isCombi) {
-      // Reception combi / Combi reception
       const ts = new Date().toISOString()
-      api.post('/driver/combi-receive/', { barcode: data.toUpperCase(), timestamp: ts })
+      api.post('/driver/combi-receive/', { barcode: scanData.toUpperCase(), timestamp: ts })
         .then(({ data: scan }) => {
           setCombiReceives((prev) => {
             if (prev.find((s) => s.barcode === scan.barcode)) return prev
             return [{ id: scan.id, barcode: scan.barcode, pdv_name: scan.pdv_name }, ...prev]
           })
+          if (photoUri) {
+            const formData = new FormData()
+            formData.append('file', { uri: photoUri, type: 'image/jpeg', name: 'control.jpg' } as any)
+            formData.append('control_context', 'RECEPTION')
+            formData.append('timestamp', ts)
+            formData.append('combi_barcode', scanData.toUpperCase())
+            api.post('/driver/control-evidence', formData, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            }).catch(() => {})
+          }
         })
         .catch((err) => {
-          const detail = err?.response?.data?.detail || 'Erreur reception combi'
-          Alert.alert('Erreur', detail)
+          Alert.alert('Erreur', err?.response?.data?.detail || 'Erreur reception combi')
         })
     } else {
-      // Reception etiquette / Label reception
-      api.post<BaseReceiveScan>(`/driver/base-receive/${encodeURIComponent(data)}`)
+      api.post<BaseReceiveScan>(`/driver/base-receive/${encodeURIComponent(scanData)}`)
         .then(({ data: scan }) => {
           setScans((prev) => {
             if (prev.find((s) => s.label_code === scan.label_code)) return prev
             return [scan, ...prev]
           })
+          if (photoUri) {
+            const formData = new FormData()
+            formData.append('file', { uri: photoUri, type: 'image/jpeg', name: 'control.jpg' } as any)
+            formData.append('control_context', 'RECEPTION')
+            formData.append('timestamp', new Date().toISOString())
+            formData.append('label_code', scanData)
+            api.post('/driver/control-evidence', formData, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            }).catch(() => {})
+          }
         })
         .catch((err) => {
-          const detail = err?.response?.data?.detail || 'Erreur scan'
-          Alert.alert('Erreur', detail)
+          Alert.alert('Erreur', err?.response?.data?.detail || 'Erreur scan')
         })
     }
+  }, [])
+
+  const handleControlPhoto = useCallback((photoUri: string) => {
+    if (!pendingReception) return
+    const { data, isCombi } = pendingReception
+    setPendingReception(null)
+    _submitReception(data, isCombi, photoUri)
+  }, [pendingReception, _submitReception])
+
+  const handleControlCancel = useCallback(() => {
+    setPendingReception(null)
   }, [])
 
   /* Permission camera / Camera permission */
@@ -109,6 +150,20 @@ export default function BaseReceptionScreen() {
           <Text style={styles.linkText}>Retour</Text>
         </TouchableOpacity>
       </SafeAreaView>
+    )
+  }
+
+  if (pendingReception) {
+    return (
+      <ControlPhotoCapture
+        instruction={
+          pendingReception.isCombi
+            ? `Photographiez le combi ${pendingReception.data}`
+            : `Photographiez la reprise ${pendingReception.data}`
+        }
+        onCapture={handleControlPhoto}
+        onCancel={handleControlCancel}
+      />
     )
   }
 
