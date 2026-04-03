@@ -20,8 +20,8 @@ APK_DIR = Path(__file__).resolve().parent.parent.parent / "apk"
 # Mettre a jour a chaque build APK / Update on each APK build
 # IMPORTANT : build_number doit etre STRICTEMENT SUPERIEUR a celui dans l'APK sur le serveur
 # pour declencher la mise a jour. Egal ou inferieur = pas de mise a jour.
-APP_VERSION = "1.7.0"
-APP_BUILD_NUMBER = 9
+APP_VERSION = "1.8.0"
+APP_BUILD_NUMBER = 10
 
 
 @router.get("/app/version")
