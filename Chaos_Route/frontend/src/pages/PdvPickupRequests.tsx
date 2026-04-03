@@ -81,6 +81,19 @@ export default function PdvPickupRequests() {
   // Impression / Print
   const [printRequest, setPrintRequest] = useState<PickupRequest | null>(null)
 
+  // Evidences photo controle / Control photo evidences
+  const [evidenceMap, setEvidenceMap] = useState<Record<string, { id: number; timestamp: string; latitude: number | null; longitude: number | null }>>({})
+  const [photoModal, setPhotoModal] = useState<{ evidenceId: number; labelCode: string; timestamp: string; lat: number | null; lng: number | null } | null>(null)
+
+  // Charger les evidences quand les requetes changent
+  useEffect(() => {
+    const allLabels = requests.flatMap((r) => (r.labels || []).map((l) => l.label_code))
+    if (allLabels.length === 0) { setEvidenceMap({}); return }
+    api.get('/control-evidences/by-labels', { params: { label_codes: allLabels.join(',') } })
+      .then(({ data }) => setEvidenceMap(data))
+      .catch(() => setEvidenceMap({}))
+  }, [requests])
+
   /* Prefixes de code par type de reprise / Code prefixes per pickup type */
   const PICKUP_TYPE_PREFIXES: Record<string, string[]> = {
     CONTAINER: ['PA', 'CO'],   // Palettes + Combis/Rolls
@@ -248,6 +261,43 @@ export default function PdvPickupRequests() {
       <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
         Demandes de reprise
       </h1>
+
+      {/* Modal photo controle / Control photo modal */}
+      {photoModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
+          onClick={() => setPhotoModal(null)}
+        >
+          <div
+            className="rounded-2xl p-4 max-w-2xl w-full mx-4"
+            style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                Photo de controle
+              </h3>
+              <button onClick={() => setPhotoModal(null)} className="text-lg px-2" style={{ color: 'var(--text-muted)' }}>
+                &times;
+              </button>
+            </div>
+            <div className="text-xs space-y-1 mb-3" style={{ color: 'var(--text-muted)' }}>
+              <div><strong>Etiquette :</strong> {photoModal.labelCode}</div>
+              <div><strong>Date :</strong> {formatDate(photoModal.timestamp)}</div>
+              {photoModal.lat != null && photoModal.lng != null && (
+                <div><strong>GPS :</strong> {photoModal.lat.toFixed(5)}, {photoModal.lng.toFixed(5)}</div>
+              )}
+            </div>
+            <img
+              src={`/api/control-evidences/${photoModal.evidenceId}/photo`}
+              alt="Photo controle"
+              className="w-full rounded-lg"
+              style={{ maxHeight: '60vh', objectFit: 'contain', backgroundColor: '#000' }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Formulaire de creation / Creation form */}
       <form
@@ -778,6 +828,23 @@ export default function PdvPickupRequests() {
                         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                           {req.print_count}x imprime
                         </span>
+                      )}
+                      {/* Badge photo controle / Control photo badge */}
+                      {(req.labels || []).some((l) => evidenceMap[l.label_code]) && (
+                        <button
+                          onClick={() => {
+                            const label = (req.labels || []).find((l) => evidenceMap[l.label_code])
+                            if (label) {
+                              const ev = evidenceMap[label.label_code]
+                              setPhotoModal({ evidenceId: ev.id, labelCode: label.label_code, timestamp: ev.timestamp, lat: ev.latitude, lng: ev.longitude })
+                            }
+                          }}
+                          className="px-2 py-0.5 rounded text-[10px] font-semibold"
+                          style={{ backgroundColor: 'rgba(139,92,246,0.15)', color: '#8b5cf6' }}
+                          title="Voir la photo de controle"
+                        >
+                          Photo
+                        </button>
                       )}
                     </div>
                   </td>

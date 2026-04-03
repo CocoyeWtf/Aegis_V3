@@ -82,7 +82,7 @@ async def list_control_evidences(
 async def get_evidence_photo(
     evidence_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("control-evidences", "read")),
+    user: User = Depends(require_permission("pickup-requests", "read")),
 ):
     """Telecharger la photo d'une preuve / Download evidence photo."""
     evidence = await db.get(ControlEvidence, evidence_id)
@@ -98,3 +98,39 @@ async def get_evidence_photo(
         media_type=evidence.photo_mime or "image/jpeg",
         filename=evidence.photo_filename,
     )
+
+
+@router.get("/by-labels")
+async def get_evidences_by_labels(
+    label_codes: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("pickup-requests", "read")),
+):
+    """Chercher les evidences pour une liste de label_codes (CSV) / Lookup evidences by label codes.
+    Accessible avec pickup-requests:read pour affichage dans la page reprises.
+    """
+    codes = [c.strip() for c in label_codes.split(",") if c.strip()]
+    if not codes:
+        return {}
+
+    result = await db.execute(
+        select(ControlEvidence)
+        .where(ControlEvidence.label_code.in_(codes))
+        .order_by(ControlEvidence.id.desc())
+    )
+    evidences = result.scalars().all()
+
+    # Grouper par label_code (garder la plus recente)
+    evidence_map: dict[str, dict] = {}
+    for e in evidences:
+        if e.label_code and e.label_code not in evidence_map:
+            evidence_map[e.label_code] = {
+                "id": e.id,
+                "label_code": e.label_code,
+                "timestamp": e.timestamp,
+                "latitude": e.latitude,
+                "longitude": e.longitude,
+                "photo_filename": e.photo_filename,
+            }
+
+    return evidence_map
