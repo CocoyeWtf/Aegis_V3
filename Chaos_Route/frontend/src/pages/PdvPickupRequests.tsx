@@ -136,6 +136,7 @@ export default function PdvPickupRequests() {
   })
   const [pickupType, setPickupType] = useState<string>('')
   const [withContent, setWithContent] = useState(false)
+  const [palletSupportTypeId, setPalletSupportTypeId] = useState<string>('')
   const [notes, setNotes] = useState<string>('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -162,6 +163,8 @@ export default function PdvPickupRequests() {
   }, [supportTypes, pickupType])
 
   const needsSupportType = pickupType !== 'MERCHANDISE'
+  const showPalletSelect = pickupType === 'CARDBOARD'
+  const palletTypes = useMemo(() => supportTypes.filter((st) => st.code.startsWith('PA')), [supportTypes])
   const selectedSt = supportTypes.find((st) => String(st.id) === supportTypeId)
   const showWithContent = pickupType === 'CONSIGNMENT' && !!selectedSt?.content_item_label
 
@@ -219,6 +222,7 @@ export default function PdvPickupRequests() {
           availability_date: availabilityDate,
           pickup_type: pickupType,
           with_content: showWithContent ? withContent : false,
+          pallet_support_type_id: showPalletSelect && palletSupportTypeId ? Number(palletSupportTypeId) : null,
           notes: notes || null,
         })
         setNotes('')
@@ -228,6 +232,7 @@ export default function PdvPickupRequests() {
         setPdvSearch('')
         setPickupType('')
         setWithContent(false)
+        setPalletSupportTypeId('')
         refetch()
       } catch (err: unknown) {
         const detail =
@@ -238,7 +243,7 @@ export default function PdvPickupRequests() {
         setSubmitting(false)
       }
     },
-    [isPdvUser, user, pdvId, supportTypeId, quantity, availabilityDate, pickupType, withContent, showWithContent, needsSupportType, notes, refetch],
+    [isPdvUser, user, pdvId, supportTypeId, quantity, availabilityDate, pickupType, withContent, showWithContent, showPalletSelect, palletSupportTypeId, needsSupportType, notes, refetch],
   )
 
   const handlePrint = useCallback(async (req: PickupRequest) => {
@@ -660,6 +665,28 @@ export default function PdvPickupRequests() {
           </div>
         )}
 
+        {/* Palette support (pour balles carton/plastique) */}
+        {showPalletSelect && (
+          <div>
+            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+              Palette support
+            </label>
+            <select
+              value={palletSupportTypeId}
+              onChange={(e) => setPalletSupportTypeId(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border text-sm"
+              style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+            >
+              <option value="">-- Aucune --</option>
+              {palletTypes.map((pt) => (
+                <option key={pt.id} value={pt.id}>
+                  {pt.code} - {pt.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Notes */}
         <div>
           <label
@@ -854,6 +881,11 @@ export default function PdvPickupRequests() {
                       <span className="ml-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                         + {req.support_type.content_item_label}s
                       </span>
+                    )}
+                    {(req as any).pallet_support_type && (
+                      <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                        sur {(req as any).pallet_support_type.name}
+                      </div>
                     )}
                   </td>
                   <td

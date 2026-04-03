@@ -74,9 +74,13 @@ class PickupRequest(Base):
     declared_content_item_value: Mapped[float | None] = mapped_column(Numeric(10, 4))
     declared_content_items_per_unit: Mapped[int | None] = mapped_column(Integer)
 
+    # Palette support (pour balles carton/plastique) / Pallet type (for cardboard/plastic bales)
+    pallet_support_type_id: Mapped[int | None] = mapped_column(ForeignKey("support_types.id"), nullable=True)
+
     # Relations
     pdv: Mapped["PDV"] = relationship()
-    support_type: Mapped["SupportType"] = relationship()
+    support_type: Mapped["SupportType"] = relationship(foreign_keys=[support_type_id])
+    pallet_support_type: Mapped["SupportType | None"] = relationship(foreign_keys=[pallet_support_type_id])
     requested_by: Mapped["User | None"] = relationship()
     labels: Mapped[list["PickupLabel"]] = relationship(back_populates="pickup_request", cascade="all, delete-orphan")
 

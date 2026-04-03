@@ -85,9 +85,8 @@ class PickupRequestCreate(BaseModel):
     availability_date: str  # YYYY-MM-DD
     pickup_type: str = "CONTAINER"
     notes: str | None = None
-    # Consigne : contenu inclus (ex: bouteilles vides dans les bacs)
-    # Consignment: content included (e.g., empty bottles in crates)
     with_content: bool = False
+    pallet_support_type_id: int | None = None  # Palette support (pour balles)
 
 
 class PickupRequestUpdate(BaseModel):
@@ -96,6 +95,7 @@ class PickupRequestUpdate(BaseModel):
     availability_date: str | None = None
     quantity: int | None = None
     with_content: bool | None = None
+    pallet_support_type_id: int | None = None
 
 
 class PDVBrief(BaseModel):
@@ -125,9 +125,11 @@ class PickupRequestRead(BaseModel):
     declared_content_items_per_unit: int | None = None
     total_declared_value: float | None = None
     print_count: int = 0
+    pallet_support_type_id: int | None = None
     # Relations
     pdv: PDVBrief | None = None
     support_type: SupportTypeRead | None = None
+    pallet_support_type: SupportTypeRead | None = None
     labels: list[PickupLabelRead] = []
 
 
@@ -159,9 +161,11 @@ class PickupRequestListRead(BaseModel):
     received_count: int = 0
     # Evidences photo controle / Control photo evidences
     evidence_label_codes: list[str] = []
+    pallet_support_type_id: int | None = None
     # Relations
     pdv: PDVBrief | None = None
     support_type: SupportTypeRead | None = None
+    pallet_support_type: SupportTypeRead | None = None
 
 
 # --- Résumé par PDV pour planning ---

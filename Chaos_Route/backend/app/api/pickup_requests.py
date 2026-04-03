@@ -137,6 +137,7 @@ async def list_pickup_requests(
     query = select(PickupRequest).options(
         selectinload(PickupRequest.pdv),
         selectinload(PickupRequest.support_type),
+        selectinload(PickupRequest.pallet_support_type),
         selectinload(PickupRequest.labels),
     ).order_by(PickupRequest.id.desc())
 
@@ -187,6 +188,7 @@ async def pending_by_pdv(
         .options(
             selectinload(PickupRequest.pdv),
             selectinload(PickupRequest.support_type),
+        selectinload(PickupRequest.pallet_support_type),
             selectinload(PickupRequest.labels),
         )
     )
@@ -304,6 +306,7 @@ async def export_pickup_requests_csv(
     query = select(PickupRequest).options(
         selectinload(PickupRequest.pdv),
         selectinload(PickupRequest.support_type),
+        selectinload(PickupRequest.pallet_support_type),
     ).order_by(PickupRequest.availability_date.desc(), PickupRequest.id.desc())
 
     if pdv_id is not None:
@@ -372,6 +375,7 @@ async def get_pickup_request(
         .options(
             selectinload(PickupRequest.pdv),
             selectinload(PickupRequest.support_type),
+        selectinload(PickupRequest.pallet_support_type),
             selectinload(PickupRequest.labels),
         )
     )
@@ -442,6 +446,7 @@ async def create_pickup_request(
         declared_unit_quantity=st.unit_quantity if st else 1,
         declared_content_item_value=float(st.content_item_value) if st and st.content_item_value is not None else None,
         declared_content_items_per_unit=st.content_items_per_unit if st else None,
+        pallet_support_type_id=data.pallet_support_type_id,
     )
     db.add(req)
     await db.flush()
@@ -480,6 +485,7 @@ async def create_pickup_request(
         .options(
             selectinload(PickupRequest.pdv),
             selectinload(PickupRequest.support_type),
+        selectinload(PickupRequest.pallet_support_type),
             selectinload(PickupRequest.labels),
         )
     )
@@ -503,6 +509,7 @@ async def update_pickup_request(
         .options(
             selectinload(PickupRequest.pdv),
             selectinload(PickupRequest.support_type),
+        selectinload(PickupRequest.pallet_support_type),
             selectinload(PickupRequest.labels),
         )
     )
@@ -577,6 +584,7 @@ async def update_pickup_request(
         .options(
             selectinload(PickupRequest.pdv),
             selectinload(PickupRequest.support_type),
+        selectinload(PickupRequest.pallet_support_type),
             selectinload(PickupRequest.labels),
         )
     )
@@ -677,6 +685,7 @@ async def list_discrepancies(
     query = select(PickupRequest).options(
         selectinload(PickupRequest.pdv),
         selectinload(PickupRequest.support_type),
+        selectinload(PickupRequest.pallet_support_type),
         selectinload(PickupRequest.labels),
     ).where(PickupRequest.status == PickupStatus.PICKED_UP)
 
