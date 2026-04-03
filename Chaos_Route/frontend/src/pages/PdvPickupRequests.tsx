@@ -403,7 +403,7 @@ export default function PdvPickupRequests() {
               <option value="">-- Selectionner --</option>
               {filteredSupportTypes.map((st) => (
                 <option key={st.id} value={st.id}>
-                  {st.code} - {st.name} {st.unit_value != null ? `(${st.unit_value} €)` : ''}
+                  {st.code} - {st.name} {!isPdvUser && st.unit_value != null ? `(${st.unit_value} €)` : ''}
                 </option>
               ))}
             </select>
@@ -476,15 +476,15 @@ export default function PdvPickupRequests() {
             />
             <span className="text-sm">
               Avec {selectedSt!.content_item_label}s
-              {selectedSt!.content_items_per_unit && selectedSt!.content_item_value
+              {!isPdvUser && selectedSt!.content_items_per_unit && selectedSt!.content_item_value
                 ? ` (+ ${selectedSt!.content_items_per_unit} × ${String(selectedSt!.content_item_value)} € / unite)`
                 : ''}
             </span>
           </label>
         )}
 
-        {/* Valeur estimee / Estimated value preview */}
-        {estimatedValue != null && (
+        {/* Valeur estimee / Estimated value preview (masque pour PDV) */}
+        {!isPdvUser && estimatedValue != null && (
           <div className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
             Valeur declaree estimee : {estimatedValue.toFixed(2)} €
           </div>
@@ -627,12 +627,14 @@ export default function PdvPickupRequests() {
               >
                 Qte
               </th>
+              {!isPdvUser && (
               <th
                 className="text-right px-4 py-3 font-medium"
                 style={{ color: 'var(--text-muted)' }}
               >
                 Valeur
               </th>
+              )}
               <th className="text-left px-4 py-3 font-medium" style={{ color: 'var(--text-muted)' }}>
                 Date dispo
               </th>
@@ -656,7 +658,7 @@ export default function PdvPickupRequests() {
           <tbody>
             {requests.length === 0 && (
               <tr>
-                <td colSpan={9} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
+                <td colSpan={isPdvUser ? 8 : 9} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
                   Aucune demande
                 </td>
               </tr>
@@ -690,6 +692,7 @@ export default function PdvPickupRequests() {
                   >
                     {req.quantity}
                   </td>
+                  {!isPdvUser && (
                   <td
                     className="text-right px-4 py-3 font-medium tabular-nums"
                     style={{
@@ -705,6 +708,7 @@ export default function PdvPickupRequests() {
                       ? `${req.total_declared_value.toFixed(2)} €`
                       : '—'}
                   </td>
+                  )}
                   <td className="px-4 py-3" style={{ color: 'var(--text-primary)' }}>
                     {formatDate(req.availability_date)}
                   </td>
@@ -781,7 +785,7 @@ export default function PdvPickupRequests() {
               )
             })}
           </tbody>
-          {hasAnyValue && (
+          {!isPdvUser && hasAnyValue && (
             <tfoot>
               <tr
                 style={{
