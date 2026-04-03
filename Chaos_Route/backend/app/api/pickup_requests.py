@@ -490,9 +490,12 @@ async def update_pickup_request(
     request_id: int,
     data: PickupRequestUpdate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("pickup-requests", "update")),
+    user: User = Depends(require_permission("pickup-requests", "create")),
 ):
-    """Mise à jour statut/notes / Update status/notes."""
+    """Mise à jour d'une demande / Update a pickup request.
+    PDV : peut modifier ses propres demandes en statut REQUESTED uniquement.
+    Dispatcher/admin : peut modifier toute demande (avec permission update).
+    """
     result = await db.execute(
         select(PickupRequest)
         .where(PickupRequest.id == request_id)
@@ -506,6 +509,17 @@ async def update_pickup_request(
     if not req:
         raise HTTPException(status_code=404, detail="Pickup request not found")
 
+    # Utilisateur PDV : uniquement ses propres demandes en REQUESTED
+    user_pdv = enforce_pdv_scope(user, None)
+    if user_pdv is not None:
+        if req.pdv_id != user_pdv:
+            raise HTTPException(status_code=403, detail="Acces limite a votre PDV")
+        if req.status != PickupStatus.REQUESTED:
+            raise HTTPException(status_code=400, detail="Modification impossible : la demande est deja en cours de traitement")
+        # PDV ne peut pas changer le statut
+        if data.status is not None:
+            raise HTTPException(status_code=403, detail="Vous ne pouvez pas changer le statut")
+
     for key, value in data.model_dump(exclude_unset=True).items():
         setattr(req, key, value)
 
@@ -518,14 +532,23 @@ async def update_pickup_request(
 async def delete_pickup_request(
     request_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("pickup-requests", "delete")),
+    user: User = Depends(require_permission("pickup-requests", "create")),
 ):
-    """Annuler une demande (seulement si REQUESTED) / Cancel request (only if REQUESTED)."""
+    """Supprimer une demande / Delete a pickup request.
+    PDV : peut supprimer ses propres demandes en statut REQUESTED uniquement.
+    Dispatcher/admin : peut supprimer toute demande en REQUESTED.
+    """
     req = await db.get(PickupRequest, request_id)
     if not req:
         raise HTTPException(status_code=404, detail="Pickup request not found")
     if req.status != PickupStatus.REQUESTED:
-        raise HTTPException(status_code=400, detail="Can only delete requests with REQUESTED status")
+        raise HTTPException(status_code=400, detail="Suppression impossible : la demande est deja en cours de traitement")
+
+    # Utilisateur PDV : uniquement ses propres demandes
+    user_pdv = enforce_pdv_scope(user, None)
+    if user_pdv is not None and req.pdv_id != user_pdv:
+        raise HTTPException(status_code=403, detail="Acces limite a votre PDV")
+
     await db.delete(req)
 
 

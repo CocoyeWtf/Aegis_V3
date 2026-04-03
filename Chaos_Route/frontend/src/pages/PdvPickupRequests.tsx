@@ -251,6 +251,46 @@ export default function PdvPickupRequests() {
     refetch()
   }, [refetch])
 
+  // Modification d'une demande REQUESTED / Edit a REQUESTED request
+  const [editingRequest, setEditingRequest] = useState<PickupRequest | null>(null)
+  const [editQuantity, setEditQuantity] = useState(1)
+  const [editNotes, setEditNotes] = useState('')
+  const [editDate, setEditDate] = useState('')
+
+  const startEdit = useCallback((req: PickupRequest) => {
+    setEditingRequest(req)
+    setEditQuantity(req.quantity)
+    setEditNotes(req.notes || '')
+    setEditDate(req.availability_date)
+  }, [])
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!editingRequest) return
+    try {
+      await api.put(`/pickup-requests/${editingRequest.id}`, {
+        quantity: editQuantity,
+        notes: editNotes || null,
+        availability_date: editDate,
+      })
+      setEditingRequest(null)
+      refetch()
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur'
+      alert(detail)
+    }
+  }, [editingRequest, editQuantity, editNotes, editDate, refetch])
+
+  const handleDelete = useCallback(async (req: PickupRequest) => {
+    if (!confirm(`Supprimer la demande de ${req.quantity} ${req.support_type?.name || ''} ?`)) return
+    try {
+      await api.delete(`/pickup-requests/${req.id}`)
+      refetch()
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur'
+      alert(detail)
+    }
+  }, [refetch])
+
   const handleExportCsv = useCallback(async () => {
     const params: Record<string, unknown> = {}
     if (isPdvUser && user?.pdv_id) params.pdv_id = user.pdv_id
@@ -312,6 +352,62 @@ export default function PdvPickupRequests() {
       <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
         Demandes de reprise
       </h1>
+
+      {/* Modal edition demande / Edit request modal */}
+      {editingRequest && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
+          onClick={() => setEditingRequest(null)}
+        >
+          <div
+            className="rounded-2xl p-5 max-w-md w-full mx-4 space-y-4"
+            style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+              Modifier la demande
+            </h3>
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {editingRequest.support_type?.name || ''} — {editingRequest.pdv?.code}
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Quantite</label>
+              <input type="number" min={1} max={99} value={editQuantity}
+                onChange={(e) => setEditQuantity(Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-lg border text-sm"
+                style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Date de disponibilite</label>
+              <input type="date" value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border text-sm"
+                style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Notes</label>
+              <input type="text" value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                placeholder="Notes..."
+                className="w-full px-3 py-2 rounded-lg border text-sm"
+                style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setEditingRequest(null)}
+                className="px-4 py-2 rounded-lg text-sm"
+                style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>
+                Annuler
+              </button>
+              <button onClick={handleSaveEdit}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white"
+                style={{ backgroundColor: 'var(--color-primary)' }}>
+                Enregistrer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal photo controle / Control photo modal */}
       {photoModal && (
@@ -858,6 +954,25 @@ export default function PdvPickupRequests() {
                         >
                           Photo
                         </button>
+                      )}
+                      {/* Modifier / Supprimer (REQUESTED uniquement) */}
+                      {req.status === 'REQUESTED' && (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => startEdit(req)}
+                            className="px-2 py-0.5 rounded text-[10px] font-semibold"
+                            style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}
+                          >
+                            Modifier
+                          </button>
+                          <button
+                            onClick={() => handleDelete(req)}
+                            className="px-2 py-0.5 rounded text-[10px] font-semibold"
+                            style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#ef4444' }}
+                          >
+                            Supprimer
+                          </button>
+                        </div>
                       )}
                     </div>
                   </td>
