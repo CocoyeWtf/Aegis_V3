@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict
 # --- SupportType ---
 class SupportTypeCreate(BaseModel):
     code: str
+    short_code: str | None = None
     name: str
     unit_quantity: int = 1
     unit_label: str | None = None
@@ -25,6 +26,7 @@ class SupportTypeCreate(BaseModel):
 
 class SupportTypeUpdate(BaseModel):
     code: str | None = None
+    short_code: str | None = None
     name: str | None = None
     unit_quantity: int | None = None
     unit_label: str | None = None
@@ -44,6 +46,7 @@ class SupportTypeRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     code: str
+    short_code: str | None = None
     name: str
     unit_quantity: int
     unit_label: str | None
