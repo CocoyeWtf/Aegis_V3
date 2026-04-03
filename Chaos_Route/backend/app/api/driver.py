@@ -1063,6 +1063,9 @@ async def scan_pickup_label(
     if not label:
         raise HTTPException(status_code=404, detail="Label not found")
 
+    if label.status == LabelStatus.CANCELLED:
+        raise HTTPException(status_code=400, detail="Etiquette annulee — la demande a ete modifiee. Detruisez cette etiquette.")
+
     # Label non-assigne + stop_id fourni → auto-lier au stop / Unassigned label + stop_id → auto-link
     if not label.tour_stop_id and stop_id:
         stop = await db.get(TourStop, stop_id)
@@ -1226,6 +1229,9 @@ async def standalone_pickup_scan(
     if not label:
         raise HTTPException(status_code=404, detail="Label not found")
 
+    if label.status == LabelStatus.CANCELLED:
+        raise HTTPException(status_code=400, detail="Etiquette annulee — la demande a ete modifiee. Detruisez cette etiquette.")
+
     # Idempotent si deja PICKED_UP / Idempotent if already PICKED_UP
     if label.status == LabelStatus.PICKED_UP:
         return label
@@ -1339,6 +1345,9 @@ async def base_receive_scan(
     label = result.scalar_one_or_none()
     if not label:
         raise HTTPException(status_code=404, detail="Label not found")
+
+    if label.status == LabelStatus.CANCELLED:
+        raise HTTPException(status_code=400, detail="Etiquette annulee — la demande a ete modifiee. Detruisez cette etiquette.")
 
     # Idempotent si deja RECEIVED / Idempotent if already RECEIVED
     if label.status == LabelStatus.RECEIVED:

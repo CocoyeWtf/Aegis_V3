@@ -38,10 +38,11 @@ def _enrich_with_label_counts(req: PickupRequest) -> dict:
     """Ajouter les compteurs labels au dict de réponse / Add label counts to response dict."""
     data = PickupRequestListRead.model_validate(req, from_attributes=True)
     if req.labels:
-        data.total_labels = len(req.labels)
-        data.picked_up_count = sum(1 for lb in req.labels if lb.status == LabelStatus.PICKED_UP)
-        data.received_count = sum(1 for lb in req.labels if lb.status == LabelStatus.RECEIVED)
-        data.pending_count = sum(1 for lb in req.labels if lb.status in (LabelStatus.PENDING, LabelStatus.PLANNED))
+        active_labels = [lb for lb in req.labels if lb.status != LabelStatus.CANCELLED]
+        data.total_labels = len(active_labels)
+        data.picked_up_count = sum(1 for lb in active_labels if lb.status == LabelStatus.PICKED_UP)
+        data.received_count = sum(1 for lb in active_labels if lb.status == LabelStatus.RECEIVED)
+        data.pending_count = sum(1 for lb in active_labels if lb.status in (LabelStatus.PENDING, LabelStatus.PLANNED))
     else:
         data.total_labels = req.quantity
     return data
@@ -529,11 +530,14 @@ async def update_pickup_request(
     for key, value in updates.items():
         setattr(req, key, value)
 
-    # Si quantite ou date change et statut REQUESTED : regenerer les etiquettes
+    # Si quantite ou date change et statut REQUESTED : annuler les anciennes + regenerer
+    cancelled_codes: list[str] = []
     if req.status == PickupStatus.REQUESTED and (new_quantity != old_quantity or new_date != old_date):
-        # Supprimer les anciennes etiquettes + mouvements (cascade)
+        # Marquer les anciennes etiquettes comme CANCELLED (gardees en base pour tracabilite)
         for label in list(req.labels):
-            await db.delete(label)
+            if label.status in (LabelStatus.PENDING, LabelStatus.PLANNED):
+                cancelled_codes.append(label.label_code)
+                label.status = LabelStatus.CANCELLED
         await db.flush()
 
         # Regenerer
@@ -576,7 +580,13 @@ async def update_pickup_request(
             selectinload(PickupRequest.labels),
         )
     )
-    return result2.scalar_one()
+    updated = result2.scalar_one()
+
+    # Inclure les codes annules dans la reponse pour affichage au PDV
+    response = PickupRequestRead.model_validate(updated, from_attributes=True).model_dump()
+    if cancelled_codes:
+        response["cancelled_label_codes"] = cancelled_codes
+    return response
 
 
 @router.delete("/{request_id}", status_code=204)

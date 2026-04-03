@@ -30,6 +30,7 @@ class LabelStatus(str, enum.Enum):
     PLANNED = "PLANNED"
     PICKED_UP = "PICKED_UP"
     RECEIVED = "RECEIVED"
+    CANCELLED = "CANCELLED"
 
 
 class MovementType(str, enum.Enum):

@@ -267,13 +267,18 @@ export default function PdvPickupRequests() {
   const handleSaveEdit = useCallback(async () => {
     if (!editingRequest) return
     try {
-      await api.put(`/pickup-requests/${editingRequest.id}`, {
+      const { data: result } = await api.put(`/pickup-requests/${editingRequest.id}`, {
         quantity: editQuantity,
         notes: editNotes || null,
         availability_date: editDate,
       })
       setEditingRequest(null)
       refetch()
+      // Afficher les etiquettes annulees a detruire
+      const cancelled = result.cancelled_label_codes as string[] | undefined
+      if (cancelled && cancelled.length > 0) {
+        alert(`Demande modifiee. Les etiquettes suivantes sont annulees et doivent etre detruites :\n\n${cancelled.join('\n')}`)
+      }
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur'
       alert(detail)
