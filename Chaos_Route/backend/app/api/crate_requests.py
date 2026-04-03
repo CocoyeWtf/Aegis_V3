@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.crate_type import CrateType, CrateFormat, SortingRule
+from app.models.crate_type import CrateType
 from app.models.crate_request import CrateRequest, CrateRequestStatus
 from app.models.pdv import PDV
 from app.models.user import User
@@ -55,9 +55,9 @@ async def create_crate_type(
     ct = CrateType(
         code=data.code,
         name=data.name,
-        format=CrateFormat(data.format),
+        format=data.format,
         brand=data.brand,
-        sorting_rule=SortingRule(data.sorting_rule),
+        sorting_rule=data.sorting_rule,
         is_active=data.is_active,
     )
     db.add(ct)
@@ -78,10 +78,6 @@ async def update_crate_type(
     if not ct:
         raise HTTPException(status_code=404, detail="Crate type not found")
     updates = data.model_dump(exclude_unset=True)
-    if "format" in updates:
-        updates["format"] = CrateFormat(updates["format"])
-    if "sorting_rule" in updates:
-        updates["sorting_rule"] = SortingRule(updates["sorting_rule"])
     for key, value in updates.items():
         setattr(ct, key, value)
     await db.flush()

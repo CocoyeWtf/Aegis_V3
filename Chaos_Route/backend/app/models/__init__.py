@@ -60,7 +60,7 @@ from app.models.container_anomaly import ContainerAnomaly, AnomalyPhoto, Anomaly
 from app.models.bottle_sorting import BottleBrand, SortingSession, SortingLine, SortingStatus, BottleFormat, SortingRule
 from app.models.combi_scan import CombiScan, ScanContext
 from app.models.control_evidence import ControlEvidence, ControlContext
-from app.models.crate_type import CrateType, CrateFormat, SortingRule
+from app.models.crate_type import CrateType
 from app.models.crate_request import CrateRequest, CrateRequestStatus
 
 __all__ = [
@@ -167,8 +167,6 @@ __all__ = [
     "ControlEvidence",
     "ControlContext",
     "CrateType",
-    "CrateFormat",
-    "SortingRule",
     "CrateRequest",
     "CrateRequestStatus",
 ]
