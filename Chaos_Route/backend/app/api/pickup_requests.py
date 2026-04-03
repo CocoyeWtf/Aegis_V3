@@ -15,6 +15,7 @@ from app.models.pickup_request import PickupRequest, PickupLabel, PickupMovement
 from app.models.support_type import SupportType
 from app.models.pdv import PDV
 from app.models.pdv_inventory import PdvStock
+from app.models.control_evidence import ControlEvidence
 from app.models.user import User
 from app.schemas.pickup import (
     PickupRequestCreate,
@@ -149,7 +150,26 @@ async def list_pickup_requests(
 
     result = await db.execute(query)
     requests = result.scalars().all()
-    return [_enrich_with_label_counts(req) for req in requests]
+
+    # Batch lookup evidences photo pour les labels / Batch lookup photo evidences for labels
+    all_label_codes = [lb.label_code for req in requests for lb in (req.labels or [])]
+    evidence_codes: set[str] = set()
+    if all_label_codes:
+        ev_result = await db.execute(
+            select(ControlEvidence.label_code)
+            .where(ControlEvidence.label_code.in_(all_label_codes))
+            .distinct()
+        )
+        evidence_codes = {row[0] for row in ev_result.all() if row[0]}
+
+    enriched = []
+    for req in requests:
+        data = _enrich_with_label_counts(req)
+        req_evidence_codes = [lb.label_code for lb in (req.labels or []) if lb.label_code in evidence_codes]
+        data.evidence_label_codes = req_evidence_codes
+        enriched.append(data)
+
+    return enriched
 
 
 @router.get("/by-pdv/pending/", response_model=list[PdvPickupSummary])

@@ -36,6 +36,59 @@ const STATUS_LABELS: Record<string, string> = {
   RECEIVED: 'Recu',
 }
 
+function ControlPhotoModal({ labelCode, onClose }: { labelCode: string; onClose: () => void }) {
+  const [evidence, setEvidence] = useState<{ id: number; timestamp: string; latitude: number | null; longitude: number | null } | null>(null)
+
+  useEffect(() => {
+    api.get('/control-evidences/by-labels', { params: { label_codes: labelCode } })
+      .then(({ data }) => {
+        const ev = data[labelCode]
+        if (ev) setEvidence(ev)
+      })
+      .catch(() => {})
+  }, [labelCode])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
+      onClick={onClose}
+    >
+      <div
+        className="rounded-2xl p-4 max-w-2xl w-full mx-4"
+        style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+            Photo de controle
+          </h3>
+          <button onClick={onClose} className="text-lg px-2" style={{ color: 'var(--text-muted)' }}>
+            &times;
+          </button>
+        </div>
+        <div className="text-xs space-y-1 mb-3" style={{ color: 'var(--text-muted)' }}>
+          <div><strong>Etiquette :</strong> {labelCode}</div>
+          {evidence && <div><strong>Date :</strong> {formatDate(evidence.timestamp)}</div>}
+          {evidence?.latitude != null && evidence?.longitude != null && (
+            <div><strong>GPS :</strong> {evidence.latitude.toFixed(5)}, {evidence.longitude.toFixed(5)}</div>
+          )}
+        </div>
+        {evidence ? (
+          <img
+            src={`/api/control-evidences/${evidence.id}/photo`}
+            alt="Photo controle"
+            className="w-full rounded-lg"
+            style={{ maxHeight: '60vh', objectFit: 'contain', backgroundColor: '#000' }}
+          />
+        ) : (
+          <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>Chargement...</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function PdvPickupRequests() {
   const user = useAuthStore((s) => s.user)
   const isPdvUser = !!user?.pdv_id
@@ -81,18 +134,8 @@ export default function PdvPickupRequests() {
   // Impression / Print
   const [printRequest, setPrintRequest] = useState<PickupRequest | null>(null)
 
-  // Evidences photo controle / Control photo evidences
-  const [evidenceMap, setEvidenceMap] = useState<Record<string, { id: number; timestamp: string; latitude: number | null; longitude: number | null }>>({})
-  const [photoModal, setPhotoModal] = useState<{ evidenceId: number; labelCode: string; timestamp: string; lat: number | null; lng: number | null } | null>(null)
-
-  // Charger les evidences quand les requetes changent
-  useEffect(() => {
-    const allLabels = requests.flatMap((r) => (r.labels || []).map((l) => l.label_code))
-    if (allLabels.length === 0) { setEvidenceMap({}); return }
-    api.get('/control-evidences/by-labels', { params: { label_codes: allLabels.join(',') } })
-      .then(({ data }) => setEvidenceMap(data))
-      .catch(() => setEvidenceMap({}))
-  }, [requests])
+  // Modal photo controle / Control photo modal
+  const [photoModal, setPhotoModal] = useState<{ labelCode: string } | null>(null)
 
   /* Prefixes de code par type de reprise / Code prefixes per pickup type */
   const PICKUP_TYPE_PREFIXES: Record<string, string[]> = {
@@ -264,39 +307,7 @@ export default function PdvPickupRequests() {
 
       {/* Modal photo controle / Control photo modal */}
       {photoModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
-          onClick={() => setPhotoModal(null)}
-        >
-          <div
-            className="rounded-2xl p-4 max-w-2xl w-full mx-4"
-            style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                Photo de controle
-              </h3>
-              <button onClick={() => setPhotoModal(null)} className="text-lg px-2" style={{ color: 'var(--text-muted)' }}>
-                &times;
-              </button>
-            </div>
-            <div className="text-xs space-y-1 mb-3" style={{ color: 'var(--text-muted)' }}>
-              <div><strong>Etiquette :</strong> {photoModal.labelCode}</div>
-              <div><strong>Date :</strong> {formatDate(photoModal.timestamp)}</div>
-              {photoModal.lat != null && photoModal.lng != null && (
-                <div><strong>GPS :</strong> {photoModal.lat.toFixed(5)}, {photoModal.lng.toFixed(5)}</div>
-              )}
-            </div>
-            <img
-              src={`/api/control-evidences/${photoModal.evidenceId}/photo`}
-              alt="Photo controle"
-              className="w-full rounded-lg"
-              style={{ maxHeight: '60vh', objectFit: 'contain', backgroundColor: '#000' }}
-            />
-          </div>
-        </div>
+        <ControlPhotoModal labelCode={photoModal.labelCode} onClose={() => setPhotoModal(null)} />
       )}
 
       {/* Formulaire de creation / Creation form */}
@@ -830,15 +841,9 @@ export default function PdvPickupRequests() {
                         </span>
                       )}
                       {/* Badge photo controle / Control photo badge */}
-                      {(req.labels || []).some((l) => evidenceMap[l.label_code]) && (
+                      {((req as any).evidence_label_codes || []).length > 0 && (
                         <button
-                          onClick={() => {
-                            const label = (req.labels || []).find((l) => evidenceMap[l.label_code])
-                            if (label) {
-                              const ev = evidenceMap[label.label_code]
-                              setPhotoModal({ evidenceId: ev.id, labelCode: label.label_code, timestamp: ev.timestamp, lat: ev.latitude, lng: ev.longitude })
-                            }
-                          }}
+                          onClick={() => setPhotoModal({ labelCode: (req as any).evidence_label_codes[0] })}
                           className="px-2 py-0.5 rounded text-[10px] font-semibold"
                           style={{ backgroundColor: 'rgba(139,92,246,0.15)', color: '#8b5cf6' }}
                           title="Voir la photo de controle"

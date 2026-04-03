@@ -154,6 +154,8 @@ class PickupRequestListRead(BaseModel):
     pending_count: int = 0
     picked_up_count: int = 0
     received_count: int = 0
+    # Evidences photo controle / Control photo evidences
+    evidence_label_codes: list[str] = []
     # Relations
     pdv: PDVBrief | None = None
     support_type: SupportTypeRead | None = None
