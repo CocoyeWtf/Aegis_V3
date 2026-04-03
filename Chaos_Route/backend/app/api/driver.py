@@ -33,7 +33,9 @@ from app.models.contract import Contract
 from app.models.pickup_request import PickupLabel, PickupRequest, PickupMovement, LabelStatus, PickupType, MovementType
 from app.models.combi_scan import CombiScan, ScanContext
 from app.models.control_evidence import ControlEvidence, ControlContext
+from app.models.base_support_rule import BaseSupportRule
 from app.models.parameter import Parameter
+from app.models.support_type import SupportType
 from app.models.temperature_check import TemperatureCheck, TempCheckpoint
 from app.schemas.mobile import (
     AvailableTourRead,
@@ -66,6 +68,47 @@ def _check_device_feature(device: MobileDevice, feature: str) -> None:
     allowed = (device.allowed_features or ",".join(ALL_DEVICE_FEATURES)).split(",")
     if feature not in allowed:
         raise HTTPException(status_code=403, detail=f"Feature '{feature}' not allowed on this device")
+
+
+async def _check_base_support_allowed(
+    device: MobileDevice,
+    support_type_id: int | None,
+    db: AsyncSession,
+    tour_id: int | None = None,
+) -> None:
+    """Verifier si le type de support est autorise pour la base du device / Check if support type is allowed for device base.
+    Pas de regle = autorise par defaut. Bypass si tour flagge.
+    """
+    if not device.base_id or not support_type_id:
+        return
+
+    # Verifier bypass tour
+    if tour_id:
+        tour = await db.get(Tour, tour_id)
+        if tour and tour.bypass_support_rules:
+            return
+
+    result = await db.execute(
+        select(BaseSupportRule).where(
+            BaseSupportRule.base_id == device.base_id,
+            BaseSupportRule.support_type_id == support_type_id,
+        )
+    )
+    rule = result.scalar_one_or_none()
+
+    # Pas de regle = autorise par defaut
+    if rule is None:
+        return
+
+    if not rule.allowed:
+        st = await db.get(SupportType, support_type_id)
+        st_name = st.name if st else f"#{support_type_id}"
+        base = await db.get(BaseLogistics, device.base_id)
+        base_name = base.name if base else f"#{device.base_id}"
+        raise HTTPException(
+            status_code=403,
+            detail=f"Le support '{st_name}' n'est pas repris sur la base '{base_name}'. Contactez votre responsable.",
+        )
 
 
 @router.get("/device-info")
@@ -1066,6 +1109,19 @@ async def scan_pickup_label(
     if label.status == LabelStatus.CANCELLED:
         raise HTTPException(status_code=400, detail="Etiquette annulee — la demande a ete modifiee. Detruisez cette etiquette.")
 
+    # Verifier regle support/base (avec bypass tour) / Check base support rule (with tour bypass)
+    tour_id_for_bypass: int | None = None
+    if stop_id:
+        stop_obj = await db.get(TourStop, stop_id)
+        if stop_obj:
+            tour_id_for_bypass = stop_obj.tour_id
+    elif label.tour_stop_id:
+        stop_obj = await db.get(TourStop, label.tour_stop_id)
+        if stop_obj:
+            tour_id_for_bypass = stop_obj.tour_id
+    if label.pickup_request:
+        await _check_base_support_allowed(device, label.pickup_request.support_type_id, db, tour_id=tour_id_for_bypass)
+
     # Label non-assigne + stop_id fourni → auto-lier au stop / Unassigned label + stop_id → auto-link
     if not label.tour_stop_id and stop_id:
         stop = await db.get(TourStop, stop_id)
@@ -1231,6 +1287,10 @@ async def standalone_pickup_scan(
 
     if label.status == LabelStatus.CANCELLED:
         raise HTTPException(status_code=400, detail="Etiquette annulee — la demande a ete modifiee. Detruisez cette etiquette.")
+
+    # Verifier regle support/base / Check base support rule
+    if label.pickup_request:
+        await _check_base_support_allowed(device, label.pickup_request.support_type_id, db)
 
     # Idempotent si deja PICKED_UP / Idempotent if already PICKED_UP
     if label.status == LabelStatus.PICKED_UP:

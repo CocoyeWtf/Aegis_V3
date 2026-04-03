@@ -46,6 +46,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   type TourMode = 'delivery' | 'pickup'
   const [tourMode, setTourMode] = useState<TourMode>('delivery')
   const [manualBaseId, setManualBaseId] = useState<number | null>(null)
+  const [bypassSupportRules, setBypassSupportRules] = useState(false)
 
   const [selectedVehicleType, setSelectedVehicleType] = useState<VehicleType | null>(null)
   const [capacityEqp, setCapacityEqp] = useState(0)
@@ -628,6 +629,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         total_eqp: totalEqp,
         total_km: totalKm,
         is_pickup_tour: tourMode === 'pickup',
+        bypass_support_rules: bypassSupportRules,
         temperature_type: tourMode === 'pickup' ? undefined : (selectedTemperatureType ?? undefined),
         stops: currentStops.map((s, i) => ({
           pdv_id: s.pdv_id,
@@ -740,22 +742,35 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
 
         {/* Selecteur base en mode pickup / Base selector in pickup mode */}
         {tourMode === 'pickup' && (
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-              Base
+          <>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+                Base
+              </label>
+              <select
+                value={manualBaseId ?? ''}
+                onChange={(e) => setManualBaseId(e.target.value ? Number(e.target.value) : null)}
+                className="rounded-lg border px-3 py-2 text-sm"
+                style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+              >
+                <option value="">-- Base --</option>
+                {bases.map((b) => (
+                  <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
+                ))}
+              </select>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer self-end pb-1">
+              <input
+                type="checkbox"
+                checked={bypassSupportRules}
+                onChange={(e) => setBypassSupportRules(e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                Toutes bases
+              </span>
             </label>
-            <select
-              value={manualBaseId ?? ''}
-              onChange={(e) => setManualBaseId(e.target.value ? Number(e.target.value) : null)}
-              className="rounded-lg border px-3 py-2 text-sm"
-              style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-            >
-              <option value="">-- Base --</option>
-              {bases.map((b) => (
-                <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
-              ))}
-            </select>
-          </div>
+          </>
         )}
 
         {/* Base auto-detectee / Auto-detected base */}

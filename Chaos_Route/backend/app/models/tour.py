@@ -46,6 +46,7 @@ class Tour(Base):
     delivery_date: Mapped[str | None] = mapped_column(String(10))  # YYYY-MM-DD — date de livraison
     temperature_type: Mapped[str | None] = mapped_column(String(10))  # SEC|FRAIS|GEL|BI_TEMP|TRI_TEMP
     is_pickup_tour: Mapped[bool] = mapped_column(Boolean, default=False)
+    bypass_support_rules: Mapped[bool] = mapped_column(Boolean, default=False)  # Desactive le controle support/base pour cette tournee
 
     # Champs opérationnels / Operational fields — datetime-local YYYY-MM-DDTHH:MM
     driver_name: Mapped[str | None] = mapped_column(String(100))

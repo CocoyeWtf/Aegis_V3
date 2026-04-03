@@ -181,6 +181,7 @@ export interface Tour {
   delivery_date?: string | null
   temperature_type?: TemperatureType
   is_pickup_tour?: boolean
+  bypass_support_rules?: boolean
   stops: TourStop[]
   driver_name?: string
   driver_arrival_time?: string

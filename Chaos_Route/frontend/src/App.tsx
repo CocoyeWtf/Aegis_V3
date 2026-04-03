@@ -40,6 +40,7 @@ const Help = lazy(() => import('./pages/Help'))
 const DeviceManagement = lazy(() => import('./pages/DeviceManagement'))
 const Tracking = lazy(() => import('./pages/Tracking'))
 const SupportTypes = lazy(() => import('./pages/SupportTypes'))
+const BaseSupportRules = lazy(() => import('./pages/BaseSupportRules'))
 const PdvPickupRequests = lazy(() => import('./pages/PdvPickupRequests'))
 const PdvCrateRequests = lazy(() => import('./pages/PdvCrateRequests'))
 const CrateManagement = lazy(() => import('./pages/CrateManagement'))
@@ -123,6 +124,7 @@ export default function App() {
             <Route path="/devices" element={<DeviceManagement />} />
             <Route path="/tracking" element={<Tracking />} />
             <Route path="/support-types" element={<SupportTypes />} />
+            <Route path="/base-support-rules" element={<BaseSupportRules />} />
             <Route path="/pickup-requests" element={<PdvPickupRequests />} />
             <Route path="/crate-requests" element={<PdvCrateRequests />} />
             <Route path="/crate-management" element={<CrateManagement />} />

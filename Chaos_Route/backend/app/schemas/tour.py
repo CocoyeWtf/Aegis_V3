@@ -54,6 +54,7 @@ class TourBase(BaseModel):
     delivery_date: str | None = None
     temperature_type: str | None = None
     is_pickup_tour: bool = False
+    bypass_support_rules: bool = False
     driver_name: str | None = None
     driver_arrival_time: str | None = None
     loading_end_time: str | None = None
@@ -101,6 +102,7 @@ class TourUpdate(BaseModel):
     delivery_date: str | None = None
     temperature_type: str | None = None
     is_pickup_tour: bool | None = None
+    bypass_support_rules: bool | None = None
     driver_name: str | None = None
     driver_arrival_time: str | None = None
     loading_end_time: str | None = None

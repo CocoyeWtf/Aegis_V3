@@ -58,6 +58,7 @@ from app.api import (
     container_report,
     control_evidences,
     crate_requests,
+    base_support_rules,
 )
 
 api_router = APIRouter(prefix="/api")
@@ -116,3 +117,4 @@ api_router.include_router(bottle_sorting.router, prefix="/bottle-sorting", tags=
 api_router.include_router(container_report.router, prefix="/container-report", tags=["container-report"])
 api_router.include_router(control_evidences.router, prefix="/control-evidences", tags=["control-evidences"])
 api_router.include_router(crate_requests.router, prefix="/crate-requests", tags=["crate-requests"])
+api_router.include_router(base_support_rules.router, prefix="/base-support-rules", tags=["base-support-rules"])
