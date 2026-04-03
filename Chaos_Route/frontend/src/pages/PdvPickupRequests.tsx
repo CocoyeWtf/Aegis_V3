@@ -38,14 +38,22 @@ const STATUS_LABELS: Record<string, string> = {
 
 function ControlPhotoModal({ labelCode, onClose }: { labelCode: string; onClose: () => void }) {
   const [evidence, setEvidence] = useState<{ id: number; timestamp: string; latitude: number | null; longitude: number | null } | null>(null)
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
 
   useEffect(() => {
     api.get('/control-evidences/by-labels', { params: { label_codes: labelCode } })
       .then(({ data }) => {
         const ev = data[labelCode]
-        if (ev) setEvidence(ev)
+        if (ev) {
+          setEvidence(ev)
+          // Charger la photo via axios (avec JWT) puis convertir en blob URL
+          api.get(`/control-evidences/${ev.id}/photo`, { responseType: 'blob' })
+            .then(({ data: blob }) => setPhotoUrl(URL.createObjectURL(blob)))
+            .catch(() => {})
+        }
       })
       .catch(() => {})
+    return () => { if (photoUrl) URL.revokeObjectURL(photoUrl) }
   }, [labelCode])
 
   return (
@@ -74,9 +82,9 @@ function ControlPhotoModal({ labelCode, onClose }: { labelCode: string; onClose:
             <div><strong>GPS :</strong> {evidence.latitude.toFixed(5)}, {evidence.longitude.toFixed(5)}</div>
           )}
         </div>
-        {evidence ? (
+        {photoUrl ? (
           <img
-            src={`/api/control-evidences/${evidence.id}/photo`}
+            src={photoUrl}
             alt="Photo controle"
             className="w-full rounded-lg"
             style={{ maxHeight: '60vh', objectFit: 'contain', backgroundColor: '#000' }}
