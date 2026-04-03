@@ -86,6 +86,7 @@ const navGroups: NavGroup[] = [
       { path: '/operations', label: 'nav.postier', icon: '📮', resource: 'operations' },
       { path: '/tracking', label: 'Suivi chauffeurs', icon: '📡', resource: 'tracking' },
       { path: '/base-reception', label: 'Reception reprises', icon: '📥', resource: 'pickup-requests' },
+      { path: '/crate-management', label: 'Gestion casiers', icon: '🍺', resource: 'crate-requests' },
       { path: '/declarations', label: 'Declarations', icon: '⚠', resource: 'declarations' },
       { path: '/waybill-registry', label: 'Registre CMR', icon: '📄', resource: 'waybill-archives' },
       { path: '/temperature', label: 'Controle temperature', icon: '🌡️', resource: 'temperature' },
@@ -111,7 +112,7 @@ const navGroups: NavGroup[] = [
     children: [
       { path: '/pdv-deliveries', label: 'Planning livraisons', icon: '📅', resource: 'pdvs' },
       { path: '/pickup-requests', label: 'Demandes de reprise', icon: '📋', resource: 'pickup-requests' },
-      // { path: '/pdv-stock', label: 'Stock contenants PDV', icon: '📦', resource: 'pdv-stock' },  // backlog contenants
+      { path: '/crate-requests', label: 'Demandes de casiers', icon: '🍺', resource: 'crate-requests' },
     ],
   },
   {

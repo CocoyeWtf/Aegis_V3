@@ -53,6 +53,8 @@ const RESOURCE_GROUPS: ResourceGroup[] = [
       { resource: 'operations', label: 'Operations (postier)' },
       { resource: 'tracking', label: 'Suivi chauffeurs' },
       { resource: 'pickup-requests', label: 'Reprises / Reception base' },
+      { resource: 'crate-requests', label: 'Demandes de casiers' },
+      { resource: 'crate-types', label: 'Types de casiers (admin)' },
       { resource: 'declarations', label: 'Declarations chauffeur' },
       { resource: 'waybill-archives', label: 'Registre CMR' },
       // ── Contenants — masqué en attente activation (backlog) ──
