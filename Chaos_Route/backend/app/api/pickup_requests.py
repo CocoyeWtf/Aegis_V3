@@ -520,12 +520,63 @@ async def update_pickup_request(
         if data.status is not None:
             raise HTTPException(status_code=403, detail="Vous ne pouvez pas changer le statut")
 
-    for key, value in data.model_dump(exclude_unset=True).items():
+    updates = data.model_dump(exclude_unset=True)
+    old_quantity = req.quantity
+    old_date = req.availability_date
+    new_quantity = updates.get("quantity", old_quantity)
+    new_date = updates.get("availability_date", old_date)
+
+    for key, value in updates.items():
         setattr(req, key, value)
 
+    # Si quantite ou date change et statut REQUESTED : regenerer les etiquettes
+    if req.status == PickupStatus.REQUESTED and (new_quantity != old_quantity or new_date != old_date):
+        # Supprimer les anciennes etiquettes + mouvements (cascade)
+        for label in list(req.labels):
+            await db.delete(label)
+        await db.flush()
+
+        # Regenerer
+        pdv = await db.get(PDV, req.pdv_id)
+        st = await db.get(SupportType, req.support_type_id) if req.support_type_id else None
+        st_code = st.code if st else "MERCH"
+
+        existing_count_result = await db.execute(
+            select(func.count(PickupLabel.id))
+            .join(PickupRequest)
+            .where(
+                PickupRequest.pdv_id == req.pdv_id,
+                PickupRequest.availability_date == new_date,
+                PickupLabel.pickup_request_id != req.id,
+            )
+        )
+        start_seq = (existing_count_result.scalar() or 0) + 1
+
+        for i in range(new_quantity):
+            seq = start_seq + i
+            label = PickupLabel(
+                pickup_request_id=req.id,
+                label_code=_generate_label_code(pdv.code, st_code, new_date, seq),
+                sequence_number=i + 1,
+                status=LabelStatus.PENDING,
+            )
+            db.add(label)
+            await db.flush()
+            db.add(_create_movement(label, MovementType.REQUESTED, user_id=user.id))
+
     await db.flush()
-    await db.refresh(req)
-    return req
+
+    # Reload avec relations
+    result2 = await db.execute(
+        select(PickupRequest)
+        .where(PickupRequest.id == req.id)
+        .options(
+            selectinload(PickupRequest.pdv),
+            selectinload(PickupRequest.support_type),
+            selectinload(PickupRequest.labels),
+        )
+    )
+    return result2.scalar_one()
 
 
 @router.delete("/{request_id}", status_code=204)
