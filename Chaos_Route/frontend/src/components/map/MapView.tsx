@@ -13,12 +13,19 @@ import { MapFilters } from './MapFilters'
 import type { PDV, BaseLogistics, Supplier, PdvPickupSummary } from '../../types'
 import 'leaflet/dist/leaflet.css'
 
-/* Composant interne pour synchroniser le centre / Internal component to sync map center */
+/* Composant interne pour synchroniser le centre / Internal component to sync map center
+   Ne s'applique que quand le store change depuis l'extérieur (pas après fitBounds) */
 function MapSync() {
   const map = useMap()
   const { center, zoom } = useMapStore()
+  const initialized = useRef(false)
 
   useEffect(() => {
+    /* Ignorer le premier render — laisser RegionFitBounds gérer le positionnement initial */
+    if (!initialized.current) {
+      initialized.current = true
+      return
+    }
     map.setView(center, zoom)
   }, [map, center, zoom])
 
