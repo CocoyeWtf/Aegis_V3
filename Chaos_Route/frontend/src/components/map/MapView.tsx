@@ -13,29 +13,23 @@ import { MapFilters } from './MapFilters'
 import type { PDV, BaseLogistics, Supplier, PdvPickupSummary } from '../../types'
 import 'leaflet/dist/leaflet.css'
 
-/* Composant interne pour synchroniser le centre / Internal component to sync map center
-   Ne s'applique que quand le store change depuis l'extérieur (pas après fitBounds) */
-function MapSync() {
-  const map = useMap()
-  const { center, zoom } = useMapStore()
-  const initialized = useRef(false)
-
-  useEffect(() => {
-    /* Ignorer le premier render — laisser RegionFitBounds gérer le positionnement initial */
-    if (!initialized.current) {
-      initialized.current = true
-      return
-    }
-    map.setView(center, zoom)
-  }, [map, center, zoom])
-
+/* Sync position map → store lors des interactions utilisateur / Sync map position to store on user interaction */
+function MapStoreSync() {
+  const { setCenter, setZoom } = useMapStore()
+  useMapEvents({
+    moveend: (e) => {
+      const map = e.target
+      const c = map.getCenter()
+      setCenter([c.lat, c.lng])
+      setZoom(map.getZoom())
+    },
+  })
   return null
 }
 
 /* Auto-centrage sur les entités de la région / Auto-fit to region entities */
 function RegionFitBounds({ pdvs, bases }: { pdvs: PDV[]; bases: BaseLogistics[] }) {
   const map = useMap()
-  const { setCenter, setZoom } = useMapStore()
   const lastFitKey = useRef('')
 
   useEffect(() => {
@@ -53,22 +47,13 @@ function RegionFitBounds({ pdvs, bases }: { pdvs: PDV[]; bases: BaseLogistics[] 
     if (key === lastFitKey.current) return
     lastFitKey.current = key
 
-    /* Sync store une fois l'animation terminée / Sync store after animation completes */
-    const syncStore = () => {
-      const c = map.getCenter()
-      setCenter([c.lat, c.lng])
-      setZoom(map.getZoom())
-    }
-
     if (points.length === 1) {
-      map.once('moveend', syncStore)
       map.setView(points[0], 12)
     } else {
       const bounds = L.latLngBounds(points)
-      map.once('moveend', syncStore)
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 })
     }
-  }, [pdvs, bases, map, setCenter, setZoom])
+  }, [pdvs, bases, map])
 
   return null
 }
@@ -142,7 +127,7 @@ export function MapView({ onPdvClick, onPdvTempClick, onPdvContextMenu, selected
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <MapSync />
+        <MapStoreSync />
         <ZoomTracker onZoomChange={setCurrentZoom} />
         <MapResizeHandler resizeSignal={resizeSignal} />
         <RegionFitBounds pdvs={pdvs} bases={bases} />
