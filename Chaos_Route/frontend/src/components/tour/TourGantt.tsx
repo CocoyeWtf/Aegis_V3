@@ -40,7 +40,7 @@ interface TourGanttProps {
 }
 
 const ROW_HEIGHT = 40
-const DEFAULT_HEADER_HEIGHT = 26
+const DEFAULT_HEADER_HEIGHT = 32
 const LABEL_WIDTH = 80
 const PADDING_RIGHT = 16
 const MIN_PX_PER_HOUR = 50  /* largeur minimum par heure pour lisibilité / min width per hour for readability */
@@ -154,7 +154,7 @@ export function TourGantt({
           return (
             <g key={h}>
               <line x1={x} y1={headerH} x2={x} y2={svgHeight} stroke="var(--border-color)" strokeWidth={0.5} />
-              <text x={x} y={headerH / 2 + 4} textAnchor="middle" fill="var(--text-primary)" fontSize={12} fontWeight="bold" fontFamily="inherit">
+              <text x={x} y={headerH / 2 + 5} textAnchor="middle" fill="#000000" fontSize={13} fontWeight="bold" fontFamily="inherit">
                 {`${String(h).padStart(2, '0')}h`}
               </text>
             </g>
