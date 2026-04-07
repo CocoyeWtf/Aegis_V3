@@ -162,7 +162,13 @@ async def api_health():
 
 # Servir le SPA React en production / Serve React SPA in production
 if STATIC_DIR.is_dir():
-    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="static-assets")
+    @app.get("/assets/{file_path:path}")
+    async def serve_asset(file_path: str):
+        """Sert les assets avec cache-busting / Serve assets with cache-busting headers."""
+        full_path = STATIC_DIR / "assets" / file_path
+        if full_path.is_file():
+            return FileResponse(full_path, headers={"Cache-Control": "no-cache, must-revalidate"})
+        return FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
     @app.get("/{path:path}")
     async def serve_spa(path: str):
