@@ -12,8 +12,12 @@ class TrackingWebSocket {
   private maxReconnectDelay = 30000
   private shouldReconnect = true
   private onStatusChange: ((connected: boolean) => void) | null = null
+  private refCount = 0
 
   connect() {
+    this.refCount++
+    if (this.refCount > 1 && this.ws) return  /* déjà connecté par un autre consommateur */
+
     const token = useAuthStore.getState().accessToken
     if (!token) return
 
@@ -72,7 +76,15 @@ class TrackingWebSocket {
     }, this.reconnectDelay)
   }
 
+  /** Libère une référence. Déconnecte uniquement quand plus aucun consommateur. */
+  release() {
+    this.refCount = Math.max(0, this.refCount - 1)
+    if (this.refCount === 0) this.disconnect()
+  }
+
+  /** Force la déconnexion (rétrocompatibilité). */
   disconnect() {
+    this.refCount = 0
     this.shouldReconnect = false
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
     this.ws?.close()

@@ -3,9 +3,13 @@
 import { useState, useMemo, useCallback } from 'react'
 import * as XLSX from 'xlsx'
 import { useApi } from '../hooks/useApi'
+import { usePdvTracking } from '../hooks/usePdvTracking'
 import { useAppStore } from '../stores/useAppStore'
 import { useAuthStore } from '../stores/useAuthStore'
-import type { PdvDeliveryEntry, BaseLogistics, PDV } from '../types'
+import { computeTourLabels } from '../utils/tourLabels'
+import { PdvDeliveryMap } from '../components/tracking/PdvDeliveryMap'
+import { TEMPERATURE_COLORS } from '../types'
+import type { PdvDeliveryEntry, BaseLogistics, PDV, TemperatureClass } from '../types'
 import type { Column } from '../components/data/DataTable'
 import { DataTable } from '../components/data/DataTable'
 
@@ -21,12 +25,12 @@ const tempColors: Record<string, { bg: string; text: string }> = {
   GEL: { bg: '#6b21a820', text: '#a855f7' },
 }
 
-/* Couleurs statut tour / Tour status colors */
-const statusColors: Record<string, string> = {
-  VALIDATED: 'var(--color-primary)',
-  IN_PROGRESS: 'var(--color-warning)',
-  RETURNING: 'var(--color-info, #3b82f6)',
-  COMPLETED: 'var(--color-success)',
+/* Labels statut tour / Tour status labels */
+const STATUS_LABELS: Record<string, { label: string; color: string; dot: string }> = {
+  VALIDATED: { label: 'Au dépôt', color: 'var(--text-muted)', dot: '#9ca3af' },
+  IN_PROGRESS: { label: 'En route', color: '#22c55e', dot: '#22c55e' },
+  RETURNING: { label: 'Retour', color: '#3b82f6', dot: '#3b82f6' },
+  COMPLETED: { label: 'Terminé', color: 'var(--text-muted)', dot: '#22c55e' },
 }
 
 export default function PdvDeliverySchedule() {
@@ -44,6 +48,8 @@ export default function PdvDeliverySchedule() {
   const [baseId, setBaseId] = useState<number | ''>('')
   const [pdvId, setPdvId] = useState<number | ''>('')
   const [pdvSearch, setPdvSearch] = useState('')
+  const [selectedTourId, setSelectedTourId] = useState<number | null>(null)
+  const [mapCollapsed, setMapCollapsed] = useState(false)
 
   /* Charger bases et PDVs pour les selects / Load bases and PDVs for selects */
   const baseParams = selectedRegionId ? { region_id: selectedRegionId } : undefined
@@ -61,6 +67,34 @@ export default function PdvDeliverySchedule() {
   }, [dateFrom, dateTo, baseId, pdvId, isPdvUser, user?.pdv_id])
 
   const { data, loading } = useApi<PdvDeliveryEntry>('/pdvs/delivery-schedule', scheduleParams)
+
+  /* Livraisons du jour / Today's deliveries */
+  const today = useMemo(() => toDateStr(new Date()), [])
+  const hasToday = dateFrom <= today && dateTo >= today
+  const todayDeliveries = useMemo(
+    () => hasToday ? data.filter(e => e.delivery_date === today) : [],
+    [data, today, hasToday],
+  )
+  const todayTourIds = useMemo(
+    () => [...new Set(todayDeliveries.map(e => e.tour_id))],
+    [todayDeliveries],
+  )
+
+  /* Tracking live / Live tracking */
+  const trackingEnabled = hasToday && todayTourIds.length > 0
+  const { positions, activeTours, wsConnected } = usePdvTracking(todayTourIds, trackingEnabled)
+
+  /* Labels tour / Tour labels */
+  const tourLabels = useMemo(() => computeTourLabels(todayDeliveries), [todayDeliveries])
+
+  /* Localisation du PDV / PDV location */
+  const effectivePdvId = isPdvUser ? user?.pdv_id : (pdvId || null)
+  const pdvLocation = useMemo(() => {
+    if (!effectivePdvId) return null
+    const p = pdvs.find(x => x.id === effectivePdvId)
+    if (!p?.latitude || !p?.longitude) return null
+    return { lat: p.latitude, lng: p.longitude, code: p.code, name: p.name }
+  }, [pdvs, effectivePdvId])
 
   /* Enrichir data avec un id synthétique pour DataTable / Add synthetic id for DataTable */
   const tableData = useMemo(
@@ -125,10 +159,25 @@ export default function PdvDeliverySchedule() {
     { key: 'pdv_name', label: 'PDV', width: '200px', filterable: true },
     { key: 'delivery_date', label: 'Date livr.', width: '110px', filterable: true },
     {
-      key: 'tour_code', label: 'Tour', width: '120px', filterable: true,
-      render: (row) => (
-        <span style={{ color: 'var(--color-primary)', fontWeight: 500 }}>{row.tour_code}</span>
-      ),
+      key: 'tour_code', label: 'Tour', width: '160px', filterable: true,
+      render: (row) => {
+        const label = tourLabels.get(row.tour_id)
+        const cls = (row.temperature_classes?.[0] ?? 'SEC') as TemperatureClass
+        const color = TEMPERATURE_COLORS[cls] ?? TEMPERATURE_COLORS.SEC
+        return (
+          <span className="flex items-center gap-1.5">
+            <span style={{ color: 'var(--color-primary)', fontWeight: 500 }}>{row.tour_code}</span>
+            {label && row.delivery_date === today && (
+              <span
+                className="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                style={{ backgroundColor: color, color: 'white' }}
+              >
+                {label}
+              </span>
+            )}
+          </span>
+        )
+      },
     },
     { key: 'departure_time', label: 'Départ base', width: '100px' },
     { key: 'arrival_time', label: 'Arrivée', width: '90px' },
@@ -156,33 +205,69 @@ export default function PdvDeliverySchedule() {
     },
     { key: 'eqp_count', label: 'EQC', width: '70px' },
     {
-      key: 'tour_status', label: 'Statut', width: '110px', filterable: true,
-      render: (row) => (
-        <span
-          className="px-2 py-0.5 rounded text-xs font-medium"
-          style={{ color: statusColors[row.tour_status] || 'var(--text-secondary)' }}
-        >
-          {row.tour_status}
-        </span>
-      ),
+      key: 'tour_status', label: 'Statut', width: '130px', filterable: true,
+      render: (row) => {
+        const s = STATUS_LABELS[row.tour_status]
+        const isActive = row.tour_status === 'IN_PROGRESS' || row.tour_status === 'RETURNING'
+        return (
+          <span className="flex items-center gap-1.5">
+            <span
+              style={{
+                width: 8, height: 8, borderRadius: '50%',
+                background: s?.dot ?? '#9ca3af',
+                display: 'inline-block', flexShrink: 0,
+                animation: isActive ? 'pdv-pulse-dot 1.5s ease-in-out infinite' : undefined,
+              }}
+            />
+            <span className="text-xs font-medium" style={{ color: s?.color ?? 'var(--text-secondary)' }}>
+              {s?.label ?? row.tour_status}
+            </span>
+          </span>
+        )
+      },
     },
-  ], [])
+  ], [today, tourLabels])
+
+  const showMap = trackingEnabled && !mapCollapsed
 
   return (
     <div>
+      {/* Animation dot pulsant */}
+      <style>{`
+        @keyframes pdv-pulse-dot {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+      `}</style>
+
       {/* En-tête / Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
           Planning livraisons PDV
         </h2>
-        <button
-          onClick={handleExport}
-          disabled={!data.length}
-          className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
-          style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}
-        >
-          Exporter Excel
-        </button>
+        <div className="flex items-center gap-2">
+          {trackingEnabled && (
+            <button
+              onClick={() => setMapCollapsed(c => !c)}
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              style={{
+                backgroundColor: mapCollapsed ? 'var(--bg-tertiary)' : 'var(--color-primary)',
+                color: mapCollapsed ? 'var(--text-primary)' : 'white',
+                border: mapCollapsed ? '1px solid var(--border-color)' : 'none',
+              }}
+            >
+              {mapCollapsed ? 'Afficher carte' : 'Masquer carte'}
+            </button>
+          )}
+          <button
+            onClick={handleExport}
+            disabled={!data.length}
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
+            style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}
+          >
+            Exporter Excel
+          </button>
+        </div>
       </div>
 
       {/* Barre de filtres / Filter bar */}
@@ -290,6 +375,22 @@ export default function PdvDeliverySchedule() {
         </div>
       </div>
 
+      {/* Carte tracking live / Live tracking map */}
+      {showMap && (
+        <div className="mb-4 rounded-xl border overflow-hidden" style={{ height: 350, borderColor: 'var(--border-color)' }}>
+          <PdvDeliveryMap
+            deliveries={todayDeliveries}
+            positions={positions}
+            activeTours={activeTours}
+            pdvLocation={pdvLocation}
+            selectedTourId={selectedTourId}
+            onTourSelect={setSelectedTourId}
+            wsConnected={wsConnected}
+            tourLabels={tourLabels}
+          />
+        </div>
+      )}
+
       {/* Tableau / Table */}
       <DataTable
         columns={columns}
@@ -297,6 +398,12 @@ export default function PdvDeliverySchedule() {
         loading={loading}
         searchable={true}
         searchKeys={['pdv_code', 'pdv_name', 'tour_code']}
+        onRowClick={(row) => {
+          if (row.delivery_date === today && trackingEnabled) {
+            setSelectedTourId(prev => prev === row.tour_id ? null : row.tour_id)
+          }
+        }}
+        activeRowId={selectedTourId ? tableData.find(r => r.tour_id === selectedTourId)?.id ?? null : null}
       />
 
       {/* Pied de tableau totaux / Footer totals */}
