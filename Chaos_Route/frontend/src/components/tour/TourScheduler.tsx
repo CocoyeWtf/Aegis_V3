@@ -672,8 +672,10 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
   /* Gantt data triée dans le même ordre que sortedTours / Gantt data sorted same as sortedTours */
   const ganttData = useMemo(() => {
     const timelineMap = new Map(timeline.map(t => [t.tour_id, t]))
-    return sortedTours.map(tour =>
-      timelineMap.get(tour.id) ?? {
+    return sortedTours.map(tour => {
+      const tl = timelineMap.get(tour.id)
+      if (tl) return { ...tl, driver_name: tl.driver_name || tourVehicleMap.get(tour.id) || null }
+      return {
         tour_id: tour.id,
         code: tour.code,
         contract_id: tour.contract_id ?? null,
@@ -703,7 +705,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
           departure_time: s.departure_time ?? null,
         })) ?? [],
       }
-    )
+    })
   }, [sortedTours, timeline, selectedDate, pdvMap, tourVehicleMap])
 
   /* Redimensionnement split par pixels / Split resize in pixels */
