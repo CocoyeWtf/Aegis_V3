@@ -248,20 +248,22 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
   const unscheduledTours = useMemo(() => tours.filter((t) => !t.departure_time), [tours])
   const scheduledTours = useMemo(() => tours.filter((t) => t.departure_time), [tours])
 
-  /* Map tour_id → vehicle_code du contrat (identifiant "chauffeur/véhicule") */
+  /* Map tour_id → label chauffeur/véhicule (vehicle_code ou contract_code en fallback) */
   const tourVehicleMap = useMemo(() => {
     const m = new Map<number, string>()
     for (const tl of timeline) {
-      if (tl.vehicle_code) m.set(tl.tour_id, tl.vehicle_code)
+      const label = tl.vehicle_code || tl.contract_code
+      if (label) m.set(tl.tour_id, label)
     }
     return m
   }, [timeline])
 
-  /* Liste unique des véhicules/chauffeurs pour le filtre / Unique vehicle list for filter */
+  /* Liste unique des chauffeurs/véhicules pour le filtre */
   const driverNames = useMemo(() => {
     const names = new Set<string>()
     for (const tl of timeline) {
-      if (tl.vehicle_code) names.add(tl.vehicle_code)
+      const label = tl.vehicle_code || tl.contract_code
+      if (label) names.add(label)
     }
     return Array.from(names).sort()
   }, [timeline])
