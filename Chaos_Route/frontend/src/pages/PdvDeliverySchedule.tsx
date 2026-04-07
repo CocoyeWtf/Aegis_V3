@@ -71,6 +71,13 @@ export default function PdvDeliverySchedule() {
   /* Livraisons du jour / Today's deliveries */
   const today = useMemo(() => toDateStr(new Date()), [])
   const hasToday = dateFrom <= today && dateTo >= today
+  /* Tours visibles (toutes dates confondues) pour la carte */
+  const allTourIds = useMemo(
+    () => [...new Set(data.map(e => e.tour_id))],
+    [data],
+  )
+
+  /* Tours du jour pour le tracking live uniquement */
   const todayDeliveries = useMemo(
     () => hasToday ? data.filter(e => e.delivery_date === today) : [],
     [data, today, hasToday],
@@ -80,12 +87,15 @@ export default function PdvDeliverySchedule() {
     [todayDeliveries],
   )
 
-  /* Tracking live / Live tracking */
+  /* Tracking live (actif uniquement pour le jour même) */
   const trackingEnabled = hasToday && todayTourIds.length > 0
   const { positions, activeTours, wsConnected } = usePdvTracking(todayTourIds, trackingEnabled)
 
-  /* Labels tour / Tour labels */
-  const tourLabels = useMemo(() => computeTourLabels(todayDeliveries), [todayDeliveries])
+  /* Labels tour pour toutes les livraisons visibles */
+  const tourLabels = useMemo(() => computeTourLabels(data), [data])
+
+  /* La carte s'affiche dès qu'il y a des livraisons et un PDV localisé */
+  const mapAvailable = data.length > 0
 
   /* Localisation du PDV / PDV location */
   const effectivePdvId = isPdvUser ? user?.pdv_id : (pdvId || null)
@@ -228,7 +238,7 @@ export default function PdvDeliverySchedule() {
     },
   ], [today, tourLabels])
 
-  const showMap = trackingEnabled && !mapCollapsed
+  const showMap = mapAvailable && !mapCollapsed
 
   return (
     <div>
@@ -246,7 +256,7 @@ export default function PdvDeliverySchedule() {
           Planning livraisons PDV
         </h2>
         <div className="flex items-center gap-2">
-          {trackingEnabled && (
+          {mapAvailable && (
             <button
               onClick={() => setMapCollapsed(c => !c)}
               className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
@@ -379,7 +389,7 @@ export default function PdvDeliverySchedule() {
       {showMap && (
         <div className="mb-4 rounded-xl border overflow-hidden" style={{ height: 350, borderColor: 'var(--border-color)' }}>
           <PdvDeliveryMap
-            deliveries={todayDeliveries}
+            deliveries={data}
             positions={positions}
             activeTours={activeTours}
             pdvLocation={pdvLocation}
@@ -399,7 +409,7 @@ export default function PdvDeliverySchedule() {
         searchable={true}
         searchKeys={['pdv_code', 'pdv_name', 'tour_code']}
         onRowClick={(row) => {
-          if (row.delivery_date === today && trackingEnabled) {
+          if (mapAvailable) {
             setSelectedTourId(prev => prev === row.tour_id ? null : row.tour_id)
           }
         }}
