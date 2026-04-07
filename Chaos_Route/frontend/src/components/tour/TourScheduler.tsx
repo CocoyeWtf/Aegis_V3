@@ -1022,7 +1022,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                       </div>
 
                       {/* Ligne 2 — Liste complète des PDV / Line 2 — Full PDV list */}
-                      <div className="text-sm font-bold mt-0.5 pl-6" style={{ color: 'var(--color-primary)' }}>
+                      <div className="text-sm font-medium mt-0.5 pl-6" style={{ color: 'var(--color-primary)' }}>
                         {pdvSummary(tour)}
                       </div>
                     </div>
