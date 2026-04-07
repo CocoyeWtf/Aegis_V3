@@ -36,6 +36,7 @@ interface TourGanttProps {
   rowHeights?: number[]
   headerHeight?: number
   expandedTourIds?: Set<number>
+  driverSort?: 'asc' | 'desc' | null
 }
 
 const ROW_HEIGHT = 40
@@ -66,6 +67,7 @@ export function TourGantt({
   rowHeights,
   headerHeight: headerHeightProp,
   expandedTourIds,
+  driverSort,
 }: TourGanttProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(400)
@@ -189,14 +191,23 @@ export function TourGantt({
 
               {/* Séparateur horizontal / Horizontal separator */}
               {i > 0 && (
-                <line x1={0} y1={y} x2={width} y2={y} stroke="var(--border-color)" strokeWidth={0.5} opacity={0.3} />
+                <line x1={0} y1={y} x2={width} y2={y}
+                  stroke={driverSort && tours[i - 1].driver_name !== tour.driver_name ? 'var(--color-primary)' : 'var(--border-color)'}
+                  strokeWidth={driverSort && tours[i - 1].driver_name !== tour.driver_name ? 1.5 : 0.5}
+                  opacity={driverSort && tours[i - 1].driver_name !== tour.driver_name ? 0.6 : 0.3}
+                />
               )}
 
               {/* Code tour + chauffeur / Tour code + driver label */}
-              <text x={8} y={tour.driver_name ? barCenterY - 1 : barCenterY + 4} fill={isHighlighted ? 'var(--color-primary)' : 'var(--text-primary)'} fontSize={11} fontWeight="bold" fontFamily="inherit">
+              {driverSort && i > 0 && tours[i - 1].driver_name === tour.driver_name ? null : driverSort && tour.driver_name && (
+                <text x={8} y={barCenterY - 2} fill="var(--color-primary)" fontSize={10} fontWeight="bold" fontFamily="inherit">
+                  {tour.driver_name}
+                </text>
+              )}
+              <text x={8} y={driverSort && tour.driver_name && (i === 0 || tours[i - 1].driver_name !== tour.driver_name) ? barCenterY + 10 : tour.driver_name && !driverSort ? barCenterY - 1 : barCenterY + 4} fill={isHighlighted ? 'var(--color-primary)' : 'var(--text-primary)'} fontSize={11} fontWeight="bold" fontFamily="inherit">
                 {tour.code}
               </text>
-              {tour.driver_name && (
+              {tour.driver_name && !driverSort && (
                 <text x={8} y={barCenterY + 11} fill="var(--text-muted)" fontSize={9} fontFamily="inherit">
                   {tour.driver_name}
                 </text>

@@ -96,6 +96,9 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
   /* Filtre chauffeur / Driver filter */
   const [driverFilter, setDriverFilter] = useState('ALL')
 
+  /* Tri chauffeur / Driver sort */
+  const [driverSort, setDriverSort] = useState<'asc' | 'desc' | null>(null)
+
   /* Expansion boites / Box expansion */
   const [expandedTourIds, setExpandedTourIds] = useState<Set<number>>(new Set())
 
@@ -268,12 +271,34 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
   /* Liste unique triée: planifiés d'abord par heure départ, puis non-planifiés /
      Unified sorted list: scheduled first by departure time, then unscheduled */
   const sortedTours = useMemo(() => {
+    const byDeparture = (a: Tour, b: Tour) =>
+      (a.departure_time ? parseTime(a.departure_time) : Infinity) - (b.departure_time ? parseTime(b.departure_time) : Infinity)
+
+    if (driverSort) {
+      /* Grouper par chauffeur, trier chauffeurs alpha, tours par départ à l'intérieur */
+      const groups = new Map<string, Tour[]>()
+      for (const t of filteredTours) {
+        const key = t.driver_name || '\uffff' /* sans chauffeur en dernier */
+        if (!groups.has(key)) groups.set(key, [])
+        groups.get(key)!.push(t)
+      }
+      const sortedKeys = [...groups.keys()].sort((a, b) => {
+        const cmp = a.localeCompare(b, 'fr')
+        return driverSort === 'desc' ? -cmp : cmp
+      })
+      const result: Tour[] = []
+      for (const key of sortedKeys) {
+        result.push(...groups.get(key)!.sort(byDeparture))
+      }
+      return result
+    }
+
     const scheduled = filteredTours.filter(t => t.departure_time)
       .sort((a, b) => parseTime(a.departure_time!) - parseTime(b.departure_time!))
     const unscheduled = filteredTours.filter(t => !t.departure_time)
       .sort((a, b) => a.id - b.id)
     return [...scheduled, ...unscheduled]
-  }, [filteredTours])
+  }, [filteredTours, driverSort])
 
   /* Détecter les tours avec violation de fenêtre de livraison / Detect delivery window violations */
   const deliveryWindowViolations = useMemo(() => {
@@ -777,17 +802,31 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
             <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
               Chauffeur
             </label>
-            <select
-              className="px-2 py-2 text-xs rounded-lg border"
-              style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
-              value={driverFilter}
-              onChange={(e) => setDriverFilter(e.target.value)}
-            >
-              <option value="ALL">Tous</option>
-              {driverNames.map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
+            <div className="flex items-center gap-1">
+              <select
+                className="px-2 py-2 text-xs rounded-lg border"
+                style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                value={driverFilter}
+                onChange={(e) => setDriverFilter(e.target.value)}
+              >
+                <option value="ALL">Tous</option>
+                {driverNames.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+              <button
+                className="px-2 py-2 text-xs rounded-lg border"
+                style={{
+                  borderColor: driverSort ? 'var(--color-primary)' : 'var(--border-color)',
+                  backgroundColor: driverSort ? 'rgba(249,115,22,0.1)' : 'var(--bg-primary)',
+                  color: driverSort ? 'var(--color-primary)' : 'var(--text-muted)',
+                }}
+                title={driverSort === 'asc' ? 'Tri chauffeur A→Z' : driverSort === 'desc' ? 'Tri chauffeur Z→A' : 'Trier par chauffeur'}
+                onClick={() => setDriverSort(prev => prev === null ? 'asc' : prev === 'asc' ? 'desc' : null)}
+              >
+                {driverSort === 'asc' ? 'A↓' : driverSort === 'desc' ? 'Z↓' : 'A↕'}
+              </button>
+            </div>
           </div>
         )}
 
@@ -1305,6 +1344,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
               rowHeights={measuredRowHeights}
               headerHeight={measuredHeaderHeight}
               expandedTourIds={expandedTourIds}
+              driverSort={driverSort}
             />
           </div>
         </div>
