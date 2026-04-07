@@ -248,25 +248,31 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
   const unscheduledTours = useMemo(() => tours.filter((t) => !t.departure_time), [tours])
   const scheduledTours = useMemo(() => tours.filter((t) => t.departure_time), [tours])
 
-  /* Liste unique des chauffeurs pour le filtre / Unique driver list for filter */
+  /* Map tour_id → vehicle_code du contrat (identifiant "chauffeur/véhicule") */
+  const tourVehicleMap = useMemo(() => {
+    const m = new Map<number, string>()
+    for (const tl of timeline) {
+      if (tl.vehicle_code) m.set(tl.tour_id, tl.vehicle_code)
+    }
+    return m
+  }, [timeline])
+
+  /* Liste unique des véhicules/chauffeurs pour le filtre / Unique vehicle list for filter */
   const driverNames = useMemo(() => {
     const names = new Set<string>()
-    for (const t of tours) {
-      if (t.driver_name) names.add(t.driver_name)
-    }
     for (const tl of timeline) {
-      if (tl.driver_name) names.add(tl.driver_name)
+      if (tl.vehicle_code) names.add(tl.vehicle_code)
     }
     return Array.from(names).sort()
-  }, [tours, timeline])
+  }, [timeline])
 
-  /* Filtrer par activité et chauffeur / Filter by activity and driver */
+  /* Filtrer par activité et véhicule/chauffeur / Filter by activity and vehicle/driver */
   const filteredTours = useMemo(() => {
     let result = tours
     if (activityFilter !== 'ALL') result = result.filter(t => t.temperature_type === activityFilter)
-    if (driverFilter !== 'ALL') result = result.filter(t => t.driver_name === driverFilter)
+    if (driverFilter !== 'ALL') result = result.filter(t => tourVehicleMap.get(t.id) === driverFilter)
     return result
-  }, [tours, activityFilter, driverFilter])
+  }, [tours, activityFilter, driverFilter, tourVehicleMap])
 
   /* Liste unique triée: planifiés d'abord par heure départ, puis non-planifiés /
      Unified sorted list: scheduled first by departure time, then unscheduled */
@@ -275,10 +281,10 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
       (a.departure_time ? parseTime(a.departure_time) : Infinity) - (b.departure_time ? parseTime(b.departure_time) : Infinity)
 
     if (driverSort) {
-      /* Grouper par chauffeur, trier chauffeurs alpha, tours par départ à l'intérieur */
+      /* Grouper par véhicule/chauffeur, trier alpha, tours par départ à l'intérieur */
       const groups = new Map<string, Tour[]>()
       for (const t of filteredTours) {
-        const key = t.driver_name || '\uffff' /* sans chauffeur en dernier */
+        const key = tourVehicleMap.get(t.id) || '\uffff' /* sans véhicule en dernier */
         if (!groups.has(key)) groups.set(key, [])
         groups.get(key)!.push(t)
       }
@@ -298,7 +304,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
     const unscheduled = filteredTours.filter(t => !t.departure_time)
       .sort((a, b) => a.id - b.id)
     return [...scheduled, ...unscheduled]
-  }, [filteredTours, driverSort])
+  }, [filteredTours, driverSort, tourVehicleMap])
 
   /* Détecter les tours avec violation de fenêtre de livraison / Detect delivery window violations */
   const deliveryWindowViolations = useMemo(() => {
@@ -675,7 +681,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
         vehicle_code: null,
         vehicle_name: null,
         transporter_name: null,
-        driver_name: tour.driver_name ?? null,
+        driver_name: tourVehicleMap.get(tour.id) ?? tour.driver_name ?? null,
         departure_time: tour.departure_time ?? null,
         return_time: tour.return_time ?? null,
         total_eqp: tour.total_eqp ?? null,
@@ -696,7 +702,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
         })) ?? [],
       }
     )
-  }, [sortedTours, timeline, selectedDate, pdvMap])
+  }, [sortedTours, timeline, selectedDate, pdvMap, tourVehicleMap])
 
   /* Redimensionnement split par pixels / Split resize in pixels */
   const handleSplitResize = useCallback((e: React.MouseEvent) => {
