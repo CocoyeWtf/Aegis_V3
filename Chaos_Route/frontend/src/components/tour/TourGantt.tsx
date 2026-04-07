@@ -199,18 +199,30 @@ export function TourGantt({
               )}
 
               {/* Code tour + chauffeur / Tour code + driver label */}
-              {driverSort && i > 0 && tours[i - 1].driver_name === tour.driver_name ? null : driverSort && tour.driver_name && (
-                <text x={8} y={barCenterY - 2} fill="var(--color-primary)" fontSize={10} fontWeight="bold" fontFamily="inherit">
-                  {tour.driver_name}
-                </text>
-              )}
-              <text x={8} y={driverSort && tour.driver_name && (i === 0 || tours[i - 1].driver_name !== tour.driver_name) ? barCenterY + 10 : tour.driver_name && !driverSort ? barCenterY - 1 : barCenterY + 4} fill={isHighlighted ? 'var(--color-primary)' : 'var(--text-primary)'} fontSize={11} fontWeight="bold" fontFamily="inherit">
-                {tour.code}
-              </text>
-              {tour.driver_name && !driverSort && (
-                <text x={8} y={barCenterY + 11} fill="var(--text-muted)" fontSize={9} fontFamily="inherit">
-                  {tour.driver_name}
-                </text>
+              {driverSort && tour.driver_name ? (
+                <>
+                  {/* Nom chauffeur en en-tête de groupe (première tour uniquement) */}
+                  {(i === 0 || tours[i - 1].driver_name !== tour.driver_name) && (
+                    <text x={4} y={barCenterY - 2} fill="var(--color-primary)" fontSize={10} fontWeight="bold" fontFamily="inherit">
+                      {tour.driver_name}
+                    </text>
+                  )}
+                  {/* Code tour indenté */}
+                  <text x={12} y={(i === 0 || tours[i - 1].driver_name !== tour.driver_name) ? barCenterY + 10 : barCenterY + 4} fill={isHighlighted ? 'var(--color-primary)' : 'var(--text-muted)'} fontSize={9} fontFamily="inherit">
+                    {tour.code}
+                  </text>
+                </>
+              ) : (
+                <>
+                  <text x={8} y={tour.driver_name ? barCenterY - 1 : barCenterY + 4} fill={isHighlighted ? 'var(--color-primary)' : 'var(--text-primary)'} fontSize={11} fontWeight="bold" fontFamily="inherit">
+                    {tour.code}
+                  </text>
+                  {tour.driver_name && (
+                    <text x={8} y={barCenterY + 11} fill="var(--text-muted)" fontSize={9} fontFamily="inherit">
+                      {tour.driver_name}
+                    </text>
+                  )}
+                </>
               )}
 
               {/* Barre principale / Main bar */}
