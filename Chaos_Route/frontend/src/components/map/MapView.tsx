@@ -46,20 +46,20 @@ function RegionFitBounds({ pdvs, bases }: { pdvs: PDV[]; bases: BaseLogistics[] 
     if (key === lastFitKey.current) return
     lastFitKey.current = key
 
+    /* Sync store une fois l'animation terminée / Sync store after animation completes */
+    const syncStore = () => {
+      const c = map.getCenter()
+      setCenter([c.lat, c.lng])
+      setZoom(map.getZoom())
+    }
+
     if (points.length === 1) {
+      map.once('moveend', syncStore)
       map.setView(points[0], 12)
-      setCenter(points[0])
-      setZoom(12)
     } else {
       const bounds = L.latLngBounds(points)
+      map.once('moveend', syncStore)
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 })
-      /* Sync store avec le nouveau centre/zoom pour que MapSync ne combat pas /
-         Sync store with new center/zoom so MapSync doesn't fight back */
-      requestAnimationFrame(() => {
-        const c = map.getCenter()
-        setCenter([c.lat, c.lng])
-        setZoom(map.getZoom())
-      })
     }
   }, [pdvs, bases, map, setCenter, setZoom])
 
