@@ -154,7 +154,7 @@ export function TourGantt({
           return (
             <g key={h}>
               <line x1={x} y1={headerH} x2={x} y2={svgHeight} stroke="var(--border-color)" strokeWidth={0.5} />
-              <text x={x} y={headerH / 2 + 4} textAnchor="middle" fill="var(--text-muted)" fontSize={10} fontFamily="inherit">
+              <text x={x} y={headerH / 2 + 4} textAnchor="middle" fill="var(--text-primary)" fontSize={12} fontWeight="bold" fontFamily="inherit">
                 {`${String(h).padStart(2, '0')}h`}
               </text>
             </g>

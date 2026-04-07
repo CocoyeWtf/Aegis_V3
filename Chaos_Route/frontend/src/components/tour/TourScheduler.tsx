@@ -97,7 +97,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
   const [driverFilter, setDriverFilter] = useState('ALL')
 
   /* Tri chauffeur / Driver sort */
-  const [driverSort, setDriverSort] = useState<'asc' | 'desc' | null>(null)
+  const [driverSort, setDriverSort] = useState<'asc' | 'desc' | null>('asc')
 
   /* Expansion boites / Box expansion */
   const [expandedTourIds, setExpandedTourIds] = useState<Set<number>>(new Set())
