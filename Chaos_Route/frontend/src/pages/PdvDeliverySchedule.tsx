@@ -71,13 +71,7 @@ export default function PdvDeliverySchedule() {
   /* Livraisons du jour / Today's deliveries */
   const today = useMemo(() => toDateStr(new Date()), [])
   const hasToday = dateFrom <= today && dateTo >= today
-  /* Tours visibles (toutes dates confondues) pour la carte */
-  const allTourIds = useMemo(
-    () => [...new Set(data.map(e => e.tour_id))],
-    [data],
-  )
-
-  /* Tours du jour pour le tracking live uniquement */
+  /* Tours du jour pour le tracking live */
   const todayDeliveries = useMemo(
     () => hasToday ? data.filter(e => e.delivery_date === today) : [],
     [data, today, hasToday],
