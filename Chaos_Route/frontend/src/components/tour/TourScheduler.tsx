@@ -1352,7 +1352,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
               onTourClick={setHighlightedTourId}
               warningTourIds={new Set(deliveryWindowViolations.keys())}
               rowHeights={measuredRowHeights}
-              headerHeight={measuredHeaderHeight}
+              headerHeight={measuredHeaderHeight || undefined}
               expandedTourIds={expandedTourIds}
               driverSort={driverSort}
             />
