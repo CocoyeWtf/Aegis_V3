@@ -170,7 +170,7 @@ if STATIC_DIR.is_dir():
         file_path = STATIC_DIR / path
         if file_path.is_file():
             return FileResponse(file_path)
-        return FileResponse(STATIC_DIR / "index.html")
+        return FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 else:
     # Dev : health check a la racine / Dev: root health check
     @app.get("/")
