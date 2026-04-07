@@ -574,7 +574,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
           return (
             <div key={stop.id} className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] pl-2" style={{ color: 'var(--text-muted)' }}>
               <span className="w-4 text-right font-mono shrink-0" style={{ color: 'var(--text-primary)' }}>{idx + 1}</span>
-              <span className="font-semibold shrink-0" style={{ color: 'var(--text-primary)' }}>
+              <span className="text-sm font-bold shrink-0" style={{ color: 'var(--color-primary)' }}>
                 {pdv?.code ?? `#${stop.pdv_id}`}
               </span>
               <span className="truncate max-w-[120px]">— {pdv?.name ?? ''}</span>
@@ -902,7 +902,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                         </button>
 
                         {/* Code tour */}
-                        <span className="text-sm font-bold shrink-0" style={{ color: 'var(--color-primary)' }}>
+                        <span className="text-[11px] font-bold shrink-0" style={{ color: '#000000' }}>
                           {tour.code}
                         </span>
 
