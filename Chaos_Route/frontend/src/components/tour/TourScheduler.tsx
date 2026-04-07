@@ -97,7 +97,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
   const [driverFilter, setDriverFilter] = useState('ALL')
 
   /* Expansion boites / Box expansion */
-  const [expandedTourId, setExpandedTourId] = useState<number | null>(null)
+  const [expandedTourIds, setExpandedTourIds] = useState<Set<number>>(new Set())
 
   /* Split prefs */
   const [prefs, setPrefs] = useState<SchedulerPrefs>(loadPrefs)
@@ -711,7 +711,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
     /* Mesurer header (espace avant la première boite) / Measure header offset */
     const headerEl = container.querySelector<HTMLElement>('[data-gantt-header]')
     setMeasuredHeaderHeight(headerEl ? headerEl.getBoundingClientRect().height : 0)
-  }, [sortedTours, expandedTourId, scheduleInputs])
+  }, [sortedTours, expandedTourIds, scheduleInputs])
 
   /* Scroll-to-view quand highlight depuis Gantt / Scroll into view on Gantt click */
   useEffect(() => {
@@ -851,7 +851,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
             ) : (
               sortedTours.map((tour) => {
                 const isScheduled = !!tour.departure_time
-                const isExpanded = expandedTourId === tour.id
+                const isExpanded = expandedTourIds.has(tour.id)
                 const isHighlighted = highlightedTourId === tour.id
                 const windowViolations = deliveryWindowViolations.get(tour.id)
                 const tourContract = tour.contract_id ? contractMap.get(tour.contract_id) : null
@@ -896,7 +896,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                         <button
                           className="text-xs shrink-0 w-4 text-center"
                           style={{ color: 'var(--text-muted)' }}
-                          onClick={(e) => { e.stopPropagation(); setExpandedTourId(isExpanded ? null : tour.id) }}
+                          onClick={(e) => { e.stopPropagation(); setExpandedTourIds(prev => { const next = new Set(prev); if (isExpanded) next.delete(tour.id); else next.add(tour.id); return next }) }}
                         >
                           {isExpanded ? '▾' : '▸'}
                         </button>
@@ -1304,7 +1304,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
               warningTourIds={new Set(deliveryWindowViolations.keys())}
               rowHeights={measuredRowHeights}
               headerHeight={measuredHeaderHeight}
-              expandedTourId={expandedTourId}
+              expandedTourIds={expandedTourIds}
             />
           </div>
         </div>

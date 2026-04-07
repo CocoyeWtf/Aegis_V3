@@ -35,7 +35,7 @@ interface TourGanttProps {
   warningTourIds?: Set<number>
   rowHeights?: number[]
   headerHeight?: number
-  expandedTourId?: number | null
+  expandedTourIds?: Set<number>
 }
 
 const ROW_HEIGHT = 40
@@ -65,7 +65,7 @@ export function TourGantt({
   warningTourIds,
   rowHeights,
   headerHeight: headerHeightProp,
-  expandedTourId,
+  expandedTourIds,
 }: TourGanttProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(400)
@@ -164,7 +164,7 @@ export function TourGantt({
           const y = headerH + rowYs[i]
           const rowH = rowHeights?.[i] ?? ROW_HEIGHT
           const isHighlighted = tour.tour_id === highlightedTourId
-          const isExpanded = tour.tour_id === expandedTourId
+          const isExpanded = expandedTourIds?.has(tour.tour_id)
           const hasWarning = warningTourIds?.has(tour.tour_id)
           const color = STATUS_COLORS[tour.status] || STATUS_COLORS.DRAFT
 
