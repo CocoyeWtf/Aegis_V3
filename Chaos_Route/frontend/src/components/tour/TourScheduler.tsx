@@ -761,7 +761,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
     return stops.map(s => {
       const pdv = pdvMap.get(s.pdv_id)
       return `${pdv?.code ?? `#${s.pdv_id}`}(${s.eqp_count})`
-    }).join(' ')
+    }).join(' \u25c6 ')
   }
 
   return (
@@ -1022,7 +1022,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                       </div>
 
                       {/* Ligne 2 — Liste complète des PDV / Line 2 — Full PDV list */}
-                      <div className="text-sm font-medium mt-0.5 pl-6" style={{ color: 'var(--color-primary)' }}>
+                      <div className="text-sm font-normal mt-0.5 pl-6" style={{ color: 'var(--color-primary)' }}>
                         {pdvSummary(tour)}
                       </div>
                     </div>
