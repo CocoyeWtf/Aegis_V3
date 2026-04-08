@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -116,7 +117,16 @@ async def create_vehicle(
     dump["qr_code"] = uuid.uuid4().hex[:8].upper()
     vehicle = Vehicle(**dump)
     db.add(vehicle)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError as e:
+        await db.rollback()
+        detail = str(e.orig) if e.orig else str(e)
+        if "vehicles_code_key" in detail:
+            raise HTTPException(status_code=409, detail=f"Le code véhicule '{data.code}' existe déjà")
+        if "vehicles_license_plate_key" in detail:
+            raise HTTPException(status_code=409, detail=f"La plaque d'immatriculation '{data.license_plate}' existe déjà")
+        raise HTTPException(status_code=409, detail="Un véhicule avec ces données existe déjà")
     await db.refresh(vehicle)
     return vehicle
 
