@@ -344,10 +344,20 @@ export default function PdvPickupRequests() {
 
   // Mode impression / Print mode
   if (printRequest) {
+    // Collecter toutes les étiquettes non imprimées du même PDV (pour Avery)
+    const allPdvPendingLabels = allRequests
+      .filter((r) => r.pdv_id === printRequest.pdv_id && r.status !== 'RECEIVED')
+      .flatMap((r) => (r.labels || []).filter((l) => l.status === 'PENDING').map((l) => ({
+        ...l,
+        _supportTypeName: r.support_type?.name || '',
+        _pickupType: r.pickup_type,
+      })))
+
     return (
       <div className="p-6">
         <PickupLabelPrint
           labels={printRequest.labels || []}
+          allPdvLabels={allPdvPendingLabels}
           pdvCode={printRequest.pdv?.code || ''}
           pdvName={printRequest.pdv?.name || ''}
           supportTypeName={printRequest.support_type?.name || ''}

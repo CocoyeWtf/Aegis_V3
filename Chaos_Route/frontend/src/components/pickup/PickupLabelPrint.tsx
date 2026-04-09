@@ -16,8 +16,15 @@ const PICKUP_LABEL_HEADERS: Record<string, string> = {
   CONSIGNMENT: 'RETOUR CONSIGNES',
 }
 
+interface PickupLabelWithMeta extends PickupLabel {
+  _supportTypeName?: string
+  _pickupType?: string
+}
+
 interface PickupLabelPrintProps {
   labels: PickupLabel[]
+  /** Toutes les étiquettes PENDING du PDV (pour mode Avery) */
+  allPdvLabels?: PickupLabelWithMeta[]
   pdvCode: string
   pdvName: string
   supportTypeName: string
@@ -184,12 +191,14 @@ function buildLabelHtml(
   `
 }
 
-export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pickupType, onClose, onPrinted }: PickupLabelPrintProps) {
+export function PickupLabelPrint({ labels, allPdvLabels, pdvCode, pdvName, supportTypeName, pickupType, onClose, onPrinted }: PickupLabelPrintProps) {
 
   /* Pre-generer tous les QR codes en data URL / Pre-generate all QR codes as data URLs */
   const [qrUrls, setQrUrls] = useState<Record<string, string>>({})
   useEffect(() => {
-    const codes = [...new Set(labels.map((l) => l.label_code))]
+    // Inclure les codes de allPdvLabels aussi pour le mode Avery
+    const allCodes = [...new Set([...labels.map((l) => l.label_code), ...(allPdvLabels || []).map((l) => l.label_code)])]
+    const codes = allCodes
     Promise.all(
       codes.map((code) =>
         QRCode.toDataURL(code, { width: 200, margin: 0, errorCorrectionLevel: 'M' })
@@ -272,9 +281,12 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
     const type = pickupType || 'CONTAINER'
 
     if (printMode === 'avery') {
-      /* Avery : toutes les étiquettes sur pages A4, 8 par page */
-      const averyLabels = labels.map((l) => {
-        const header = PICKUP_LABEL_HEADERS[type] || 'RETOUR CONTENANT'
+      /* Avery : toutes les étiquettes PENDING du PDV sur pages A4, 8 par page */
+      const averySource = (allPdvLabels && allPdvLabels.length > 0) ? allPdvLabels : labels
+      const averyLabels = averySource.map((l) => {
+        const lMeta = l as PickupLabelWithMeta
+        const header = PICKUP_LABEL_HEADERS[lMeta._pickupType || type] || 'RETOUR CONTENANT'
+        const stName = lMeta._supportTypeName || supportTypeName
         const bigNum = fmtPdvCode(pdvCode)
         return `<div class="avery-label">
           <div class="av-num">${bigNum}</div>
@@ -282,7 +294,7 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
           <div class="av-pdv"><strong>${pdvCode}</strong> — ${pdvName}</div>
           <img src="${qrUrls[l.label_code]}" style="width:14mm;height:14mm" />
           <div class="av-code">${l.label_code}</div>
-          <div class="av-support">${supportTypeName} — ${l.sequence_number}/${labels.length}</div>
+          <div class="av-support">${stName}</div>
         </div>`
       }).join('')
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Etiquettes Avery</title><style>${averyCss}</style></head><body><div class="avery-page">${averyLabels}</div></body></html>`
