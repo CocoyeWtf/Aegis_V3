@@ -951,7 +951,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                         </button>
 
                         {/* Code tour */}
-                        <span className="text-[10px] font-bold shrink-0" style={{ color: '#000000' }}>
+                        <span className="text-[11px] shrink-0" style={{ color: '#000000' }}>
                           {tour.code}
                         </span>
 
