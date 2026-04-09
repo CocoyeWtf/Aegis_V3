@@ -728,7 +728,7 @@ function TourRow({
     code: (
       <span className="flex items-center gap-1">
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{isExpanded ? '▾' : '▸'}</span>
-        <span className="font-bold" style={{ color: 'var(--color-primary)' }}>{tour.code}</span>
+        <span style={{ color: 'var(--color-primary)', fontSize: 11 }}>{tour.code}</span>
         {tour.device_assignment_id ? (
           (tour.status === 'DRAFT' || tour.status === 'VALIDATED') ? (
             <button
