@@ -139,7 +139,7 @@ export function TourGantt({
               )}
 
               {/* Code tour / Tour code label */}
-              <text x={8} y={barCenterY + 4} fill={isActive ? 'var(--color-primary)' : 'var(--text-primary)'} fontSize={11} fontWeight="bold" fontFamily="inherit">
+              <text x={8} y={barCenterY + 4} fill={isActive ? 'var(--color-primary)' : 'var(--text-primary)'} fontSize={11} fontWeight="normal" fontFamily="inherit">
                 {tour.code}
               </text>
 
