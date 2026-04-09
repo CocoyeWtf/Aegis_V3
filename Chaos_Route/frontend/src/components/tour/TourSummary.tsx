@@ -19,7 +19,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { TourStop, PDV, VehicleType, TemperatureType, TemperatureClass } from '../../types'
+import type { TourStop, PDV, Volume, VehicleType, TemperatureType, TemperatureClass } from '../../types'
 import { VEHICLE_TYPE_DEFAULTS, TEMPERATURE_COLORS, TEMPERATURE_TYPE_LABELS } from '../../types'
 import type { StopTimeline } from '../../utils/tourTimeUtils'
 import { formatDuration } from '../../utils/tourTimeUtils'
@@ -48,6 +48,8 @@ interface TourSummaryProps {
   temperatureType?: TemperatureType | null
   tourTemperatures?: Set<TemperatureClass>
   isPickupTour?: boolean
+  /** Tous les volumes pour calculer la répartition temp par stop */
+  volumes?: Volume[]
 }
 
 /* Ligne d'arrêt glissable / Sortable stop row */
@@ -59,6 +61,39 @@ const PICKUP_BADGE_MAP: { key: keyof TourStop; label: string }[] = [
   { key: 'pickup_consignment', label: 'K' },
 ]
 
+const TEMP_COLORS: Record<string, string> = { SEC: '#f59e0b', FRAIS: '#3b82f6', GEL: '#8b5cf6' }
+const TEMP_LABELS: Record<string, string> = { SEC: 'S', FRAIS: 'F', GEL: 'G' }
+
+function StopTempBreakdown({ stop, volumes }: { stop: TourStop; volumes?: Volume[] }) {
+  if (!volumes || volumes.length === 0) return <span>{stop.eqp_count} EQC</span>
+  const stopVols = volumes.filter((v) => v.pdv_id === stop.pdv_id)
+  if (stopVols.length === 0) return <span>{stop.eqp_count} EQC</span>
+  const byTemp: Record<string, number> = {}
+  for (const v of stopVols) {
+    byTemp[v.temperature_class] = (byTemp[v.temperature_class] || 0) + v.eqp_count
+  }
+  const entries = Object.entries(byTemp)
+  if (entries.length <= 1) {
+    const [tc] = entries[0] ?? ['SEC']
+    return (
+      <span className="inline-flex items-center gap-1">
+        <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: TEMP_COLORS[tc] || '#999' }} />
+        <span>{stop.eqp_count} EQC</span>
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {entries.map(([tc, eqp]) => (
+        <span key={tc} className="inline-flex items-center gap-0.5">
+          <span className="px-1 rounded text-[8px] font-bold text-white" style={{ backgroundColor: TEMP_COLORS[tc] || '#999' }}>{TEMP_LABELS[tc] || tc}</span>
+          <span>{eqp}</span>
+        </span>
+      ))}
+    </span>
+  )
+}
+
 function SortableStopRow({
   stop,
   idx,
@@ -68,6 +103,7 @@ function SortableStopRow({
   onUpdate,
   t,
   isPickupTour,
+  volumes,
 }: {
   stop: TourStop
   idx: number
@@ -77,6 +113,7 @@ function SortableStopRow({
   onUpdate?: (pdvId: number, data: Partial<TourStop>) => void
   t: (key: string) => string
   isPickupTour?: boolean
+  volumes?: Volume[]
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `stop-${stop.pdv_id}`,
@@ -136,7 +173,7 @@ function SortableStopRow({
                 ))}
               </span>
             ) : (
-              <span>{stop.eqp_count} EQC</span>
+              <StopTempBreakdown stop={stop} volumes={volumes} />
             )}
           </div>
         </div>
@@ -220,7 +257,7 @@ function SortableStopRow({
 export function TourSummary({
   stops, pdvs, vehicleType, capacityEqp, totalEqp, totalKm, totalCost, onRemoveStop, onReorderStops,
   onUpdateStop, stopTimelines = [], returnTime, departureTime, totalDurationMinutes = 0,
-  temperatureType, tourTemperatures, isPickupTour,
+  temperatureType, tourTemperatures, isPickupTour, volumes,
 }: TourSummaryProps) {
   const { t } = useTranslation()
   const pdvMap = new Map(pdvs.map((p) => [p.id, p]))
@@ -359,6 +396,7 @@ export function TourSummary({
                   onUpdate={isPickupTour ? undefined : onUpdateStop}
                   t={t}
                   isPickupTour={isPickupTour}
+                  volumes={volumes}
                 />
               ))}
             </SortableContext>

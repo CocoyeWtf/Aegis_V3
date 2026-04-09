@@ -913,6 +913,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                           onUpdateStop={tourMode === 'pickup' ? undefined : updateStop}
                           temperatureType={selectedTemperatureType}
                           tourTemperatures={tourTemperatures}
+                          volumes={allDayVolumes}
                           isPickupTour={tourMode === 'pickup'}
                         />
                       </div>
