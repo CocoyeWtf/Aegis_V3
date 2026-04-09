@@ -1,6 +1,6 @@
 /* Page Points de vente / Point of Sale management page */
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { QRCodeSVG } from 'qrcode.react'
 import { CrudPage } from '../components/data/CrudPage'
@@ -8,6 +8,7 @@ import type { Column } from '../components/data/DataTable'
 import type { FieldDef } from '../components/data/FormDialog'
 import { useApi } from '../hooks/useApi'
 import { PdvBarcodePrint } from '../components/pdv/PdvBarcodePrint'
+import api from '../services/api'
 import type { PDV, Region, VehicleType } from '../types'
 import { VEHICLE_TYPE_DEFAULTS } from '../types'
 
@@ -149,8 +150,91 @@ export default function PdvManagement() {
     { key: 'delivery_window_end', label: 'Livraison global à', type: 'time' },
     { key: 'access_constraints', label: 'Contraintes accès', type: 'textarea' },
     { key: 'allowed_vehicle_types', label: 'Véhicules autorisés', type: 'multicheck', options: vehicleTypeOptions },
-    { key: 'site_plan_url', label: 'Plan du site (URL ou pièce jointe)', type: 'text', helperText: 'URL vers un plan d\'accès pour les chauffeurs' },
   ]
+
+  const [uploading, setUploading] = useState(false)
+
+  const formExtra = useCallback((_formData: Record<string, unknown>, initialData?: Record<string, unknown>) => {
+    if (!initialData?.id) return null // Pas d'upload en création
+    const pdvId = initialData.id as number
+    const planUrl = initialData.site_plan_url as string | null
+
+    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        alert('Seuls les fichiers PDF sont acceptés')
+        return
+      }
+      setUploading(true)
+      try {
+        const fd = new FormData()
+        fd.append('file', file)
+        await api.post(`/pdvs/${pdvId}/upload-plan`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+        alert('Plan chargé avec succès')
+        window.location.reload()
+      } catch {
+        alert('Erreur lors du chargement')
+      } finally {
+        setUploading(false)
+      }
+    }
+
+    const handleDelete = async () => {
+      if (!confirm('Supprimer le plan du site ?')) return
+      try {
+        await api.delete(`/pdvs/${pdvId}/plan`)
+        alert('Plan supprimé')
+        window.location.reload()
+      } catch {
+        alert('Erreur lors de la suppression')
+      }
+    }
+
+    return (
+      <div
+        className="rounded-lg overflow-hidden border"
+        style={{ borderColor: '#ef444440', backgroundColor: '#ef444408' }}
+      >
+        <div
+          className="text-xs font-bold uppercase tracking-wide px-3 py-1.5"
+          style={{ backgroundColor: '#ef444420', color: '#ef4444' }}
+        >
+          Plan du site (PDF)
+        </div>
+        <div className="p-3 flex items-center gap-3">
+          {planUrl ? (
+            <>
+              <a
+                href={planUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:opacity-80"
+                style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
+              >
+                Voir le plan
+              </a>
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:opacity-80"
+                style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
+              >
+                Supprimer
+              </button>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>ou remplacer :</span>
+            </>
+          ) : (
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Aucun plan chargé —</span>
+          )}
+          <label className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white cursor-pointer transition-all hover:opacity-80" style={{ backgroundColor: 'var(--color-primary)' }}>
+            {uploading ? 'Chargement...' : 'Charger un PDF'}
+            <input type="file" accept=".pdf" onChange={handleUpload} className="hidden" disabled={uploading} />
+          </label>
+        </div>
+      </div>
+    )
+  }, [uploading])
 
   /* Impression QR / Print QR code */
   const handlePrint = () => {
@@ -197,6 +281,7 @@ export default function PdvManagement() {
           allowed_vehicle_types: d.allowed_vehicle_types ? (d.allowed_vehicle_types as string).split('|') : [],
         })}
         formSize="xl"
+        formExtra={formExtra}
       />
 
       {/* Modale QR PDV / PDV QR code modal */}

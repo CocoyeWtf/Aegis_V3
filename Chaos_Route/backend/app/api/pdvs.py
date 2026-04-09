@@ -1,6 +1,9 @@
 """Routes PDV / Point of Sale API routes."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import FileResponse
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -195,3 +198,72 @@ async def delete_pdv(
     if not pdv:
         raise HTTPException(status_code=404, detail="PDV not found")
     await db.delete(pdv)
+
+
+# ── Plan du site (PDF upload/download) ──
+
+PLANS_DIR = Path(__file__).resolve().parent.parent.parent / "pdv-plans"
+PLANS_DIR.mkdir(exist_ok=True)
+
+
+@router.post("/{pdv_id}/upload-plan", response_model=PDVRead)
+async def upload_site_plan(
+    pdv_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("pdvs", "update")),
+):
+    """Charger un plan du site (PDF uniquement) / Upload site plan (PDF only)."""
+    pdv = await db.get(PDV, pdv_id)
+    if not pdv:
+        raise HTTPException(status_code=404, detail="PDV not found")
+
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Seuls les fichiers PDF sont acceptés")
+
+    if file.content_type and file.content_type != "application/pdf":
+        raise HTTPException(status_code=400, detail="Seuls les fichiers PDF sont acceptés")
+
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:  # 10 MB max
+        raise HTTPException(status_code=400, detail="Fichier trop volumineux (max 10 Mo)")
+
+    filename = f"plan_{pdv_id}.pdf"
+    (PLANS_DIR / filename).write_bytes(content)
+
+    pdv.site_plan_url = f"/api/pdvs/plans/{filename}"
+    await db.flush()
+    await db.refresh(pdv)
+    return pdv
+
+
+@router.delete("/{pdv_id}/plan", status_code=204)
+async def delete_site_plan(
+    pdv_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("pdvs", "update")),
+):
+    """Supprimer le plan du site / Delete site plan."""
+    pdv = await db.get(PDV, pdv_id)
+    if not pdv:
+        raise HTTPException(status_code=404, detail="PDV not found")
+
+    filename = f"plan_{pdv_id}.pdf"
+    plan_path = PLANS_DIR / filename
+    if plan_path.is_file():
+        plan_path.unlink()
+
+    pdv.site_plan_url = None
+    await db.flush()
+
+
+@router.get("/plans/{filename}")
+async def download_site_plan(filename: str):
+    """Telecharger un plan du site / Download site plan."""
+    safe_name = Path(filename).name
+    if safe_name != filename or ".." in filename:
+        raise HTTPException(status_code=400, detail="Nom de fichier invalide")
+    file_path = PLANS_DIR / safe_name
+    if not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Plan non trouvé")
+    return FileResponse(file_path, media_type="application/pdf", filename=safe_name)
