@@ -40,6 +40,7 @@ const navGroups: NavGroup[] = [
       { path: '/base-activities', label: 'nav.baseActivities', icon: '🏷️', resource: 'base-activities' },
       { path: '/bases', label: 'nav.bases', icon: '🏭', resource: 'bases' },
       { path: '/loaders', label: 'Chargeurs', icon: '🧑‍🔧', resource: 'loaders' },
+      { path: '/base-drivers', label: 'Chauffeurs base', icon: '🚛', resource: 'base-drivers' },
       { path: '/support-types', label: 'Types de support', icon: '📦', resource: 'support-types' },
       { path: '/base-support-rules', label: 'Regles support/base', icon: '🔒', resource: 'support-types' },
       { path: '/surcharge-types', label: 'Types de surcharge', icon: '🏷️', resource: 'surcharge-types' },

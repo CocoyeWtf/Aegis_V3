@@ -58,6 +58,7 @@ RESOURCES = [
     "beer-consignments",
     "container-anomalies",
     "bottle-sorting",
+    "base-drivers",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

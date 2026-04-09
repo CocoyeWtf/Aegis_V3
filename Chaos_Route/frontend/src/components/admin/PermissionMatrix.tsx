@@ -26,6 +26,7 @@ const RESOURCE_GROUPS: ResourceGroup[] = [
       { resource: 'base-activities', label: 'Activites base' },
       { resource: 'bases', label: 'Bases logistiques' },
       { resource: 'loaders', label: 'Chargeurs' },
+      { resource: 'base-drivers', label: 'Chauffeurs base' },
       { resource: 'support-types', label: 'Types de support' },
       { resource: 'surcharge-types', label: 'Types de surcharge' },
       { resource: 'distances', label: 'Distancier / Taxe km' },

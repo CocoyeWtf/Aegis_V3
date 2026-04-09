@@ -215,6 +215,18 @@ export interface Loader {
   base_id: number
 }
 
+export interface BaseDriver {
+  id: number
+  last_name: string
+  first_name: string
+  code_infolog: string
+  status: string
+  base_id: number
+  phone: string | null
+  email: string | null
+  notes: string | null
+}
+
 export interface WaybillStop {
   sequence: number
   pdv_code: string
