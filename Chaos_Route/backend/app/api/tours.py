@@ -1412,9 +1412,9 @@ async def schedule_tour(
         if tractor_fvt != "TRACTEUR":
             raise HTTPException(status_code=422, detail=f"Le véhicule tractor_id n'est pas un tracteur : {tractor_fvt}")
 
-    # Mode parc propre pur (SEMI) → tracteur obligatoire / Pure own fleet SEMI → tractor required
-    if data.vehicle_id and not data.contract_id and tour.vehicle_type == "SEMI" and not data.tractor_id:
-        raise HTTPException(status_code=422, detail="Mode parc propre SEMI : tracteur propre (tractor_id) obligatoire")
+    # Mode propre : tracteur obligatoire / Own mode: tractor required
+    if data.tractor_id and not data.contract_id and not data.vehicle_id:
+        pass  # Mode propre valide : tracteur propre, remorque assignée par le postier
 
     # ── Vérification chevauchement contrat / Contract overlap check ───────────
     if data.contract_id:
@@ -1550,6 +1550,8 @@ async def schedule_tour(
     tour.contract_id = data.contract_id
     tour.vehicle_id = data.vehicle_id
     tour.tractor_id = data.tractor_id
+    if data.driver_name:
+        tour.driver_name = data.driver_name
     tour.departure_time = data.departure_time
     tour.return_time = return_time
     if data.delivery_date:

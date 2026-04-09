@@ -1118,35 +1118,42 @@ function TourRow({
               </div>
             </div>
 
-            {/* Vehicules propres / Own fleet vehicles */}
-            {fleetVehicles.length > 0 && (
-              <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                <div className="min-w-0">
-                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Vehicule (semi/porteur)</label>
-                  <select value={form.vehicle_id} onChange={(e) => onFormChange('vehicle_id', e.target.value)}
-                    className="w-full min-w-0 px-1.5 py-1.5 rounded border text-xs"
-                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-                    onClick={(e) => e.stopPropagation()}>
-                    <option value="">— Aucun (preste) —</option>
-                    {fleetVehicles.filter((v) => v.fleet_vehicle_type !== 'TRACTEUR').map((v) => (
-                      <option key={v.id} value={v.id}>{v.code} — {v.name || v.license_plate || ''}</option>
-                    ))}
-                  </select>
+            {/* Remorque propre (mode propre ou mixte) / Own trailer (own or mixed mode) */}
+            {(() => {
+              // Mode propre = tractor_id set, pas de contract_id
+              // Mode mixte = contract_id set, pas de vehicle_id initialement
+              // Dans les deux cas le postier doit pouvoir assigner la remorque
+              const isPropre = !!tour.tractor_id && !tour.contract_id
+              const isMixte = !!tour.contract_id && !tour.vehicle_id
+              const needsTrailer = isPropre || isMixte
+              if (!needsTrailer || fleetVehicles.length === 0) return null
+              const trailers = fleetVehicles.filter((v) =>
+                v.fleet_vehicle_type === 'SEMI_REMORQUE' || v.fleet_vehicle_type === 'REMORQUE'
+              )
+              return (
+                <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                  <div className="min-w-0">
+                    <label className="block text-xs font-semibold mb-1" style={{ color: '#3b82f6' }}>
+                      Remorque {isPropre ? '(propre)' : '(mixte)'}
+                    </label>
+                    <select value={form.vehicle_id} onChange={(e) => onFormChange('vehicle_id', e.target.value)}
+                      className="w-full min-w-0 px-1.5 py-1.5 rounded border text-xs"
+                      style={{ backgroundColor: 'var(--bg-primary)', borderColor: '#3b82f6', color: 'var(--text-primary)' }}
+                      onClick={(e) => e.stopPropagation()}>
+                      <option value="">— Choisir une remorque —</option>
+                      {trailers.map((v) => (
+                        <option key={v.id} value={v.id}>{v.code} — {v.name || v.license_plate || ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="min-w-0 flex items-end">
+                    <span className="text-[10px] px-2 py-1.5 rounded" style={{ backgroundColor: isPropre ? '#8b5cf620' : '#f59e0b20', color: isPropre ? '#8b5cf6' : '#f59e0b' }}>
+                      {isPropre ? 'Mode Propre — tracteur + chauffeur assignés' : 'Mode Mixte — tracteur presté'}
+                    </span>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Tracteur</label>
-                  <select value={form.tractor_id} onChange={(e) => onFormChange('tractor_id', e.target.value)}
-                    className="w-full min-w-0 px-1.5 py-1.5 rounded border text-xs"
-                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-                    onClick={(e) => e.stopPropagation()}>
-                    <option value="">— Aucun (preste) —</option>
-                    {fleetVehicles.filter((v) => v.fleet_vehicle_type === 'TRACTEUR').map((v) => (
-                      <option key={v.id} value={v.id}>{v.code} — {v.name || v.license_plate || ''}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            )}
+              )
+            })()}
 
             {/* Actions */}
             <div className="flex gap-2 justify-end">

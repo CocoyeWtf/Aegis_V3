@@ -170,20 +170,21 @@ class TourSchedule(BaseModel):
     """Planification : contrat ou véhicule propre + heure de départ.
 
     Modes :
-    - Presté  : contract_id seul
-    - Propre  : vehicle_id (+ tractor_id si SEMI)
-    - Mixte   : vehicle_id (semi propre) + contract_id (tracteur presté)
+    - Presté  : contract_id seul (tracteur + remorque du prestataire)
+    - Propre  : tractor_id + driver_name (tracteur et remorque à nous, remorque assignée par le postier)
+    - Mixte   : contract_id (tracteur presté, remorque à nous assignée par le postier)
     """
     contract_id: int | None = None          # presté ou mixte (tracteur presté)
-    vehicle_id: int | None = None           # propre ou mixte (semi/porteur propre)
-    tractor_id: int | None = None           # propre SEMI : tracteur propre
+    vehicle_id: int | None = None           # remorque propre (assignée par le postier)
+    tractor_id: int | None = None           # propre : tracteur propre
     departure_time: str                     # HH:MM
     delivery_date: str | None = None        # YYYY-MM-DD
+    driver_name: str | None = None          # propre : chauffeur base
 
     @model_validator(mode="after")
     def check_assignment(self) -> "TourSchedule":
-        if not self.contract_id and not self.vehicle_id:
-            raise ValueError("Au moins un contrat ou un véhicule propre doit être fourni")
+        if not self.contract_id and not self.tractor_id:
+            raise ValueError("Au moins un contrat ou un tracteur propre doit être fourni")
         return self
 
 

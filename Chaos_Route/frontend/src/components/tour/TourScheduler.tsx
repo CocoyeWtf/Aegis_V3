@@ -67,6 +67,9 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
   const { data: allVehicles } = useApi<Vehicle>('/vehicles', regionParams)
   const vehicleMap = useMemo(() => new Map(allVehicles.map((v) => [v.id, v])), [allVehicles])
 
+  /* Chauffeurs base / Base drivers */
+  const { data: baseDrivers } = useApi<{ id: number; last_name: string; first_name: string; code_infolog: string; base_id: number }>('/base-drivers')
+
   /* Type de l'input d'ordonnancement / Schedule input type */
   interface ScheduleInput {
     time: string
@@ -75,8 +78,9 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
     contractId: number | null
     vehicleId: number | null
     tractorId: number | null
+    driverName: string
   }
-  const EMPTY_INPUT: ScheduleInput = { time: '', deliveryDate: '', mode: 'preste', contractId: null, vehicleId: null, tractorId: null }
+  const EMPTY_INPUT: ScheduleInput = { time: '', deliveryDate: '', mode: 'preste', contractId: null, vehicleId: null, tractorId: null, driverName: '' }
 
   const [tours, setTours] = useState<Tour[]>([])
   const [timeline, setTimeline] = useState<GanttTour[]>([])
@@ -393,8 +397,8 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
     if (!input?.time) return
     // Validation selon mode / Validate by mode
     if (input.mode === 'preste' && !input.contractId) return
-    if (input.mode === 'propre' && !input.vehicleId) return
-    if (input.mode === 'mixte' && (!input.contractId || !input.vehicleId)) return
+    if (input.mode === 'propre' && !input.tractorId) return
+    if (input.mode === 'mixte' && !input.contractId) return
     setScheduling(tourId)
     try {
       await api.put(`/tours/${tourId}/schedule`, {
@@ -403,6 +407,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
         tractor_id: input.tractorId ?? null,
         departure_time: input.time,
         delivery_date: input.deliveryDate || null,
+        driver_name: input.driverName || null,
       }, { params: force ? { force: true } : undefined })
       await loadData()
     } catch (e: unknown) {
@@ -551,7 +556,7 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
 
   const updateInput = (
     tourId: number,
-    field: 'time' | 'contractId' | 'deliveryDate' | 'mode' | 'vehicleId' | 'tractorId',
+    field: 'time' | 'contractId' | 'deliveryDate' | 'mode' | 'vehicleId' | 'tractorId' | 'driverName',
     value: string | number | null
   ) => {
     setScheduleInputs((prev) => {
@@ -559,9 +564,9 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
       const next: ScheduleInput = { ...cur, [field]: value }
       // Changer de mode : reset champs de l'ancien mode / Switch mode: reset previous mode fields
       if (field === 'mode') {
-        if (value === 'preste') { next.vehicleId = null; next.tractorId = null }
-        if (value === 'propre') { next.contractId = null }
-        // mixte : on garde les deux possibles
+        if (value === 'preste') { next.vehicleId = null; next.tractorId = null; next.driverName = '' }
+        if (value === 'propre') { next.contractId = null; next.vehicleId = null }
+        if (value === 'mixte') { next.vehicleId = null; next.tractorId = null }
       }
       // Changer la date de livraison : reset sélections / Change delivery date: reset selections
       if (field === 'deliveryDate') {
@@ -908,7 +913,6 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                 /* Inputs pour les non-planifiés / Inputs for unscheduled */
                 const input: ScheduleInput = scheduleInputs[tour.id] ?? EMPTY_INPUT
                 const contracts = availableContractsMap[tour.id] ?? []
-                const ownVehicles = availableVehiclesMap[tour.id]?.vehicles ?? []
                 const ownTractors = availableVehiclesMap[tour.id]?.tractors ?? []
                 const selectedContract = contracts.find((c) => c.id === input.contractId)
                 const canSchedule = input.time && (
@@ -1060,53 +1064,67 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                           </div>
 
                           {/* Sélecteurs selon mode / Mode-specific selectors */}
-                          {(input.mode === 'preste' || input.mode === 'mixte') && (
+
+                          {/* PRESTÉ : contrat (tracteur + remorque presté) */}
+                          {input.mode === 'preste' && (
                             <select
                               value={input.contractId ?? ''}
                               onChange={(e) => updateInput(tour.id, 'contractId', e.target.value ? Number(e.target.value) : null)}
                               onClick={(e) => e.stopPropagation()}
                               className="rounded border px-1.5 py-1 text-[11px] min-w-0"
-                              style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', maxWidth: '140px' }}
+                              style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', maxWidth: '160px' }}
                             >
-                              <option value="">{input.mode === 'mixte' ? 'Tracteur presté' : t('tourPlanning.selectContract')}</option>
+                              <option value="">{t('tourPlanning.selectContract')}</option>
                               {contracts.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.code} — {c.transporter_name}
-                                </option>
+                                <option key={c.id} value={c.id}>{c.code} — {c.transporter_name}</option>
                               ))}
                             </select>
                           )}
 
-                          {(input.mode === 'propre' || input.mode === 'mixte') && (
+                          {/* PROPRE : tracteur propre + chauffeur (remorque = postier) */}
+                          {input.mode === 'propre' && (
                             <>
                               <select
-                                value={input.vehicleId ?? ''}
-                                onChange={(e) => updateInput(tour.id, 'vehicleId', e.target.value ? Number(e.target.value) : null)}
+                                value={input.tractorId ?? ''}
+                                onChange={(e) => updateInput(tour.id, 'tractorId', e.target.value ? Number(e.target.value) : null)}
                                 onClick={(e) => e.stopPropagation()}
                                 className="rounded border px-1.5 py-1 text-[11px] min-w-0"
                                 style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', maxWidth: '140px' }}
                               >
-                                <option value="">{input.mode === 'mixte' ? 'Remorque propre' : 'Véhicule propre'}</option>
-                                {ownVehicles.map((v) => (
+                                <option value="">Tracteur</option>
+                                {ownTractors.map((v) => (
                                   <option key={v.id} value={v.id}>{v.label}</option>
                                 ))}
                               </select>
-                              {/* Tracteur propre uniquement si SEMI en mode propre pur */}
-                              {tour.vehicle_type === 'SEMI' && input.mode === 'propre' && (
-                                <select
-                                  value={input.tractorId ?? ''}
-                                  onChange={(e) => updateInput(tour.id, 'tractorId', e.target.value ? Number(e.target.value) : null)}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="rounded border px-1.5 py-1 text-[11px] min-w-0"
-                                  style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', maxWidth: '130px' }}
-                                >
-                                  <option value="">Tracteur propre</option>
-                                  {ownTractors.map((v) => (
-                                    <option key={v.id} value={v.id}>{v.label}</option>
-                                  ))}
-                                </select>
-                              )}
+                              <select
+                                value={input.driverName}
+                                onChange={(e) => updateInput(tour.id, 'driverName', e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="rounded border px-1.5 py-1 text-[11px] min-w-0"
+                                style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', maxWidth: '140px' }}
+                              >
+                                <option value="">Chauffeur</option>
+                                {baseDrivers.map((d) => (
+                                  <option key={d.id} value={`${d.last_name} ${d.first_name}`}>{d.last_name} {d.first_name}</option>
+                                ))}
+                              </select>
                             </>
+                          )}
+
+                          {/* MIXTE : contrat (tracteur presté) — remorque = postier */}
+                          {input.mode === 'mixte' && (
+                            <select
+                              value={input.contractId ?? ''}
+                              onChange={(e) => updateInput(tour.id, 'contractId', e.target.value ? Number(e.target.value) : null)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="rounded border px-1.5 py-1 text-[11px] min-w-0"
+                              style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', maxWidth: '160px' }}
+                            >
+                              <option value="">Tracteur presté</option>
+                              {contracts.map((c) => (
+                                <option key={c.id} value={c.id}>{c.code} — {c.transporter_name}</option>
+                              ))}
+                            </select>
                           )}
 
                           {/* Heure départ */}
