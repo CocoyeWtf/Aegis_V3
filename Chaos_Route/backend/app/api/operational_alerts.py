@@ -80,7 +80,7 @@ async def create_alert(
         base_id=data.base_id,
         date=data.date,
         created_by_user_id=user.id,
-        created_by_name=f"{user.first_name} {user.last_name}".strip() or user.username,
+        created_by_name=user.username,
     )
     db.add(alert)
     await db.flush()
@@ -115,7 +115,7 @@ async def resolve_alert(
         raise HTTPException(404, "Alert not found")
     alert.status = AlertStatus.RESOLVED
     alert.resolved_by_user_id = user.id
-    alert.resolved_by_name = f"{user.first_name} {user.last_name}".strip() or user.username
+    alert.resolved_by_name = user.username
     alert.resolved_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     await db.flush()
     return alert
@@ -135,7 +135,7 @@ async def add_comment(
     comment = AlertComment(
         alert_id=alert_id,
         user_id=user.id,
-        user_name=f"{user.first_name} {user.last_name}".strip() or user.username,
+        user_name=user.username,
         text=data.text,
     )
     db.add(comment)
@@ -178,7 +178,7 @@ async def create_system_alert(
         freed_eqp=freed_eqp,
         extra_data=extra_data,
         created_by_user_id=user.id,
-        created_by_name=f"{user.first_name} {user.last_name}".strip() or user.username,
+        created_by_name=user.username,
     )
     db.add(alert)
     return alert
