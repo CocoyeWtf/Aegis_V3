@@ -61,13 +61,13 @@ async def get_matrix(
     rules_result = await db.execute(select(BaseSupportRule))
     rules = rules_result.scalars().all()
 
-    # Map (base_id, support_type_id) → allowed
-    rules_map = {(r.base_id, r.support_type_id): r.allowed for r in rules}
+    # Map "base_id:support_type_id" → allowed (clés string pour JSON)
+    rules_map = {f"{r.base_id}:{r.support_type_id}": r.allowed for r in rules}
 
     return {
         "bases": [{"id": b.id, "code": b.code, "name": b.name} for b in bases],
         "support_types": [{"id": st.id, "code": st.code, "name": st.name} for st in support_types],
-        "rules": rules_map,  # dict avec cles "(base_id, st_id)" serialisees
+        "rules": rules_map,
         "rules_list": [
             {"base_id": r.base_id, "support_type_id": r.support_type_id, "allowed": r.allowed}
             for r in rules
