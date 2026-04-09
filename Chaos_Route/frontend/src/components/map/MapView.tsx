@@ -104,20 +104,25 @@ interface MapViewProps {
 export function MapView({ onPdvClick, onPdvTempClick, onPdvContextMenu, selectedPdvIds, pdvVolumeStatusMap, pdvEqpMap, pickupByPdv, routeCoords, height = '100%', resizeSignal = 0 }: MapViewProps) {
   const { center, zoom, showBases, showPdvs, showSuppliers, showPdvLabels, showDayPdvs, showNightPdvs } = useMapStore()
 
-  /* Filtre jour/nuit basé sur les fenêtres de livraison du PDV / Day/night filter based on PDV delivery windows */
+  /* Filtre jour/nuit par activité — un PDV apparaît si AU MOINS UNE activité matche /
+     Day/night filter per activity — a PDV shows if AT LEAST ONE activity matches */
   const pdvDayNightFilter = useCallback((pdv: PDV): boolean => {
-    if (showDayPdvs && showNightPdvs) return true // Tout affiché
-    if (!showDayPdvs && !showNightPdvs) return false // Rien affiché
+    if (showDayPdvs && showNightPdvs) return true
+    if (!showDayPdvs && !showNightPdvs) return false
 
-    // Prendre la première fenêtre de livraison définie (spécifique > globale)
-    const start = pdv.delivery_window_sec_start || pdv.delivery_window_frais_start || pdv.delivery_window_gel_start || pdv.delivery_window_start
-    if (!start) return true // Pas de fenêtre définie → toujours affiché
+    // Collecter toutes les fenêtres de livraison définies / Collect all defined delivery windows
+    const windows: string[] = []
+    if (pdv.delivery_window_sec_start) windows.push(pdv.delivery_window_sec_start)
+    if (pdv.delivery_window_frais_start) windows.push(pdv.delivery_window_frais_start)
+    if (pdv.delivery_window_gel_start) windows.push(pdv.delivery_window_gel_start)
+    if (windows.length === 0 && pdv.delivery_window_start) windows.push(pdv.delivery_window_start)
+    if (windows.length === 0) return true // Pas de fenêtre → toujours affiché
 
-    // Jour = ouverture entre 08:00 et 19:00
-    const isDay = start >= '08:00' && start <= '19:00'
+    const hasDay = windows.some((w) => w >= '08:00' && w <= '19:00')
+    const hasNight = windows.some((w) => w < '08:00' || w > '19:00')
 
-    if (showDayPdvs && !showNightPdvs) return isDay
-    if (showNightPdvs && !showDayPdvs) return !isDay
+    if (showDayPdvs && !showNightPdvs) return hasDay
+    if (showNightPdvs && !showDayPdvs) return hasNight
     return true
   }, [showDayPdvs, showNightPdvs])
   const { selectedRegionId } = useAppStore()
