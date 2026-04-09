@@ -350,9 +350,9 @@ export default function Operations() {
   }
 
   /* Ajouter un stop / Add a stop */
-  const handleAddStop = async (tourId: number, pdvId: number) => {
+  const handleAddStop = async (tourId: number, pdvId: number, eqpCount: number = 0) => {
     try {
-      await api.post(`/tours/${tourId}/stops`, { pdv_id: pdvId })
+      await api.post(`/tours/${tourId}/stops`, { pdv_id: pdvId, eqp_count: eqpCount })
       await loadTours(true)
     } catch (e: unknown) {
       const resp = (e as { response?: { status?: number; data?: { detail?: string } } })?.response
@@ -717,9 +717,14 @@ export default function Operations() {
 /* ─── Composant ligne tour / Tour row component ─── */
 
 /* Mini-composant pour ajouter un PDV dans un tour / Inline add-stop widget */
-function AddStopInline({ pdvs, tourStopPdvIds, onAdd }: { pdvs: PDV[]; tourStopPdvIds: Set<number>; onAdd: (pdvId: number) => void }) {
+function AddStopInline({ pdvs, tourStopPdvIds, onAdd }: { pdvs: PDV[]; tourStopPdvIds: Set<number>; onAdd: (pdvId: number, eqpCount: number) => void }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [selectedPdv, setSelectedPdv] = useState<PDV | null>(null)
+  const [eqpCount, setEqpCount] = useState('')
+
+  const reset = () => { setOpen(false); setSearch(''); setSelectedPdv(null); setEqpCount('') }
+
   if (!open) {
     return (
       <button
@@ -731,6 +736,34 @@ function AddStopInline({ pdvs, tourStopPdvIds, onAdd }: { pdvs: PDV[]; tourStopP
       </button>
     )
   }
+
+  if (selectedPdv) {
+    return (
+      <div className="flex items-center gap-2 mb-2 p-2 rounded-lg border" style={{ borderColor: 'var(--color-primary)', backgroundColor: 'rgba(249,115,22,0.05)' }} onClick={(e) => e.stopPropagation()}>
+        <span className="text-xs font-semibold" style={{ color: 'var(--color-primary)' }}>{selectedPdv.code} — {selectedPdv.name}</span>
+        <input
+          type="number"
+          min={0}
+          step={0.5}
+          value={eqpCount}
+          onChange={(e) => setEqpCount(e.target.value)}
+          placeholder="EQC"
+          className="w-20 px-2 py-1 rounded border text-xs text-center"
+          style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+          autoFocus
+        />
+        <button
+          className="text-[10px] px-2 py-1 rounded font-semibold text-white transition-all hover:opacity-80"
+          style={{ backgroundColor: 'var(--color-primary)' }}
+          onClick={() => { onAdd(selectedPdv.id, Number(eqpCount) || 0); reset() }}
+        >
+          Confirmer
+        </button>
+        <button className="text-[10px] px-2 py-1 rounded" style={{ color: 'var(--text-muted)' }} onClick={reset}>Annuler</button>
+      </div>
+    )
+  }
+
   const q = search.toLowerCase()
   const filtered = pdvs.filter((p) => !tourStopPdvIds.has(p.id) && p.latitude && p.longitude && (p.code.toLowerCase().includes(q) || (p.name ?? '').toLowerCase().includes(q) || (p.city ?? '').toLowerCase().includes(q))).slice(0, 15)
   return (
@@ -751,20 +784,14 @@ function AddStopInline({ pdvs, tourStopPdvIds, onAdd }: { pdvs: PDV[]; tourStopP
               key={p.id}
               className="text-[10px] px-2 py-1 rounded border font-semibold whitespace-nowrap transition-all hover:opacity-80"
               style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
-              onClick={() => { onAdd(p.id); setOpen(false); setSearch('') }}
+              onClick={() => setSelectedPdv(p)}
             >
               {p.code} — {p.name}
             </button>
           ))}
         </div>
       )}
-      <button
-        className="text-[10px] px-2 py-1 rounded text-xs"
-        style={{ color: 'var(--text-muted)' }}
-        onClick={() => { setOpen(false); setSearch('') }}
-      >
-        Annuler
-      </button>
+      <button className="text-[10px] px-2 py-1 rounded" style={{ color: 'var(--text-muted)' }} onClick={reset}>Annuler</button>
     </div>
   )
 }
@@ -796,7 +823,7 @@ interface TourRowProps {
   onPatchStopsEqc: (eqcByPdv: Record<string, number>) => void
   canModifyStops: boolean
   onRemoveStop: (tourId: number, stopId: number, pdvCode: string) => void
-  onAddStop: (tourId: number, pdvId: number) => void
+  onAddStop: (tourId: number, pdvId: number, eqpCount: number) => void
   pdvs: PDV[]
 }
 
@@ -961,7 +988,7 @@ function TourRow({
 
             {/* Bouton ajouter PDV / Add PDV button */}
             {canModifyStops && !tour.departure_signal_time && (tour.status === 'DRAFT' || tour.status === 'VALIDATED') && (
-              <AddStopInline pdvs={pdvs} tourStopPdvIds={new Set(tour.stops.map((s) => s.pdv_id))} onAdd={(pdvId) => onAddStop(tour.id, pdvId)} />
+              <AddStopInline pdvs={pdvs} tourStopPdvIds={new Set(tour.stops.map((s) => s.pdv_id))} onAdd={(pdvId, eqpCount) => onAddStop(tour.id, pdvId, eqpCount)} />
             )}
 
             {/* Ligne 1 — Prépa semi / Trailer preparation */}

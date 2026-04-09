@@ -2499,9 +2499,8 @@ async def add_tour_stop(
         assigned_ids.append(v.id)
         assigned_eqp += v.eqp_count
 
-    # Mettre à jour eqp_count du stop si volumes assignés / Update stop eqp_count
-    if assigned_eqp > 0:
-        new_stop.eqp_count = assigned_eqp
+    # Utiliser le max entre EQC saisis et volumes assignés / Use max of input and assigned
+    new_stop.eqp_count = max(data.eqp_count, assigned_eqp)
 
     # Recalculer / Recalculate
     await db.refresh(tour, ["stops"])
