@@ -96,6 +96,8 @@ export default function Help() {
     { id: 'contracts', label: t('help.sections.contracts'), icon: '📝' },
     { id: 'tour-planning', label: t('help.sections.tourPlanning'), icon: '🗺️' },
     { id: 'tour-history', label: t('help.sections.tourHistory'), icon: '📜' },
+    { id: 'stop-modify', label: 'Modifier stops en live', icon: '🔄' },
+    { id: 'alerts', label: 'Alertes opérationnelles', icon: '🔔' },
     { id: 'admin', label: t('help.sections.admin'), icon: '🛡️' },
     { id: 'shortcuts', label: t('help.sections.shortcuts'), icon: '⌨️' },
   ]
@@ -635,6 +637,123 @@ export default function Help() {
                   <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{s.desc}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Modifier stops en live ── */}
+        <section id="help-stop-modify" className="mb-10 scroll-mt-20">
+          <h2 className="text-xl font-bold mb-4" style={sectionStyle}>
+            <span className="mr-2">🔄</span>Modifier les stops d'un tour en live
+          </h2>
+          <div style={subStyle}>
+            <p className="mb-3">
+              Cette fonctionnalité permet au postier de <strong>retirer ou ajouter un PDV</strong> dans une tournée planifiée, juste avant le départ.
+              Elle est réservée aux utilisateurs ayant la permission <strong>« Modifier stops tour (live) »</strong> dans Admin &gt; Rôles.
+            </p>
+
+            <h3 className="text-sm font-bold mt-4 mb-2" style={{ color: 'var(--text-primary)' }}>Retirer un PDV</h3>
+            <ol className="list-decimal pl-5 space-y-1">
+              <li>Allez dans <strong>Exploitation transport</strong>, sélectionnez la date et la base.</li>
+              <li>Dépliez le tour concerné en cliquant dessus.</li>
+              <li>Dans le tableau des arrêts, un bouton <strong style={{ color: '#ef4444' }}>Retirer</strong> apparaît sur chaque ligne (sauf s'il ne reste qu'un seul stop).</li>
+              <li>Cliquez sur <strong>Retirer</strong> puis confirmez.</li>
+              <li>Les volumes du PDV sont automatiquement libérés et redeviennent disponibles pour la même date de livraison.</li>
+              <li>Les horaires, distances et coûts du tour sont recalculés.</li>
+              <li>Une <strong>alerte opérationnelle</strong> est automatiquement créée (voir section suivante).</li>
+            </ol>
+
+            <h3 className="text-sm font-bold mt-4 mb-2" style={{ color: 'var(--text-primary)' }}>Ajouter un PDV</h3>
+            <ol className="list-decimal pl-5 space-y-1">
+              <li>Sous le tableau des arrêts, cliquez sur <strong style={{ color: 'var(--color-primary)' }}>+ Ajouter un PDV</strong>.</li>
+              <li>Tapez le code, nom ou ville du PDV (minimum 2 caractères).</li>
+              <li>Cliquez sur le PDV souhaité dans les résultats.</li>
+              <li>Saisissez le nombre d'<strong>EQC</strong> puis cliquez <strong>Confirmer</strong>.</li>
+              <li>Le système assigne automatiquement les volumes disponibles et recalcule le tour.</li>
+            </ol>
+
+            <div className="mt-3 p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+              <p className="text-xs font-semibold mb-1" style={{ color: 'var(--color-primary)' }}>Conditions</p>
+              <ul className="text-xs space-y-0.5" style={{ color: 'var(--text-muted)' }}>
+                <li>• Le tour doit être en statut <strong>BROUILLON</strong> ou <strong>VALIDÉ</strong></li>
+                <li>• Le top départ ne doit pas avoir été donné</li>
+                <li>• La permission « Modifier stops tour (live) » est requise</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Alertes opérationnelles ── */}
+        <section id="help-alerts" className="mb-10 scroll-mt-20">
+          <h2 className="text-xl font-bold mb-4" style={sectionStyle}>
+            <span className="mr-2">🔔</span>Alertes opérationnelles
+          </h2>
+          <div style={subStyle}>
+            <p className="mb-3">
+              Les alertes sont accessibles via le menu <strong>Opérations base &gt; Alertes</strong>.
+              Elles servent de fil de communication entre les équipes pour le suivi des modifications opérationnelles.
+            </p>
+
+            <h3 className="text-sm font-bold mt-4 mb-2" style={{ color: 'var(--text-primary)' }}>Création automatique</h3>
+            <p className="mb-2">
+              Une alerte <strong style={{ color: '#ef4444' }}>HAUTE priorité</strong> est automatiquement créée lorsqu'un PDV est retiré d'un tour.
+              Elle contient : le tour concerné, le PDV retiré, le nombre d'EQC libérés, la date et l'opérateur.
+            </p>
+
+            <h3 className="text-sm font-bold mt-4 mb-2" style={{ color: 'var(--text-primary)' }}>Cycle de vie</h3>
+            <div className="overflow-x-auto mb-3">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <th className="px-3 py-2 text-left font-semibold" style={{ color: 'var(--text-muted)' }}>Statut</th>
+                    <th className="px-3 py-2 text-left font-semibold" style={{ color: 'var(--text-muted)' }}>Signification</th>
+                    <th className="px-3 py-2 text-left font-semibold" style={{ color: 'var(--text-muted)' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t" style={{ borderColor: 'var(--border-color)' }}>
+                    <td className="px-3 py-2"><span className="font-bold" style={{ color: '#ef4444' }}>En attente</span></td>
+                    <td className="px-3 py-2" style={{ color: 'var(--text-secondary)' }}>Alerte vient d'être créée</td>
+                    <td className="px-3 py-2" style={{ color: 'var(--text-secondary)' }}>Cliquez « Prendre en charge »</td>
+                  </tr>
+                  <tr className="border-t" style={{ borderColor: 'var(--border-color)' }}>
+                    <td className="px-3 py-2"><span className="font-bold" style={{ color: '#f59e0b' }}>Pris en charge</span></td>
+                    <td className="px-3 py-2" style={{ color: 'var(--text-secondary)' }}>Un équipier s'en occupe</td>
+                    <td className="px-3 py-2" style={{ color: 'var(--text-secondary)' }}>Cliquez « Résoudre » quand traité</td>
+                  </tr>
+                  <tr className="border-t" style={{ borderColor: 'var(--border-color)' }}>
+                    <td className="px-3 py-2"><span className="font-bold" style={{ color: '#22c55e' }}>Résolu</span></td>
+                    <td className="px-3 py-2" style={{ color: 'var(--text-secondary)' }}>Problème traité</td>
+                    <td className="px-3 py-2" style={{ color: 'var(--text-secondary)' }}>Visible dans l'historique</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3 className="text-sm font-bold mt-4 mb-2" style={{ color: 'var(--text-primary)' }}>Commentaires</h3>
+            <p className="mb-2">
+              Chaque alerte dispose d'un champ commentaire. Utilisez-le pour :
+            </p>
+            <ul className="list-disc pl-5 space-y-1 mb-3">
+              <li>Expliquer la raison du retrait du PDV</li>
+              <li>Indiquer dans quel tour les volumes ont été réaffectés</li>
+              <li>Laisser une consigne pour l'équipe suivante</li>
+            </ul>
+
+            <h3 className="text-sm font-bold mt-4 mb-2" style={{ color: 'var(--text-primary)' }}>Filtres</h3>
+            <p className="mb-2">
+              En haut de la page, filtrez par statut : <strong>Toutes</strong>, <strong>En attente</strong>, <strong>Pris en charge</strong> ou <strong>Résolu</strong>.
+              Consultez les alertes « En attente » en priorité en début de poste.
+            </p>
+
+            <div className="mt-3 p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+              <p className="text-xs font-semibold mb-1" style={{ color: 'var(--color-primary)' }}>Bonnes pratiques</p>
+              <ul className="text-xs space-y-0.5" style={{ color: 'var(--text-muted)' }}>
+                <li>• <strong>Début de poste</strong> : consultez les alertes « En attente »</li>
+                <li>• <strong>Retrait d'un PDV</strong> : prenez en charge l'alerte et commentez la raison</li>
+                <li>• <strong>Réaffectation des volumes</strong> : résolvez l'alerte en indiquant le tour cible</li>
+                <li>• <strong>Passage entre équipes</strong> : les commentaires sont votre fil de communication</li>
+              </ul>
             </div>
           </div>
         </section>
