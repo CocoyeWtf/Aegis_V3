@@ -43,9 +43,9 @@ class OperationalAlert(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
     # Classification
-    alert_type: Mapped[AlertType] = mapped_column(Enum(AlertType), nullable=False)
-    status: Mapped[AlertStatus] = mapped_column(Enum(AlertStatus), default=AlertStatus.PENDING)
-    priority: Mapped[AlertPriority] = mapped_column(Enum(AlertPriority), default=AlertPriority.MEDIUM)
+    alert_type: Mapped[AlertType] = mapped_column(Enum(AlertType, name="op_alert_type"), nullable=False)
+    status: Mapped[AlertStatus] = mapped_column(Enum(AlertStatus, name="op_alert_status"), default=AlertStatus.PENDING)
+    priority: Mapped[AlertPriority] = mapped_column(Enum(AlertPriority, name="op_alert_priority"), default=AlertPriority.MEDIUM)
 
     # Contenu / Content
     title: Mapped[str] = mapped_column(String(200), nullable=False)
