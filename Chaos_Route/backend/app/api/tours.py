@@ -2316,12 +2316,12 @@ async def _recalc_tour_after_stop_change(db: AsyncSession, tour: Tour) -> dict:
     tour.total_duration_minutes = total_duration
 
     # Calculer le km total / Calculate total km
-    total_km = sum(s.get("distance_from_previous_km") or 0 for s in enriched)
+    total_km = sum(float(s.get("distance_from_previous_km") or 0) for s in enriched)
     # Ajouter le retour base / Add return leg
     last_pdv_id = enriched[-1]["pdv_id"] if enriched else None
     if last_pdv_id:
         ret_dist = await _get_distance(db, "PDV", last_pdv_id, "BASE", tour.base_id)
-        total_km += ret_dist.distance_km if ret_dist else 0
+        total_km += float(ret_dist.distance_km) if ret_dist else 0
     tour.total_km = round(total_km, 2)
 
     # Mettre à jour chaque stop / Update each stop
