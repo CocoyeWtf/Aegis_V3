@@ -200,93 +200,24 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
 
   const allQrReady = labels.every((l) => qrUrls[l.label_code])
 
-  const handlePrint = useCallback(() => {
-    if (!allQrReady) return
+  type PrintMode = 'zebra' | 'a4' | 'avery'
+  const [printMode, setPrintMode] = useState<PrintMode>('zebra')
 
-    const labelsHtml = labels.map((l) =>
-      buildLabelHtml(
-        l.label_code, l.sequence_number, labels.length,
-        pdvCode, pdvName, supportTypeName,
-        pickupType || 'CONTAINER',
-        qrUrls[l.label_code],
-      )
-    ).join('')
-
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>Etiquettes</title>
-<style>
-  @page {
-    size: 150mm 90mm;
-    margin: 0;
-  }
+  /* CSS commun des étiquettes / Common label CSS */
+  const labelCss = `
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    width: 150mm;
-    font-family: Arial, Helvetica, sans-serif;
-    color: #000;
-    background: #fff;
-  }
-  .label {
-    width: 150mm;
-    height: 90mm;
-    display: flex;
-    page-break-after: always;
-  }
+  body { font-family: Arial, Helvetica, sans-serif; color: #000; background: #fff; }
+  .label { width: 150mm; height: 90mm; display: flex; page-break-after: always; }
   .label:last-child { page-break-after: auto; }
-
-  /* Zone gauche 100mm — pas de flex, centrage via text-align */
-  .left {
-    width: 100mm;
-    height: 90mm;
-    padding: 3mm 4mm;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1.5mm;
-    border-right: 0.5mm dashed #666;
-    text-align: center;
-  }
-  .big-num {
-    font-size: 36pt;
-    font-weight: 900;
-    line-height: 1;
-    letter-spacing: 2px;
-  }
-  .header {
-    font-size: 11pt;
-    font-weight: 700;
-    text-transform: uppercase;
-  }
+  .left { width: 100mm; height: 90mm; padding: 3mm 4mm; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.5mm; border-right: 0.5mm dashed #666; text-align: center; }
+  .big-num { font-size: 36pt; font-weight: 900; line-height: 1; letter-spacing: 2px; }
+  .header { font-size: 11pt; font-weight: 700; text-transform: uppercase; }
   .base { font-size: 9pt; }
   .pdv { font-size: 9pt; margin-top: 1mm; }
-  .code {
-    font-size: 7pt;
-    font-family: monospace;
-    letter-spacing: 0.5px;
-  }
+  .code { font-size: 7pt; font-family: monospace; letter-spacing: 0.5px; }
   .support { font-size: 9pt; font-weight: 600; }
-
-  /* Talon droit 50mm */
-  .right {
-    width: 50mm;
-    height: 90mm;
-    display: flex;
-    flex-direction: column;
-  }
-  .stub {
-    padding: 1.5mm 2mm;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5mm;
-    overflow: hidden;
-    text-align: center;
-  }
+  .right { width: 50mm; height: 90mm; display: flex; flex-direction: column; }
+  .stub { padding: 1.5mm 2mm; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5mm; overflow: hidden; text-align: center; }
   .stub-top { height: 50mm; border-bottom: 0.3mm solid #999; }
   .stub-mid { height: 20mm; border-bottom: 0.3mm solid #999; }
   .stub-bot { height: 20mm; }
@@ -297,24 +228,35 @@ export function PickupLabelPrint({ labels, pdvCode, pdvName, supportTypeName, pi
   .stub-num-sm { font-size: 10pt; font-weight: 900; line-height: 1; }
   .stub-header-sm { font-size: 4.5pt; font-weight: 700; text-transform: uppercase; }
   .stub-info-sm { font-size: 4pt; }
-</style>
-</head>
-<body>
-${labelsHtml}
-</body>
-</html>`
+  `
 
+  /* Avery 99.1 × 67.7mm — 8 par page A4 (2 colonnes × 4 lignes) */
+  const averyCss = `
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #000; background: #fff; }
+  @page { size: A4 portrait; margin: 13mm 5mm; }
+  .avery-page { display: flex; flex-wrap: wrap; width: 200mm; }
+  .avery-label {
+    width: 99.1mm; height: 67.7mm;
+    border: 0.3mm solid #ccc;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 1mm; text-align: center; padding: 2mm;
+    page-break-inside: avoid;
+  }
+  .av-num { font-size: 22pt; font-weight: 900; line-height: 1; letter-spacing: 1px; }
+  .av-header { font-size: 8pt; font-weight: 700; text-transform: uppercase; }
+  .av-pdv { font-size: 7pt; }
+  .av-code { font-size: 6pt; font-family: monospace; }
+  .av-support { font-size: 7pt; font-weight: 600; }
+  `
+
+  const printViaIframe = useCallback((html: string, iframeSize: string) => {
     const iframe = document.createElement('iframe')
-    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:150mm;height:90mm;border:none;'
+    iframe.style.cssText = `position:fixed;left:-9999px;top:0;${iframeSize}border:none;`
     document.body.appendChild(iframe)
-
     const doc = iframe.contentDocument || iframe.contentWindow?.document
-    if (doc) {
-      doc.open()
-      doc.write(html)
-      doc.close()
-    }
-
+    if (doc) { doc.open(); doc.write(html); doc.close() }
     iframe.onload = () => {
       setTimeout(() => {
         iframe.contentWindow?.focus()
@@ -323,12 +265,64 @@ ${labelsHtml}
         setTimeout(() => document.body.removeChild(iframe), 3000)
       }, 200)
     }
-  }, [labels, pdvCode, pdvName, supportTypeName, pickupType, onPrinted, qrUrls, allQrReady])
+  }, [onPrinted])
+
+  const handlePrint = useCallback(() => {
+    if (!allQrReady) return
+    const type = pickupType || 'CONTAINER'
+
+    if (printMode === 'avery') {
+      /* Avery : toutes les étiquettes sur pages A4, 8 par page */
+      const averyLabels = labels.map((l) => {
+        const header = PICKUP_LABEL_HEADERS[type] || 'RETOUR CONTENANT'
+        const bigNum = fmtPdvCode(pdvCode)
+        return `<div class="avery-label">
+          <div class="av-num">${bigNum}</div>
+          <div class="av-header">${header}</div>
+          <div class="av-pdv"><strong>${pdvCode}</strong> — ${pdvName}</div>
+          <img src="${qrUrls[l.label_code]}" style="width:14mm;height:14mm" />
+          <div class="av-code">${l.label_code}</div>
+          <div class="av-support">${supportTypeName} — ${l.sequence_number}/${labels.length}</div>
+        </div>`
+      }).join('')
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Etiquettes Avery</title><style>${averyCss}</style></head><body><div class="avery-page">${averyLabels}</div></body></html>`
+      printViaIframe(html, 'width:210mm;height:297mm;')
+    } else {
+      /* Zebra ou A4 : même étiquette, taille de page différente */
+      const labelsHtml = labels.map((l) =>
+        buildLabelHtml(l.label_code, l.sequence_number, labels.length, pdvCode, pdvName, supportTypeName, type, qrUrls[l.label_code])
+      ).join('')
+      const pageSize = printMode === 'a4' ? 'A4' : '150mm 90mm'
+      const bodyWidth = printMode === 'a4' ? '210mm' : '150mm'
+      const extraCss = printMode === 'a4' ? '.label { margin: 20mm auto; }' : ''
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Etiquettes</title><style>@page { size: ${pageSize}; margin: 0; } body { width: ${bodyWidth}; } ${labelCss} ${extraCss}</style></head><body>${labelsHtml}</body></html>`
+      printViaIframe(html, printMode === 'a4' ? 'width:210mm;height:297mm;' : 'width:150mm;height:90mm;')
+    }
+  }, [labels, pdvCode, pdvName, supportTypeName, pickupType, qrUrls, allQrReady, printMode, printViaIframe, averyCss, labelCss])
 
   return (
     <div>
-      {/* Boutons / Buttons */}
-      <div className="no-print" style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+      {/* Sélecteur format + boutons / Format selector + buttons */}
+      <div className="no-print" style={{ display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="flex rounded-lg border overflow-hidden text-xs" style={{ borderColor: 'var(--border-color)' }}>
+          {([
+            { value: 'zebra' as PrintMode, label: 'Zebra (A5)' },
+            { value: 'a4' as PrintMode, label: 'A4 classique' },
+            { value: 'avery' as PrintMode, label: 'Avery (8/page)' },
+          ]).map((opt) => (
+            <button
+              key={opt.value}
+              className="px-3 py-1.5 font-semibold transition-all"
+              style={{
+                backgroundColor: printMode === opt.value ? 'var(--color-primary)' : 'var(--bg-secondary)',
+                color: printMode === opt.value ? '#fff' : 'var(--text-secondary)',
+              }}
+              onClick={() => setPrintMode(opt.value)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
         <button
           onClick={handlePrint}
           disabled={!allQrReady}
