@@ -64,6 +64,12 @@ export interface PDV {
   unload_time_per_eqp_minutes?: number
   delivery_window_start?: string
   delivery_window_end?: string
+  delivery_window_sec_start?: string
+  delivery_window_sec_end?: string
+  delivery_window_frais_start?: string
+  delivery_window_frais_end?: string
+  delivery_window_gel_start?: string
+  delivery_window_gel_end?: string
   access_constraints?: string
   allowed_vehicle_types?: string
   region_id: number

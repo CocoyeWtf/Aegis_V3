@@ -128,8 +128,14 @@ export default function PdvManagement() {
     { key: 'dock_time_minutes', label: t('pdvs.dockTime'), type: 'number', min: 0 },
     // Livraison
     { key: 'unload_time_per_eqp_minutes', label: t('pdvs.unloadTime'), type: 'number', min: 0 },
-    { key: 'delivery_window_start', label: t('pdvs.deliveryStart'), type: 'time' },
-    { key: 'delivery_window_end', label: t('pdvs.deliveryEnd'), type: 'time' },
+    { key: 'delivery_window_start', label: 'Livraison début (global)', type: 'time' },
+    { key: 'delivery_window_end', label: 'Livraison fin (global)', type: 'time' },
+    { key: 'delivery_window_sec_start', label: 'Livraison SEC début', type: 'time' },
+    { key: 'delivery_window_sec_end', label: 'Livraison SEC fin', type: 'time' },
+    { key: 'delivery_window_frais_start', label: 'Livraison FRAIS début', type: 'time' },
+    { key: 'delivery_window_frais_end', label: 'Livraison FRAIS fin', type: 'time' },
+    { key: 'delivery_window_gel_start', label: 'Livraison GEL début', type: 'time' },
+    { key: 'delivery_window_gel_end', label: 'Livraison GEL fin', type: 'time' },
     // Contraintes
     { key: 'access_constraints', label: t('pdvs.accessConstraints'), type: 'textarea' },
     { key: 'allowed_vehicle_types', label: 'Types véhicules autorisés', type: 'multicheck', options: vehicleTypeOptions },

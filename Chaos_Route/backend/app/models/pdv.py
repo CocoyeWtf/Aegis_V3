@@ -55,9 +55,17 @@ class PDV(Base):
     dock_time_minutes: Mapped[int | None] = mapped_column(Integer)  # temps de mise à quai
     unload_time_per_eqp_minutes: Mapped[int | None] = mapped_column(Integer)  # temps déchargement par EQC (colonne DB héritée)
 
-    # Fenêtre de livraison / Delivery window
+    # Fenêtre de livraison globale (fallback) / Global delivery window (fallback)
     delivery_window_start: Mapped[str | None] = mapped_column(String(5))  # HH:MM
     delivery_window_end: Mapped[str | None] = mapped_column(String(5))  # HH:MM
+
+    # Fenêtres de livraison par activité / Delivery windows per activity
+    delivery_window_sec_start: Mapped[str | None] = mapped_column(String(5))  # HH:MM
+    delivery_window_sec_end: Mapped[str | None] = mapped_column(String(5))  # HH:MM
+    delivery_window_frais_start: Mapped[str | None] = mapped_column(String(5))  # HH:MM
+    delivery_window_frais_end: Mapped[str | None] = mapped_column(String(5))  # HH:MM
+    delivery_window_gel_start: Mapped[str | None] = mapped_column(String(5))  # HH:MM
+    delivery_window_gel_end: Mapped[str | None] = mapped_column(String(5))  # HH:MM
 
     # Contraintes d'accès / Access constraints
     access_constraints: Mapped[str | None] = mapped_column(Text)

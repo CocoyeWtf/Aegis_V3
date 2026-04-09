@@ -31,6 +31,12 @@ class PDVBase(BaseModel):
     unload_time_per_eqp_minutes: int | None = None
     delivery_window_start: str | None = None
     delivery_window_end: str | None = None
+    delivery_window_sec_start: str | None = None
+    delivery_window_sec_end: str | None = None
+    delivery_window_frais_start: str | None = None
+    delivery_window_frais_end: str | None = None
+    delivery_window_gel_start: str | None = None
+    delivery_window_gel_end: str | None = None
     access_constraints: str | None = None
     allowed_vehicle_types: str | None = None
     region_id: int
@@ -66,6 +72,12 @@ class PDVUpdate(BaseModel):
     unload_time_per_eqp_minutes: int | None = None
     delivery_window_start: str | None = None
     delivery_window_end: str | None = None
+    delivery_window_sec_start: str | None = None
+    delivery_window_sec_end: str | None = None
+    delivery_window_frais_start: str | None = None
+    delivery_window_frais_end: str | None = None
+    delivery_window_gel_start: str | None = None
+    delivery_window_gel_end: str | None = None
     access_constraints: str | None = None
     allowed_vehicle_types: str | None = None
     region_id: int | None = None
