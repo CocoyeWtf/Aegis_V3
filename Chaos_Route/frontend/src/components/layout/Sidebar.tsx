@@ -86,6 +86,7 @@ const navGroups: NavGroup[] = [
     hideForPdv: true,
     children: [
       { path: '/operations', label: 'nav.postier', icon: '📮', resource: 'operations' },
+      { path: '/alerts', label: 'Alertes', icon: '🔔', resource: 'operations' },
       { path: '/tracking', label: 'Suivi chauffeurs', icon: '📡', resource: 'tracking' },
       { path: '/base-reception', label: 'Reception reprises', icon: '📥', resource: 'pickup-requests' },
       { path: '/crate-management', label: 'Gestion casiers', icon: '🍺', resource: 'crate-requests' },

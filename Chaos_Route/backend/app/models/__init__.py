@@ -64,6 +64,7 @@ from app.models.base_support_rule import BaseSupportRule
 from app.models.crate_type import CrateType
 from app.models.crate_request import CrateRequest, CrateRequestStatus
 from app.models.base_driver import BaseDriver, DriverStatus
+from app.models.operational_alert import OperationalAlert, AlertComment, AlertType, AlertStatus, AlertPriority
 
 __all__ = [
     "Country",
@@ -174,4 +175,9 @@ __all__ = [
     "CrateRequestStatus",
     "BaseDriver",
     "DriverStatus",
+    "OperationalAlert",
+    "AlertComment",
+    "AlertType",
+    "AlertStatus",
+    "AlertPriority",
 ]

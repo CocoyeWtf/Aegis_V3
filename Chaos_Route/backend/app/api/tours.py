@@ -2435,6 +2435,21 @@ async def remove_tour_stop(
         "warnings": result["warnings"],
     })
 
+    # Créer alerte opérationnelle / Create operational alert
+    from app.api.operational_alerts import create_system_alert
+    from app.models.operational_alert import AlertType, AlertPriority
+    await create_system_alert(
+        db, AlertType.VOLUMES_RELEASED,
+        title=f"PDV {pdv_code} retiré du tour {tour.code}",
+        message=f"{float(freed_eqp)} EQC libérés pour le {tour.date}. Volumes à réaffecter.",
+        user=user,
+        priority=AlertPriority.HIGH,
+        tour_id=tour.id, tour_code=tour.code,
+        pdv_id=pdv_id, pdv_code=pdv_code,
+        base_id=tour.base_id, date=tour.date,
+        freed_eqp=float(freed_eqp),
+    )
+
     await db.refresh(tour, ["stops"])
     return tour
 

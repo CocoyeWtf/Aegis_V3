@@ -60,6 +60,7 @@ from app.api import (
     crate_requests,
     base_support_rules,
     base_drivers,
+    operational_alerts,
 )
 
 api_router = APIRouter(prefix="/api")
@@ -120,3 +121,4 @@ api_router.include_router(control_evidences.router, prefix="/control-evidences",
 api_router.include_router(crate_requests.router, prefix="/crate-requests", tags=["crate-requests"])
 api_router.include_router(base_support_rules.router, prefix="/base-support-rules", tags=["base-support-rules"])
 api_router.include_router(base_drivers.router, prefix="/base-drivers", tags=["base-drivers"])
+api_router.include_router(operational_alerts.router, prefix="/alerts", tags=["alerts"])

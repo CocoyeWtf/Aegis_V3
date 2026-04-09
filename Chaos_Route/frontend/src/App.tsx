@@ -27,6 +27,7 @@ const TransporterSummary = lazy(() => import('./pages/TransporterSummary'))
 const LoaderManagement = lazy(() => import('./pages/LoaderManagement'))
 const BaseDriverManagement = lazy(() => import('./pages/BaseDriverManagement'))
 const Operations = lazy(() => import('./pages/Operations'))
+const OperationalAlerts = lazy(() => import('./pages/OperationalAlerts'))
 const GuardPost = lazy(() => import('./pages/GuardPost'))
 const GuardPostDelivery = lazy(() => import('./pages/GuardPostDelivery'))
 const SupplierPortal = lazy(() => import('./pages/SupplierPortal'))
@@ -115,6 +116,7 @@ export default function App() {
             <Route path="/loaders" element={<LoaderManagement />} />
             <Route path="/base-drivers" element={<BaseDriverManagement />} />
             <Route path="/operations" element={<Operations />} />
+            <Route path="/alerts" element={<OperationalAlerts />} />
             <Route path="/container-dashboard" element={<ContainerDashboard />} />
             <Route path="/container-map" element={<ContainerMap />} />
             <Route path="/gic-billing" element={<GicBilling />} />
