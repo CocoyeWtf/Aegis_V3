@@ -117,6 +117,7 @@ export default function PdvManagement() {
     { key: 'has_sas_sec', label: 'SAS', type: 'checkbox' },
     { key: 'sas_sec_surface_m2', label: 'Surface (m²)', type: 'number', min: 0, step: 0.1 },
     { key: 'sas_sec_capacity_eqc', label: 'Capacité (EQC)', type: 'number', min: 0 },
+    { key: 'has_dock_sec', label: 'Quai', type: 'checkbox' },
     { key: 'delivery_window_sec_start', label: 'Livraison de', type: 'time' },
     { key: 'delivery_window_sec_end', label: 'Livraison à', type: 'time' },
 
@@ -125,6 +126,7 @@ export default function PdvManagement() {
     { key: 'has_sas_frais', label: 'SAS', type: 'checkbox' },
     { key: 'sas_frais_surface_m2', label: 'Surface (m²)', type: 'number', min: 0, step: 0.1 },
     { key: 'sas_frais_capacity_eqc', label: 'Capacité (EQC)', type: 'number', min: 0 },
+    { key: 'has_dock_frais', label: 'Quai', type: 'checkbox' },
     { key: 'delivery_window_frais_start', label: 'Livraison de', type: 'time' },
     { key: 'delivery_window_frais_end', label: 'Livraison à', type: 'time' },
 
@@ -133,12 +135,13 @@ export default function PdvManagement() {
     { key: 'has_sas_gel', label: 'SAS', type: 'checkbox' },
     { key: 'sas_gel_surface_m2', label: 'Surface (m²)', type: 'number', min: 0, step: 0.1 },
     { key: 'sas_gel_capacity_eqc', label: 'Capacité (EQC)', type: 'number', min: 0 },
+    { key: 'has_dock_gel', label: 'Quai', type: 'checkbox' },
     { key: 'delivery_window_gel_start', label: 'Livraison de', type: 'time' },
     { key: 'delivery_window_gel_end', label: 'Livraison à', type: 'time' },
 
     // ── Déchargement & accès ──
     { key: '_s_dock', label: 'Déchargement & accès', type: 'section', color: '#10b981' },
-    { key: 'has_dock', label: 'Quai', type: 'checkbox' },
+    { key: 'has_dock', label: 'Quai (global)', type: 'checkbox' },
     { key: 'dock_has_niche', label: 'Niche', type: 'checkbox' },
     { key: 'dock_time_minutes', label: 'Temps quai (min)', type: 'number', min: 0 },
     { key: 'unload_time_per_eqp_minutes', label: 'Temps décharg./EQC (min)', type: 'number', min: 0 },
@@ -146,6 +149,7 @@ export default function PdvManagement() {
     { key: 'delivery_window_end', label: 'Livraison global à', type: 'time' },
     { key: 'access_constraints', label: 'Contraintes accès', type: 'textarea' },
     { key: 'allowed_vehicle_types', label: 'Véhicules autorisés', type: 'multicheck', options: vehicleTypeOptions },
+    { key: 'site_plan_url', label: 'Plan du site (URL ou pièce jointe)', type: 'text', helperText: 'URL vers un plan d\'accès pour les chauffeurs' },
   ]
 
   /* Impression QR / Print QR code */

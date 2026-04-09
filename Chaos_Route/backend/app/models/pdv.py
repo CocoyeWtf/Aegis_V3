@@ -48,12 +48,16 @@ class PDV(Base):
     sas_gel_surface_m2: Mapped[float | None] = mapped_column(Float)
     sas_gel_capacity_eqc: Mapped[int | None] = mapped_column(Integer)
 
-    # Quai de déchargement / Unloading dock
+    # Quai par activité / Dock per activity
+    has_dock_sec: Mapped[bool] = mapped_column(Boolean, default=False)
+    has_dock_frais: Mapped[bool] = mapped_column(Boolean, default=False)
+    has_dock_gel: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Quai de déchargement global / Global unloading dock
     has_dock: Mapped[bool] = mapped_column(Boolean, default=False)
     dock_has_niche: Mapped[bool] = mapped_column(Boolean, default=False)
-    # Niche sous quai (permet hayon rabattable) / Dock recess (allows foldable tailgate)
     dock_time_minutes: Mapped[int | None] = mapped_column(Integer)  # temps de mise à quai
-    unload_time_per_eqp_minutes: Mapped[int | None] = mapped_column(Integer)  # temps déchargement par EQC (colonne DB héritée)
+    unload_time_per_eqp_minutes: Mapped[int | None] = mapped_column(Integer)  # temps déchargement par EQC
 
     # Fenêtre de livraison globale (fallback) / Global delivery window (fallback)
     delivery_window_start: Mapped[str | None] = mapped_column(String(5))  # HH:MM
@@ -73,6 +77,9 @@ class PDV(Base):
     # Types de véhicules autorisés (pipe-delimited) / Allowed vehicle types (pipe-delimited)
     # NULL = tous acceptés / NULL = all accepted
     allowed_vehicle_types: Mapped[str | None] = mapped_column(String(200))
+
+    # Plan du site / Site access plan (URL or file path)
+    site_plan_url: Mapped[str | None] = mapped_column(String(500))
 
     region_id: Mapped[int] = mapped_column(ForeignKey("regions.id"), nullable=False)
 

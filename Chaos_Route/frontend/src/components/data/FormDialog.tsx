@@ -241,144 +241,172 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 grid gap-y-4" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, columnGap: cols > 1 ? '1.5rem' : undefined }} autoComplete="off">
+        <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-3" autoComplete="off">
           {error && (
             <div
-              className="p-3 rounded-lg border text-sm font-medium col-span-full"
+              className="p-3 rounded-lg border text-sm font-medium"
               style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: '#ef4444', color: '#ef4444' }}
             >
               {error}
             </div>
           )}
-          {fields.map((field) => {
-            if (field.hidden?.(form)) return null
-
-            // Section heading — full-width colored banner
-            if (field.type === 'section') {
-              return (
-                <div
-                  key={field.key}
-                  className="text-xs font-bold uppercase tracking-wide px-3 py-1.5 rounded mt-1"
-                  style={{
-                    gridColumn: `span ${cols}`,
-                    backgroundColor: field.color ? `${field.color}15` : 'var(--bg-tertiary)',
-                    borderLeft: `3px solid ${field.color || 'var(--text-muted)'}`,
-                    color: field.color || 'var(--text-muted)',
-                  }}
-                >
-                  {field.label}
-                </div>
-              )
+          {/* Group fields by section — fields before first section are ungrouped */}
+          {(() => {
+            const groups: { section: FieldDef | null; fields: FieldDef[] }[] = []
+            let current: { section: FieldDef | null; fields: FieldDef[] } = { section: null, fields: [] }
+            for (const f of fields) {
+              if (f.hidden?.(form)) continue
+              if (f.type === 'section') {
+                if (current.fields.length > 0 || current.section) groups.push(current)
+                current = { section: f, fields: [] }
+              } else {
+                current.fields.push(f)
+              }
             }
+            if (current.fields.length > 0 || current.section) groups.push(current)
 
-            const options = field.getOptions ? field.getOptions(form) : field.options
-
-            // Auto col-span-full pour textarea/multicheck sauf si colSpan explicite
-            const autoFull = (field.type === 'textarea' || field.type === 'multicheck') && !field.colSpan
-            const span = autoFull ? cols : (field.colSpan && field.colSpan > 1 ? Math.min(field.colSpan, cols) : undefined)
-            const spanStyle = span ? { gridColumn: `span ${span}` } : undefined
-
-            return (
-              <div key={field.key} style={spanStyle}>
-                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>
-                  {field.label}
-                  {field.required && <span style={{ color: 'var(--color-danger)' }}> *</span>}
-                </label>
-
-                {field.type === 'searchable-select' ? (
-                  <SearchableSelect
-                    value={form[field.key] as string ?? ''}
-                    options={options ?? []}
-                    onChange={(v) => handleChange(field.key, v)}
-                    required={field.required}
-                    placeholder={field.placeholder}
-                    inputStyle={inputStyle}
-                  />
-                ) : field.type === 'select' ? (
-                  <select
-                    value={String(form[field.key] ?? '')}
-                    onChange={(e) => handleChange(field.key, e.target.value)}
-                    required={field.required}
-                    className="w-full px-3 py-2 rounded-lg text-sm border outline-none focus:ring-1"
-                    style={inputStyle}
-                  >
-                    <option value="">—</option>
-                    {options?.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                ) : field.type === 'multicheck' ? (
-                  <div className="flex flex-wrap gap-2 p-2 rounded-lg border" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-tertiary)' }}>
-                    {options && options.length > 0 ? options.map((opt) => {
-                      const checked = ((form[field.key] as string[]) || []).includes(opt.value)
-                      return (
-                        <label
-                          key={opt.value}
-                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer transition-all border ${checked ? 'font-semibold' : ''}`}
-                          style={{
-                            backgroundColor: checked ? 'rgba(249,115,22,0.12)' : 'var(--bg-primary)',
-                            borderColor: checked ? 'var(--color-primary)' : 'var(--border-color)',
-                            color: checked ? 'var(--color-primary)' : 'var(--text-secondary)',
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => handleMulticheckToggle(field.key, opt.value)}
-                            className="w-3 h-3 accent-orange-500"
-                          />
-                          {opt.label}
-                        </label>
-                      )
-                    }) : (
-                      <span className="text-xs py-1" style={{ color: 'var(--text-muted)' }}>
-                        {t('common.noData')}
-                      </span>
+            return groups.map((group, gi) => {
+              const sc = group.section?.color
+              const renderField = (field: FieldDef) => {
+                const options = field.getOptions ? field.getOptions(form) : field.options
+                const autoFull = (field.type === 'textarea' || field.type === 'multicheck') && !field.colSpan
+                const span = autoFull ? cols : (field.colSpan && field.colSpan > 1 ? Math.min(field.colSpan, cols) : undefined)
+                const spanStyle = span ? { gridColumn: `span ${span}` } : undefined
+                return (
+                  <div key={field.key} style={spanStyle}>
+                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>
+                      {field.label}
+                      {field.required && <span style={{ color: 'var(--color-danger)' }}> *</span>}
+                    </label>
+                    {field.type === 'searchable-select' ? (
+                      <SearchableSelect
+                        value={form[field.key] as string ?? ''}
+                        options={options ?? []}
+                        onChange={(v) => handleChange(field.key, v)}
+                        required={field.required}
+                        placeholder={field.placeholder}
+                        inputStyle={inputStyle}
+                      />
+                    ) : field.type === 'select' ? (
+                      <select
+                        value={String(form[field.key] ?? '')}
+                        onChange={(e) => handleChange(field.key, e.target.value)}
+                        required={field.required}
+                        className="w-full px-3 py-2 rounded-lg text-sm border outline-none focus:ring-1"
+                        style={inputStyle}
+                      >
+                        <option value="">—</option>
+                        {options?.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    ) : field.type === 'multicheck' ? (
+                      <div className="flex flex-wrap gap-2 p-2 rounded-lg border" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-tertiary)' }}>
+                        {options && options.length > 0 ? options.map((opt) => {
+                          const checked = ((form[field.key] as string[]) || []).includes(opt.value)
+                          return (
+                            <label
+                              key={opt.value}
+                              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer transition-all border ${checked ? 'font-semibold' : ''}`}
+                              style={{
+                                backgroundColor: checked ? 'rgba(249,115,22,0.12)' : 'var(--bg-primary)',
+                                borderColor: checked ? 'var(--color-primary)' : 'var(--border-color)',
+                                color: checked ? 'var(--color-primary)' : 'var(--text-secondary)',
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => handleMulticheckToggle(field.key, opt.value)}
+                                className="w-3 h-3 accent-orange-500"
+                              />
+                              {opt.label}
+                            </label>
+                          )
+                        }) : (
+                          <span className="text-xs py-1" style={{ color: 'var(--text-muted)' }}>
+                            {t('common.noData')}
+                          </span>
+                        )}
+                      </div>
+                    ) : field.type === 'checkbox' ? (
+                      <input
+                        type="checkbox"
+                        checked={!!form[field.key]}
+                        onChange={(e) => handleChange(field.key, e.target.checked)}
+                        className="w-4 h-4 rounded accent-orange-500"
+                      />
+                    ) : field.type === 'textarea' ? (
+                      <textarea
+                        value={String(form[field.key] ?? '')}
+                        onChange={(e) => handleChange(field.key, e.target.value)}
+                        required={field.required}
+                        placeholder={field.placeholder}
+                        rows={3}
+                        className="w-full px-3 py-2 rounded-lg text-sm border outline-none focus:ring-1 resize-y"
+                        style={inputStyle}
+                      />
+                    ) : (
+                      <input
+                        type={field.type === 'time' ? 'time' : field.type === 'password' ? 'password' : field.type}
+                        value={String(form[field.key] ?? '')}
+                        onChange={(e) => handleChange(field.key, e.target.value)}
+                        required={field.required}
+                        placeholder={field.placeholder}
+                        min={field.min}
+                        max={field.max}
+                        step={field.step}
+                        autoComplete={field.type === 'password' ? 'new-password' : 'off'}
+                        className="w-full px-3 py-2 rounded-lg text-sm border outline-none focus:ring-1"
+                        style={inputStyle}
+                      />
+                    )}
+                    {field.helperText && (
+                      <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{field.helperText}</p>
                     )}
                   </div>
-                ) : field.type === 'checkbox' ? (
-                  <input
-                    type="checkbox"
-                    checked={!!form[field.key]}
-                    onChange={(e) => handleChange(field.key, e.target.checked)}
-                    className="w-4 h-4 rounded accent-orange-500"
-                  />
-                ) : field.type === 'textarea' ? (
-                  <textarea
-                    value={String(form[field.key] ?? '')}
-                    onChange={(e) => handleChange(field.key, e.target.value)}
-                    required={field.required}
-                    placeholder={field.placeholder}
-                    rows={3}
-                    className="w-full px-3 py-2 rounded-lg text-sm border outline-none focus:ring-1 resize-y"
-                    style={inputStyle}
-                  />
-                ) : (
-                  <input
-                    type={field.type === 'time' ? 'time' : field.type === 'password' ? 'password' : field.type}
-                    value={String(form[field.key] ?? '')}
-                    onChange={(e) => handleChange(field.key, e.target.value)}
-                    required={field.required}
-                    placeholder={field.placeholder}
-                    min={field.min}
-                    max={field.max}
-                    step={field.step}
-                    autoComplete={field.type === 'password' ? 'new-password' : 'off'}
-                    className="w-full px-3 py-2 rounded-lg text-sm border outline-none focus:ring-1"
-                    style={inputStyle}
-                  />
-                )}
-                {field.helperText && (
-                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{field.helperText}</p>
-                )}
-              </div>
-            )
-          })}
+                )
+              }
 
-          {renderExtra && <div className="col-span-full">{renderExtra(form, initialData)}</div>}
+              const gridContent = (
+                <div
+                  className="grid gap-y-3"
+                  style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, columnGap: cols > 1 ? '1rem' : undefined }}
+                >
+                  {group.fields.map(renderField)}
+                </div>
+              )
+
+              if (!group.section) return <div key={`g${gi}`}>{gridContent}</div>
+
+              return (
+                <div
+                  key={group.section.key}
+                  className="rounded-lg overflow-hidden border"
+                  style={{
+                    borderColor: sc ? `${sc}40` : 'var(--border-color)',
+                    backgroundColor: sc ? `${sc}08` : undefined,
+                  }}
+                >
+                  <div
+                    className="text-xs font-bold uppercase tracking-wide px-3 py-1.5"
+                    style={{
+                      backgroundColor: sc ? `${sc}20` : 'var(--bg-tertiary)',
+                      color: sc || 'var(--text-muted)',
+                    }}
+                  >
+                    {group.section.label}
+                  </div>
+                  <div className="p-3">{gridContent}</div>
+                </div>
+              )
+            })
+          })()}
+
+          {renderExtra && <div>{renderExtra(form, initialData)}</div>}
 
           {/* Actions */}
-          <div className="flex justify-end gap-2 pt-4 col-span-full">
+          <div className="flex justify-end gap-2 pt-4">
             <button
               type="button"
               onClick={onClose}

@@ -25,6 +25,9 @@ class PDVBase(BaseModel):
     has_sas_gel: bool = False
     sas_gel_surface_m2: float | None = None
     sas_gel_capacity_eqc: int | None = None
+    has_dock_sec: bool = False
+    has_dock_frais: bool = False
+    has_dock_gel: bool = False
     has_dock: bool = False
     dock_has_niche: bool = False
     dock_time_minutes: int | None = None
@@ -39,6 +42,7 @@ class PDVBase(BaseModel):
     delivery_window_gel_end: str | None = None
     access_constraints: str | None = None
     allowed_vehicle_types: str | None = None
+    site_plan_url: str | None = None
     region_id: int
 
 
@@ -66,6 +70,9 @@ class PDVUpdate(BaseModel):
     has_sas_gel: bool | None = None
     sas_gel_surface_m2: float | None = None
     sas_gel_capacity_eqc: int | None = None
+    has_dock_sec: bool | None = None
+    has_dock_frais: bool | None = None
+    has_dock_gel: bool | None = None
     has_dock: bool | None = None
     dock_has_niche: bool | None = None
     dock_time_minutes: int | None = None
@@ -80,6 +87,7 @@ class PDVUpdate(BaseModel):
     delivery_window_gel_end: str | None = None
     access_constraints: str | None = None
     allowed_vehicle_types: str | None = None
+    site_plan_url: str | None = None
     region_id: int | None = None
 
 

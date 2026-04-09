@@ -58,6 +58,9 @@ export interface PDV {
   has_sas_gel: boolean
   sas_gel_surface_m2?: number
   sas_gel_capacity_eqc?: number
+  has_dock_sec: boolean
+  has_dock_frais: boolean
+  has_dock_gel: boolean
   has_dock: boolean
   dock_has_niche: boolean
   dock_time_minutes?: number
@@ -70,6 +73,7 @@ export interface PDV {
   delivery_window_frais_end?: string
   delivery_window_gel_start?: string
   delivery_window_gel_end?: string
+  site_plan_url?: string
   access_constraints?: string
   allowed_vehicle_types?: string
   region_id: number
