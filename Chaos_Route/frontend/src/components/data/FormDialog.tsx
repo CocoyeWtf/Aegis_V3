@@ -6,7 +6,9 @@ import { useTranslation } from 'react-i18next'
 export interface FieldDef {
   key: string
   label: string
-  type: 'text' | 'number' | 'select' | 'checkbox' | 'textarea' | 'time' | 'date' | 'datetime-local' | 'multicheck' | 'password' | 'searchable-select'
+  type: 'text' | 'number' | 'select' | 'checkbox' | 'textarea' | 'time' | 'date' | 'datetime-local' | 'multicheck' | 'password' | 'searchable-select' | 'section'
+  /** Couleur de bordure pour les sections / Border color for section headings */
+  color?: string
   required?: boolean
   options?: { value: string; label: string }[]
   placeholder?: string
@@ -250,6 +252,24 @@ export function FormDialog({ open, onClose, onSubmit, title, fields, initialData
           )}
           {fields.map((field) => {
             if (field.hidden?.(form)) return null
+
+            // Section heading — full-width colored banner
+            if (field.type === 'section') {
+              return (
+                <div
+                  key={field.key}
+                  className="text-xs font-bold uppercase tracking-wide px-3 py-1.5 rounded mt-1"
+                  style={{
+                    gridColumn: `span ${cols}`,
+                    backgroundColor: field.color ? `${field.color}15` : 'var(--bg-tertiary)',
+                    borderLeft: `3px solid ${field.color || 'var(--text-muted)'}`,
+                    color: field.color || 'var(--text-muted)',
+                  }}
+                >
+                  {field.label}
+                </div>
+              )
+            }
 
             const options = field.getOptions ? field.getOptions(form) : field.options
 

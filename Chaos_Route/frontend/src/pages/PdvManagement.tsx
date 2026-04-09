@@ -95,50 +95,57 @@ export default function PdvManagement() {
   ]
 
   const fields: FieldDef[] = [
-    // Identification
-    { key: 'code', label: t('common.code'), type: 'text', required: true },
-    { key: 'name', label: t('common.name'), type: 'text', required: true },
-    { key: 'type', label: t('common.type'), type: 'select', required: true, options: pdvTypeOptions },
-    // Adresse + Géolocalisation
-    { key: 'address', label: t('common.address'), type: 'text', colSpan: 2 },
-    { key: 'postal_code', label: t('common.postalCode'), type: 'text' },
-    { key: 'city', label: t('common.city'), type: 'text' },
-    { key: 'latitude', label: t('common.latitude'), type: 'number', step: 0.000001 },
-    { key: 'longitude', label: t('common.longitude'), type: 'number', step: 0.000001 },
-    // Contact + Affectation
-    { key: 'phone', label: t('common.phone'), type: 'text' },
-    { key: 'email', label: t('common.email'), type: 'text' },
+    // ── Identification ──
+    { key: '_s_id', label: 'Identification', type: 'section', color: '#6366f1' },
+    { key: 'code', label: 'Code', type: 'text', required: true },
+    { key: 'name', label: 'Nom', type: 'text', required: true },
+    { key: 'type', label: 'Type', type: 'select', required: true, options: pdvTypeOptions },
     {
-      key: 'region_id', label: t('common.region'), type: 'select', required: true,
+      key: 'region_id', label: 'Région', type: 'select', required: true,
       options: regions.map((r) => ({ value: String(r.id), label: r.name })),
     },
-    // SAS (checkbox + détails sur la même ligne)
-    { key: 'has_sas_sec', label: 'SAS Sec', type: 'checkbox' },
-    { key: 'sas_sec_surface_m2', label: 'SAS Sec — Surface (m²)', type: 'number', min: 0, step: 0.1 },
-    { key: 'sas_sec_capacity_eqc', label: 'SAS Sec — Capacité (EQC)', type: 'number', min: 0 },
-    { key: 'has_sas_frais', label: 'SAS Frais', type: 'checkbox' },
-    { key: 'sas_frais_surface_m2', label: 'SAS Frais — Surface (m²)', type: 'number', min: 0, step: 0.1 },
-    { key: 'sas_frais_capacity_eqc', label: 'SAS Frais — Capacité (EQC)', type: 'number', min: 0 },
-    { key: 'has_sas_gel', label: 'SAS Gel', type: 'checkbox' },
-    { key: 'sas_gel_surface_m2', label: 'SAS Gel — Surface (m²)', type: 'number', min: 0, step: 0.1 },
-    { key: 'sas_gel_capacity_eqc', label: 'SAS Gel — Capacité (EQC)', type: 'number', min: 0 },
-    // Dock + Déchargement
-    { key: 'has_dock', label: t('pdvs.hasDock'), type: 'checkbox' },
-    { key: 'dock_has_niche', label: t('pdvs.dockHasNiche'), type: 'checkbox' },
-    { key: 'dock_time_minutes', label: t('pdvs.dockTime'), type: 'number', min: 0 },
-    // Livraison
-    { key: 'unload_time_per_eqp_minutes', label: t('pdvs.unloadTime'), type: 'number', min: 0 },
-    { key: 'delivery_window_start', label: 'Livraison début (global)', type: 'time' },
-    { key: 'delivery_window_end', label: 'Livraison fin (global)', type: 'time' },
-    { key: 'delivery_window_sec_start', label: 'Livraison SEC début', type: 'time' },
-    { key: 'delivery_window_sec_end', label: 'Livraison SEC fin', type: 'time' },
-    { key: 'delivery_window_frais_start', label: 'Livraison FRAIS début', type: 'time' },
-    { key: 'delivery_window_frais_end', label: 'Livraison FRAIS fin', type: 'time' },
-    { key: 'delivery_window_gel_start', label: 'Livraison GEL début', type: 'time' },
-    { key: 'delivery_window_gel_end', label: 'Livraison GEL fin', type: 'time' },
-    // Contraintes
-    { key: 'access_constraints', label: t('pdvs.accessConstraints'), type: 'textarea' },
-    { key: 'allowed_vehicle_types', label: 'Types véhicules autorisés', type: 'multicheck', options: vehicleTypeOptions },
+    { key: 'address', label: 'Adresse', type: 'text', colSpan: 2 },
+    { key: 'postal_code', label: 'CP', type: 'text' },
+    { key: 'city', label: 'Ville', type: 'text' },
+    { key: 'phone', label: 'Tél', type: 'text' },
+    { key: 'email', label: 'Email', type: 'text' },
+    { key: 'latitude', label: 'Latitude', type: 'number', step: 0.000001 },
+    { key: 'longitude', label: 'Longitude', type: 'number', step: 0.000001 },
+
+    // ── SEC ──
+    { key: '_s_sec', label: 'Sec', type: 'section', color: '#f59e0b' },
+    { key: 'has_sas_sec', label: 'SAS', type: 'checkbox' },
+    { key: 'sas_sec_surface_m2', label: 'Surface (m²)', type: 'number', min: 0, step: 0.1 },
+    { key: 'sas_sec_capacity_eqc', label: 'Capacité (EQC)', type: 'number', min: 0 },
+    { key: 'delivery_window_sec_start', label: 'Livraison de', type: 'time' },
+    { key: 'delivery_window_sec_end', label: 'Livraison à', type: 'time' },
+
+    // ── FRAIS ──
+    { key: '_s_frais', label: 'Frais', type: 'section', color: '#3b82f6' },
+    { key: 'has_sas_frais', label: 'SAS', type: 'checkbox' },
+    { key: 'sas_frais_surface_m2', label: 'Surface (m²)', type: 'number', min: 0, step: 0.1 },
+    { key: 'sas_frais_capacity_eqc', label: 'Capacité (EQC)', type: 'number', min: 0 },
+    { key: 'delivery_window_frais_start', label: 'Livraison de', type: 'time' },
+    { key: 'delivery_window_frais_end', label: 'Livraison à', type: 'time' },
+
+    // ── GEL ──
+    { key: '_s_gel', label: 'Gel', type: 'section', color: '#8b5cf6' },
+    { key: 'has_sas_gel', label: 'SAS', type: 'checkbox' },
+    { key: 'sas_gel_surface_m2', label: 'Surface (m²)', type: 'number', min: 0, step: 0.1 },
+    { key: 'sas_gel_capacity_eqc', label: 'Capacité (EQC)', type: 'number', min: 0 },
+    { key: 'delivery_window_gel_start', label: 'Livraison de', type: 'time' },
+    { key: 'delivery_window_gel_end', label: 'Livraison à', type: 'time' },
+
+    // ── Déchargement & accès ──
+    { key: '_s_dock', label: 'Déchargement & accès', type: 'section', color: '#10b981' },
+    { key: 'has_dock', label: 'Quai', type: 'checkbox' },
+    { key: 'dock_has_niche', label: 'Niche', type: 'checkbox' },
+    { key: 'dock_time_minutes', label: 'Temps quai (min)', type: 'number', min: 0 },
+    { key: 'unload_time_per_eqp_minutes', label: 'Temps décharg./EQC (min)', type: 'number', min: 0 },
+    { key: 'delivery_window_start', label: 'Livraison global de', type: 'time' },
+    { key: 'delivery_window_end', label: 'Livraison global à', type: 'time' },
+    { key: 'access_constraints', label: 'Contraintes accès', type: 'textarea' },
+    { key: 'allowed_vehicle_types', label: 'Véhicules autorisés', type: 'multicheck', options: vehicleTypeOptions },
   ]
 
   /* Impression QR / Print QR code */
