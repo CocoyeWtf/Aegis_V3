@@ -1,5 +1,7 @@
 """Schemas Alerte Operationnelle / Operational Alert schemas."""
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -14,7 +16,7 @@ class AlertCommentRead(BaseModel):
     user_id: int | None = None
     user_name: str | None = None
     text: str
-    created_at: str | None = None
+    created_at: datetime | str | None = None
 
 
 class AlertCreate(BaseModel):
@@ -48,8 +50,8 @@ class AlertRead(BaseModel):
     extra_data: str | None = None
     created_by_user_id: int | None = None
     created_by_name: str | None = None
-    created_at: str | None = None
+    created_at: datetime | str | None = None
     resolved_by_user_id: int | None = None
     resolved_by_name: str | None = None
-    resolved_at: str | None = None
+    resolved_at: datetime | str | None = None
     comments: list[AlertCommentRead] = []
