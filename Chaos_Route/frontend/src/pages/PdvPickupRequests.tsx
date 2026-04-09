@@ -112,18 +112,25 @@ export default function PdvPickupRequests() {
   }, [])
 
   // Filtres liste / List filters
-  const [filterStatus, setFilterStatus] = useState<string>('')
+  const [filterStatus, setFilterStatus] = useState<string>('IN_PROGRESS')
   const [filterPickupType, setFilterPickupType] = useState<string>('')
   const [filterDateFrom, setFilterDateFrom] = useState<string>('')
   const [filterDateTo, setFilterDateTo] = useState<string>('')
 
+  const IN_PROGRESS_STATUSES = new Set(['REQUESTED', 'PLANNED', 'PICKED_UP'])
+
   const requestParams = {
     ...(isPdvUser && user?.pdv_id ? { pdv_id: user.pdv_id } : {}),
-    ...(filterStatus ? { status: filterStatus } : {}),
+    ...(filterStatus && filterStatus !== 'IN_PROGRESS' ? { status: filterStatus } : {}),
     ...(filterPickupType ? { pickup_type: filterPickupType } : {}),
   } as Record<string, unknown>
 
-  const { data: requests, refetch } = useApi<PickupRequest>('/pickup-requests', requestParams)
+  const { data: allRequests, refetch } = useApi<PickupRequest>('/pickup-requests', requestParams)
+
+  // Filtre "En cours" côté client (REQUESTED + PLANNED + PICKED_UP)
+  const requests = filterStatus === 'IN_PROGRESS'
+    ? allRequests.filter((r) => IN_PROGRESS_STATUSES.has(r.status))
+    : allRequests
 
   // Formulaire / Form state
   const [pdvId, setPdvId] = useState<string>('')
@@ -721,23 +728,25 @@ export default function PdvPickupRequests() {
 
       {/* Filtres + Export CSV / Filters + CSV export */}
       <div className="flex flex-wrap items-center gap-3">
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-3 py-1.5 rounded-lg border text-sm"
-          style={{
-            backgroundColor: 'var(--bg-secondary)',
-            borderColor: 'var(--border-color)',
-            color: 'var(--text-primary)',
-          }}
-        >
-          <option value="">Tous statuts</option>
-          {Object.entries(STATUS_LABELS).map(([v, l]) => (
-            <option key={v} value={v}>
-              {l}
-            </option>
+        <div className="flex rounded-lg border overflow-hidden text-xs" style={{ borderColor: 'var(--border-color)' }}>
+          {[
+            { value: 'IN_PROGRESS', label: 'En cours', color: '#f59e0b' },
+            { value: '', label: 'Tous', color: undefined },
+            { value: 'RECEIVED', label: 'Terminés', color: '#22c55e' },
+          ].map((opt) => (
+            <button
+              key={opt.value}
+              className="px-3 py-1.5 font-semibold transition-all"
+              style={{
+                backgroundColor: filterStatus === opt.value ? (opt.color || 'var(--color-primary)') : 'var(--bg-secondary)',
+                color: filterStatus === opt.value ? '#fff' : 'var(--text-secondary)',
+              }}
+              onClick={() => setFilterStatus(opt.value)}
+            >
+              {opt.label}
+            </button>
           ))}
-        </select>
+        </div>
 
         <select
           value={filterPickupType}
