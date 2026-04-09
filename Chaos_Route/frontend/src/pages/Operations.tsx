@@ -12,6 +12,7 @@ import { computeTourDelay, detectSecondTourImpacts, DELAY_COLORS } from '../util
 import type { TourWithDelay, TourImpact } from '../utils/tourDelay'
 import { parseTime, displayDateTime, nowDateTimeLocal, formatDate } from '../utils/tourTimeUtils'
 import { useAppStore } from '../stores/useAppStore'
+import { useAuthStore } from '../stores/useAuthStore'
 
 const REFRESH_INTERVAL = 30_000
 const PREFS_KEY = 'ops-prefs'
@@ -61,6 +62,7 @@ const ALL_COLUMNS: OpsCol[] = [
 export default function Operations() {
   const { t } = useTranslation()
   const { isFullscreen, toggleFullscreen } = useAppStore()
+  const canModifyStops = useAuthStore((s) => s.hasPermission('tour-stop-modify', 'update'))
   const today = new Date().toISOString().slice(0, 10)
   const [date, setDate] = useState(today)
   const [baseId, setBaseId] = useState<number | ''>('')
@@ -332,6 +334,29 @@ export default function Operations() {
       await loadTours()
     } catch (e) {
       console.error('Failed to unassign device', e)
+    }
+  }
+
+  /* Retirer un stop / Remove a stop */
+  const handleRemoveStop = async (tourId: number, stopId: number, pdvCode: string) => {
+    if (!confirm(`Retirer le PDV ${pdvCode} du tour ? Les volumes seront libérés.`)) return
+    try {
+      await api.delete(`/tours/${tourId}/stops/${stopId}`)
+      await loadTours(true)
+    } catch (e: unknown) {
+      const resp = (e as { response?: { status?: number; data?: { detail?: string } } })?.response
+      alert(resp?.data?.detail || 'Erreur lors du retrait du stop')
+    }
+  }
+
+  /* Ajouter un stop / Add a stop */
+  const handleAddStop = async (tourId: number, pdvId: number) => {
+    try {
+      await api.post(`/tours/${tourId}/stops`, { pdv_id: pdvId })
+      await loadTours(true)
+    } catch (e: unknown) {
+      const resp = (e as { response?: { status?: number; data?: { detail?: string } } })?.response
+      alert(resp?.data?.detail || 'Erreur lors de l\'ajout du stop')
     }
   }
 
@@ -649,6 +674,10 @@ export default function Operations() {
                           onLoaderLookup={(code) => handleLoaderLookup(tour.id, code)}
                           onRefresh={() => loadTours(true)}
                           onPatchStopsEqc={(eqcByPdv) => patchTourStopsEqc(tour.id, eqcByPdv)}
+                          canModifyStops={canModifyStops}
+                          onRemoveStop={handleRemoveStop}
+                          onAddStop={handleAddStop}
+                          pdvs={pdvs}
                         />
                       </tbody>
                     )
@@ -687,6 +716,59 @@ export default function Operations() {
 
 /* ─── Composant ligne tour / Tour row component ─── */
 
+/* Mini-composant pour ajouter un PDV dans un tour / Inline add-stop widget */
+function AddStopInline({ pdvs, tourStopPdvIds, onAdd }: { pdvs: PDV[]; tourStopPdvIds: Set<number>; onAdd: (pdvId: number) => void }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  if (!open) {
+    return (
+      <button
+        className="text-[10px] px-2 py-1 rounded border font-semibold transition-all hover:opacity-80 mb-2"
+        style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
+        onClick={(e) => { e.stopPropagation(); setOpen(true) }}
+      >
+        + Ajouter un PDV
+      </button>
+    )
+  }
+  const q = search.toLowerCase()
+  const filtered = pdvs.filter((p) => !tourStopPdvIds.has(p.id) && p.latitude && p.longitude && (p.code.toLowerCase().includes(q) || (p.name ?? '').toLowerCase().includes(q) || (p.city ?? '').toLowerCase().includes(q))).slice(0, 15)
+  return (
+    <div className="flex items-center gap-2 mb-2" onClick={(e) => e.stopPropagation()}>
+      <input
+        type="text"
+        placeholder="Chercher un PDV (code, nom, ville)..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="px-2 py-1 rounded border text-xs flex-1"
+        style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+        autoFocus
+      />
+      {search.length >= 2 && filtered.length > 0 && (
+        <div className="flex gap-1 overflow-x-auto">
+          {filtered.slice(0, 5).map((p) => (
+            <button
+              key={p.id}
+              className="text-[10px] px-2 py-1 rounded border font-semibold whitespace-nowrap transition-all hover:opacity-80"
+              style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
+              onClick={() => { onAdd(p.id); setOpen(false); setSearch('') }}
+            >
+              {p.code} — {p.name}
+            </button>
+          ))}
+        </div>
+      )}
+      <button
+        className="text-[10px] px-2 py-1 rounded text-xs"
+        style={{ color: 'var(--text-muted)' }}
+        onClick={() => { setOpen(false); setSearch('') }}
+      >
+        Annuler
+      </button>
+    </div>
+  )
+}
+
 interface TourRowProps {
   tour: TourWithDelay
   contract: Contract | null
@@ -712,12 +794,17 @@ interface TourRowProps {
   onLoaderLookup: (code: string) => void
   onRefresh: () => Promise<void>
   onPatchStopsEqc: (eqcByPdv: Record<string, number>) => void
+  canModifyStops: boolean
+  onRemoveStop: (tourId: number, stopId: number, pdvCode: string) => void
+  onAddStop: (tourId: number, pdvId: number) => void
+  pdvs: PDV[]
 }
 
 function TourRow({
   tour, contract, form, isExpanded, color, pdvMap, volumes, saving, eqc, fleetVehicles,
   visibleCols, colCount, t,
   onToggle, onFormChange, onSave, onRouteSheet, onWaybill, onAssignDevice, onUnassignDevice, onSetNow, onLoaderLookup, onPatchStopsEqc,
+  canModifyStops, onRemoveStop, onAddStop, pdvs,
 }: TourRowProps) {
   const vehicleLabel = contract?.vehicle_code
     ? `${contract.vehicle_code} — ${contract.vehicle_name ?? ''}`
@@ -805,6 +892,9 @@ function TourRow({
                     <th className="px-2 py-1 text-center font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{t('operations.estimated')}</th>
                     <th className="px-2 py-1 text-center font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>EQC</th>
                     <th className="px-2 py-1 text-center font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{t('operations.pickups')}</th>
+                    {canModifyStops && !tour.departure_signal_time && (tour.status === 'DRAFT' || tour.status === 'VALIDATED') && (
+                      <th className="px-2 py-1 text-center font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}></th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -840,6 +930,19 @@ function TourRow({
                           <td className="px-2 py-1 text-center whitespace-nowrap" style={{ color: pickups ? 'var(--color-primary)' : 'var(--text-muted)' }}>
                             {pickups || '—'}
                           </td>
+                          {canModifyStops && !tour.departure_signal_time && (tour.status === 'DRAFT' || tour.status === 'VALIDATED') && (
+                            <td className="px-2 py-1 text-center whitespace-nowrap">
+                              {tour.stops.length > 1 && (
+                                <button
+                                  className="text-[10px] px-1.5 py-0.5 rounded border font-semibold transition-all hover:opacity-80"
+                                  style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
+                                  onClick={(e) => { e.stopPropagation(); onRemoveStop(tour.id, stop.id, pdv?.code ?? '') }}
+                                >
+                                  Retirer
+                                </button>
+                              )}
+                            </td>
+                          )}
                         </tr>
                       )
                     })}
@@ -855,6 +958,11 @@ function TourRow({
                 </tbody>
               </table>
             </div>
+
+            {/* Bouton ajouter PDV / Add PDV button */}
+            {canModifyStops && !tour.departure_signal_time && (tour.status === 'DRAFT' || tour.status === 'VALIDATED') && (
+              <AddStopInline pdvs={pdvs} tourStopPdvIds={new Set(tour.stops.map((s) => s.pdv_id))} onAdd={(pdvId) => onAddStop(tour.id, pdvId)} />
+            )}
 
             {/* Ligne 1 — Prépa semi / Trailer preparation */}
             <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: '2fr 0.8fr 1fr 1fr' }}>

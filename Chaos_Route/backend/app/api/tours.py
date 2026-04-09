@@ -29,7 +29,7 @@ from app.models.user import User
 from app.models.pickup_request import PickupRequest, PickupLabel, PickupStatus, PickupType, LabelStatus
 from app.models.vehicle import Vehicle, FleetVehicleType, VehicleStatus
 from app.models.tour_manifest_line import TourManifestLine
-from app.schemas.tour import ManifestLineRead, TourCreate, TourGateUpdate, TourOperationsUpdate, TourRead, TourSchedule, TourUpdate
+from app.schemas.tour import ManifestLineRead, TourCreate, TourGateUpdate, TourOperationsUpdate, TourRead, TourSchedule, TourStopInsert, TourUpdate
 from app.api.deps import require_permission, get_user_region_ids
 
 router = APIRouter()
@@ -2285,6 +2285,237 @@ async def delete_tour(
     # Recalculer les tours frères restants / Recalculate remaining sibling tours
     if old_contract_id:
         await _recalculate_sibling_tours(db, old_contract_id, old_date)
+
+
+# ── Modification des stops en live (postier) / Live stop modification ──
+
+
+async def _recalc_tour_after_stop_change(db: AsyncSession, tour: Tour) -> dict:
+    """Recalculer horaires, distances, coûts après ajout/suppression d'un stop.
+    Recalculate times, distances, costs after adding/removing a stop."""
+    warnings: list[str] = []
+
+    # Mettre à jour total_eqp / Update total_eqp
+    tour.total_eqp = sum(s.eqp_count for s in tour.stops)
+
+    if not tour.departure_time:
+        await db.flush()
+        return {"warnings": warnings}
+
+    # Recalculer les horaires / Recalculate times
+    stops_data = [
+        {"pdv_id": s.pdv_id, "sequence_order": s.sequence_order, "eqp_count": s.eqp_count}
+        for s in sorted(tour.stops, key=lambda s: s.sequence_order)
+    ]
+
+    enriched, return_time, total_duration = await calculate_tour_times(
+        tour.departure_time, stops_data, tour.base_id, db,
+    )
+
+    tour.return_time = return_time
+    tour.total_duration_minutes = total_duration
+
+    # Calculer le km total / Calculate total km
+    total_km = sum(s.get("distance_from_previous_km") or 0 for s in enriched)
+    # Ajouter le retour base / Add return leg
+    last_pdv_id = enriched[-1]["pdv_id"] if enriched else None
+    if last_pdv_id:
+        ret_dist = await _get_distance(db, "PDV", last_pdv_id, "BASE", tour.base_id)
+        total_km += ret_dist.distance_km if ret_dist else 0
+    tour.total_km = round(total_km, 2)
+
+    # Mettre à jour chaque stop / Update each stop
+    for stop in tour.stops:
+        for es in enriched:
+            if stop.pdv_id == es["pdv_id"] and stop.sequence_order == es["sequence_order"]:
+                stop.arrival_time = es.get("arrival_time")
+                stop.departure_time = es.get("departure_time")
+                stop.distance_from_previous_km = es.get("distance_from_previous_km")
+                stop.duration_from_previous_minutes = es.get("duration_from_previous_minutes")
+                break
+
+    # Recalculer le coût / Recalculate cost
+    if tour.contract_id:
+        contract = await db.get(Contract, tour.contract_id)
+        if contract:
+            cost, cost_warnings = await _calculate_cost(
+                db, tour.total_km, contract, tour.date, tour.base_id, stops_data,
+            )
+            tour.total_cost = round(cost, 2)
+            warnings.extend(cost_warnings)
+            await _recalculate_sibling_tours(db, tour.contract_id, tour.date)
+
+    # Vérifier les fenêtres de livraison / Check delivery windows
+    for stop in tour.stops:
+        if not stop.arrival_time:
+            continue
+        pdv = await db.get(PDV, stop.pdv_id)
+        if not pdv:
+            continue
+        dw_start = pdv.delivery_window_start
+        dw_end = pdv.delivery_window_end
+        if dw_start and stop.arrival_time < dw_start:
+            warnings.append(f"PDV {pdv.code}: arrivée {stop.arrival_time} avant ouverture {dw_start}")
+        if dw_end and stop.arrival_time > dw_end:
+            warnings.append(f"PDV {pdv.code}: arrivée {stop.arrival_time} après fermeture {dw_end}")
+
+    await db.flush()
+    return {"warnings": warnings}
+
+
+@router.delete("/{tour_id}/stops/{stop_id}", response_model=TourRead)
+async def remove_tour_stop(
+    tour_id: int,
+    stop_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("tour-stop-modify", "update")),
+):
+    """Retirer un PDV d'un tour planifié / Remove a PDV from a scheduled tour."""
+    tour = await db.get(Tour, tour_id, options=[selectinload(Tour.stops)])
+    if not tour:
+        raise HTTPException(404, "Tour not found")
+    if tour.departure_signal_time:
+        raise HTTPException(409, "Tour verrouillé : top départ validé")
+    if tour.status not in (TourStatus.DRAFT, TourStatus.VALIDATED):
+        raise HTTPException(409, f"Tour en statut {tour.status.value}, modification impossible")
+
+    # Trouver le stop / Find the stop
+    target = next((s for s in tour.stops if s.id == stop_id), None)
+    if not target:
+        raise HTTPException(404, "Stop not found in this tour")
+    if len(tour.stops) <= 1:
+        raise HTTPException(422, "Impossible de retirer le dernier stop. Supprimez le tour entier.")
+
+    pdv_id = target.pdv_id
+    pdv = await db.get(PDV, pdv_id)
+    pdv_code = pdv.code if pdv else str(pdv_id)
+
+    # Libérer les volumes du PDV dans ce tour / Release volumes
+    vol_result = await db.execute(
+        select(Volume).where(Volume.tour_id == tour_id, Volume.pdv_id == pdv_id)
+    )
+    freed = list(vol_result.scalars().all())
+    freed_ids = [v.id for v in freed]
+    freed_eqp = sum(v.eqp_count for v in freed)
+    for v in freed:
+        v.tour_id = None
+
+    # Reconstituer les volumes splités / Reconstitute split volumes
+    group_ids = {v.split_group_id for v in freed if v.split_group_id}
+    for gid in group_ids:
+        grp_result = await db.execute(select(Volume).where(Volume.split_group_id == gid))
+        frags = list(grp_result.scalars().all())
+        if all(f.tour_id is None for f in frags):
+            frags.sort(key=lambda f: f.id)
+            keeper = frags[0]
+            keeper.eqp_count = sum(f.eqp_count for f in frags)
+            total_w = sum(float(f.weight_kg or 0) for f in frags)
+            total_c = sum(f.nb_colis or 0 for f in frags)
+            keeper.weight_kg = round(total_w, 2) if total_w else None
+            keeper.nb_colis = total_c if total_c else None
+            keeper.split_group_id = None
+            for f in frags[1:]:
+                await db.delete(f)
+
+    # Supprimer le stop / Delete the stop
+    await db.delete(target)
+    await db.flush()
+
+    # Renuméroter / Resequence
+    remaining = sorted([s for s in tour.stops if s.id != stop_id], key=lambda s: s.sequence_order)
+    for idx, s in enumerate(remaining):
+        s.sequence_order = idx + 1
+
+    # Recalculer / Recalculate
+    result = await _recalc_tour_after_stop_change(db, tour)
+
+    await _log_audit(db, "tour", tour.id, "REMOVE_STOP", user, {
+        "stop_id": stop_id, "pdv_id": pdv_id, "pdv_code": pdv_code,
+        "freed_volume_ids": freed_ids, "freed_eqp": float(freed_eqp),
+        "warnings": result["warnings"],
+    })
+
+    await db.refresh(tour, ["stops"])
+    return tour
+
+
+@router.post("/{tour_id}/stops", response_model=TourRead)
+async def add_tour_stop(
+    tour_id: int,
+    data: TourStopInsert,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("tour-stop-modify", "update")),
+):
+    """Ajouter un PDV à un tour planifié / Add a PDV to a scheduled tour."""
+    tour = await db.get(Tour, tour_id, options=[selectinload(Tour.stops)])
+    if not tour:
+        raise HTTPException(404, "Tour not found")
+    if tour.departure_signal_time:
+        raise HTTPException(409, "Tour verrouillé : top départ validé")
+    if tour.status not in (TourStatus.DRAFT, TourStatus.VALIDATED):
+        raise HTTPException(409, f"Tour en statut {tour.status.value}, modification impossible")
+
+    # Vérifier le PDV / Verify PDV
+    pdv = await db.get(PDV, data.pdv_id)
+    if not pdv:
+        raise HTTPException(404, "PDV not found")
+
+    # Déterminer la position / Determine position
+    max_seq = max((s.sequence_order for s in tour.stops), default=0)
+    insert_pos = data.sequence_order if data.sequence_order is not None else max_seq + 1
+
+    # Décaler les stops existants / Shift existing stops
+    for s in tour.stops:
+        if s.sequence_order >= insert_pos:
+            s.sequence_order += 1
+
+    # Créer le nouveau stop / Create new stop
+    new_stop = TourStop(
+        tour_id=tour.id,
+        pdv_id=data.pdv_id,
+        sequence_order=insert_pos,
+        eqp_count=data.eqp_count,
+        pickup_cardboard=data.pickup_cardboard,
+        pickup_containers=data.pickup_containers,
+        pickup_returns=data.pickup_returns,
+        pickup_consignment=data.pickup_consignment,
+    )
+    db.add(new_stop)
+    await db.flush()
+
+    # Assigner les volumes disponibles / Assign available volumes
+    vol_result = await db.execute(
+        select(Volume).where(
+            Volume.pdv_id == data.pdv_id,
+            Volume.tour_id.is_(None),
+            Volume.dispatch_date == tour.date,
+        ).order_by(Volume.eqp_count.desc())
+    )
+    available = list(vol_result.scalars().all())
+    assigned_ids: list[int] = []
+    assigned_eqp = 0.0
+    for v in available:
+        v.tour_id = tour.id
+        assigned_ids.append(v.id)
+        assigned_eqp += v.eqp_count
+
+    # Mettre à jour eqp_count du stop si volumes assignés / Update stop eqp_count
+    if assigned_eqp > 0:
+        new_stop.eqp_count = assigned_eqp
+
+    # Recalculer / Recalculate
+    await db.refresh(tour, ["stops"])
+    result = await _recalc_tour_after_stop_change(db, tour)
+
+    await _log_audit(db, "tour", tour.id, "ADD_STOP", user, {
+        "pdv_id": data.pdv_id, "pdv_code": pdv.code,
+        "sequence_order": insert_pos, "eqp_count": float(new_stop.eqp_count),
+        "assigned_volume_ids": assigned_ids,
+        "warnings": result["warnings"],
+    })
+
+    await db.refresh(tour, ["stops"])
+    return tour
 
 
 @router.get("/{tour_id}/manifest", response_model=list[ManifestLineRead])

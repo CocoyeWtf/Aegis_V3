@@ -24,6 +24,17 @@ class TourStopCreate(TourStopBase):
     pass
 
 
+class TourStopInsert(BaseModel):
+    """Insertion d'un stop dans un tour existant / Insert a stop into an existing tour."""
+    pdv_id: int
+    sequence_order: int | None = None  # None = append at end
+    eqp_count: float = 0
+    pickup_cardboard: bool = False
+    pickup_containers: bool = False
+    pickup_returns: bool = False
+    pickup_consignment: bool = False
+
+
 class TourStopRead(TourStopBase):
     model_config = ConfigDict(from_attributes=True)
     id: int

@@ -59,6 +59,7 @@ RESOURCES = [
     "container-anomalies",
     "bottle-sorting",
     "base-drivers",
+    "tour-stop-modify",
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 
