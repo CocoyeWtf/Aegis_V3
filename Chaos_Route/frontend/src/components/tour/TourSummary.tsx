@@ -65,6 +65,17 @@ const TEMP_COLORS: Record<string, string> = { SEC: '#f59e0b', FRAIS: '#3b82f6', 
 const TEMP_LABELS: Record<string, string> = { SEC: 'S', FRAIS: 'F', GEL: 'G' }
 
 function StopTempBreakdown({ stop, volumes }: { stop: TourStop; volumes?: Volume[] }) {
+  // Si le stop porte directement sa température (phase construction)
+  if (stop.temperature_class) {
+    const tc = stop.temperature_class
+    return (
+      <span className="inline-flex items-center gap-1">
+        <span className="px-1 rounded text-[8px] font-bold text-white" style={{ backgroundColor: TEMP_COLORS[tc] || '#999' }}>{TEMP_LABELS[tc] || tc}</span>
+        <span>{stop.eqp_count} EQC</span>
+      </span>
+    )
+  }
+  // Sinon, calculer depuis les volumes (tour sauvegardé)
   if (!volumes || volumes.length === 0) return <span>{stop.eqp_count} EQC</span>
   const stopVols = volumes.filter((v) => v.pdv_id === stop.pdv_id)
   if (stopVols.length === 0) return <span>{stop.eqp_count} EQC</span>
@@ -77,7 +88,7 @@ function StopTempBreakdown({ stop, volumes }: { stop: TourStop; volumes?: Volume
     const [tc] = entries[0] ?? ['SEC']
     return (
       <span className="inline-flex items-center gap-1">
-        <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: TEMP_COLORS[tc] || '#999' }} />
+        <span className="px-1 rounded text-[8px] font-bold text-white" style={{ backgroundColor: TEMP_COLORS[tc] || '#999' }}>{TEMP_LABELS[tc] || tc}</span>
         <span>{stop.eqp_count} EQC</span>
       </span>
     )

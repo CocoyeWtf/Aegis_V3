@@ -170,6 +170,8 @@ export interface TourStop {
   missing_supports_count?: number
   forced_closure?: boolean
   delivery_notes?: string
+  /** Classe de température (renseigné pendant la construction du tour) */
+  temperature_class?: TemperatureClass
 }
 
 export interface Tour {

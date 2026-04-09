@@ -388,6 +388,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         pdv_id: vol.pdv_id,
         sequence_order: currentStops.length + 1,
         eqp_count: vol.eqp_count,
+        temperature_class: vol.temperature_class,
         ...getPickupFlags(vol.pdv_id),
       })
       /* Auto-set base depuis le volume / Auto-set base from volume */
@@ -417,6 +418,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         pdv_id: vol.pdv_id,
         sequence_order: currentStops.length + 1,
         eqp_count: vol.eqp_count,
+        temperature_class: vol.temperature_class,
         ...getPickupFlags(vol.pdv_id),
       })
     } else if (vol.eqp_count <= remaining115) {
@@ -482,6 +484,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         pdv_id: vol.pdv_id,
         sequence_order: currentStops.length + 1,
         eqp_count: vol.eqp_count,
+        temperature_class: vol.temperature_class,
         ...getPickupFlags(vol.pdv_id),
       })
     } else {
@@ -505,6 +508,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
           pdv_id: splitDialog.volume.pdv_id,
           sequence_order: currentStops.length + 1,
           eqp_count: splitEqp,
+          temperature_class: splitDialog.volume.temperature_class,
           ...getPickupFlags(splitDialog.volume.pdv_id),
         })
       }
@@ -527,6 +531,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         pdv_id: newVol.pdv_id,
         sequence_order: currentStops.length + 1,
         eqp_count: newVol.eqp_count,
+        temperature_class: newVol.temperature_class,
         ...getPickupFlags(newVol.pdv_id),
       })
     }
@@ -545,6 +550,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
       pdv_id: vol.pdv_id,
       sequence_order: currentStops.length + 1,
       eqp_count: vol.eqp_count,
+      temperature_class: vol.temperature_class,
       ...getPickupFlags(vol.pdv_id),
     })
     setOverbookingDialog(null)
