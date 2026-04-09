@@ -1,6 +1,6 @@
 /* Carte Leaflet principale / Main Leaflet map component */
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { MapContainer, TileLayer, Polyline, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import { useMapStore } from '../../stores/useMapStore'
@@ -102,7 +102,24 @@ interface MapViewProps {
 }
 
 export function MapView({ onPdvClick, onPdvTempClick, onPdvContextMenu, selectedPdvIds, pdvVolumeStatusMap, pdvEqpMap, pickupByPdv, routeCoords, height = '100%', resizeSignal = 0 }: MapViewProps) {
-  const { center, zoom, showBases, showPdvs, showSuppliers, showPdvLabels } = useMapStore()
+  const { center, zoom, showBases, showPdvs, showSuppliers, showPdvLabels, showDayPdvs, showNightPdvs } = useMapStore()
+
+  /* Filtre jour/nuit basé sur les fenêtres de livraison du PDV / Day/night filter based on PDV delivery windows */
+  const pdvDayNightFilter = useCallback((pdv: PDV): boolean => {
+    if (showDayPdvs && showNightPdvs) return true // Tout affiché
+    if (!showDayPdvs && !showNightPdvs) return false // Rien affiché
+
+    // Prendre la première fenêtre de livraison définie (spécifique > globale)
+    const start = pdv.delivery_window_sec_start || pdv.delivery_window_frais_start || pdv.delivery_window_gel_start || pdv.delivery_window_start
+    if (!start) return true // Pas de fenêtre définie → toujours affiché
+
+    // Jour = ouverture entre 08:00 et 19:00
+    const isDay = start >= '08:00' && start <= '19:00'
+
+    if (showDayPdvs && !showNightPdvs) return isDay
+    if (showNightPdvs && !showDayPdvs) return !isDay
+    return true
+  }, [showDayPdvs, showNightPdvs])
   const { selectedRegionId } = useAppStore()
   const [currentZoom, setCurrentZoom] = useState(zoom)
 
@@ -138,7 +155,7 @@ export function MapView({ onPdvClick, onPdvTempClick, onPdvContextMenu, selected
           ) : null
         )}
 
-        {showPdvs && pdvs.filter((pdv) => !selectedPdvIds?.has(pdv.id)).map((pdv) =>
+        {showPdvs && pdvs.filter((pdv) => !selectedPdvIds?.has(pdv.id)).filter(pdvDayNightFilter).map((pdv) =>
           pdv.latitude && pdv.longitude ? (
             <PdvMarker
               key={`pdv-${pdv.id}`}
