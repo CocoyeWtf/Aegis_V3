@@ -1132,6 +1132,16 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
                             {scheduling === tour.id ? '...' : 'Planifier'}
                           </button>
 
+                          {/* Bouton supprimer (libere les volumes) / Delete button (releases volumes) */}
+                          <button
+                            className="px-2 py-1 rounded text-[11px] font-semibold border transition-all hover:opacity-80 disabled:opacity-40 shrink-0"
+                            style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)', backgroundColor: 'rgba(239,68,68,0.1)' }}
+                            disabled={scheduling === tour.id}
+                            onClick={(e) => { e.stopPropagation(); handleCancel(tour.id) }}
+                          >
+                            {scheduling === tour.id ? '...' : 'Supprimer'}
+                          </button>
+
                           {/* Retour estimé inline */}
                           {estReturn && (
                             <span className="text-[10px] shrink-0" style={{ color: estReturn > '22:00' ? 'var(--color-danger)' : 'var(--text-muted)' }}>
