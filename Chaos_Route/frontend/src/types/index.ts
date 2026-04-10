@@ -58,6 +58,9 @@ export interface PDV {
   has_sas_gel: boolean
   sas_gel_surface_m2?: number
   sas_gel_capacity_eqc?: number
+  is_day_sec: boolean
+  is_day_frais: boolean
+  is_day_gel: boolean
   has_dock_sec: boolean
   has_dock_frais: boolean
   has_dock_gel: boolean

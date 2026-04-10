@@ -63,6 +63,11 @@ class PDV(Base):
     delivery_window_start: Mapped[str | None] = mapped_column(String(5))  # HH:MM
     delivery_window_end: Mapped[str | None] = mapped_column(String(5))  # HH:MM
 
+    # Jour/Nuit par activité (flags explicites) / Day/Night per activity (explicit flags)
+    is_day_sec: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_day_frais: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_day_gel: Mapped[bool] = mapped_column(Boolean, default=True)
+
     # Fenêtres de livraison par activité / Delivery windows per activity
     delivery_window_sec_start: Mapped[str | None] = mapped_column(String(5))  # HH:MM
     delivery_window_sec_end: Mapped[str | None] = mapped_column(String(5))  # HH:MM

@@ -115,28 +115,31 @@ export default function PdvManagement() {
 
     // ── SEC ──
     { key: '_s_sec', label: 'Sec', type: 'section', color: '#f59e0b' },
+    { key: 'is_day_sec', label: 'Jour', type: 'checkbox' },
     { key: 'has_sas_sec', label: 'SAS', type: 'checkbox' },
+    { key: 'has_dock_sec', label: 'Quai', type: 'checkbox' },
     { key: 'sas_sec_surface_m2', label: 'Surface (m²)', type: 'number', min: 0, step: 0.1 },
     { key: 'sas_sec_capacity_eqc', label: 'Capacité (EQC)', type: 'number', min: 0 },
-    { key: 'has_dock_sec', label: 'Quai', type: 'checkbox' },
     { key: 'delivery_window_sec_start', label: 'Livraison de', type: 'time' },
     { key: 'delivery_window_sec_end', label: 'Livraison à', type: 'time' },
 
     // ── FRAIS ──
     { key: '_s_frais', label: 'Frais', type: 'section', color: '#3b82f6' },
+    { key: 'is_day_frais', label: 'Jour', type: 'checkbox' },
     { key: 'has_sas_frais', label: 'SAS', type: 'checkbox' },
+    { key: 'has_dock_frais', label: 'Quai', type: 'checkbox' },
     { key: 'sas_frais_surface_m2', label: 'Surface (m²)', type: 'number', min: 0, step: 0.1 },
     { key: 'sas_frais_capacity_eqc', label: 'Capacité (EQC)', type: 'number', min: 0 },
-    { key: 'has_dock_frais', label: 'Quai', type: 'checkbox' },
     { key: 'delivery_window_frais_start', label: 'Livraison de', type: 'time' },
     { key: 'delivery_window_frais_end', label: 'Livraison à', type: 'time' },
 
     // ── GEL ──
     { key: '_s_gel', label: 'Gel', type: 'section', color: '#8b5cf6' },
+    { key: 'is_day_gel', label: 'Jour', type: 'checkbox' },
     { key: 'has_sas_gel', label: 'SAS', type: 'checkbox' },
+    { key: 'has_dock_gel', label: 'Quai', type: 'checkbox' },
     { key: 'sas_gel_surface_m2', label: 'Surface (m²)', type: 'number', min: 0, step: 0.1 },
     { key: 'sas_gel_capacity_eqc', label: 'Capacité (EQC)', type: 'number', min: 0 },
-    { key: 'has_dock_gel', label: 'Quai', type: 'checkbox' },
     { key: 'delivery_window_gel_start', label: 'Livraison de', type: 'time' },
     { key: 'delivery_window_gel_end', label: 'Livraison à', type: 'time' },
 

@@ -104,22 +104,16 @@ interface MapViewProps {
 export function MapView({ onPdvClick, onPdvTempClick, onPdvContextMenu, selectedPdvIds, pdvVolumeStatusMap, pdvEqpMap, pickupByPdv, routeCoords, height = '100%', resizeSignal = 0 }: MapViewProps) {
   const { center, zoom, showBases, showPdvs, showSuppliers, showPdvLabels, showDayPdvs, showNightPdvs } = useMapStore()
 
-  /* Filtre jour/nuit par activité — un PDV apparaît si AU MOINS UNE activité matche /
-     Day/night filter per activity — a PDV shows if AT LEAST ONE activity matches */
+  /* Filtre jour/nuit par flags explicites du PDV (is_day_sec, is_day_frais, is_day_gel) /
+     Day/night filter using explicit PDV flags */
   const pdvDayNightFilter = useCallback((pdv: PDV): boolean => {
     if (showDayPdvs && showNightPdvs) return true
     if (!showDayPdvs && !showNightPdvs) return false
 
-    // Collecter toutes les fenêtres de livraison définies / Collect all defined delivery windows
-    const windows: string[] = []
-    if (pdv.delivery_window_sec_start) windows.push(pdv.delivery_window_sec_start)
-    if (pdv.delivery_window_frais_start) windows.push(pdv.delivery_window_frais_start)
-    if (pdv.delivery_window_gel_start) windows.push(pdv.delivery_window_gel_start)
-    if (windows.length === 0 && pdv.delivery_window_start) windows.push(pdv.delivery_window_start)
-    if (windows.length === 0) return true // Pas de fenêtre → toujours affiché
-
-    const hasDay = windows.some((w) => w >= '08:00' && w <= '19:00')
-    const hasNight = windows.some((w) => w < '08:00' || w > '19:00')
+    // Un PDV est "jour" si au moins une activité est cochée "Jour"
+    // Un PDV est "nuit" si au moins une activité n'est PAS cochée "Jour"
+    const hasDay = pdv.is_day_sec || pdv.is_day_frais || pdv.is_day_gel
+    const hasNight = !pdv.is_day_sec || !pdv.is_day_frais || !pdv.is_day_gel
 
     if (showDayPdvs && !showNightPdvs) return hasDay
     if (showNightPdvs && !showDayPdvs) return hasNight

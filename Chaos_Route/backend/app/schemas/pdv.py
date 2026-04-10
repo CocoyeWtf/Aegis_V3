@@ -25,6 +25,9 @@ class PDVBase(BaseModel):
     has_sas_gel: bool = False
     sas_gel_surface_m2: float | None = None
     sas_gel_capacity_eqc: int | None = None
+    is_day_sec: bool = True
+    is_day_frais: bool = True
+    is_day_gel: bool = True
     has_dock_sec: bool = False
     has_dock_frais: bool = False
     has_dock_gel: bool = False
@@ -70,6 +73,9 @@ class PDVUpdate(BaseModel):
     has_sas_gel: bool | None = None
     sas_gel_surface_m2: float | None = None
     sas_gel_capacity_eqc: int | None = None
+    is_day_sec: bool | None = None
+    is_day_frais: bool | None = None
+    is_day_gel: bool | None = None
     has_dock_sec: bool | None = None
     has_dock_frais: bool | None = None
     has_dock_gel: bool | None = None
