@@ -102,23 +102,25 @@ interface MapViewProps {
 }
 
 export function MapView({ onPdvClick, onPdvTempClick, onPdvContextMenu, selectedPdvIds, pdvVolumeStatusMap, pdvEqpMap, pickupByPdv, routeCoords, height = '100%', resizeSignal = 0 }: MapViewProps) {
-  const { center, zoom, showBases, showPdvs, showSuppliers, showPdvLabels, showDayPdvs, showNightPdvs } = useMapStore()
+  const { center, zoom, showBases, showPdvs, showSuppliers, showPdvLabels, showDayPdvs, showNightPdvs, dayNightTemp } = useMapStore()
 
-  /* Filtre jour/nuit par flags explicites du PDV (is_day_sec, is_day_frais, is_day_gel) /
-     Day/night filter using explicit PDV flags */
+  /* Filtre jour/nuit par flags explicites du PDV, filtré par activité sélectionnée /
+     Day/night filter using explicit PDV flags, scoped to selected activity */
   const pdvDayNightFilter = useCallback((pdv: PDV): boolean => {
     if (showDayPdvs && showNightPdvs) return true
     if (!showDayPdvs && !showNightPdvs) return false
 
-    // Un PDV est "jour" si au moins une activité est cochée "Jour"
-    // Un PDV est "nuit" si au moins une activité n'est PAS cochée "Jour"
-    const hasDay = pdv.is_day_sec || pdv.is_day_frais || pdv.is_day_gel
-    const hasNight = !pdv.is_day_sec || !pdv.is_day_frais || !pdv.is_day_gel
+    // Déterminer si le PDV est jour/nuit selon l'activité sélectionnée
+    let isDay: boolean
+    if (dayNightTemp === 'SEC') isDay = pdv.is_day_sec
+    else if (dayNightTemp === 'FRAIS') isDay = pdv.is_day_frais
+    else if (dayNightTemp === 'GEL') isDay = pdv.is_day_gel
+    else isDay = pdv.is_day_sec || pdv.is_day_frais || pdv.is_day_gel // ALL
 
-    if (showDayPdvs && !showNightPdvs) return hasDay
-    if (showNightPdvs && !showDayPdvs) return hasNight
+    if (showDayPdvs && !showNightPdvs) return isDay
+    if (showNightPdvs && !showDayPdvs) return !isDay
     return true
-  }, [showDayPdvs, showNightPdvs])
+  }, [showDayPdvs, showNightPdvs, dayNightTemp])
   const { selectedRegionId } = useAppStore()
   const [currentZoom, setCurrentZoom] = useState(zoom)
 

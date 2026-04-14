@@ -47,7 +47,7 @@ function Swatch({ color, shape, size = 10 }: { color: string; shape: string; siz
 
 export function MapFilters() {
   const { t } = useTranslation()
-  const { showBases, showPdvs, showSuppliers, showRoutes, showPdvLabels, showDayPdvs, showNightPdvs, toggleLayer } = useMapStore()
+  const { showBases, showPdvs, showSuppliers, showRoutes, showPdvLabels, showDayPdvs, showNightPdvs, dayNightTemp, toggleLayer, setDayNightTemp } = useMapStore()
 
   const layers: LayerEntry[] = [
     { key: 'showBases', label: t('nav.bases'), checked: showBases, color: '#f97316', shape: 'square' },
@@ -118,6 +118,21 @@ export function MapFilters() {
           <div className="text-[10px] font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>
             Horaires livraison
           </div>
+          <div className="flex gap-1 pl-5 mb-1">
+            {(['ALL', 'SEC', 'FRAIS', 'GEL'] as const).map((t) => (
+              <button
+                key={t}
+                className="text-[9px] px-1.5 py-0.5 rounded font-bold transition-all"
+                style={{
+                  backgroundColor: dayNightTemp === t ? (t === 'SEC' ? '#f59e0b' : t === 'FRAIS' ? '#3b82f6' : t === 'GEL' ? '#8b5cf6' : 'var(--color-primary)') : 'var(--bg-tertiary)',
+                  color: dayNightTemp === t ? '#fff' : 'var(--text-muted)',
+                }}
+                onClick={() => setDayNightTemp(t)}
+              >
+                {t === 'ALL' ? 'Toutes' : t}
+              </button>
+            ))}
+          </div>
           <label className="flex items-center gap-2 cursor-pointer mb-0.5 pl-5">
             <input
               type="checkbox"
@@ -125,7 +140,7 @@ export function MapFilters() {
               onChange={() => toggleLayer('showDayPdvs')}
               className="w-3 h-3 rounded accent-orange-500"
             />
-            <span className="text-[10px]" style={{ color: '#f59e0b' }}>Jour (08h–19h)</span>
+            <span className="text-[10px]" style={{ color: '#f59e0b' }}>Jour</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer pl-5">
             <input
@@ -134,7 +149,7 @@ export function MapFilters() {
               onChange={() => toggleLayer('showNightPdvs')}
               className="w-3 h-3 rounded accent-orange-500"
             />
-            <span className="text-[10px]" style={{ color: '#6366f1' }}>Nuit (19h01–07h59)</span>
+            <span className="text-[10px]" style={{ color: '#6366f1' }}>Nuit</span>
           </label>
         </>
       )}
