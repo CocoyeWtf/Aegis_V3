@@ -184,3 +184,36 @@ class PdvPickupSummary(BaseModel):
     pdv_name: str
     pending_count: int  # nombre total d'étiquettes en attente
     requests: list[PickupRequestListRead]
+
+
+# --- Impression mobile / Mobile printing ---
+class RenderedLabel(BaseModel):
+    """Une etiquette rendue prete a etre envoyee a une imprimante portable /
+    A rendered label ready to be sent to a portable printer.
+    """
+    label_id: int
+    label_code: str
+    sequence_number: int
+    payload: str  # chaine ZPL ou TSPL prete a envoyer en RAW Bluetooth
+
+
+class RenderLabelsResponse(BaseModel):
+    """Reponse de l'endpoint de rendu / Label render endpoint response."""
+    protocol: str  # ZPL / TSPL
+    labels: list[RenderedLabel]
+
+
+class LabelPrintEventCreate(BaseModel):
+    """Enregistrement d'un evenement d'impression cote mobile /
+    Mobile-side print event record.
+
+    Envoye apres impression effective (ou tentative) pour traçabilite.
+    Sent after actual print (or attempt) for audit trail.
+    """
+    label_ids: list[int]
+    protocol: str          # ZPL / TSPL / HTML
+    source: str = "MOBILE_PDV"  # MOBILE_PDV / WEB_PRINT / OFFICE_BULK
+    printer_name: str | None = None
+    printer_address: str | None = None
+    success: bool = True
+    error_detail: str | None = None

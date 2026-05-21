@@ -17,6 +17,7 @@ from app.models.pdv import PDV
 from app.models.pdv_inventory import PdvStock
 from app.models.control_evidence import ControlEvidence
 from app.models.user import User
+from app.models.label_print_event import LabelPrintEvent, PrintProtocol, PrintSource
 from app.schemas.pickup import (
     PickupRequestCreate,
     PickupRequestRead,
@@ -24,8 +25,12 @@ from app.schemas.pickup import (
     PickupRequestUpdate,
     PickupLabelRead,
     PdvPickupSummary,
+    RenderedLabel,
+    RenderLabelsResponse,
+    LabelPrintEventCreate,
 )
 from app.api.deps import require_permission, enforce_pdv_scope
+from app.utils.label_templates import LabelData, render as render_label
 
 router = APIRouter()
 
@@ -414,6 +419,183 @@ async def mark_printed(
     req.print_count = (req.print_count or 0) + 1
     await db.commit()
     return {"print_count": req.print_count}
+
+
+# Labels et types qu'on considere "actifs" pour le rendu / labels and types we render
+_RENDER_LABEL_ACTIVE_STATUSES = {LabelStatus.PENDING, LabelStatus.PLANNED}
+
+
+_PICKUP_TYPE_LABELS = {
+    PickupType.CONTAINER: "Contenants",
+    PickupType.CARDBOARD: "Balles carton",
+    PickupType.MERCHANDISE: "Retour marchandise",
+    PickupType.CONSIGNMENT: "Consignes",
+}
+
+
+@router.post("/{request_id}/render-labels", response_model=RenderLabelsResponse)
+async def render_labels_for_print(
+    request_id: int,
+    protocol: str = Query("ZPL", description="ZPL ou TSPL"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("pickup-requests", "read")),
+):
+    """Rendre les etiquettes d'une demande en ZPL ou TSPL pour impression mobile /
+    Render a request's labels to ZPL or TSPL for mobile printing.
+
+    Retourne uniquement les etiquettes actives (PENDING ou PLANNED), pas les
+    annulees/recuperees/recues. L'app mobile envoie ensuite chaque payload en RAW
+    au socket Bluetooth SPP de l'imprimante portable.
+
+    L'incrementation du print_count et l'audit sont faits via /print-events apres
+    impression effective, pas ici (pour ne pas compter les rendus avortes).
+
+    Returns only active (PENDING/PLANNED) labels; cancelled/picked/received are excluded.
+    The mobile app then sends each payload RAW to the printer's Bluetooth SPP socket.
+    print_count increment and audit happen via /print-events after actual print.
+    """
+    proto = protocol.strip().upper()
+    if proto not in ("ZPL", "TSPL"):
+        raise HTTPException(status_code=400, detail="Protocole invalide (ZPL ou TSPL)")
+
+    result = await db.execute(
+        select(PickupRequest)
+        .where(PickupRequest.id == request_id)
+        .options(
+            selectinload(PickupRequest.labels),
+            selectinload(PickupRequest.pdv),
+            selectinload(PickupRequest.support_type),
+        )
+    )
+    req = result.scalar_one_or_none()
+    if not req:
+        raise HTTPException(status_code=404, detail="Pickup request not found")
+
+    # Verifier scope PDV / Check PDV scope
+    user_pdv = enforce_pdv_scope(user, req.pdv_id)
+    if user_pdv is not None and user_pdv != req.pdv_id:
+        raise HTTPException(status_code=403, detail="Acces interdit a ce PDV")
+
+    if not req.pdv:
+        raise HTTPException(status_code=500, detail="PDV non charge")
+    if not req.support_type:
+        raise HTTPException(status_code=400, detail="Type de support requis pour impression")
+
+    is_combi = bool(req.support_type.is_combi)
+    active_labels = [
+        lb for lb in (req.labels or []) if lb.status in _RENDER_LABEL_ACTIVE_STATUSES
+    ]
+    if not active_labels:
+        raise HTTPException(status_code=400, detail="Aucune etiquette active a imprimer")
+    active_labels.sort(key=lambda lb: lb.sequence_number)
+    total = len(active_labels)
+
+    pickup_type_label = _PICKUP_TYPE_LABELS.get(req.pickup_type, req.pickup_type.value)
+
+    rendered: list[RenderedLabel] = []
+    for lb in active_labels:
+        data = LabelData(
+            label_code=lb.label_code,
+            pdv_code=req.pdv.code,
+            pdv_name=req.pdv.name,
+            support_type_code=req.support_type.code,
+            support_type_name=req.support_type.name,
+            pickup_type_label=pickup_type_label,
+            quantity=req.quantity,
+            availability_date=req.availability_date,
+            sequence_number=lb.sequence_number,
+            total_labels=total,
+            is_combi=is_combi,
+        )
+        payload = render_label(proto, data)
+        rendered.append(
+            RenderedLabel(
+                label_id=lb.id,
+                label_code=lb.label_code,
+                sequence_number=lb.sequence_number,
+                payload=payload,
+            )
+        )
+
+    return RenderLabelsResponse(protocol=proto, labels=rendered)
+
+
+@router.post("/print-events", status_code=201)
+async def log_print_events(
+    payload: LabelPrintEventCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("pickup-requests", "read")),
+):
+    """Enregistrer un evenement d'impression / Record a print event.
+
+    Appele par le mobile apres impression effective d'une ou plusieurs etiquettes.
+    Cree un LabelPrintEvent par label_id et incremente print_count sur la demande
+    parente si success=True.
+
+    Called by mobile after actually printing one or more labels. Creates one
+    LabelPrintEvent per label_id and increments print_count on the parent request
+    when success=True.
+    """
+    if not payload.label_ids:
+        raise HTTPException(status_code=400, detail="label_ids requis")
+
+    try:
+        proto = PrintProtocol(payload.protocol.strip().upper())
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Protocole invalide: {payload.protocol}")
+    try:
+        source = PrintSource(payload.source.strip().upper())
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Source invalide: {payload.source}")
+
+    # Charger les labels concernes + leur pickup_request pour scope PDV /
+    # Load labels + parent request for PDV scope
+    result = await db.execute(
+        select(PickupLabel)
+        .where(PickupLabel.id.in_(payload.label_ids))
+        .options(selectinload(PickupLabel.pickup_request))
+    )
+    labels = result.scalars().all()
+    if len(labels) != len(set(payload.label_ids)):
+        raise HTTPException(status_code=404, detail="Une ou plusieurs etiquettes introuvables")
+
+    # Verifier scope PDV pour chaque label / Check PDV scope for each label
+    user_pdv = enforce_pdv_scope(user, None)
+    if user_pdv is not None:
+        for lb in labels:
+            if lb.pickup_request and lb.pickup_request.pdv_id != user_pdv:
+                raise HTTPException(status_code=403, detail="Acces interdit a ce PDV")
+
+    # Creer un event par label / One event per label
+    affected_request_ids: set[int] = set()
+    for lb in labels:
+        event = LabelPrintEvent(
+            pickup_label_id=lb.id,
+            protocol=proto,
+            source=source,
+            user_id=user.id,
+            printer_name=payload.printer_name,
+            printer_address=payload.printer_address,
+            success=payload.success,
+            error_detail=payload.error_detail,
+        )
+        db.add(event)
+        if payload.success and lb.pickup_request:
+            affected_request_ids.add(lb.pickup_request_id)
+
+    # Incrementer print_count sur les demandes parentes (une seule fois par demande,
+    # peu importe le nb d'etiquettes imprimees dans le meme appel) /
+    # Increment print_count on parent requests (once per request, regardless of
+    # number of labels printed in the same call)
+    if affected_request_ids:
+        result = await db.execute(
+            select(PickupRequest).where(PickupRequest.id.in_(affected_request_ids))
+        )
+        for req in result.scalars().all():
+            req.print_count = (req.print_count or 0) + 1
+
+    await db.flush()
+    return {"events_created": len(labels), "requests_updated": len(affected_request_ids)}
 
 
 @router.post("/", response_model=PickupRequestRead, status_code=201)
