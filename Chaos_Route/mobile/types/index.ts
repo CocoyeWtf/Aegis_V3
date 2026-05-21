@@ -152,6 +152,9 @@ export interface UserMe {
   username: string
   email: string
   is_superadmin: boolean
+  pdv_id?: number | null
+  supplier_id?: number | null
+  badge_code?: string | null
 }
 
 /* ─── Scanner reprises autonome / Standalone pickup scanner ─── */

@@ -215,6 +215,18 @@ export default function RegisterScreen() {
           >
             <Text style={styles.secondaryBtnText}>Saisir le code manuellement</Text>
           </TouchableOpacity>
+
+          {/* Lien PDV : permet aux responsables magasin de se connecter sans /
+              enregistrer l'appareil comme device chauffeur /
+              PDV link: store managers can log in without registering as a driver device */}
+          <TouchableOpacity
+            style={{ marginTop: 24, alignItems: 'center' }}
+            onPress={() => router.push('/login')}
+          >
+            <Text style={styles.linkText}>
+              Vous etes responsable PDV ? Se connecter
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* URL serveur */}

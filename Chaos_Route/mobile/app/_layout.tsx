@@ -8,6 +8,7 @@ import {
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useDeviceStore } from '../stores/useDeviceStore'
+import { useAuthStore } from '../stores/useAuthStore'
 import { COLORS } from '../constants/config'
 import { checkForUpdate, downloadAndInstallApk } from '../services/updateChecker'
 import { verifyKioskPassword } from '../services/kioskMode'
@@ -16,6 +17,8 @@ export default function RootLayout() {
   const router = useRouter()
   const segments = useSegments()
   const { isRegistered, isLoading, loadDevice } = useDeviceStore()
+  const authUser = useAuthStore((s) => s.user)
+  const loadSession = useAuthStore((s) => s.loadSession)
 
   // Auto-update state
   const [updateAvailable, setUpdateAvailable] = useState(false)
@@ -34,7 +37,8 @@ export default function RootLayout() {
 
   useEffect(() => {
     loadDevice()
-  }, [loadDevice])
+    loadSession()
+  }, [loadDevice, loadSession])
 
   // Verification mise a jour au lancement / Check for update on launch
   useEffect(() => {
@@ -62,12 +66,31 @@ export default function RootLayout() {
   useEffect(() => {
     if (isLoading) return
     const inRegister = segments[0] === 'register'
-    if (!isRegistered && !inRegister) {
+    const inLogin = segments[0] === 'login'
+    const inPdvFlow =
+      segments[0] === 'pdv-home' ||
+      segments[0] === 'pdv-pickup' ||
+      segments[0] === 'printer-settings'
+    const isPdvUser = !!authUser?.pdv_id
+
+    // Utilisateur PDV deja authentifie -> menu PDV (eviter qu'il reste coince sur
+    // /register ou /login apres restauration de session) /
+    // Already-authenticated PDV user -> PDV menu (avoid being stuck on /register
+    // or /login after session restore)
+    if (isPdvUser && (inRegister || inLogin)) {
+      router.replace('/pdv-home')
+      return
+    }
+
+    // Autoriser les utilisateurs PDV authentifies (JWT) a acceder aux ecrans PDV
+    // sans avoir besoin d'enregistrer un device chauffeur /
+    // Allow JWT-authenticated PDV users to access PDV screens without device registration
+    if (!isRegistered && !inRegister && !inLogin && !(isPdvUser && inPdvFlow)) {
       router.replace('/register')
     } else if (isRegistered && inRegister) {
       router.replace('/(tabs)')
     }
-  }, [isRegistered, isLoading, segments, router])
+  }, [isRegistered, isLoading, segments, router, authUser])
 
   const handleUpdate = async () => {
     setDownloading(true)
@@ -220,6 +243,10 @@ export default function RootLayout() {
         <Stack.Screen name="base-reception" options={{ title: 'Reception base', presentation: 'modal' }} />
         <Stack.Screen name="inventory" options={{ title: 'Inventaire PDV', presentation: 'modal' }} />
         <Stack.Screen name="base-inventory" options={{ title: 'Inventaire base', presentation: 'modal' }} />
+        {/* Flow PDV (responsables magasin avec compte JWT) / PDV flow (store managers with JWT) */}
+        <Stack.Screen name="pdv-home" options={{ headerShown: false }} />
+        <Stack.Screen name="pdv-pickup" options={{ title: 'Declarer contenants' }} />
+        <Stack.Screen name="printer-settings" options={{ title: 'Imprimante Bluetooth' }} />
       </Stack>
     </>
   )

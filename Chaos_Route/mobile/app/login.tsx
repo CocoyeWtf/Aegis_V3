@@ -32,7 +32,13 @@ export default function LoginScreen() {
       const meRes = await api.get('/auth/me')
       setUser(meRes.data)
 
-      router.back()
+      // Utilisateur PDV : on l'envoie directement vers son menu PDV /
+      // PDV user: send straight to PDV menu
+      if (meRes.data?.pdv_id) {
+        router.replace('/pdv-home')
+      } else {
+        router.back()
+      }
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur de connexion'
       Alert.alert('Erreur', msg)
