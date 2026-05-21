@@ -22,6 +22,7 @@ class PickupStatus(str, enum.Enum):
     PLANNED = "PLANNED"
     PICKED_UP = "PICKED_UP"
     RECEIVED = "RECEIVED"
+    CANCELLED = "CANCELLED"  # Annulee (ex : declaration combi remplacee) / Cancelled (e.g. combi declaration replaced)
 
 
 class LabelStatus(str, enum.Enum):
@@ -77,6 +78,10 @@ class PickupRequest(Base):
     # Palette support (pour balles carton/plastique) / Pallet type (for cardboard/plastic bales)
     pallet_support_type_id: Mapped[int | None] = mapped_column(ForeignKey("support_types.id"), nullable=True)
 
+    # Pour les combis : nb reel de combis scannes par le chauffeur, fixe a la cloture /
+    # For combis: actual number of combis scanned by driver, set at pickup closure
+    actual_picked_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     # Relations
     pdv: Mapped["PDV"] = relationship()
     support_type: Mapped["SupportType"] = relationship(foreign_keys=[support_type_id])
@@ -124,6 +129,9 @@ class PickupLabel(Base):
     # Relations
     pickup_request: Mapped["PickupRequest"] = relationship(back_populates="labels")
     movements: Mapped[list["PickupMovement"]] = relationship(back_populates="pickup_label", cascade="all, delete-orphan")
+    combi_scans: Mapped[list["CombiScan"]] = relationship(
+        "CombiScan", back_populates="pickup_label", foreign_keys="CombiScan.pickup_label_id"
+    )
 
 
 class PickupMovement(Base):

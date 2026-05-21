@@ -60,6 +60,9 @@ class SupportTypeRead(BaseModel):
     supplier_plant: str | None = None
     supplier_id: int | None = None
     alert_threshold: int | None = None
+    # Flag combi : workflow specifique 1 etiquette + scans individuels /
+    # Combi flag: specific workflow with 1 label + individual scans
+    is_combi: bool = False
 
 
 # --- PickupLabel ---
@@ -126,6 +129,9 @@ class PickupRequestRead(BaseModel):
     total_declared_value: float | None = None
     print_count: int = 0
     pallet_support_type_id: int | None = None
+    # Combi : nb reel de combis scannes (fixe a la cloture chauffeur) /
+    # Combi: actual scanned count (set on driver pickup closure)
+    actual_picked_quantity: int | None = None
     # Relations
     pdv: PDVBrief | None = None
     support_type: SupportTypeRead | None = None
@@ -162,6 +168,9 @@ class PickupRequestListRead(BaseModel):
     # Evidences photo controle / Control photo evidences
     evidence_label_codes: list[str] = []
     pallet_support_type_id: int | None = None
+    # Combi : nb reel de combis scannes (fixe a la cloture chauffeur) /
+    # Combi: actual scanned count (set on driver pickup closure)
+    actual_picked_quantity: int | None = None
     # Relations
     pdv: PDVBrief | None = None
     support_type: SupportTypeRead | None = None

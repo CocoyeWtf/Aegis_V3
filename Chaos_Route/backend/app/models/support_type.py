@@ -32,5 +32,11 @@ class SupportType(Base):
     # Seuil d'alerte stock base / Base stock alert threshold
     alert_threshold: Mapped[int | None] = mapped_column(Integer)
 
+    # Flag combi : si True, applique le workflow combi (1 etiquette de declaration + scans
+    # individuels chauffeur, quantite reprise = nb scans, pas la quantite de l'etiquette).
+    # Combi flag: when True, applies combi workflow (single declaration label + individual
+    # driver scans, picked quantity = scan count, not label quantity).
+    is_combi: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
+
     # Relations
     supplier: Mapped["Supplier"] = relationship(lazy="joined")

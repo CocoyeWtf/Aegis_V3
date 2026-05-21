@@ -11,6 +11,9 @@ class CombiScanCreate(BaseModel):
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     accuracy: float | None = None
+    # Etiquette de declaration combi scannee a l'arrivee (obligatoire pour combis) /
+    # Combi declaration label scanned on arrival (required for combis)
+    pickup_label_id: int | None = None
 
 
 class CombiScanRead(BaseModel):
@@ -28,6 +31,29 @@ class CombiScanRead(BaseModel):
     longitude: float | None = None
     accuracy: float | None = None
     scan_date: str
+    pickup_label_id: int | None = None
+
+
+class PickupLabelArrivalRead(BaseModel):
+    """Reponse du scan d'arrivee QR etiquette combi / Combi label arrival scan response."""
+    label_id: int
+    label_code: str
+    pickup_request_id: int
+    pdv_id: int
+    pdv_code: str
+    pdv_name: str
+    declared_quantity: int  # stock combi declare par le PDV / declared combi stock
+    already_scanned_count: int  # nb combis deja scannes pour cette etiquette / already scanned
+
+
+class CombiPickupCloseRead(BaseModel):
+    """Reponse de cloture reprise combi / Combi pickup closure response."""
+    pickup_request_id: int
+    label_id: int
+    label_code: str
+    declared_quantity: int       # stock declare par le PDV
+    actual_picked_quantity: int  # nb reel scanne par le chauffeur
+    pickup_ratio: float          # actual / declared (0..1)
 
 
 class CombiReceiveCreate(BaseModel):

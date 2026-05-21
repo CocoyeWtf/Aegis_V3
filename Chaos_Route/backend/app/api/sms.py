@@ -1,6 +1,7 @@
 """API file SMS pour passerelle Termux / SMS queue API for Termux gateway.
 Endpoints publics securises par API_KEY (pas de JWT — le telephone Termux n'a pas de session)."""
 
+import logging
 import os
 from datetime import datetime
 
@@ -15,7 +16,10 @@ router = APIRouter()
 
 # API key partagée entre le serveur et le téléphone Termux
 # Définie dans .env : SMS_API_KEY=une_cle_secrete
-SMS_API_KEY = os.getenv("SMS_API_KEY", "chaos-sms-default-key-change-me")
+logger = logging.getLogger(__name__)
+SMS_API_KEY = os.getenv("SMS_API_KEY", "")
+if not SMS_API_KEY:
+    logger.warning("SMS_API_KEY is not set — SMS endpoints will reject all requests")
 
 
 def _verify_api_key(x_api_key: str = Header(..., alias="X-API-Key")):

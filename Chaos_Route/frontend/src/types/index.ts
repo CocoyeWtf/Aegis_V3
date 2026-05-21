@@ -579,11 +579,12 @@ export interface SupportType {
   supplier_plant?: string | null
   supplier_id?: number | null
   alert_threshold?: number | null
+  is_combi?: boolean
 }
 
 export type PickupTypeEnum = 'CONTAINER' | 'MERCHANDISE' | 'CARDBOARD' | 'CONSIGNMENT'
-export type PickupStatusEnum = 'REQUESTED' | 'PLANNED' | 'PICKED_UP' | 'RECEIVED'
-export type LabelStatusEnum = 'PENDING' | 'PLANNED' | 'PICKED_UP' | 'RECEIVED'
+export type PickupStatusEnum = 'REQUESTED' | 'PLANNED' | 'PICKED_UP' | 'RECEIVED' | 'CANCELLED'
+export type LabelStatusEnum = 'PENDING' | 'PLANNED' | 'PICKED_UP' | 'RECEIVED' | 'CANCELLED'
 
 export interface PickupLabel {
   id: number
@@ -622,6 +623,8 @@ export interface PickupRequest {
   pending_count?: number
   picked_up_count?: number
   received_count?: number
+  // Combi : nb reel scanne (fixe a la cloture chauffeur) / Combi actual scanned at closure
+  actual_picked_quantity?: number | null
   // Relations
   pdv?: { id: number; code: string; name: string } | null
   support_type?: SupportType | null

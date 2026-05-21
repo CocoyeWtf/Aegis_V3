@@ -4,6 +4,7 @@ Auth par appareil (X-Device-ID header) — pas de JWT pour le chauffeur.
 """
 
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,7 +31,7 @@ from app.models.tour_stop import TourStop
 from app.models.tour_manifest_line import TourManifestLine
 from app.models.base_logistics import BaseLogistics
 from app.models.contract import Contract
-from app.models.pickup_request import PickupLabel, PickupRequest, PickupMovement, LabelStatus, PickupType, MovementType
+from app.models.pickup_request import PickupLabel, PickupRequest, PickupMovement, LabelStatus, PickupType, MovementType, PickupStatus
 from app.models.combi_scan import CombiScan, ScanContext
 from app.models.control_evidence import ControlEvidence, ControlContext
 from app.models.base_support_rule import BaseSupportRule
@@ -53,7 +54,10 @@ from app.schemas.mobile import (
     SupportScanRead,
 )
 from app.schemas.pickup import PickupLabelRead
-from app.schemas.combi_scan import CombiScanCreate, CombiScanRead, CombiReceiveCreate
+from app.schemas.combi_scan import (
+    CombiScanCreate, CombiScanRead, CombiReceiveCreate,
+    PickupLabelArrivalRead, CombiPickupCloseRead,
+)
 from app.schemas.inventory import InventorySubmit
 from app.api.deps import get_authenticated_device, require_device_tour_access
 from app.api.ws_tracking import manager
@@ -1115,6 +1119,107 @@ async def list_tour_pickups(
     return label_result.scalars().all()
 
 
+_PICKUP_LABEL_CODE_RE = re.compile(r"^RET-[A-Za-z0-9]+-[A-Za-z0-9]+-\d{8}-\d{3}$")
+
+
+@router.post("/pickup-labels/{label_code}/scan-arrival", response_model=PickupLabelArrivalRead)
+async def scan_pickup_label_arrival(
+    label_code: str,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Scan QR etiquette de declaration combi par le chauffeur a son arrivee /
+    Scan combi declaration label QR by driver on arrival at PDV.
+
+    Workflow combi :
+    1. Chauffeur scanne le code PDV (existant)
+    2. Chauffeur scanne ce QR d'etiquette de declaration -> identifie la demande
+    3. Chauffeur scanne chaque combi (RM-xxxxxx) avec pickup_label_id retourne ici
+    4. Chauffeur cloture -> actual_picked_quantity = nb scans
+    """
+    _check_device_feature(device, "pickups")
+
+    # Validation format / Format validation
+    if not _PICKUP_LABEL_CODE_RE.match(label_code):
+        raise HTTPException(status_code=400, detail="Format de code etiquette invalide")
+
+    result = await db.execute(
+        select(PickupLabel)
+        .where(PickupLabel.label_code == label_code)
+        .options(
+            selectinload(PickupLabel.pickup_request).selectinload(PickupRequest.support_type),
+            selectinload(PickupLabel.pickup_request).selectinload(PickupRequest.pdv),
+            selectinload(PickupLabel.combi_scans),
+        )
+    )
+    label = result.scalar_one_or_none()
+    if not label:
+        raise HTTPException(status_code=404, detail="Etiquette inconnue")
+
+    pickup_req = label.pickup_request
+    if not pickup_req or not pickup_req.support_type or not pickup_req.support_type.is_combi:
+        raise HTTPException(
+            status_code=400,
+            detail="Cette etiquette n'est pas une etiquette de declaration combi",
+        )
+
+    if label.status == LabelStatus.CANCELLED:
+        raise HTTPException(
+            status_code=400,
+            detail="Etiquette annulee — le PDV a remplace cette declaration. Demandez la nouvelle etiquette.",
+        )
+    if label.status in (LabelStatus.PICKED_UP, LabelStatus.RECEIVED):
+        raise HTTPException(
+            status_code=409,
+            detail="Cette declaration a deja ete cloturee",
+        )
+
+    # Verifier que la base accepte les combis / Check base accepts combis
+    await _check_base_combi_allowed(device, db)
+
+    # Si le label est lie a un stop, verifier l'acces device / If label has stop, check device access
+    if label.tour_stop_id:
+        stop_obj = await db.get(TourStop, label.tour_stop_id)
+        if stop_obj:
+            assign_check = await db.execute(
+                select(DeviceAssignment).where(
+                    DeviceAssignment.tour_id == stop_obj.tour_id,
+                    DeviceAssignment.device_id == device.id,
+                ).limit(1)
+            )
+            if not assign_check.scalar_one_or_none():
+                raise HTTPException(status_code=403, detail="Device not assigned to this tour")
+
+    # Marquer PLANNED si PENDING (idempotent si deja PLANNED) /
+    # Mark PLANNED if PENDING (idempotent if already PLANNED)
+    if label.status == LabelStatus.PENDING:
+        label.status = LabelStatus.PLANNED
+        db.add(PickupMovement(
+            pickup_label_id=label.id,
+            movement_type=MovementType.PLANNED,
+            timestamp=_now_iso(),
+            device_id=device.id,
+            notes="Scan QR d'arrivee chauffeur",
+        ))
+        await db.flush()
+
+    pdv = pickup_req.pdv
+    already_scanned = sum(
+        1 for s in label.combi_scans if s.scan_context == ScanContext.PICKUP
+    )
+
+    return PickupLabelArrivalRead(
+        label_id=label.id,
+        label_code=label.label_code,
+        pickup_request_id=pickup_req.id,
+        pdv_id=pdv.id,
+        pdv_code=pdv.code,
+        pdv_name=pdv.name,
+        declared_quantity=pickup_req.quantity,
+        already_scanned_count=already_scanned,
+    )
+
+
 @router.post("/pickup-labels/{label_code}/scan", response_model=PickupLabelRead)
 async def scan_pickup_label(
     label_code: str,
@@ -1124,6 +1229,7 @@ async def scan_pickup_label(
 ):
     """Scan etiquette reprise → PICKED_UP / Scan pickup label → PICKED_UP.
     stop_id optionnel : lie automatiquement un label hors-planning au stop.
+    Pour les combis : utilise /pickup-labels/{code}/scan-arrival a la place.
     """
     result = await db.execute(
         select(PickupLabel)
@@ -1136,6 +1242,14 @@ async def scan_pickup_label(
     label = result.scalar_one_or_none()
     if not label:
         raise HTTPException(status_code=404, detail="Label not found")
+
+    # Bloquer le scan PICKED_UP direct sur etiquette combi /
+    # Block direct PICKED_UP scan on combi label
+    if label.pickup_request and label.pickup_request.support_type and label.pickup_request.support_type.is_combi:
+        raise HTTPException(
+            status_code=400,
+            detail="Etiquette combi : utilisez le scan d'arrivee puis scannez chaque combi individuellement",
+        )
 
     if label.status == LabelStatus.CANCELLED:
         raise HTTPException(status_code=400, detail="Etiquette annulee — la demande a ete modifiee. Detruisez cette etiquette.")
@@ -1794,6 +1908,10 @@ async def scan_combi_at_pdv(
 ):
     """Scan d'un combi au PDV par le chauffeur / Scan a combi at PDV by driver.
     Le chauffeur a prealablement scanne le code-barres PDV pour identifier le point de vente.
+
+    Workflow combi : pickup_label_id obligatoire (obtenu via /pickup-labels/{code}/scan-arrival).
+    Le scan est lie a l'etiquette de declaration active. Idempotent : meme barcode rescanne
+    sur la meme etiquette retourne le scan existant.
     """
     _check_device_feature(device, "pickups")
 
@@ -1812,10 +1930,66 @@ async def scan_combi_at_pdv(
     if not pdv:
         raise HTTPException(status_code=404, detail=f"PDV inconnu: {pdv_code}")
 
+    # Validation pickup_label_id obligatoire / pickup_label_id is required
+    if data.pickup_label_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Scannez d'abord l'etiquette de declaration combi (QR) avant les combis",
+        )
+
+    label_result = await db.execute(
+        select(PickupLabel)
+        .where(PickupLabel.id == data.pickup_label_id)
+        .options(selectinload(PickupLabel.pickup_request).selectinload(PickupRequest.support_type))
+    )
+    label = label_result.scalar_one_or_none()
+    if not label:
+        raise HTTPException(status_code=404, detail="Etiquette de declaration introuvable")
+    if not label.pickup_request or not label.pickup_request.support_type or not label.pickup_request.support_type.is_combi:
+        raise HTTPException(status_code=400, detail="L'etiquette fournie n'est pas une etiquette combi")
+    if label.pickup_request.pdv_id != pdv.id:
+        raise HTTPException(
+            status_code=400,
+            detail="L'etiquette ne correspond pas au PDV scanne",
+        )
+    if label.status not in (LabelStatus.PENDING, LabelStatus.PLANNED):
+        raise HTTPException(
+            status_code=409,
+            detail="La declaration n'est plus active (deja cloturee ou annulee)",
+        )
+
+    barcode = data.barcode.strip().upper()
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
+    # Idempotence : si meme barcode deja scanne sur cette etiquette, retourner le scan existant /
+    # Idempotency: same barcode already scanned on this label -> return existing
+    existing_result = await db.execute(
+        select(CombiScan).where(
+            CombiScan.barcode == barcode,
+            CombiScan.pickup_label_id == label.id,
+            CombiScan.scan_context == ScanContext.PICKUP,
+        ).limit(1)
+    )
+    existing = existing_result.scalar_one_or_none()
+    if existing:
+        return CombiScanRead(
+            id=existing.id,
+            barcode=existing.barcode,
+            scan_context=existing.scan_context.value,
+            pdv_id=existing.pdv_id,
+            pdv_code_scanned=existing.pdv_code_scanned,
+            pdv_name=pdv.name,
+            device_id=existing.device_id,
+            timestamp=existing.timestamp,
+            latitude=existing.latitude,
+            longitude=existing.longitude,
+            accuracy=existing.accuracy,
+            scan_date=existing.scan_date,
+            pickup_label_id=existing.pickup_label_id,
+        )
+
     scan = CombiScan(
-        barcode=data.barcode.strip().upper(),
+        barcode=barcode,
         scan_context=ScanContext.PICKUP,
         pdv_id=pdv.id,
         pdv_code_scanned=pdv.code,
@@ -1825,6 +1999,7 @@ async def scan_combi_at_pdv(
         longitude=data.longitude,
         accuracy=data.accuracy,
         scan_date=today,
+        pickup_label_id=label.id,
     )
     db.add(scan)
     await db.flush()
@@ -1842,6 +2017,101 @@ async def scan_combi_at_pdv(
         longitude=scan.longitude,
         accuracy=scan.accuracy,
         scan_date=scan.scan_date,
+        pickup_label_id=scan.pickup_label_id,
+    )
+
+
+@router.post("/pickup-labels/{label_code}/close-combi-pickup", response_model=CombiPickupCloseRead)
+async def close_combi_pickup(
+    label_code: str,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Cloturer la reprise combi a un PDV / Close combi pickup at PDV.
+
+    Le chauffeur a fini de scanner les combis. Cet endpoint :
+    - Compte les CombiScan PICKUP lies a cette etiquette
+    - Fixe PickupRequest.actual_picked_quantity = ce nombre
+    - Marque PickupLabel.status = PICKED_UP, PickupRequest.status = PICKED_UP
+    - Decremente le stock PDV de actual_picked_quantity
+    - Trace le mouvement
+    Idempotent : si deja cloture (PICKED_UP), retourne le recap sans rien changer.
+    """
+    _check_device_feature(device, "pickups")
+
+    if not _PICKUP_LABEL_CODE_RE.match(label_code):
+        raise HTTPException(status_code=400, detail="Format de code etiquette invalide")
+
+    result = await db.execute(
+        select(PickupLabel)
+        .where(PickupLabel.label_code == label_code)
+        .options(
+            selectinload(PickupLabel.pickup_request).selectinload(PickupRequest.support_type),
+            selectinload(PickupLabel.combi_scans),
+        )
+    )
+    label = result.scalar_one_or_none()
+    if not label:
+        raise HTTPException(status_code=404, detail="Etiquette inconnue")
+
+    pickup_req = label.pickup_request
+    if not pickup_req or not pickup_req.support_type or not pickup_req.support_type.is_combi:
+        raise HTTPException(status_code=400, detail="Cette etiquette n'est pas une etiquette de declaration combi")
+
+    if label.status == LabelStatus.CANCELLED:
+        raise HTTPException(status_code=400, detail="Etiquette annulee")
+
+    # Compter les scans PICKUP lies / Count PICKUP scans linked
+    actual_picked = sum(
+        1 for s in label.combi_scans if s.scan_context == ScanContext.PICKUP
+    )
+
+    # Idempotence : deja cloture / Idempotency: already closed
+    if label.status in (LabelStatus.PICKED_UP, LabelStatus.RECEIVED):
+        return CombiPickupCloseRead(
+            pickup_request_id=pickup_req.id,
+            label_id=label.id,
+            label_code=label.label_code,
+            declared_quantity=pickup_req.quantity,
+            actual_picked_quantity=pickup_req.actual_picked_quantity or actual_picked,
+            pickup_ratio=(
+                (pickup_req.actual_picked_quantity or actual_picked) / pickup_req.quantity
+                if pickup_req.quantity > 0 else 0.0
+            ),
+        )
+
+    # Cloture / Closure
+    label.status = LabelStatus.PICKED_UP
+    label.picked_up_at = _now_iso()
+    label.picked_up_device_id = device.id
+    pickup_req.actual_picked_quantity = actual_picked
+    pickup_req.status = PickupStatus.PICKED_UP
+
+    db.add(PickupMovement(
+        pickup_label_id=label.id,
+        movement_type=MovementType.PICKED_UP,
+        timestamp=_now_iso(),
+        device_id=device.id,
+        notes=f"Cloture reprise combi : {actual_picked}/{pickup_req.quantity} scannes",
+    ))
+
+    # Decrementer stock PDV / Decrement PDV stock
+    if actual_picked > 0:
+        from app.api.pickup_requests import _update_pdv_stock_on_pickup
+        await _update_pdv_stock_on_pickup(
+            db, pickup_req.pdv_id, pickup_req.support_type_id, delta=-actual_picked,
+        )
+
+    await db.flush()
+
+    ratio = actual_picked / pickup_req.quantity if pickup_req.quantity > 0 else 0.0
+    return CombiPickupCloseRead(
+        pickup_request_id=pickup_req.id,
+        label_id=label.id,
+        label_code=label.label_code,
+        declared_quantity=pickup_req.quantity,
+        actual_picked_quantity=actual_picked,
+        pickup_ratio=round(ratio, 4),
     )
 
 
@@ -1886,6 +2156,7 @@ async def list_combi_scans_today(
             longitude=s.longitude,
             accuracy=s.accuracy,
             scan_date=s.scan_date,
+            pickup_label_id=s.pickup_label_id,
         )
         for s in scans
     ]
@@ -1926,6 +2197,9 @@ async def receive_combi_at_base(
         longitude=data.longitude,
         accuracy=data.accuracy,
         scan_date=today,
+        # Tracer le lien declaration combi original (si scan PICKUP existait) /
+        # Trace original combi declaration link (if PICKUP scan existed)
+        pickup_label_id=pickup_scan.pickup_label_id if pickup_scan else None,
     )
     db.add(scan)
     await db.flush()
@@ -1948,6 +2222,7 @@ async def receive_combi_at_base(
         longitude=scan.longitude,
         accuracy=scan.accuracy,
         scan_date=scan.scan_date,
+        pickup_label_id=scan.pickup_label_id,
     )
 
 
@@ -1991,6 +2266,7 @@ async def list_combi_receives_today(
             longitude=s.longitude,
             accuracy=s.accuracy,
             scan_date=s.scan_date,
+            pickup_label_id=s.pickup_label_id,
         )
         for s in scans
     ]

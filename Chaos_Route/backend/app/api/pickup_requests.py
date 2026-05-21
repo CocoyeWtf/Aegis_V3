@@ -35,9 +35,21 @@ def _now_iso() -> str:
 
 
 def _enrich_with_label_counts(req: PickupRequest) -> dict:
-    """Ajouter les compteurs labels au dict de réponse / Add label counts to response dict."""
+    """Ajouter les compteurs labels au dict de reponse / Add label counts to response dict.
+
+    Combi (support_type.is_combi=True) : compteurs bases sur quantity (stock declare)
+    et actual_picked_quantity (nb scans chauffeur), pas sur le nb d'etiquettes (toujours 1).
+    """
     data = PickupRequestListRead.model_validate(req, from_attributes=True)
-    if req.labels:
+    is_combi = bool(req.support_type and req.support_type.is_combi)
+
+    if is_combi:
+        data.total_labels = req.quantity
+        picked = req.actual_picked_quantity or 0
+        data.picked_up_count = picked
+        data.received_count = picked if req.status == PickupStatus.RECEIVED else 0
+        data.pending_count = max(0, req.quantity - picked) if req.status in (PickupStatus.REQUESTED, PickupStatus.PLANNED) else 0
+    elif req.labels:
         active_labels = [lb for lb in req.labels if lb.status != LabelStatus.CANCELLED]
         data.total_labels = len(active_labels)
         data.picked_up_count = sum(1 for lb in active_labels if lb.status == LabelStatus.PICKED_UP)
@@ -114,6 +126,7 @@ async def pickup_form_data(
                 "content_items_per_unit": st.content_items_per_unit,
                 "content_item_value": st.content_item_value,
                 "image_path": st.image_path,
+                "is_combi": st.is_combi,
             }
             for st in support_types
         ],
@@ -409,11 +422,25 @@ async def create_pickup_request(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("pickup-requests", "create")),
 ):
-    """Créer une demande + auto-générer N étiquettes / Create request + auto-generate N labels."""
+    """Creer une demande + auto-generer les etiquettes /
+    Create request + auto-generate labels.
+
+    Comportement standard (non-combi) : une etiquette par unite (data.quantity etiquettes).
+    Comportement combi (support_type.is_combi=True) :
+      - 1 seule etiquette de declaration (la quantite represente le stock absolu declare)
+      - Toute declaration combi precedente non encore prise (REQUESTED ou PLANNED) sur le
+        meme PDV est annulee (status=CANCELLED) — une seule declaration combi active a
+        la fois par PDV.
+    """
     # Forcer le PDV si utilisateur PDV / Enforce PDV for PDV users
     forced_pdv = enforce_pdv_scope(user, data.pdv_id)
     if forced_pdv is not None:
         data.pdv_id = forced_pdv
+
+    # Validation quantite : protection contre valeurs aberrantes /
+    # Quantity validation: protect against malicious or aberrant values
+    if data.quantity < 0 or data.quantity > 9999:
+        raise HTTPException(status_code=400, detail="Quantite invalide (doit etre entre 0 et 9999)")
 
     # Valider PDV / Validate PDV
     pdv = await db.get(PDV, data.pdv_id)
@@ -430,6 +457,12 @@ async def create_pickup_request(
         raise HTTPException(status_code=400, detail="Type de support requis pour ce type de reprise")
 
     st_code = st.code if st else "MERCH"
+    is_combi = bool(st and st.is_combi)
+
+    # Pour les combis : annuler les declarations actives precedentes sur ce PDV /
+    # For combis: cancel previous active declarations on this PDV
+    if is_combi:
+        await _cancel_active_combi_declarations(db, data.pdv_id, st.id, user.id)
 
     req = PickupRequest(
         pdv_id=data.pdv_id,
@@ -440,7 +473,7 @@ async def create_pickup_request(
         status=PickupStatus.REQUESTED,
         requested_by_user_id=user.id,
         notes=data.notes,
-        # Snapshots valeur au moment de la déclaration / Value snapshots at declaration time
+        # Snapshots valeur au moment de la declaration / Value snapshots at declaration time
         with_content=data.with_content,
         declared_unit_value=float(st.unit_value) if st and st.unit_value is not None else None,
         declared_unit_quantity=st.unit_quantity if st else 1,
@@ -451,30 +484,54 @@ async def create_pickup_request(
     db.add(req)
     await db.flush()
 
-    # Trouver le prochain numéro de séquence pour ce PDV/date / Find next sequence for this PDV/date
-    existing_count_result = await db.execute(
-        select(func.count(PickupLabel.id))
-        .join(PickupRequest)
-        .where(
-            PickupRequest.pdv_id == data.pdv_id,
-            PickupRequest.availability_date == data.availability_date,
-            PickupLabel.pickup_request_id != req.id,
+    if is_combi:
+        # Combi : 1 seule etiquette de declaration / Combi: single declaration label
+        # La sequence est globale par PDV/date pour eviter les collisions de label_code
+        existing_count_result = await db.execute(
+            select(func.count(PickupLabel.id))
+            .join(PickupRequest)
+            .where(
+                PickupRequest.pdv_id == data.pdv_id,
+                PickupRequest.availability_date == data.availability_date,
+                PickupLabel.pickup_request_id != req.id,
+            )
         )
-    )
-    start_seq = (existing_count_result.scalar() or 0) + 1
-
-    # Générer les étiquettes + mouvements / Generate labels + movements
-    for i in range(data.quantity):
-        seq = start_seq + i
+        seq = (existing_count_result.scalar() or 0) + 1
         label = PickupLabel(
             pickup_request_id=req.id,
             label_code=_generate_label_code(pdv.code, st_code, data.availability_date, seq),
-            sequence_number=i + 1,
+            sequence_number=1,
             status=LabelStatus.PENDING,
         )
         db.add(label)
-        await db.flush()  # Pour obtenir label.id
-        db.add(_create_movement(label, MovementType.REQUESTED, user_id=user.id))
+        await db.flush()
+        db.add(_create_movement(
+            label, MovementType.REQUESTED, user_id=user.id,
+            notes=f"Declaration combi : stock declare = {data.quantity}",
+        ))
+    else:
+        # Standard : N etiquettes / Standard: N labels
+        existing_count_result = await db.execute(
+            select(func.count(PickupLabel.id))
+            .join(PickupRequest)
+            .where(
+                PickupRequest.pdv_id == data.pdv_id,
+                PickupRequest.availability_date == data.availability_date,
+                PickupLabel.pickup_request_id != req.id,
+            )
+        )
+        start_seq = (existing_count_result.scalar() or 0) + 1
+        for i in range(data.quantity):
+            seq = start_seq + i
+            label = PickupLabel(
+                pickup_request_id=req.id,
+                label_code=_generate_label_code(pdv.code, st_code, data.availability_date, seq),
+                sequence_number=i + 1,
+                status=LabelStatus.PENDING,
+            )
+            db.add(label)
+            await db.flush()
+            db.add(_create_movement(label, MovementType.REQUESTED, user_id=user.id))
 
     await db.flush()
 
@@ -485,11 +542,47 @@ async def create_pickup_request(
         .options(
             selectinload(PickupRequest.pdv),
             selectinload(PickupRequest.support_type),
-        selectinload(PickupRequest.pallet_support_type),
+            selectinload(PickupRequest.pallet_support_type),
             selectinload(PickupRequest.labels),
         )
     )
     return result.scalar_one()
+
+
+async def _cancel_active_combi_declarations(
+    db: AsyncSession, pdv_id: int, support_type_id: int, user_id: int,
+) -> int:
+    """Annuler les declarations combi actives non encore prises sur ce PDV /
+    Cancel active combi declarations not yet picked up on this PDV.
+
+    "Active" = status REQUESTED ou PLANNED ET au moins une etiquette non
+    PICKED_UP/RECEIVED. Idempotent : ne fait rien si aucune declaration active.
+    Trace l'annulation dans PickupMovement pour audit.
+    Retourne le nombre de declarations annulees.
+    """
+    result = await db.execute(
+        select(PickupRequest)
+        .where(
+            PickupRequest.pdv_id == pdv_id,
+            PickupRequest.support_type_id == support_type_id,
+            PickupRequest.status.in_([PickupStatus.REQUESTED, PickupStatus.PLANNED]),
+        )
+        .options(selectinload(PickupRequest.labels))
+    )
+    active_requests = result.scalars().all()
+    cancelled_count = 0
+    for active in active_requests:
+        active.status = PickupStatus.CANCELLED
+        # Annuler chaque etiquette non encore prise / Cancel each not-yet-picked label
+        for label in active.labels:
+            if label.status in (LabelStatus.PENDING, LabelStatus.PLANNED):
+                label.status = LabelStatus.CANCELLED
+                db.add(_create_movement(
+                    label, MovementType.UNLINKED, user_id=user_id,
+                    notes="Declaration combi remplacee par une nouvelle declaration",
+                ))
+        cancelled_count += 1
+    return cancelled_count
 
 
 @router.put("/{request_id}", response_model=PickupRequestRead)

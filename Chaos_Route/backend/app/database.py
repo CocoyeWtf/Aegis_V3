@@ -57,8 +57,17 @@ async def init_db():
     # Add missing columns on existing tables
     await _migrate_enum_values()
     await _migrate_missing_columns()
+    # Ajouter les indexes manquants sur tables existantes /
+    # Add missing indexes on existing tables
+    await _migrate_missing_indexes()
+    # Ajouter les contraintes FK manquantes (PG uniquement) /
+    # Add missing FK constraints (PG only)
+    await _migrate_missing_foreign_keys()
     # Generer les QR/badge codes manquants / Backfill missing QR/badge codes
     await _backfill_qr_codes()
+    # Marquer le support combi (code CO) si pas encore fait /
+    # Mark combi support type (code CO) if not yet flagged
+    await _backfill_combi_support_type()
     # Purger les positions GPS > 30 jours / Purge GPS positions older than 30 days
     await _cleanup_old_gps()
 
@@ -99,6 +108,27 @@ async def _backfill_qr_codes():
         await session.commit()
 
 
+async def _backfill_combi_support_type():
+    """Marquer le SupportType code='CO' comme is_combi=True s'il ne l'est pas /
+    Mark SupportType with code='CO' as is_combi=True if not already.
+
+    Idempotent : ne fait rien si deja flagge.
+    Si le code 'CO' n'existe pas encore en DB, ne fait rien (silencieux).
+    """
+    async with async_session() as session:
+        result = await session.execute(
+            text("SELECT id, is_combi FROM support_types WHERE code = 'CO'")
+        )
+        row = result.fetchone()
+        if row and not row[1]:
+            await session.execute(
+                text("UPDATE support_types SET is_combi = 1 WHERE id = :id"),
+                {"id": row[0]},
+            )
+            await session.commit()
+            print(f"[backfill] Flagged support_type id={row[0]} (code=CO) as is_combi")
+
+
 async def _cleanup_old_gps(days: int = 30):
     """Purger les positions GPS des tours > 30 jours / Purge GPS positions for tours older than 30 days."""
     from datetime import datetime, timedelta
@@ -119,6 +149,7 @@ async def _migrate_enum_values():
     enum_updates = [
         ("bookingstatus", ["UNLOADING", "DOCK_LEFT"]),
         ("dockeventtype", ["UNLOADING", "DOCK_LEFT", "SITE_LEFT"]),
+        ("pickupstatus", ["CANCELLED"]),  # Annulation declaration combi remplacee
     ]
     async with engine.begin() as conn:
         for enum_name, new_values in enum_updates:
@@ -175,3 +206,100 @@ async def _migrate_missing_columns():
                         f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {col_type} {default}'
                     ))
                     print(f"[migrate] Added column {table.name}.{col.name} ({col_type})")
+
+
+async def _migrate_missing_indexes():
+    """Creer les indexes definis dans les modeles mais absents en DB /
+    Create indexes defined in models but missing in DB.
+
+    Compare Base.metadata.tables vs indexes existants en DB et cree ceux manquants.
+    Idempotent : utilise CREATE INDEX IF NOT EXISTS.
+    """
+    async with engine.begin() as conn:
+        # Lister les indexes existants en DB / List existing indexes in DB
+        if _is_sqlite:
+            result = await conn.execute(text(
+                "SELECT name FROM sqlite_master WHERE type='index' AND name NOT LIKE 'sqlite_%'"
+            ))
+            existing_indexes = {row[0] for row in result.fetchall()}
+        else:
+            result = await conn.execute(text(
+                "SELECT indexname FROM pg_indexes WHERE schemaname='public'"
+            ))
+            existing_indexes = {row[0] for row in result.fetchall()}
+
+        # Pour chaque index defini dans les modeles, le creer s'il manque /
+        # For each model-defined index, create if missing
+        for table in Base.metadata.sorted_tables:
+            for index in table.indexes:
+                if index.name and index.name not in existing_indexes:
+                    cols = ", ".join(f'"{c.name}"' for c in index.columns)
+                    unique = "UNIQUE " if index.unique else ""
+                    try:
+                        await conn.execute(text(
+                            f'CREATE {unique}INDEX IF NOT EXISTS "{index.name}" '
+                            f'ON "{table.name}" ({cols})'
+                        ))
+                        print(f"[migrate] Added index {index.name} on {table.name}({cols})")
+                    except Exception as e:
+                        # Ne pas bloquer le demarrage si un index pose probleme /
+                        # Don't block startup on index issue
+                        print(f"[migrate] WARN: failed to create index {index.name}: {e}")
+
+
+async def _migrate_missing_foreign_keys():
+    """Ajouter les contraintes FK definies dans les modeles mais absentes en DB /
+    Add FK constraints defined in models but missing in DB.
+
+    PostgreSQL uniquement : SQLite ne supporte pas ALTER TABLE ADD CONSTRAINT.
+    En SQLite (dev), les FK sont creees a la creation de la table par create_all,
+    et l'absence de FK sur colonnes ajoutees a posteriori est acceptee (FK pas
+    enforcees par defaut).
+    """
+    if _is_sqlite:
+        return
+
+    async with engine.begin() as conn:
+        # Lister les FK existantes / List existing FK constraints
+        result = await conn.execute(text("""
+            SELECT tc.table_name, kcu.column_name, tc.constraint_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
+            WHERE tc.constraint_type = 'FOREIGN KEY'
+                AND tc.table_schema = 'public'
+        """))
+        # Set of (table_name, column_name) qui ont deja une FK /
+        # (table_name, column_name) tuples that already have a FK
+        existing_fks = {(row[0], row[1]) for row in result.fetchall()}
+
+        for table in Base.metadata.sorted_tables:
+            for col in table.columns:
+                for fk in col.foreign_keys:
+                    if (table.name, col.name) in existing_fks:
+                        continue
+                    target_table = fk.column.table.name
+                    target_col = fk.column.name
+                    on_delete = fk.ondelete or "NO ACTION"
+                    constraint_name = f"fk_{table.name}_{col.name}"
+                    try:
+                        await conn.execute(text(
+                            f'ALTER TABLE "{table.name}" '
+                            f'ADD CONSTRAINT "{constraint_name}" '
+                            f'FOREIGN KEY ("{col.name}") '
+                            f'REFERENCES "{target_table}" ("{target_col}") '
+                            f'ON DELETE {on_delete}'
+                        ))
+                        print(
+                            f"[migrate] Added FK {constraint_name}: "
+                            f"{table.name}.{col.name} -> {target_table}.{target_col} "
+                            f"(ON DELETE {on_delete})"
+                        )
+                    except Exception as e:
+                        # Ne pas bloquer si la contrainte existe deja sous un autre nom /
+                        # Don't block if constraint exists under a different name
+                        print(
+                            f"[migrate] WARN: failed to add FK on "
+                            f"{table.name}.{col.name}: {e}"
+                        )

@@ -27,6 +27,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   PLANNED: { bg: '#f59e0b', text: '#000' },
   PICKED_UP: { bg: '#3b82f6', text: '#fff' },
   RECEIVED: { bg: '#22c55e', text: '#fff' },
+  CANCELLED: { bg: '#ef4444', text: '#fff' },
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -34,6 +35,7 @@ const STATUS_LABELS: Record<string, string> = {
   PLANNED: 'Planifie',
   PICKED_UP: 'Recupere',
   RECEIVED: 'Recu',
+  CANCELLED: 'Annulee',
 }
 
 function ControlPhotoModal({ labelCode, onClose }: { labelCode: string; onClose: () => void }) {
@@ -174,6 +176,20 @@ export default function PdvPickupRequests() {
   const palletTypes = useMemo(() => supportTypes.filter((st) => st.code.startsWith('PA')), [supportTypes])
   const selectedSt = supportTypes.find((st) => String(st.id) === supportTypeId)
   const showWithContent = pickupType === 'CONSIGNMENT' && !!selectedSt?.content_item_label
+  const isCombiSt = !!selectedSt?.is_combi
+
+  // Detection declaration combi precedente active pour ce PDV + support_type /
+  // Detect previous active combi declaration for this PDV + support_type
+  const previousActiveCombi = useMemo(() => {
+    if (!isCombiSt || !selectedSt) return null
+    const targetPdvId = isPdvUser ? user?.pdv_id : (pdvId ? Number(pdvId) : null)
+    if (!targetPdvId) return null
+    return allRequests.find((r) =>
+      r.pdv_id === targetPdvId &&
+      r.support_type_id === selectedSt.id &&
+      (r.status === 'REQUESTED' || r.status === 'PLANNED'),
+    ) || null
+  }, [isCombiSt, selectedSt, isPdvUser, user, pdvId, allRequests])
 
   // Recherche PDV / PDV search
   const [pdvSearch, setPdvSearch] = useState('')
@@ -608,8 +624,8 @@ export default function PdvPickupRequests() {
               className="block text-sm font-medium mb-1"
               style={{ color: 'var(--text-secondary)' }}
             >
-              Quantite (unites)
-              {selectedSt && (
+              {isCombiSt ? 'Stock total combi (absolu)' : 'Quantite (unites)'}
+              {!isCombiSt && selectedSt && (
                 <span className="ml-1 text-xs opacity-70">
                   = {quantity * selectedSt.unit_quantity} pieces
                 </span>
@@ -617,8 +633,8 @@ export default function PdvPickupRequests() {
             </label>
             <input
               type="number"
-              min={1}
-              max={99}
+              min={0}
+              max={isCombiSt ? 9999 : 99}
               value={quantity}
               onChange={(e) => setQuantity(Number(e.target.value))}
               required
@@ -725,6 +741,51 @@ export default function PdvPickupRequests() {
             }}
           />
         </div>
+
+        {/* Bandeau info combi / Combi info banner */}
+        {isCombiSt && (
+          <div
+            className="rounded-lg p-3 text-xs"
+            style={{
+              backgroundColor: 'rgba(139,92,246,0.12)',
+              border: '1px solid rgba(139,92,246,0.4)',
+              color: 'var(--text-primary)',
+            }}
+          >
+            <div className="font-semibold mb-1" style={{ color: '#8b5cf6' }}>
+              Declaration combi — stock absolu
+            </div>
+            <div style={{ color: 'var(--text-secondary)' }}>
+              Saisissez le nombre <strong>total</strong> de combis dispo sur la base
+              (pas un delta). Ex : si vous en avez 12 aujourd&apos;hui, declarez 12.
+              Demain, declarez le nouveau total. Le chauffeur reprendra ce qu&apos;il
+              peut, et la difference reste sur la base.
+            </div>
+          </div>
+        )}
+
+        {/* Warning remplacement declaration combi precedente / Previous combi warning */}
+        {isCombiSt && previousActiveCombi && (
+          <div
+            className="rounded-lg p-3 text-xs"
+            style={{
+              backgroundColor: 'rgba(245,158,11,0.12)',
+              border: '1px solid rgba(245,158,11,0.5)',
+              color: 'var(--text-primary)',
+            }}
+          >
+            <div className="font-semibold mb-1" style={{ color: '#f59e0b' }}>
+              Une declaration combi est deja active
+            </div>
+            <div style={{ color: 'var(--text-secondary)' }}>
+              {previousActiveCombi.quantity} combi(s) declare(s) le{' '}
+              {formatDate(previousActiveCombi.availability_date)} (statut :{' '}
+              {STATUS_LABELS[previousActiveCombi.status] || previousActiveCombi.status}).
+              {' '}En creant cette nouvelle declaration, l&apos;ancienne sera{' '}
+              <strong>annulee</strong> et son etiquette d&apos;impression devra etre detruite.
+            </div>
+          </div>
+        )}
 
         <button
           type="submit"
@@ -911,7 +972,15 @@ export default function PdvPickupRequests() {
                     className="text-center px-4 py-3"
                     style={{ color: 'var(--text-primary)' }}
                   >
-                    {req.quantity}
+                    {/* Combi : actual / declared apres cloture chauffeur / Combi: actual / declared after driver close */}
+                    {req.support_type?.is_combi && req.actual_picked_quantity != null ? (
+                      <span>
+                        <strong>{req.actual_picked_quantity}</strong>
+                        <span style={{ color: 'var(--text-muted)' }}> / {req.quantity}</span>
+                      </span>
+                    ) : (
+                      req.quantity
+                    )}
                   </td>
                   {!isPdvUser && (
                   <td

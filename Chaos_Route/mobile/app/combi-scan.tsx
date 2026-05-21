@@ -1,8 +1,11 @@
 /* Ecran scan combis + reprises au PDV / Combi & pickup scan screen at PDV.
    Flow :
-   1. Scanner code-barres PDV (obligatoire) → identifie le point de vente
+   1. Scanner code-barres PDV (obligatoire) -> identifie le point de vente
    2. Scanner librement : combis (RM######) et/ou etiquettes reprises (RET-xxx)
-   3. Alterner entre types dans n'importe quel ordre
+   3. Pour les COMBIS : il faut d'abord scanner le QR de l'etiquette de declaration
+      combi (RET-xxx avec support is_combi=true), puis chaque combi individuel sera
+      lie a cette declaration. A la fin, bouton "Terminer reprise combi" pour cloturer
+      la reprise (le stock PDV est decremente du nb reellement scanne).
    Geoloc enregistree a chaque scan.
 */
 
@@ -72,12 +75,27 @@ async function getGeoLoc(): Promise<{ latitude: number; longitude: number; accur
   }
 }
 
+/** Etiquette de declaration combi active / Active combi declaration label */
+interface ActiveCombiLabel {
+  labelId: number
+  labelCode: string
+  pickupRequestId: number
+  pdvCode: string
+  declaredQuantity: number
+  alreadyScannedCount: number
+}
+
 export default function CombiScanScreen() {
   const router = useRouter()
   const [permission, requestPermission] = useCameraPermissions()
 
   // Phase : null = scan PDV, string = PDV scanne (scan libre)
   const [activePdv, setActivePdv] = useState<{ code: string; name: string } | null>(null)
+  // Declaration combi active pour ce PDV / Active combi declaration for this PDV
+  const [activeCombi, setActiveCombi] = useState<ActiveCombiLabel | null>(null)
+  // Compteur de scans combi sur la session courante / Combi scan counter for current session
+  const [combiSessionCount, setCombiSessionCount] = useState(0)
+  const [closing, setClosing] = useState(false)
   const [scans, setScans] = useState<ScanEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [lastScanned, setLastScanned] = useState('')
@@ -171,6 +189,14 @@ export default function CombiScanScreen() {
     photoUri?: string,
   ) => {
     if (type === 'COMBI') {
+      // Combi : declaration combi active obligatoire / Combi: active combi declaration required
+      if (!activeCombi) {
+        Alert.alert(
+          'Etiquette de declaration requise',
+          'Scannez d\'abord le QR de l\'etiquette de declaration combi affichee par le PDV.',
+        )
+        return
+      }
       try {
         const { data: scan } = await api.post('/driver/combi-scan/', {
           barcode: data,
@@ -179,6 +205,7 @@ export default function CombiScanScreen() {
           latitude: geo?.latitude ?? null,
           longitude: geo?.longitude ?? null,
           accuracy: geo?.accuracy ?? null,
+          pickup_label_id: activeCombi.labelId,
         })
         setScans((prev) => {
           if (prev.find((s) => s.barcode === data && s.type === 'COMBI')) return prev
@@ -192,6 +219,7 @@ export default function CombiScanScreen() {
             status: 'OK',
           }, ...prev]
         })
+        setCombiSessionCount((c) => c + 1)
         setLastScanned(`COMBI ${data}`)
         // Upload evidence si photo fournie / Upload evidence if photo provided
         if (photoUri) {
@@ -201,31 +229,84 @@ export default function CombiScanScreen() {
         Alert.alert('Erreur', err?.response?.data?.detail || 'Erreur scan combi')
       }
     } else if (type === 'LABEL') {
+      // Tenter d'abord scan-arrival : si c'est une etiquette de declaration combi,
+      // active le mode combi pour ce PDV. Sinon (400 specifique), fallback sur
+      // standalone-pickup pour les reprises classiques (non combis).
+      // First try scan-arrival: if it's a combi declaration label, activate combi
+      // mode. Else (specific 400), fall back to standalone-pickup for non-combi.
+      let isCombiDeclaration = false
       try {
-        const { data: scan } = await api.post(`/driver/standalone-pickup/${encodeURIComponent(data)}`)
+        const { data: arrival } = await api.post(
+          `/driver/pickup-labels/${encodeURIComponent(data)}/scan-arrival`,
+        )
+        isCombiDeclaration = true
+        setActiveCombi({
+          labelId: arrival.label_id,
+          labelCode: arrival.label_code,
+          pickupRequestId: arrival.pickup_request_id,
+          pdvCode: arrival.pdv_code,
+          declaredQuantity: arrival.declared_quantity,
+          alreadyScannedCount: arrival.already_scanned_count,
+        })
+        setCombiSessionCount(0)
         setScans((prev) => {
           if (prev.find((s) => s.barcode === data && s.type === 'LABEL')) return prev
           return [{
-            id: `label-${scan.label_code}`,
+            id: `label-${arrival.label_code}`,
             type: 'LABEL',
-            barcode: scan.label_code,
-            pdvCode: scan.pdv_code,
-            pdvName: scan.pdv_name,
-            supportType: scan.support_type_name,
+            barcode: arrival.label_code,
+            pdvCode: arrival.pdv_code,
+            pdvName: arrival.pdv_name,
+            supportType: `Declaration combi (${arrival.declared_quantity})`,
             timestamp: ts,
-            status: scan.status || 'OK',
+            status: 'COMBI',
           }, ...prev]
         })
-        setLastScanned(`REPRISE ${data}`)
+        setLastScanned(`Declaration combi : ${arrival.declared_quantity} attendu(s)`)
         if (photoUri) {
           await _uploadEvidence('PICKUP', photoUri, geo, ts, { label_code: data })
         }
       } catch (err: any) {
-        Alert.alert('Erreur', err?.response?.data?.detail || 'Erreur scan etiquette')
+        const status = err?.response?.status
+        const detail = err?.response?.data?.detail || ''
+        // 400 + message indiquant "pas une etiquette combi" = etiquette classique
+        // 400 + "not a combi label" message = standard pickup label
+        const isNonCombi400 = status === 400 && /combi/i.test(detail) && /pas|n'est|not/i.test(detail)
+        if (!isNonCombi400) {
+          Alert.alert('Erreur', detail || 'Erreur scan etiquette')
+          setTimeout(() => setLastScanned(''), 2000)
+          return
+        }
+      }
+
+      if (!isCombiDeclaration) {
+        // Fallback : etiquette reprise classique / Fallback: standard pickup label
+        try {
+          const { data: scan } = await api.post(`/driver/standalone-pickup/${encodeURIComponent(data)}`)
+          setScans((prev) => {
+            if (prev.find((s) => s.barcode === data && s.type === 'LABEL')) return prev
+            return [{
+              id: `label-${scan.label_code}`,
+              type: 'LABEL',
+              barcode: scan.label_code,
+              pdvCode: scan.pdv_code,
+              pdvName: scan.pdv_name,
+              supportType: scan.support_type_name,
+              timestamp: ts,
+              status: scan.status || 'OK',
+            }, ...prev]
+          })
+          setLastScanned(`REPRISE ${data}`)
+          if (photoUri) {
+            await _uploadEvidence('PICKUP', photoUri, geo, ts, { label_code: data })
+          }
+        } catch (err: any) {
+          Alert.alert('Erreur', err?.response?.data?.detail || 'Erreur scan etiquette')
+        }
       }
     }
     setTimeout(() => setLastScanned(''), 2000)
-  }, [activePdv])
+  }, [activePdv, activeCombi])
 
   /** Upload preuve photographique / Upload photographic evidence */
   const _uploadEvidence = useCallback(async (
@@ -272,8 +353,46 @@ export default function CombiScanScreen() {
   /* Changer de PDV / Switch PDV */
   const handleChangePdv = () => {
     setActivePdv(null)
+    setActiveCombi(null)
+    setCombiSessionCount(0)
     setLastScanned('')
   }
+
+  /** Cloturer la reprise combi en cours / Close current combi pickup */
+  const handleCloseCombi = useCallback(async () => {
+    if (!activeCombi || closing) return
+    const total = activeCombi.alreadyScannedCount + combiSessionCount
+    Alert.alert(
+      'Terminer la reprise combi',
+      `${total} combi(s) scanne(s) sur ${activeCombi.declaredQuantity} declare(s). Cloturer ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Cloturer',
+          style: 'default',
+          onPress: async () => {
+            setClosing(true)
+            try {
+              const { data: recap } = await api.post(
+                `/driver/pickup-labels/${encodeURIComponent(activeCombi.labelCode)}/close-combi-pickup`,
+              )
+              const pct = Math.round((recap.pickup_ratio ?? 0) * 100)
+              Alert.alert(
+                'Reprise combi cloturee',
+                `Declare : ${recap.declared_quantity}\nReellement repris : ${recap.actual_picked_quantity}\nTaux : ${pct}%`,
+              )
+              setActiveCombi(null)
+              setCombiSessionCount(0)
+            } catch (err: any) {
+              Alert.alert('Erreur', err?.response?.data?.detail || 'Erreur cloture')
+            } finally {
+              setClosing(false)
+            }
+          },
+        },
+      ],
+    )
+  }, [activeCombi, combiSessionCount, closing])
 
   /* Permission camera / Camera permission */
   if (!permission) {
@@ -339,6 +458,25 @@ export default function CombiScanScreen() {
         </View>
       )}
 
+      {/* Bandeau declaration combi active / Active combi declaration banner */}
+      {activeCombi && (
+        <View style={styles.combiBanner}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.combiBannerTitle}>Reprise combi en cours</Text>
+            <Text style={styles.combiBannerStats}>
+              {activeCombi.alreadyScannedCount + combiSessionCount} / {activeCombi.declaredQuantity} scannes
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={handleCloseCombi}
+            disabled={closing}
+            style={[styles.closeCombiBtn, closing && { opacity: 0.5 }]}
+          >
+            <Text style={styles.closeCombiText}>{closing ? '...' : 'Terminer'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Camera */}
       <View style={styles.cameraSection}>
         <CameraView
@@ -359,7 +497,11 @@ export default function CombiScanScreen() {
             <Text style={styles.scanSuccess}>{lastScanned}</Text>
           ) : (
             <Text style={styles.scanHint}>
-              {activePdv ? 'Scannez combis (RM) ou etiquettes (RET)' : 'Scannez le code-barres PDV'}
+              {!activePdv
+                ? 'Scannez le code-barres PDV'
+                : activeCombi
+                  ? 'Scannez les combis (RM) ou une autre etiquette (RET)'
+                  : 'Scannez une etiquette (RET) ou un combi (RM)'}
             </Text>
           )}
         </View>
@@ -432,6 +574,12 @@ const styles = StyleSheet.create({
 
   pdvRequired: { backgroundColor: '#f59e0b18', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f59e0b44' },
   pdvRequiredText: { color: '#f59e0b', fontWeight: '700', fontSize: 14, textAlign: 'center' },
+
+  combiBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#8b5cf618', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#8b5cf644' },
+  combiBannerTitle: { color: '#8b5cf6', fontWeight: '800', fontSize: 13 },
+  combiBannerStats: { color: COLORS.textPrimary, fontSize: 12, marginTop: 2 },
+  closeCombiBtn: { backgroundColor: '#8b5cf6', borderRadius: 6, paddingHorizontal: 14, paddingVertical: 8 },
+  closeCombiText: { color: COLORS.white, fontWeight: '700', fontSize: 13 },
 
   cameraSection: { height: 250, backgroundColor: '#000' },
   camera: { flex: 1 },
