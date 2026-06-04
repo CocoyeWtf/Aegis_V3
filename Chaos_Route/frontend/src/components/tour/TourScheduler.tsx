@@ -22,21 +22,47 @@ const ACTIVITY_FILTERS: { key: string; label: string }[] = [
   { key: 'TRI_TEMP', label: 'Tri-temp' },
 ]
 
+/* Types véhicule disponibles pour filtre / Vehicle types for filter */
+const VEHICLE_TYPE_OPTIONS: VehicleType[] = ['SEMI', 'PORTEUR', 'PORTEUR_SURBAISSE', 'PORTEUR_REMORQUE', 'CITY', 'VL']
+
+/* Modes d'affectation pour filtre / Assignment modes for filter */
+const MODE_OPTIONS: { key: AssignmentMode; label: string }[] = [
+  { key: 'preste', label: 'Presté' },
+  { key: 'propre', label: 'Propre' },
+  { key: 'mixte', label: 'Mixte' },
+]
+
+/* Dériver le mode d'affectation d'un tour / Derive assignment mode from tour */
+function getTourMode(tour: Tour): AssignmentMode | null {
+  const hasContract = !!tour.contract_id
+  const hasVehicle = !!tour.vehicle_id
+  if (hasContract && hasVehicle) return 'mixte'
+  if (hasContract) return 'preste'
+  if (hasVehicle) return 'propre'
+  return null
+}
+
 /* --- Préférences persistées / Persisted preferences --- */
 
 const PREFS_KEY = 'scheduler-prefs'
 
-interface SchedulerPrefs { leftWidth: number }
+interface SchedulerPrefs {
+  leftWidth: number
+  listColumns: 1 | 2 | 3
+}
 
 function loadPrefs(): SchedulerPrefs {
   try {
     const raw = localStorage.getItem(PREFS_KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (parsed.leftWidth) return parsed
+      return {
+        leftWidth: parsed.leftWidth ?? 440,
+        listColumns: parsed.listColumns === 2 || parsed.listColumns === 3 ? parsed.listColumns : 1,
+      }
     }
   } catch { /* ignore */ }
-  return { leftWidth: 440 }
+  return { leftWidth: 440, listColumns: 1 }
 }
 
 function savePrefs(p: SchedulerPrefs) {
@@ -48,9 +74,11 @@ function savePrefs(p: SchedulerPrefs) {
 interface TourSchedulerProps {
   selectedDate: string
   onDateChange: (date: string) => void
+  /* Mode embarqué pour les pages détachées / Embedded mode for detached pages */
+  embeddedMode?: 'list-only' | 'gantt-only'
 }
 
-export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps) {
+export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: TourSchedulerProps) {
   const { t } = useTranslation()
   const { selectedRegionId, theme } = useAppStore()
 
@@ -99,6 +127,19 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
   const [activityFilter, setActivityFilter] = useState('ALL')
   /* Filtre chauffeur / Driver filter */
   const [driverFilter, setDriverFilter] = useState('ALL')
+  /* Filtres multi-select / Multi-select filters */
+  const [vehicleTypeFilters, setVehicleTypeFilters] = useState<Set<VehicleType>>(new Set())
+  const [modeFilters, setModeFilters] = useState<Set<AssignmentMode>>(new Set())
+  const [contractFilters, setContractFilters] = useState<Set<number>>(new Set())
+  /* Afficher tours validés (masqués par défaut) / Show validated tours (hidden by default) */
+  const [showValidated, setShowValidated] = useState(false)
+  /* Détachement Gantt et liste / Gantt and list detachment */
+  const [ganttDetached, setGanttDetached] = useState(false)
+  const [listDetached, setListDetached] = useState(false)
+  const ganttPopupRef = useRef<Window | null>(null)
+  const listPopupRef = useRef<Window | null>(null)
+  /* Affichage filtres avancés / Advanced filters visibility */
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
 
   /* Tri chauffeur / Driver sort */
   const [driverSort, setDriverSort] = useState<'asc' | 'desc' | null>('asc')
@@ -272,13 +313,26 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
     return Array.from(names).sort()
   }, [timeline])
 
-  /* Filtrer par activité et véhicule/chauffeur / Filter by activity and vehicle/driver */
+  /* Filtrer par tous les critères cumulés / Filter by all cumulated criteria */
   const filteredTours = useMemo(() => {
     let result = tours
+    if (!showValidated) result = result.filter(t => t.status !== 'VALIDATED')
     if (activityFilter !== 'ALL') result = result.filter(t => t.temperature_type === activityFilter)
     if (driverFilter !== 'ALL') result = result.filter(t => tourVehicleMap.get(t.id) === driverFilter)
+    if (vehicleTypeFilters.size > 0) {
+      result = result.filter(t => t.vehicle_type && vehicleTypeFilters.has(t.vehicle_type))
+    }
+    if (modeFilters.size > 0) {
+      result = result.filter(t => {
+        const mode = getTourMode(t)
+        return mode !== null && modeFilters.has(mode)
+      })
+    }
+    if (contractFilters.size > 0) {
+      result = result.filter(t => t.contract_id != null && contractFilters.has(t.contract_id))
+    }
     return result
-  }, [tours, activityFilter, driverFilter, tourVehicleMap])
+  }, [tours, showValidated, activityFilter, driverFilter, tourVehicleMap, vehicleTypeFilters, modeFilters, contractFilters])
 
   /* Liste unique triée: planifiés d'abord par heure départ, puis non-planifiés /
      Unified sorted list: scheduled first by departure time, then unscheduled */
@@ -769,6 +823,85 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
     }).join(' \u25c6 ')
   }
 
+  /* Toggle helper pour multi-select / Multi-select toggle helper */
+  const toggleInSet = useCallback(<T,>(set: Set<T>, value: T, setter: (s: Set<T>) => void) => {
+    const next = new Set(set)
+    if (next.has(value)) next.delete(value)
+    else next.add(value)
+    setter(next)
+  }, [])
+
+  /* Liste de contrats utilisés par au moins un tour (pour le filtre) /
+     List of contracts used by at least one tour (for the filter) */
+  const contractsInUse = useMemo(() => {
+    const ids = new Set<number>()
+    tours.forEach(t => { if (t.contract_id != null) ids.add(t.contract_id) })
+    return allContracts
+      .filter(c => ids.has(c.id))
+      .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
+  }, [tours, allContracts])
+
+  /* Ouvrir le Gantt détaché / Open detached Gantt */
+  const openDetachedGantt = useCallback(() => {
+    if (listDetached) {
+      /* Mutuellement exclusif: re-attacher la liste avant / Mutually exclusive: re-attach list first */
+      listPopupRef.current?.close()
+      setListDetached(false)
+    }
+    const w = screen.width
+    const h = screen.height
+    const popup = window.open(
+      `/gantt-detached?date=${selectedDate}&theme=${theme}&regionId=${selectedRegionId ?? ''}`,
+      'chaos-route-gantt',
+      `width=${Math.round(w * 0.7)},height=${Math.round(h * 0.5)},left=0,top=${Math.round(h * 0.5)},menubar=no,toolbar=no,location=no,status=no`,
+    )
+    if (popup) {
+      ganttPopupRef.current = popup
+      setGanttDetached(true)
+    }
+  }, [selectedDate, theme, selectedRegionId, listDetached])
+
+  /* Ouvrir la liste détachée / Open detached list */
+  const openDetachedList = useCallback(() => {
+    if (ganttDetached) {
+      ganttPopupRef.current?.close()
+      setGanttDetached(false)
+    }
+    const w = screen.width
+    const h = screen.height
+    const popup = window.open(
+      `/tour-list-detached?date=${selectedDate}&theme=${theme}&regionId=${selectedRegionId ?? ''}`,
+      'chaos-route-tour-list',
+      `width=${Math.round(w * 0.55)},height=${Math.round(h * 0.85)},left=0,top=20,menubar=no,toolbar=no,location=no,status=no`,
+    )
+    if (popup) {
+      listPopupRef.current = popup
+      setListDetached(true)
+    }
+  }, [selectedDate, theme, selectedRegionId, ganttDetached])
+
+  /* Surveiller la fermeture des popups / Watch popup closure */
+  useEffect(() => {
+    if (!ganttDetached && !listDetached) return
+    const id = setInterval(() => {
+      if (ganttDetached && ganttPopupRef.current?.closed) {
+        setGanttDetached(false)
+        ganttPopupRef.current = null
+      }
+      if (listDetached && listPopupRef.current?.closed) {
+        setListDetached(false)
+        listPopupRef.current = null
+      }
+    }, 500)
+    return () => clearInterval(id)
+  }, [ganttDetached, listDetached])
+
+  /* Visibilité des panneaux (embeddedMode force les états) /
+     Panel visibility (embeddedMode forces states) */
+  const showList = embeddedMode !== 'gantt-only' && !listDetached
+  const showGantt = embeddedMode !== 'list-only' && !ganttDetached
+  const canDetach = !embeddedMode
+
   return (
     <div className="space-y-4">
       {/* Barre supérieure: date + filtre activité / Top bar: date + activity filter */}
@@ -845,6 +978,31 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
           </div>
         )}
 
+        {/* Bouton Filtres avancés / Advanced filters button */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+            &nbsp;
+          </label>
+          <button
+            className="px-3 py-2 text-xs rounded-lg border transition-all"
+            style={{
+              borderColor: showAdvancedFilters ? 'var(--color-primary)' : 'var(--border-color)',
+              backgroundColor: showAdvancedFilters ? 'rgba(249,115,22,0.1)' : 'var(--bg-primary)',
+              color: showAdvancedFilters ? 'var(--color-primary)' : 'var(--text-secondary)',
+            }}
+            onClick={() => setShowAdvancedFilters(prev => !prev)}
+            title="Filtres avancés"
+          >
+            {showAdvancedFilters ? '▾ Filtres avancés' : '▸ Filtres avancés'}
+            {(vehicleTypeFilters.size + modeFilters.size + contractFilters.size + (showValidated ? 1 : 0)) > 0 && (
+              <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold"
+                style={{ backgroundColor: 'var(--color-primary)', color: '#fff' }}>
+                {vehicleTypeFilters.size + modeFilters.size + contractFilters.size + (showValidated ? 1 : 0)}
+              </span>
+            )}
+          </button>
+        </div>
+
         <div className="ml-auto flex items-center gap-4 text-right">
           <div>
             <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('tourPlanning.unscheduledTours')}</span>
@@ -886,18 +1044,206 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
             </>
           )}
         </div>
+
+        {/* Ligne 2 — Filtres avancés (collapsible) / Line 2 — Advanced filters (collapsible) */}
+        {showAdvancedFilters && (
+          <div className="w-full mt-3 pt-3 border-t flex flex-wrap items-end gap-4"
+            style={{ borderColor: 'var(--border-color)' }}>
+            {/* Filtre type véhicule (multi) / Vehicle type filter (multi) */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Type véhicule</label>
+              <div className="flex flex-wrap gap-1">
+                {VEHICLE_TYPE_OPTIONS.map(vt => {
+                  const active = vehicleTypeFilters.has(vt)
+                  return (
+                    <button
+                      key={vt}
+                      className="px-2 py-1 text-[11px] rounded border transition-all"
+                      style={{
+                        borderColor: active ? 'var(--color-primary)' : 'var(--border-color)',
+                        backgroundColor: active ? 'var(--color-primary)' : 'var(--bg-primary)',
+                        color: active ? '#fff' : 'var(--text-secondary)',
+                      }}
+                      onClick={() => toggleInSet(vehicleTypeFilters, vt, setVehicleTypeFilters)}
+                    >
+                      {vt}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Filtre mode (multi) / Mode filter (multi) */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Type</label>
+              <div className="flex gap-1">
+                {MODE_OPTIONS.map(({ key, label }) => {
+                  const active = modeFilters.has(key)
+                  return (
+                    <button
+                      key={key}
+                      className="px-2 py-1 text-[11px] rounded border transition-all"
+                      style={{
+                        borderColor: active ? 'var(--color-primary)' : 'var(--border-color)',
+                        backgroundColor: active ? 'var(--color-primary)' : 'var(--bg-primary)',
+                        color: active ? '#fff' : 'var(--text-secondary)',
+                      }}
+                      onClick={() => toggleInSet(modeFilters, key, setModeFilters)}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Filtre contrats (multi) / Contracts filter (multi) */}
+            {contractsInUse.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+                  Contrats ({contractFilters.size}/{contractsInUse.length})
+                </label>
+                <div className="flex flex-wrap gap-1 max-w-md max-h-20 overflow-y-auto p-1 rounded border"
+                  style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-primary)' }}>
+                  {contractsInUse.map(c => {
+                    const active = contractFilters.has(c.id)
+                    return (
+                      <button
+                        key={c.id}
+                        className="px-2 py-0.5 text-[11px] rounded border transition-all whitespace-nowrap"
+                        style={{
+                          borderColor: active ? 'var(--color-primary)' : 'var(--border-color)',
+                          backgroundColor: active ? 'var(--color-primary)' : 'transparent',
+                          color: active ? '#fff' : 'var(--text-secondary)',
+                        }}
+                        onClick={() => toggleInSet(contractFilters, c.id, setContractFilters)}
+                        title={c.transporter_name}
+                      >
+                        {c.code}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Toggle afficher validés / Show validated toggle */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Statut</label>
+              <button
+                className="px-3 py-2 text-xs rounded-lg border transition-all"
+                style={{
+                  borderColor: showValidated ? 'var(--color-success)' : 'var(--border-color)',
+                  backgroundColor: showValidated ? 'rgba(34,197,94,0.1)' : 'var(--bg-primary)',
+                  color: showValidated ? 'var(--color-success)' : 'var(--text-secondary)',
+                }}
+                onClick={() => setShowValidated(prev => !prev)}
+                title="Affiche aussi les tours déjà validés"
+              >
+                {showValidated ? '☑ Validés affichés' : '☐ Validés masqués'}
+              </button>
+            </div>
+
+            {/* Colonnes liste / List columns */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Colonnes liste</label>
+              <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border-color)' }}>
+                {([1, 2, 3] as const).map(n => (
+                  <button
+                    key={n}
+                    className="px-3 py-2 text-xs font-medium transition-all"
+                    style={{
+                      backgroundColor: prefs.listColumns === n ? 'var(--color-primary)' : 'var(--bg-primary)',
+                      color: prefs.listColumns === n ? '#fff' : 'var(--text-secondary)',
+                    }}
+                    onClick={() => setPrefs(p => { const next = { ...p, listColumns: n }; savePrefs(next); return next })}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Détachement (caché en mode embarqué) / Detachment (hidden in embedded mode) */}
+            {canDetach && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Détacher</label>
+                <div className="flex gap-1">
+                  <button
+                    className="px-3 py-2 text-xs rounded-lg border transition-all"
+                    style={{
+                      borderColor: ganttDetached ? 'var(--color-primary)' : 'var(--border-color)',
+                      backgroundColor: ganttDetached ? 'rgba(249,115,22,0.1)' : 'var(--bg-primary)',
+                      color: ganttDetached ? 'var(--color-primary)' : 'var(--text-secondary)',
+                    }}
+                    onClick={() => ganttDetached ? (ganttPopupRef.current?.close(), setGanttDetached(false)) : openDetachedGantt()}
+                    title="Détacher la timeline en fenêtre séparée"
+                  >
+                    {ganttDetached ? '⊟ Gantt' : '⊞ Gantt'}
+                  </button>
+                  <button
+                    className="px-3 py-2 text-xs rounded-lg border transition-all"
+                    style={{
+                      borderColor: listDetached ? 'var(--color-primary)' : 'var(--border-color)',
+                      backgroundColor: listDetached ? 'rgba(249,115,22,0.1)' : 'var(--bg-primary)',
+                      color: listDetached ? 'var(--color-primary)' : 'var(--text-secondary)',
+                    }}
+                    onClick={() => listDetached ? (listPopupRef.current?.close(), setListDetached(false)) : openDetachedList()}
+                    title="Détacher la liste des tours en fenêtre séparée"
+                  >
+                    {listDetached ? '⊟ Liste' : '⊞ Liste'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Bouton réinit filtres / Reset filters button */}
+            {(vehicleTypeFilters.size + modeFilters.size + contractFilters.size > 0 || showValidated) && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>&nbsp;</label>
+                <button
+                  className="px-3 py-2 text-xs rounded-lg border transition-all hover:opacity-80"
+                  style={{ borderColor: 'var(--border-color)', color: 'var(--text-muted)' }}
+                  onClick={() => {
+                    setVehicleTypeFilters(new Set())
+                    setModeFilters(new Set())
+                    setContractFilters(new Set())
+                    setShowValidated(false)
+                  }}
+                >
+                  Réinitialiser
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Layout split redimensionnable / Resizable split layout */}
       <div ref={splitContainerRef} className="flex" style={{ alignItems: 'flex-start', minHeight: 'calc(100vh - 280px)' }}>
         {/* Panneau gauche — Boites collapsibles / Left panel — Collapsible boxes */}
-        <div className="overflow-y-auto flex-shrink-0" style={{ width: `${prefs.leftWidth}px`, maxHeight: 'calc(100vh - 300px)' }}>
-          <div ref={boxContainerRef}>
+        {showList && (
+        <div
+          className="overflow-y-auto flex-shrink-0"
+          style={{
+            width: !showGantt ? '100%' : `${prefs.leftWidth}px`,
+            maxHeight: 'calc(100vh - 300px)',
+          }}
+        >
+          <div
+            ref={boxContainerRef}
+            style={prefs.listColumns > 1 ? {
+              display: 'grid',
+              gridTemplateColumns: `repeat(${prefs.listColumns}, minmax(0, 1fr))`,
+              gap: '4px',
+              alignItems: 'start',
+            } : undefined}
+          >
             {/* Header invisible pour alignement Gantt / Invisible header for Gantt alignment */}
-            <div data-gantt-header style={{ height: 0 }} />
+            {prefs.listColumns === 1 && <div data-gantt-header style={{ height: 0, gridColumn: '1 / -1' }} />}
 
             {sortedTours.length === 0 ? (
-              <div className="text-center py-12">
+              <div className="text-center py-12" style={{ gridColumn: '1 / -1' }}>
                 <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
                   {t('tourPlanning.noToursToday')}
                 </p>
@@ -1341,51 +1687,45 @@ export function TourScheduler({ selectedDate, onDateChange }: TourSchedulerProps
             )}
           </div>
         </div>
+        )}
 
-        {/* Séparateur redimensionnable / Draggable split handle */}
-        <div
-          className="flex-shrink-0 cursor-col-resize flex items-center justify-center group"
-          style={{ width: '12px' }}
-          onMouseDown={handleSplitResize}
-        >
-          <div className="w-1 h-12 rounded-full transition-colors group-hover:bg-orange-500/50" style={{ backgroundColor: 'var(--border-color)' }} />
-        </div>
+        {/* Séparateur redimensionnable (uniquement si les deux panneaux visibles) /
+            Draggable split handle (only when both panels visible) */}
+        {showList && showGantt && (
+          <div
+            className="flex-shrink-0 cursor-col-resize flex items-center justify-center group"
+            style={{ width: '12px' }}
+            onMouseDown={handleSplitResize}
+          >
+            <div className="w-1 h-12 rounded-full transition-colors group-hover:bg-orange-500/50" style={{ backgroundColor: 'var(--border-color)' }} />
+          </div>
+        )}
 
         {/* Panneau droit — Gantt SVG / Right panel — SVG Gantt */}
-        <div className="min-w-[200px] flex-1">
-          <div className="relative rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border-color)' }}>
-            {/* Bouton détacher Gantt / Detach Gantt button */}
-            <button
-              className="absolute top-1 right-1 z-10 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors"
-              style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)', border: '1px solid var(--border-color)' }}
-              onClick={() => {
-                const w = screen.width
-                const h = screen.height
-                window.open(
-                  `/gantt-detached?date=${selectedDate}&theme=${theme}&regionId=${selectedRegionId ?? ''}`,
-                  'chaos-route-gantt',
-                  `width=${Math.round(w * 0.7)},height=${Math.round(h * 0.5)},left=0,top=${Math.round(h * 0.5)},menubar=no,toolbar=no,location=no,status=no`,
-                )
-              }}
-              title="Détacher la timeline"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-              </svg>
-              Détacher
-            </button>
-            <TourGantt
-              tours={ganttData}
-              highlightedTourId={highlightedTourId}
-              onTourClick={setHighlightedTourId}
-              warningTourIds={new Set(deliveryWindowViolations.keys())}
-              rowHeights={measuredRowHeights}
-              headerHeight={measuredHeaderHeight || undefined}
-              expandedTourIds={expandedTourIds}
-              driverSort={driverSort}
-            />
+        {showGantt && (
+          <div className="min-w-[200px] flex-1">
+            <div className="relative rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border-color)' }}>
+              <TourGantt
+                tours={ganttData}
+                highlightedTourId={highlightedTourId}
+                onTourClick={setHighlightedTourId}
+                warningTourIds={new Set(deliveryWindowViolations.keys())}
+                rowHeights={prefs.listColumns === 1 ? measuredRowHeights : []}
+                headerHeight={prefs.listColumns === 1 ? (measuredHeaderHeight || undefined) : undefined}
+                expandedTourIds={expandedTourIds}
+                driverSort={driverSort}
+              />
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Placeholder quand liste détachée et Gantt visible / Placeholder when list detached and Gantt visible */}
+        {!showList && showGantt && listDetached && (
+          <div className="absolute left-4 top-4 px-3 py-2 rounded-lg border text-xs"
+            style={{ borderColor: 'var(--border-color)', backgroundColor: 'rgba(0,0,0,0.6)', color: 'var(--text-muted)' }}>
+            Liste détachée — fermer la popup pour la réattacher
+          </div>
+        )}
       </div>
 
       {/* Plan de tour imprimable / Printable tour plan */}

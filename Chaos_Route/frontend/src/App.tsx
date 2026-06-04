@@ -52,6 +52,7 @@ const SurchargeTypes = lazy(() => import('./pages/SurchargeTypes'))
 const AideDecision = lazy(() => import('./pages/AideDecision'))
 const DetachedMap = lazy(() => import('./pages/DetachedMap'))
 const DetachedGantt = lazy(() => import('./pages/DetachedGantt'))
+const DetachedTourList = lazy(() => import('./pages/DetachedTourList'))
 const PhoneSetupGuide = lazy(() => import('./pages/PhoneSetupGuide'))
 const VehicleManagement = lazy(() => import('./pages/VehicleManagement'))
 const InspectionManagement = lazy(() => import('./pages/InspectionManagement'))
@@ -97,6 +98,7 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="/map-detached" element={<Suspense fallback={<Loading />}><DetachedMap /></Suspense>} />
           <Route path="/gantt-detached" element={<Suspense fallback={<Loading />}><DetachedGantt /></Suspense>} />
+          <Route path="/tour-list-detached" element={<Suspense fallback={<Loading />}><DetachedTourList /></Suspense>} />
           <Route element={<MainLayout />}>
             <Route path="/" element={<DefaultRedirect><Dashboard /></DefaultRedirect>} />
             <Route path="/countries" element={<CountryRegion />} />
