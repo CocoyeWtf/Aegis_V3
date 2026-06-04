@@ -64,8 +64,13 @@ export default function DetachedGantt() {
     )
   }
 
-  /* Filtrer les tours planifiés (avec departure_time) / Filter scheduled tours */
-  const scheduledTours = timeline.filter(t => t.departure_time && t.return_time)
+  /* Filtrer les tours planifiés et enrichir driver_name avec fallback vehicle_code/contract_code
+     (cohérent avec l'affichage dans la fenêtre principale) /
+     Filter scheduled tours and enrich driver_name with vehicle_code/contract_code fallback
+     (consistent with main window) */
+  const scheduledTours = timeline
+    .filter(t => t.departure_time && t.return_time)
+    .map(t => ({ ...t, driver_name: t.driver_name || t.vehicle_code || t.contract_code || null }))
 
   return (
     <div style={{ width: '100vw', height: '100vh', backgroundColor: 'var(--bg-primary)', overflow: 'auto' }}>
