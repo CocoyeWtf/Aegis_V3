@@ -57,6 +57,9 @@ async def init_db():
     # Add missing columns on existing tables
     await _migrate_enum_values()
     await _migrate_missing_columns()
+    # Aligner les types de colonnes critiques sur les modèles /
+    # Align critical column types with models
+    await _migrate_column_types()
     # Ajouter les indexes manquants sur tables existantes /
     # Add missing indexes on existing tables
     await _migrate_missing_indexes()
@@ -206,6 +209,49 @@ async def _migrate_missing_columns():
                         f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {col_type} {default}'
                     ))
                     print(f"[migrate] Added column {table.name}.{col.name} ({col_type})")
+
+
+async def _migrate_column_types():
+    """Aligner les types de colonnes specifiques avec le modele SQLAlchemy
+    pour les cas ou un ALTER TYPE est requis (SQLAlchemy create_all ne modifie
+    pas les colonnes existantes).
+
+    Liste des conversions sures (pas de perte) :
+    - volumes.eqp_count : integer -> numeric(10,2)
+    - tour_stops.eqp_count : integer -> numeric(10,2)
+
+    PostgreSQL uniquement. SQLite est typage faible et tolere les decimaux dans
+    une colonne integer.
+    """
+    if _is_sqlite:
+        return
+
+    targets = [
+        ("volumes", "eqp_count", "numeric(10,2)"),
+        ("tour_stops", "eqp_count", "numeric(10,2)"),
+    ]
+
+    async with engine.begin() as conn:
+        for table, column, target_type in targets:
+            try:
+                result = await conn.execute(text(
+                    "SELECT data_type FROM information_schema.columns "
+                    "WHERE table_name = :t AND column_name = :c AND table_schema = 'public'"
+                ), {"t": table, "c": column})
+                row = result.fetchone()
+                if not row:
+                    continue
+                current = row[0]
+                # Si deja en numeric, rien a faire / Already numeric, skip
+                if "numeric" in current.lower() or "double" in current.lower():
+                    continue
+                await conn.execute(text(
+                    f'ALTER TABLE "{table}" ALTER COLUMN "{column}" TYPE {target_type} '
+                    f'USING "{column}"::{target_type}'
+                ))
+                print(f"[migrate] Changed {table}.{column} type: {current} -> {target_type}")
+            except Exception as e:
+                print(f"[migrate] WARN: failed to alter {table}.{column}: {e}")
 
 
 async def _migrate_missing_indexes():

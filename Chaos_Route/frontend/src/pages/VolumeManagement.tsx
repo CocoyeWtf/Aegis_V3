@@ -28,8 +28,14 @@ export default function VolumeManagement() {
       render: (row) => pdvs.find((p) => p.id === row.pdv_id)?.name || String(row.pdv_id),
       filterValue: (row) => pdvs.find((p) => p.id === row.pdv_id)?.name || '',
     },
-    { key: 'eqp_count', label: t('volumes.eqpCount'), width: '90px' },
-    { key: 'weight_kg', label: t('volumes.weightKg'), width: '100px' },
+    {
+      key: 'eqp_count', label: t('volumes.eqpCount'), width: '90px',
+      render: (row) => (Number(row.eqp_count) || 0).toFixed(2),
+    },
+    {
+      key: 'weight_kg', label: t('volumes.weightKg'), width: '100px',
+      render: (row) => row.weight_kg != null ? Number(row.weight_kg).toFixed(2) : '—',
+    },
     { key: 'temperature_class', label: t('volumes.temperatureClass'), width: '100px', filterable: true },
     {
       key: 'base_origin_id', label: t('volumes.baseOrigin'), width: '140px', filterable: true,

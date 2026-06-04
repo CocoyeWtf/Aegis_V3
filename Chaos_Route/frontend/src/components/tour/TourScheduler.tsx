@@ -421,29 +421,75 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
     return formatTime(currentMin)
   }
 
-  /* Détection chevauchement client-side — compare date+heure /
-     Client-side overlap detection — compares full date+time */
-  const detectOverlap = (tour: Tour, departureTime: string, contractId: number, deliveryDate?: string): GanttTour | null => {
+  /* Convertir HH:MM en minutes, en gérant le retour le lendemain /
+     Convert HH:MM to minutes, handling next-day return */
+  const intervalsOverlapDateAware = (
+    dateA: string, depA: string, retA: string,
+    dateB: string, depB: string, retB: string,
+  ): boolean => {
+    const toMin = (t: string) => {
+      const [h, m] = t.split(':').map(Number)
+      return h * 60 + m
+    }
+    const dayMin = (d: string) => {
+      const dt = new Date(`${d}T00:00:00Z`)
+      return Math.round(dt.getTime() / 60000)
+    }
+    const a0 = dayMin(dateA) + toMin(depA)
+    let a1 = dayMin(dateA) + toMin(retA)
+    if (a1 <= a0) a1 += 24 * 60
+    const b0 = dayMin(dateB) + toMin(depB)
+    let b1 = dayMin(dateB) + toMin(retB)
+    if (b1 <= b0) b1 += 24 * 60
+    return a0 < b1 && a1 > b0
+  }
+
+  /* Détection chevauchement client-side — compare contract OU vehicle OU tractor /
+     Client-side overlap detection — compares contract OR vehicle OR tractor */
+  const detectOverlap = (tour: Tour, departureTime: string, contractId: number | null, vehicleId: number | null, tractorId: number | null, deliveryDate?: string): GanttTour | null => {
     const estReturn = estimateReturn(tour, departureTime)
     if (!estReturn) return null
-    /* Date effective du tour qu'on planifie / Effective date of the tour being scheduled */
     const tourDate = deliveryDate || tour.delivery_date || selectedDate
-    /* Construire datetime complet pour la comparaison / Build full datetime for comparison */
-    const depDT = `${tourDate}T${departureTime}`
-    const retDT = `${tourDate}T${estReturn}`
     for (const tl of timeline) {
-      if (tl.contract_id !== contractId) continue
       if (tl.tour_id === tour.id) continue
       if (!tl.departure_time || !tl.return_time) continue
+      const sameResource =
+        (contractId != null && tl.contract_id === contractId)
+        || (vehicleId != null && tl.vehicle_id === vehicleId)
+        || (tractorId != null && tl.tractor_id === tractorId)
+      if (!sameResource) continue
       const tlDate = tl.delivery_date || tl.tour_date
-      const tlDepDT = `${tlDate}T${tl.departure_time}`
-      const tlRetDT = `${tlDate}T${tl.return_time}`
-      if (depDT < tlRetDT && retDT > tlDepDT) {
+      if (intervalsOverlapDateAware(tourDate, departureTime, estReturn, tlDate, tl.departure_time, tl.return_time)) {
         return tl
       }
     }
     return null
   }
+
+  /* Détection des chevauchements parmi les tours déjà planifiés /
+     Overlap detection among already-scheduled tours */
+  const existingOverlaps = useMemo(() => {
+    const conflicts = new Map<number, { other: GanttTour; reason: string }>()
+    const scheduled = timeline.filter(t => t.departure_time && t.return_time)
+    for (let i = 0; i < scheduled.length; i++) {
+      const a = scheduled[i]
+      for (let j = i + 1; j < scheduled.length; j++) {
+        const b = scheduled[j]
+        let reason = ''
+        if (a.contract_id != null && a.contract_id === b.contract_id) reason = 'contrat'
+        else if (a.vehicle_id != null && a.vehicle_id === b.vehicle_id) reason = 'véhicule'
+        else if (a.tractor_id != null && a.tractor_id === b.tractor_id) reason = 'tracteur'
+        if (!reason) continue
+        const aDate = a.delivery_date || a.tour_date
+        const bDate = b.delivery_date || b.tour_date
+        if (intervalsOverlapDateAware(aDate, a.departure_time!, a.return_time!, bDate, b.departure_time!, b.return_time!)) {
+          conflicts.set(a.tour_id, { other: b, reason })
+          conflicts.set(b.tour_id, { other: a, reason })
+        }
+      }
+    }
+    return conflicts
+  }, [timeline])
 
   /* Planifier un tour / Schedule a tour */
   const handleSchedule = async (tourId: number, force = false) => {
@@ -738,6 +784,8 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
         tour_id: tour.id,
         code: tour.code,
         contract_id: tour.contract_id ?? null,
+        vehicle_id: tour.vehicle_id ?? null,
+        tractor_id: tour.tractor_id ?? null,
         vehicle_type: tour.vehicle_type ?? null,
         capacity_eqp: tour.capacity_eqp ?? null,
         contract_code: null,
@@ -1267,7 +1315,10 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                   (input.mode === 'mixte' && !!input.contractId && !!input.vehicleId)
                 )
                 const estReturn = !isScheduled && input.time && canSchedule ? estimateReturn(tour, input.time) : null
-                const overlap = !isScheduled && input.time && input.contractId ? detectOverlap(tour, input.time, input.contractId, input.deliveryDate) : null
+                const overlap = !isScheduled && input.time && (input.contractId || input.vehicleId || input.tractorId)
+                  ? detectOverlap(tour, input.time, input.contractId, input.vehicleId, input.tractorId, input.deliveryDate)
+                  : null
+                const existingConflict = isScheduled ? existingOverlaps.get(tour.id) : null
 
                 return (
                   <div
@@ -1275,16 +1326,20 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                     data-tour-id={tour.id}
                     className="rounded-lg border mb-1 transition-all"
                     style={{
-                      backgroundColor: windowViolations
-                        ? 'rgba(239,68,68,0.05)'
-                        : isHighlighted
-                          ? 'rgba(249,115,22,0.05)'
-                          : 'var(--bg-secondary)',
-                      borderColor: windowViolations
+                      backgroundColor: existingConflict
+                        ? 'rgba(239,68,68,0.1)'
+                        : windowViolations
+                          ? 'rgba(239,68,68,0.05)'
+                          : isHighlighted
+                            ? 'rgba(249,115,22,0.05)'
+                            : 'var(--bg-secondary)',
+                      borderColor: existingConflict
                         ? 'var(--color-danger)'
-                        : isHighlighted
-                          ? 'var(--color-primary)'
-                          : 'var(--border-color)',
+                        : windowViolations
+                          ? 'var(--color-danger)'
+                          : isHighlighted
+                            ? 'var(--color-primary)'
+                            : 'var(--border-color)',
                     }}
                     onClick={() => setHighlightedTourId(tour.id)}
                   >
@@ -1304,6 +1359,17 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                         <span className="text-[11px] shrink-0" style={{ color: '#000000' }}>
                           {tour.code}
                         </span>
+
+                        {/* Badge conflit chevauchement / Overlap conflict badge */}
+                        {existingConflict && (
+                          <span
+                            className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
+                            style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: 'var(--color-danger)' }}
+                            title={`Chevauchement ${existingConflict.reason} avec ${existingConflict.other.code} (${existingConflict.other.departure_time}-${existingConflict.other.return_time})`}
+                          >
+                            ⚠ Conflit {existingConflict.reason}
+                          </span>
+                        )}
 
                         {/* Badge reprise / Pickup tour badge */}
                         {tour.is_pickup_tour && (

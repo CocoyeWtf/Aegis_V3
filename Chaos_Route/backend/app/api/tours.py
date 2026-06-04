@@ -662,6 +662,8 @@ async def tour_timeline(
             "code": tour.code,
             "tour_date": tour.date,
             "contract_id": tour.contract_id,
+            "vehicle_id": tour.vehicle_id,
+            "tractor_id": tour.tractor_id,
             "vehicle_type": vt.value if (vt and hasattr(vt, 'value')) else vt,
             "capacity_eqp": tour.capacity_eqp,
             "vehicle_code": c.vehicle_code if c else None,
@@ -1416,6 +1418,23 @@ async def schedule_tour(
     if data.tractor_id and not data.contract_id and not data.vehicle_id:
         pass  # Mode propre valide : tracteur propre, remorque assignée par le postier
 
+    # ── Helper chevauchement gérant le passage minuit /
+    #    Overlap helper handling midnight crossover ─────────────────────────────
+    def _to_min(t: str) -> int:
+        h, m = t.split(":")
+        return int(h) * 60 + int(m)
+
+    def _intervals_overlap(dep_a: str, ret_a: str, dep_b: str, ret_b: str) -> bool:
+        a0 = _to_min(dep_a)
+        a1 = _to_min(ret_a)
+        if a1 <= a0:
+            a1 += 24 * 60  # retour le lendemain / return next day
+        b0 = _to_min(dep_b)
+        b1 = _to_min(ret_b)
+        if b1 <= b0:
+            b1 += 24 * 60
+        return a0 < b1 and a1 > b0
+
     # ── Vérification chevauchement contrat / Contract overlap check ───────────
     if data.contract_id:
         other_contract_tours_result = await db.execute(
@@ -1429,7 +1448,7 @@ async def schedule_tour(
         )
         other_contract_tours = list(other_contract_tours_result.scalars().all())
         for other in other_contract_tours:
-            if data.departure_time < other.return_time and return_time > other.departure_time:
+            if _intervals_overlap(data.departure_time, return_time, other.departure_time, other.return_time):
                 raise HTTPException(
                     status_code=409,
                     detail=f"Overlap with tour {other.code} ({other.departure_time}-{other.return_time})",
@@ -1458,7 +1477,7 @@ async def schedule_tour(
         )
         overlap_result = await db.execute(overlap_q)
         for other in overlap_result.scalars().all():
-            if data.departure_time < other.return_time and return_time > other.departure_time:
+            if _intervals_overlap(data.departure_time, return_time, other.departure_time, other.return_time):
                 raise HTTPException(
                     status_code=409,
                     detail=f"Overlap (véhicule propre) with tour {other.code} ({other.departure_time}-{other.return_time})",
@@ -1473,7 +1492,7 @@ async def schedule_tour(
         )
         tractor_overlap_result = await db.execute(tractor_overlap_q)
         for other in tractor_overlap_result.scalars().all():
-            if data.departure_time < other.return_time and return_time > other.departure_time:
+            if _intervals_overlap(data.departure_time, return_time, other.departure_time, other.return_time):
                 raise HTTPException(
                     status_code=409,
                     detail=f"Overlap (tracteur propre) with tour {other.code} ({other.departure_time}-{other.return_time})",

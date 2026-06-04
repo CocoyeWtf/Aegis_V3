@@ -7,6 +7,8 @@ export interface GanttTour {
   tour_id: number
   code: string
   contract_id: number | null
+  vehicle_id?: number | null
+  tractor_id?: number | null
   vehicle_type: string | null
   capacity_eqp: number | null
   contract_code: string | null
