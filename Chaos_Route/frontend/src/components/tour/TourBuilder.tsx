@@ -582,12 +582,16 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
      Right-click on map marker → open split dialog */
   const handlePdvContextMenu = useCallback((pdv: PDV) => {
     if (tourMode === 'pickup') return
-    const vol = filteredVolumes.find((v) => v.pdv_id === pdv.id && !consumedVolumeIds.has(v.id))
+    const vol = filteredVolumes.find((v) =>
+      v.pdv_id === pdv.id
+      && !consumedVolumeIds.has(v.id)
+      && (tempFilters.size === 0 || tempFilters.has(v.temperature_class))
+    )
     if (!vol) return
     const maxEqp = selectedVehicleType ? Math.max(remaining115, 0) : vol.eqp_count
     setSplitDialog({ volume: vol, maxEqp })
     setSplitEqp(Math.min(vol.eqp_count, maxEqp))
-  }, [tourMode, filteredVolumes, consumedVolumeIds, selectedVehicleType, remaining115])
+  }, [tourMode, filteredVolumes, consumedVolumeIds, selectedVehicleType, remaining115, tempFilters])
 
   const handlePdvClick = (pdv: PDV) => {
     if (tourMode === 'pickup') {
@@ -596,9 +600,15 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
       handleAddPickupPdv(pdv.id)
       return
     }
-    /* Ajouter TOUS les volumes disponibles du PDV (multi-température) /
-       Add ALL available volumes for the PDV (multi-temperature) */
-    const vols = filteredVolumes.filter((v) => v.pdv_id === pdv.id && !consumedVolumeIds.has(v.id))
+    /* Ajouter les volumes disponibles du PDV en respectant le filtre température actif.
+       Si aucun filtre, on prend tout (multi-température). /
+       Add available volumes for the PDV, respecting the active temperature filter.
+       If no filter, take all (multi-temperature). */
+    const vols = filteredVolumes.filter((v) =>
+      v.pdv_id === pdv.id
+      && !consumedVolumeIds.has(v.id)
+      && (tempFilters.size === 0 || tempFilters.has(v.temperature_class))
+    )
     if (vols.length === 0) return
     for (const vol of vols) {
       handleAddVolume(vol)
