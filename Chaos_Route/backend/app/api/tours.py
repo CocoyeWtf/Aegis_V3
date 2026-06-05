@@ -1288,10 +1288,13 @@ async def create_tour(
 
     if pdv_ids:
         # Calculer EQP cible par PDV (somme des stops) / Compute target EQP per PDV
-        stop_eqp_by_pdv: dict[int, int] = {}
+        # Tout en float pour eviter les TypeError float/Decimal apres ALTER COLUMN
+        # numeric. / All in float to avoid float/Decimal TypeError after the
+        # eqp_count column type change to numeric.
+        stop_eqp_by_pdv: dict[int, float] = {}
         for stop_data in enriched_stops:
             pid = stop_data["pdv_id"]
-            stop_eqp_by_pdv[pid] = stop_eqp_by_pdv.get(pid, 0) + stop_data["eqp_count"]
+            stop_eqp_by_pdv[pid] = stop_eqp_by_pdv.get(pid, 0.0) + float(stop_data["eqp_count"])
 
         vol_result = await db.execute(
             select(Volume).where(
@@ -1309,17 +1312,18 @@ async def create_tour(
             by_pdv.setdefault(vol.pdv_id, []).append(vol)
 
         for pid, vols in by_pdv.items():
-            target = stop_eqp_by_pdv.get(pid, 0)
+            target = stop_eqp_by_pdv.get(pid, 0.0)
             if target <= 0:
                 continue
-            vols.sort(key=lambda v: v.eqp_count, reverse=True)
+            vols.sort(key=lambda v: float(v.eqp_count), reverse=True)
             remaining = target
             for vol in vols:
                 if remaining <= 0:
                     break
-                if vol.eqp_count <= remaining:
+                vol_eqp = float(vol.eqp_count)
+                if vol_eqp <= remaining:
                     vol.tour_id = tour.id
-                    remaining -= vol.eqp_count
+                    remaining -= vol_eqp
 
     # Recalculer les tours frères (terme fixe réparti) / Recalculate sibling tours (shared fixed cost)
     if data.contract_id:
@@ -2533,10 +2537,10 @@ async def add_tour_stop(
     for v in available:
         v.tour_id = tour.id
         assigned_ids.append(v.id)
-        assigned_eqp += v.eqp_count
+        assigned_eqp += float(v.eqp_count)
 
     # Utiliser le max entre EQC saisis et volumes assignés / Use max of input and assigned
-    new_stop.eqp_count = max(data.eqp_count, assigned_eqp)
+    new_stop.eqp_count = max(float(data.eqp_count), assigned_eqp)
 
     # Recalculer / Recalculate
     await db.refresh(tour, ["stops"])

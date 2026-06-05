@@ -662,8 +662,11 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
       setCapacityEqp(0)
       setSelectedTemperatureType(null)
       refetchVolumes()
-    } catch (e) {
+    } catch (e: unknown) {
       console.error('Failed to save tour', e)
+      const err = e as { response?: { data?: { detail?: string }; status?: number }; message?: string }
+      const detail = err?.response?.data?.detail || err?.message || 'Erreur inconnue'
+      alert(`Echec de la sauvegarde du brouillon: ${detail}`)
     } finally {
       setSaving(false)
     }

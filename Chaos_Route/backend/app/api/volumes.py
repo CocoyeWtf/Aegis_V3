@@ -100,13 +100,14 @@ async def split_volume(
     volume = await db.get(Volume, volume_id)
     if not volume:
         raise HTTPException(status_code=404, detail="Volume not found")
-    if data.eqp_count <= 0 or data.eqp_count >= volume.eqp_count:
+    vol_eqp = float(volume.eqp_count)
+    if data.eqp_count <= 0 or data.eqp_count >= vol_eqp:
         raise HTTPException(status_code=400, detail="eqp_count must be between 1 and volume.eqp_count - 1")
 
-    remainder = volume.eqp_count - data.eqp_count
+    remainder = vol_eqp - data.eqp_count
     original_weight = float(volume.weight_kg) if volume.weight_kg else 0
     original_colis = volume.nb_colis or 0
-    ratio = data.eqp_count / volume.eqp_count
+    ratio = data.eqp_count / vol_eqp
 
     # Groupe de split — tous les fragments partagent le même ID / Split group tracking
     group_id = volume.split_group_id or volume.id
