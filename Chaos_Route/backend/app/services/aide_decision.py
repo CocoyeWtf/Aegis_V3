@@ -43,7 +43,9 @@ NON_SAS_DEADLINE = "09:00"
 AVERAGE_SPEED_KMH = 60          # pour estimation durée si manquante
 
 # Multiplicateurs par position dans la liste de priorités / Priority position multipliers
-PRIORITY_MULTIPLIERS = {0: 4.0, 1: 2.0, 2: 1.0, 3: 0.5}
+# Ecarts elargis pour que le changement d'ordre ait un effet visible /
+# Wider gaps so reordering produces a visible effect.
+PRIORITY_MULTIPLIERS = {0: 10.0, 1: 3.0, 2: 1.0, 3: 0.3}
 
 
 def _compute_optimization_multipliers(priorities: list[str]) -> dict[str, float]:
@@ -314,8 +316,29 @@ class AideDecisionService:
             )
 
         # ── Calculer les multiplicateurs d'optimisation / Compute optimization multipliers ──
+        # Le cout d'arc reste neutre (multiplier uniforme = no-op).
+        # Les penalites sont exprimees en RATIO relatif au cost : quand cost est
+        # prioritaire, les autres penalites diminuent et le solveur minimise plus
+        # librement le cout total. /
+        # Arc cost stays neutral (uniform multiplier = no-op). Penalties are
+        # expressed as RATIOS relative to cost: when cost ranks high, other
+        # penalties shrink and the solver minimizes total cost more freely.
         mults = _compute_optimization_multipliers(request.optimization_priorities)
-        fixed_cost_mult = max(mults.get("fill_rate", 1.0), mults.get("num_tours", 1.0))
+        cost_mult = max(mults.get("cost", 1.0), 0.1)  # éviter division par 0
+        fixed_cost_mult = max(mults.get("fill_rate", 1.0), mults.get("num_tours", 1.0)) / cost_mult
+        late_penalty_ratio = mults.get("punctuality", 1.0) / cost_mult
+        # drop_penalty est fige - un PDV ne doit jamais etre drop par choix
+        # d'optimisation, seulement par impossibilite reelle /
+        # drop_penalty stays fixed - a PDV must never be dropped by optimization
+        # choice, only by real infeasibility
+        log.info(
+            "Aide-decision L2 mults: priorities=%s -> cost=%.2f, punctuality=%.2f, "
+            "fill_rate=%.2f, num_tours=%.2f | derived ratios: late=%.2f, fixed=%.2f",
+            request.optimization_priorities,
+            mults.get("cost", 1.0), mults.get("punctuality", 1.0),
+            mults.get("fill_rate", 1.0), mults.get("num_tours", 1.0),
+            late_penalty_ratio, fixed_cost_mult,
+        )
 
         # ── Construire l'entrée OR-Tools ──
 
@@ -463,9 +486,9 @@ class AideDecisionService:
             vehicles=vehicles,
             km_tax_matrix=km_tax_mat,
             time_limit_seconds=request.time_limit_seconds,
-            late_penalty_per_min=int(500 * mults.get("punctuality", 1.0)),
-            drop_penalty=int(1_000_000 * mults.get("num_tours", 1.0)),
-            cost_multiplier=mults.get("cost", 1.0),
+            late_penalty_per_min=int(500 * late_penalty_ratio),
+            drop_penalty=1_000_000,  # fige - jamais drop par choix d'optim
+            cost_multiplier=1.0,  # neutre : multiplier uniforme = no-op
         )
 
         # ── Résoudre / Solve ──
