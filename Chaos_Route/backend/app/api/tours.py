@@ -122,7 +122,11 @@ async def calculate_tour_times(
 
     for stop in stops_data:
         pdv_id = stop["pdv_id"]
-        eqp_count = stop["eqp_count"]
+        # Forcer float : eqp_count peut etre Decimal (colonne numeric en DB)
+        # et timedelta n'accepte pas Decimal /
+        # Force float: eqp_count may be Decimal (numeric column) and timedelta
+        # doesn't accept Decimal
+        eqp_count = float(stop["eqp_count"])
 
         dist_entry = await _get_distance(db, prev_type, prev_id, "PDV", pdv_id)
         travel_minutes = dist_entry.duration_minutes if dist_entry else 0
@@ -2321,15 +2325,17 @@ async def _recalc_tour_after_stop_change(db: AsyncSession, tour: Tour) -> dict:
     warnings: list[str] = []
 
     # Mettre à jour total_eqp / Update total_eqp
-    tour.total_eqp = sum(s.eqp_count for s in tour.stops)
+    # Cast Decimal -> float -> int car total_eqp est integer en DB
+    tour.total_eqp = int(round(sum(float(s.eqp_count) for s in tour.stops)))
 
     if not tour.departure_time:
         await db.flush()
         return {"warnings": warnings}
 
     # Recalculer les horaires / Recalculate times
+    # Cast eqp_count Decimal -> float pour eviter timedelta(Decimal) errors
     stops_data = [
-        {"pdv_id": s.pdv_id, "sequence_order": s.sequence_order, "eqp_count": s.eqp_count}
+        {"pdv_id": s.pdv_id, "sequence_order": s.sequence_order, "eqp_count": float(s.eqp_count)}
         for s in sorted(tour.stops, key=lambda s: s.sequence_order)
     ]
 
