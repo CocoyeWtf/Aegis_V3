@@ -118,6 +118,9 @@ export default function ContractManagement() {
     { key: 'capacity_weight_kg', label: t('vehicles.capacityWeight'), type: 'number', min: 0 },
     { key: 'has_tailgate', label: t('vehicles.hasTailgate'), type: 'checkbox' },
     { key: 'tailgate_type', label: t('vehicles.tailgateType'), type: 'select', options: tailgateOptions },
+    // Fourniture transporteur / Carrier provides
+    { key: 'provides_tractor', label: 'Transporteur fournit le tracteur', type: 'checkbox', helperText: 'Coche si le transporteur amene son tracteur (presté ou traction).' },
+    { key: 'provides_trailer', label: 'Transporteur fournit la remorque', type: 'checkbox', helperText: 'Coche si le transporteur amene sa remorque (presté). En traction nous fournissons la remorque.' },
     // Couts
     { key: 'fixed_daily_cost', label: t('contracts.fixedDailyCost'), type: 'number', step: 0.01 },
     { key: 'vacation', label: t('contracts.vacation'), type: 'number', step: 0.01 },

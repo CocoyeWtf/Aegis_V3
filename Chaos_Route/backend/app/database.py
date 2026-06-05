@@ -193,8 +193,14 @@ async def _migrate_missing_columns():
                     col_type = col.type.compile(dialect=engine.dialect)
                     col_type_str = str(col_type)
 
+                    # Si la colonne est nullable, ne PAS forcer un DEFAULT
+                    # (laisse NULL pour les lignes existantes) /
+                    # If column is nullable, do NOT force a DEFAULT
+                    # (leave NULL for existing rows)
+                    if col.nullable:
+                        default = ""
                     # Determiner la valeur par defaut / Determine default value
-                    if col_type_str == "BOOLEAN":
+                    elif col_type_str == "BOOLEAN":
                         default = "DEFAULT FALSE" if not _is_sqlite else "DEFAULT 0"
                     elif col_type_str.startswith("VARCHAR") or col_type_str == "TEXT":
                         default = "DEFAULT ''"

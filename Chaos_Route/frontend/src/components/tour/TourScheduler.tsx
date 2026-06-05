@@ -1306,7 +1306,22 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
 
                 /* Inputs pour les non-planifiés / Inputs for unscheduled */
                 const input: ScheduleInput = scheduleInputs[tour.id] ?? EMPTY_INPUT
-                const contracts = availableContractsMap[tour.id] ?? []
+                const allContracts = availableContractsMap[tour.id] ?? []
+                /* Filtrer selon le mode : preste exige tracteur+remorque fournis,
+                   mixte exige tracteur fourni sans remorque (on prete la notre).
+                   NULL (legacy) est laisse passer pour compat. /
+                   Filter by mode: preste needs tractor+trailer provided,
+                   mixte needs tractor without trailer (we lend ours).
+                   NULL (legacy) passes through for compat. */
+                const contracts = input.mode === 'preste'
+                  ? allContracts.filter(c =>
+                      (c.provides_tractor == null || c.provides_tractor === true)
+                      && (c.provides_trailer == null || c.provides_trailer === true))
+                  : input.mode === 'mixte'
+                    ? allContracts.filter(c =>
+                        (c.provides_tractor == null || c.provides_tractor === true)
+                        && (c.provides_trailer == null || c.provides_trailer === false))
+                    : allContracts
                 const ownTractors = availableVehiclesMap[tour.id]?.tractors ?? []
                 const selectedContract = contracts.find((c) => c.id === input.contractId)
                 /* Aligne avec handleSchedule : propre exige un tracteur,

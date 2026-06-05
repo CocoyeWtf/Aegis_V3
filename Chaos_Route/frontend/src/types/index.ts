@@ -412,6 +412,8 @@ export interface Contract {
   capacity_weight_kg?: number
   has_tailgate?: boolean
   tailgate_type?: TailgateType
+  provides_tractor?: boolean | null
+  provides_trailer?: boolean | null
   schedules?: ContractSchedule[]
   carrier_id?: number
   carrier?: Carrier

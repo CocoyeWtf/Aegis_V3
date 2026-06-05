@@ -92,7 +92,7 @@ def _coerce_value(val, field_name: str):
     if s == "" or s.lower() in _NA_VALUES:
         return None
 
-    if field_name.startswith("has_") or field_name == "is_available":
+    if field_name.startswith("has_") or field_name.startswith("provides_") or field_name == "is_available":
         return s.lower() in ("true", "1", "yes", "oui", "vrai")
 
     int_fields = {"country_id", "region_id", "pdv_id", "base_origin_id", "contract_id",

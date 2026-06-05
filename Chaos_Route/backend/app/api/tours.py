@@ -424,6 +424,7 @@ async def available_contracts_for_tours(
     vehicle_type: str | None = Query(default=None),
     temperature_type: str | None = Query(default=None),
     tour_id: int | None = Query(default=None),
+    mode: str | None = Query(default=None, description="preste | mixte (filtre selon ce que le transporteur fournit)"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("tour-planning", "read")),
 ):
@@ -452,6 +453,25 @@ async def available_contracts_for_tours(
 
     if vehicle_type:
         available = [c for c in available if not c.vehicle_type or c.vehicle_type.value == vehicle_type]
+
+    # Filtre selon ce que le transporteur fournit (presté vs mixte/traction).
+    # NULL = non renseigné (contrats legacy) → laissé passer pour ne rien
+    # casser pendant la migration des donnees. /
+    # Filter on what the carrier provides (presté vs mixte/traction).
+    # NULL = unset (legacy contracts) → kept to avoid breaking during data
+    # migration.
+    if mode == "preste":
+        available = [
+            c for c in available
+            if (c.provides_tractor is None or c.provides_tractor is True)
+            and (c.provides_trailer is None or c.provides_trailer is True)
+        ]
+    elif mode == "mixte":
+        available = [
+            c for c in available
+            if (c.provides_tractor is None or c.provides_tractor is True)
+            and (c.provides_trailer is None or c.provides_trailer is False)
+        ]
 
     # Filtre temperature : FRAIS match FRAIS+BI_TEMP+TRI_TEMP, GEL match GEL+BI_TEMP+TRI_TEMP, etc.
     # Temperature filter: bitemp/tritemp contracts are compatible with any single temperature type
@@ -498,6 +518,8 @@ async def available_contracts_for_tours(
             "cost_per_hour": float(c.cost_per_hour) if c.cost_per_hour else None,
             "has_tailgate": c.has_tailgate,
             "tailgate_type": c.tailgate_type.value if (c.tailgate_type and hasattr(c.tailgate_type, 'value')) else c.tailgate_type,
+            "provides_tractor": c.provides_tractor,
+            "provides_trailer": c.provides_trailer,
             "start_date": c.start_date,
             "end_date": c.end_date,
             "region_id": c.region_id,

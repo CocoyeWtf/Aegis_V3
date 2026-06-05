@@ -63,6 +63,12 @@ class Contract(Base):
     has_tailgate: Mapped[bool] = mapped_column(Boolean, default=False)
     tailgate_type: Mapped[TailgateType | None] = mapped_column(Enum(TailgateType))
 
+    # Fourniture par le transporteur / Provided by the carrier
+    # NULL = non renseigne (contrats anciens, equipe doit completer) /
+    # NULL = not yet set (legacy contracts, team to fill in)
+    provides_tractor: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    provides_trailer: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
     # Lien vers vehicule autonome (si applicable) / Link to standalone vehicle
     vehicle_id: Mapped[int | None] = mapped_column(ForeignKey("vehicles.id"))
     # Lien vers transporteur / Link to carrier
