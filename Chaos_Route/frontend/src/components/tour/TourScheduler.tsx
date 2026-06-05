@@ -1309,10 +1309,14 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                 const contracts = availableContractsMap[tour.id] ?? []
                 const ownTractors = availableVehiclesMap[tour.id]?.tractors ?? []
                 const selectedContract = contracts.find((c) => c.id === input.contractId)
+                /* Aligne avec handleSchedule : propre exige un tracteur,
+                   mixte exige un contrat (le tracteur reste optionnel) /
+                   Match handleSchedule : own mode requires a tractor,
+                   mixed mode only requires a contract */
                 const canSchedule = input.time && (
                   (input.mode === 'preste' && !!input.contractId) ||
-                  (input.mode === 'propre' && !!input.vehicleId) ||
-                  (input.mode === 'mixte' && !!input.contractId && !!input.vehicleId)
+                  (input.mode === 'propre' && !!input.tractorId) ||
+                  (input.mode === 'mixte' && !!input.contractId)
                 )
                 const estReturn = !isScheduled && input.time && canSchedule ? estimateReturn(tour, input.time) : null
                 const overlap = !isScheduled && input.time && (input.contractId || input.vehicleId || input.tractorId)
