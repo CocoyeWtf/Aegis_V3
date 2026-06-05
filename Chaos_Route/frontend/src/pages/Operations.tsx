@@ -4,7 +4,8 @@ import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Fra
 import { useTranslation } from 'react-i18next'
 import { QRCodeSVG } from 'qrcode.react'
 import api from '../services/api'
-import type { Tour, BaseLogistics, Contract, PDV, Volume, ManifestLine, ManifestImportResult, MobileDevice, VehicleSummary } from '../types'
+import type { Tour, BaseLogistics, Contract, PDV, Volume, ManifestLine, ManifestImportResult, MobileDevice, VehicleSummary, TemperatureClass } from '../types'
+import { TEMPERATURE_COLORS } from '../types'
 import { TourWaybill } from '../components/tour/TourWaybill'
 import { DriverRouteSheet } from '../components/tour/DriverRouteSheet'
 import { TourGantt } from '../components/operations/TourGantt'
@@ -338,8 +339,9 @@ export default function Operations() {
   }
 
   /* Retirer un stop / Remove a stop */
-  const handleRemoveStop = async (tourId: number, stopId: number, pdvCode: string) => {
-    if (!confirm(`Retirer le PDV ${pdvCode} du tour ? Les volumes seront libérés.`)) return
+  const handleRemoveStop = async (tourId: number, stopId: number, pdvCode: string, temps: TemperatureClass[] = []) => {
+    const tempLabel = temps.length > 0 ? ` [${temps.join(' + ')}]` : ''
+    if (!confirm(`Retirer le PDV ${pdvCode}${tempLabel} du tour ?\nLes volumes seront libérés.`)) return
     try {
       await api.delete(`/tours/${tourId}/stops/${stopId}`)
       await loadTours(true)
@@ -822,7 +824,7 @@ interface TourRowProps {
   onRefresh: () => Promise<void>
   onPatchStopsEqc: (eqcByPdv: Record<string, number>) => void
   canModifyStops: boolean
-  onRemoveStop: (tourId: number, stopId: number, pdvCode: string) => void
+  onRemoveStop: (tourId: number, stopId: number, pdvCode: string, temps?: TemperatureClass[]) => void
   onAddStop: (tourId: number, pdvId: number, eqpCount: number) => void
   pdvs: PDV[]
 }
@@ -935,11 +937,35 @@ function TourRow({
                         stop.pickup_returns && 'R',
                       ].filter(Boolean).join(' ')
                       const stopDispatch = volumes.find((v) => v.tour_id === tour.id && v.pdv_id === stop.pdv_id && v.dispatch_date)
+                      /* Temperatures distinctes des volumes de ce stop, fallback sur le stop lui-meme /
+                         Distinct temperatures from this stop's volumes, fallback on the stop field */
+                      const stopTemps: TemperatureClass[] = (() => {
+                        const fromVolumes = volumes
+                          .filter((v) => v.tour_id === tour.id && v.pdv_id === stop.pdv_id)
+                          .map((v) => v.temperature_class)
+                        const distinct = Array.from(new Set(fromVolumes))
+                        if (distinct.length > 0) return distinct
+                        return stop.temperature_class ? [stop.temperature_class] : []
+                      })()
 
                       return (
                         <tr key={stop.id} className="border-t" style={{ borderColor: 'var(--border-color)' }}>
                           <td className="px-2 py-1 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{stop.sequence_order}</td>
                           <td className="px-2 py-1 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
+                            {stopTemps.map((tc) => (
+                              <span
+                                key={tc}
+                                className="mr-1 inline-block px-1.5 py-0.5 rounded text-[10px] font-bold align-middle"
+                                style={{
+                                  backgroundColor: `${TEMPERATURE_COLORS[tc]}25`,
+                                  color: TEMPERATURE_COLORS[tc],
+                                  border: `1px solid ${TEMPERATURE_COLORS[tc]}`,
+                                }}
+                                title={`Volume ${tc}`}
+                              >
+                                {tc}
+                              </span>
+                            ))}
                             <span className="font-semibold">{pdv?.code ?? ''}</span>
                             <span className="ml-1">{pdv?.name ?? `#${stop.pdv_id}`}</span>
                             {pdv?.city && <span className="ml-1" style={{ color: 'var(--text-muted)' }}>({pdv.city})</span>}
@@ -963,7 +989,7 @@ function TourRow({
                                 <button
                                   className="text-[10px] px-1.5 py-0.5 rounded border font-semibold transition-all hover:opacity-80"
                                   style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
-                                  onClick={(e) => { e.stopPropagation(); onRemoveStop(tour.id, stop.id, pdv?.code ?? '') }}
+                                  onClick={(e) => { e.stopPropagation(); onRemoveStop(tour.id, stop.id, pdv?.code ?? '', stopTemps) }}
                                 >
                                   Retirer
                                 </button>
