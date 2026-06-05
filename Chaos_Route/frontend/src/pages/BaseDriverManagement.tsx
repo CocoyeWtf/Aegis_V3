@@ -39,7 +39,7 @@ export default function BaseDriverManagement() {
     { key: 'first_name', label: 'Prénom', type: 'text', required: true },
     { key: 'code_infolog', label: 'Code Infolog', type: 'text', required: true },
     {
-      key: 'status', label: 'Statut', type: 'select',
+      key: 'status', label: 'Statut', type: 'select', required: true,
       options: STATUS_OPTIONS,
     },
     {
