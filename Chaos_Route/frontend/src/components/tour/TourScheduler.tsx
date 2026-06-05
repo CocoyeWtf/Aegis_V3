@@ -1307,6 +1307,9 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                 /* Inputs pour les non-planifiés / Inputs for unscheduled */
                 const input: ScheduleInput = scheduleInputs[tour.id] ?? EMPTY_INPUT
                 const allContracts = availableContractsMap[tour.id] ?? []
+                /* Remorques internes disponibles (vehicles non-tracteurs) /
+                   Internal trailers available (non-tractor vehicles) */
+                const ownTrailers = availableVehiclesMap[tour.id]?.vehicles ?? []
                 /* Filtrer selon le mode : preste exige tracteur+remorque fournis,
                    mixte exige tracteur fourni sans remorque (on prete la notre).
                    NULL (legacy) est laisse passer pour compat. /
@@ -1512,7 +1515,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                             </select>
                           )}
 
-                          {/* PROPRE : tracteur propre + chauffeur (remorque = postier) */}
+                          {/* PROPRE : tracteur propre + remorque propre + chauffeur */}
                           {input.mode === 'propre' && (
                             <>
                               <select
@@ -1524,6 +1527,20 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                               >
                                 <option value="">Tracteur</option>
                                 {ownTractors.map((v) => (
+                                  <option key={v.id} value={v.id}>{v.label}</option>
+                                ))}
+                              </select>
+                              <select
+                                value={input.vehicleId ?? ''}
+                                onChange={(e) => updateInput(tour.id, 'vehicleId', e.target.value ? Number(e.target.value) : null)}
+                                onClick={(e) => e.stopPropagation()}
+                                disabled={ownTrailers.length === 0}
+                                className="rounded border px-1.5 py-1 text-[11px] min-w-0 disabled:opacity-50"
+                                style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', maxWidth: '140px' }}
+                                title={ownTrailers.length === 0 ? 'Aucune remorque interne disponible' : 'Remorque interne'}
+                              >
+                                <option value="">{ownTrailers.length === 0 ? 'Pas de remorque' : 'Remorque'}</option>
+                                {ownTrailers.map((v) => (
                                   <option key={v.id} value={v.id}>{v.label}</option>
                                 ))}
                               </select>
@@ -1542,20 +1559,36 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                             </>
                           )}
 
-                          {/* MIXTE : contrat (tracteur presté) — remorque = postier */}
+                          {/* MIXTE : contrat (tracteur presté) + remorque propre fournie par nous */}
                           {input.mode === 'mixte' && (
-                            <select
-                              value={input.contractId ?? ''}
-                              onChange={(e) => updateInput(tour.id, 'contractId', e.target.value ? Number(e.target.value) : null)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="rounded border px-1.5 py-1 text-[11px] min-w-0"
-                              style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', maxWidth: '160px' }}
-                            >
-                              <option value="">Tracteur presté</option>
-                              {contracts.map((c) => (
-                                <option key={c.id} value={c.id}>{c.code} — {c.transporter_name}</option>
-                              ))}
-                            </select>
+                            <>
+                              <select
+                                value={input.contractId ?? ''}
+                                onChange={(e) => updateInput(tour.id, 'contractId', e.target.value ? Number(e.target.value) : null)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="rounded border px-1.5 py-1 text-[11px] min-w-0"
+                                style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', maxWidth: '160px' }}
+                              >
+                                <option value="">Tracteur presté</option>
+                                {contracts.map((c) => (
+                                  <option key={c.id} value={c.id}>{c.code} — {c.transporter_name}</option>
+                                ))}
+                              </select>
+                              <select
+                                value={input.vehicleId ?? ''}
+                                onChange={(e) => updateInput(tour.id, 'vehicleId', e.target.value ? Number(e.target.value) : null)}
+                                onClick={(e) => e.stopPropagation()}
+                                disabled={ownTrailers.length === 0}
+                                className="rounded border px-1.5 py-1 text-[11px] min-w-0 disabled:opacity-50"
+                                style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', maxWidth: '140px' }}
+                                title={ownTrailers.length === 0 ? 'Aucune remorque interne disponible' : 'Remorque interne (notre flotte)'}
+                              >
+                                <option value="">{ownTrailers.length === 0 ? 'Pas de remorque' : 'Remorque'}</option>
+                                {ownTrailers.map((v) => (
+                                  <option key={v.id} value={v.id}>{v.label}</option>
+                                ))}
+                              </select>
+                            </>
                           )}
 
                           {/* Heure départ */}
