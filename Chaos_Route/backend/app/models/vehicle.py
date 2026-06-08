@@ -11,7 +11,7 @@ from sqlalchemy import Boolean, Enum, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.models.contract import TemperatureType, TailgateType
+from app.models.contract import TemperatureType, TailgateType, FuelType  # noqa: F401 (réexporté)
 
 
 class FleetVehicleType(str, enum.Enum):
@@ -34,15 +34,6 @@ class VehicleStatus(str, enum.Enum):
     MAINTENANCE = "MAINTENANCE"
     OUT_OF_SERVICE = "OUT_OF_SERVICE"
     DISPOSED = "DISPOSED"
-
-
-class FuelType(str, enum.Enum):
-    """Type de carburant / Fuel type."""
-    DIESEL = "DIESEL"
-    ESSENCE = "ESSENCE"
-    GNV = "GNV"
-    ELECTRIQUE = "ELECTRIQUE"
-    HYBRIDE = "HYBRIDE"
 
 
 class OwnershipType(str, enum.Enum):

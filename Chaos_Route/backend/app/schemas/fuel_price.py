@@ -6,8 +6,8 @@ from app.models.fuel_price import FuelType
 
 
 class FuelPriceBase(BaseModel):
-    # Défaut GASOIL pour que la lecture des anciennes lignes reste valide
-    fuel_type: FuelType = FuelType.GASOIL
+    # Défaut DIESEL (gasoil) pour que la lecture des anciennes lignes reste valide
+    fuel_type: FuelType = FuelType.DIESEL
     start_date: str
     end_date: str
     price_per_liter: float  # €/L (gasoil) ou €/kg (gaz)

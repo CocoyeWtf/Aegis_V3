@@ -371,7 +371,8 @@ export interface ContractSchedule {
   is_available: boolean
 }
 
-export type FuelType = 'GASOIL' | 'GAZ'
+// DIESEL = gasoil, GNV = gaz (partagé avec le parc véhicules)
+export type FuelType = 'DIESEL' | 'ESSENCE' | 'GNV' | 'ELECTRIQUE' | 'HYBRIDE'
 
 export interface FuelPrice {
   id: number

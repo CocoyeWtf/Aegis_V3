@@ -12,10 +12,10 @@ from app.models.fuel_price import FuelPrice, FuelType
 
 
 def contract_fuel_type(contract) -> str:
-    """Type de carburant d'un contrat sous forme de chaîne (défaut GASOIL)."""
+    """Type de carburant d'un contrat sous forme de chaîne (défaut DIESEL/gasoil)."""
     ft = getattr(contract, "fuel_type", None)
     if ft is None:
-        return FuelType.GASOIL.value
+        return FuelType.DIESEL.value
     return ft.value if hasattr(ft, "value") else str(ft)
 
 
@@ -32,7 +32,7 @@ async def load_fuel_unit_prices(db: AsyncSession, date: str) -> dict[str, float]
     )).all()
     out: dict[str, float] = {}
     for ft, price in rows:
-        key = (ft.value if hasattr(ft, "value") else str(ft)) if ft is not None else FuelType.GASOIL.value
+        key = (ft.value if hasattr(ft, "value") else str(ft)) if ft is not None else FuelType.DIESEL.value
         if key not in out:  # déjà trié desc -> première rencontre = plus récente
             out[key] = float(price) if price is not None else 0.0
     return out

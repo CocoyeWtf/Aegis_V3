@@ -21,22 +21,22 @@ class _FakeContract:
 async def test_load_and_pick_fuel_price_by_type(db_session):
     d = f"2026-06-{uuid.uuid4().int % 28 + 1:02d}"
     db_session.add_all([
-        FuelPrice(fuel_type=FuelType.GASOIL, start_date="2026-01-01", end_date="2030-12-31", price_per_liter=1.8),
-        FuelPrice(fuel_type=FuelType.GAZ, start_date="2026-01-01", end_date="2030-12-31", price_per_liter=1.2),
+        FuelPrice(fuel_type=FuelType.DIESEL, start_date="2026-01-01", end_date="2030-12-31", price_per_liter=1.8),
+        FuelPrice(fuel_type=FuelType.GNV, start_date="2026-01-01", end_date="2030-12-31", price_per_liter=1.2),
     ])
     await db_session.flush()
 
     prices = await load_fuel_unit_prices(db_session, d)
-    assert prices.get("GASOIL") == 1.8
-    assert prices.get("GAZ") == 1.2
+    assert prices.get("DIESEL") == 1.8
+    assert prices.get("GNV") == 1.2
 
-    assert price_for_contract(prices, _FakeContract(FuelType.GAZ)) == 1.2
-    assert price_for_contract(prices, _FakeContract(FuelType.GASOIL)) == 1.8
-    # Contrat legacy sans fuel_type -> défaut GASOIL
+    assert price_for_contract(prices, _FakeContract(FuelType.GNV)) == 1.2
+    assert price_for_contract(prices, _FakeContract(FuelType.DIESEL)) == 1.8
+    # Contrat legacy sans fuel_type -> défaut DIESEL (gasoil)
     assert price_for_contract(prices, _FakeContract(None)) == 1.8
 
 
 def test_contract_fuel_type_default():
-    assert contract_fuel_type(_FakeContract(None)) == "GASOIL"
-    assert contract_fuel_type(_FakeContract(FuelType.GAZ)) == "GAZ"
-    assert contract_fuel_type(_FakeContract("GASOIL")) == "GASOIL"
+    assert contract_fuel_type(_FakeContract(None)) == "DIESEL"
+    assert contract_fuel_type(_FakeContract(FuelType.GNV)) == "GNV"
+    assert contract_fuel_type(_FakeContract("DIESEL")) == "DIESEL"

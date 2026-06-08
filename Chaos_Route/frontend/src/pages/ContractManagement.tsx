@@ -125,8 +125,8 @@ export default function ContractManagement() {
     {
       key: 'fuel_type', label: t('contracts.fuelType'), type: 'select', required: true,
       options: [
-        { value: 'GASOIL', label: t('fuelPrices.tabGasoil') },
-        { value: 'GAZ', label: t('fuelPrices.tabGaz') },
+        { value: 'DIESEL', label: t('fuelPrices.tabGasoil') },
+        { value: 'GNV', label: t('fuelPrices.tabGaz') },
       ],
       helperText: 'Detemine le prix carburant applique (gasoil €/L ou gaz €/kg).',
     },

@@ -10,11 +10,11 @@ import { formatDate } from '../utils/tourTimeUtils'
 
 export default function FuelPrices() {
   const { t } = useTranslation()
-  const [tab, setTab] = useState<FuelType>('GASOIL')
+  const [tab, setTab] = useState<FuelType>('DIESEL')
 
-  // Gasoil = €/L, Gaz = €/kg
-  const unit = tab === 'GAZ' ? '€/kg' : '€/L'
-  const priceLabel = tab === 'GAZ' ? t('fuelPrices.pricePerKg') : t('fuelPrices.pricePerLiter')
+  // Gasoil (DIESEL) = €/L, Gaz (GNV) = €/kg
+  const unit = tab === 'GNV' ? '€/kg' : '€/L'
+  const priceLabel = tab === 'GNV' ? t('fuelPrices.pricePerKg') : t('fuelPrices.pricePerLiter')
 
   const columns: Column<FuelPrice>[] = [
     { key: 'start_date', label: t('fuelPrices.startDate'), width: '120px', render: (row) => formatDate(row.start_date) },
@@ -32,8 +32,8 @@ export default function FuelPrices() {
   ]
 
   const tabs: { value: FuelType; label: string }[] = [
-    { value: 'GASOIL', label: t('fuelPrices.tabGasoil') },
-    { value: 'GAZ', label: t('fuelPrices.tabGaz') },
+    { value: 'DIESEL', label: t('fuelPrices.tabGasoil') },
+    { value: 'GNV', label: t('fuelPrices.tabGaz') },
   ]
 
   const toolbarExtra = (
@@ -62,7 +62,7 @@ export default function FuelPrices() {
     <CrudPage<FuelPrice>
       key={tab}
       resource="fleet"
-      title={`${t('fuelPrices.title')} — ${tab === 'GAZ' ? t('fuelPrices.tabGaz') : t('fuelPrices.tabGasoil')}`}
+      title={`${t('fuelPrices.title')} — ${tab === 'GNV' ? t('fuelPrices.tabGaz') : t('fuelPrices.tabGasoil')}`}
       endpoint="/fuel-prices"
       columns={columns}
       fields={fields}
@@ -70,7 +70,7 @@ export default function FuelPrices() {
       createTitle={t('fuelPrices.new')}
       editTitle={t('fuelPrices.edit')}
       toolbarExtra={toolbarExtra}
-      filterData={(rows) => rows.filter((r) => (r.fuel_type ?? 'GASOIL') === tab)}
+      filterData={(rows) => rows.filter((r) => (r.fuel_type ?? 'DIESEL') === tab)}
       transformPayload={(d) => ({ ...d, fuel_type: tab, price_per_liter: Number(d.price_per_liter) })}
     />
   )

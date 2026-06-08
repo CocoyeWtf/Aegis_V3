@@ -6,7 +6,20 @@ from sqlalchemy import Boolean, Enum, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.models.fuel_price import FuelType  # noqa: F401 (réexporté pour les schémas)
+
+
+class FuelType(str, enum.Enum):
+    """Type de carburant / Fuel type.
+
+    Partagé par les véhicules, les contrats et les prix carburant (un seul type
+    enum PG `fueltype`). Pour les contrats/prix on n'utilise que DIESEL (gasoil)
+    et GNV (gaz), mais l'enum complet reste disponible pour le parc véhicules.
+    """
+    DIESEL = "DIESEL"        # Gasoil
+    ESSENCE = "ESSENCE"
+    GNV = "GNV"              # Gaz (Gaz Naturel Véhicule)
+    ELECTRIQUE = "ELECTRIQUE"
+    HYBRIDE = "HYBRIDE"
 
 
 class TemperatureType(str, enum.Enum):
@@ -51,7 +64,7 @@ class Contract(Base):
     # sûre, rétro-rempli GASOIL au démarrage). Détermine quel prix carburant utiliser.
     # Pour le gaz, consumption_coefficient s'exprime en kg/km (sinon L/km).
     fuel_type: Mapped[FuelType | None] = mapped_column(
-        Enum(FuelType), nullable=True, default=FuelType.GASOIL
+        Enum(FuelType), nullable=True, default=FuelType.DIESEL
     )
     min_hours_per_day: Mapped[float | None] = mapped_column(Numeric(5, 2))
     min_km_per_day: Mapped[float | None] = mapped_column(Numeric(8, 2))

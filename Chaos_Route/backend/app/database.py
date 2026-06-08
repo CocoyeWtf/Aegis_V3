@@ -69,7 +69,7 @@ async def init_db():
     # Ajouter les contraintes FK manquantes (PG uniquement) /
     # Add missing FK constraints (PG only)
     await _migrate_missing_foreign_keys()
-    # Retro-remplir le type de carburant (GASOIL par defaut) / Backfill fuel_type
+    # Retro-remplir le type de carburant (DIESEL/gasoil par defaut) / Backfill fuel_type
     await _backfill_fuel_type()
     # Generer les QR/badge codes manquants / Backfill missing QR/badge codes
     await _backfill_qr_codes()
@@ -199,17 +199,17 @@ async def _migrate_create_enum_types():
 
 
 async def _backfill_fuel_type():
-    """Retro-remplir fuel_type=GASOIL sur les lignes existantes (NULL) /
-    Backfill fuel_type=GASOIL on existing rows (legacy contracts/fuel prices).
+    """Retro-remplir fuel_type=DIESEL (gasoil) sur les lignes existantes (NULL) /
+    Backfill fuel_type=DIESEL on existing rows (legacy contracts/fuel prices).
     """
     async with engine.begin() as conn:
         for table in ("contracts", "fuel_prices"):
             try:
                 result = await conn.execute(text(
-                    f"UPDATE {table} SET fuel_type = 'GASOIL' WHERE fuel_type IS NULL"
+                    f"UPDATE {table} SET fuel_type = 'DIESEL' WHERE fuel_type IS NULL"
                 ))
                 if result.rowcount:
-                    print(f"[backfill] {table}: {result.rowcount} lignes -> fuel_type=GASOIL")
+                    print(f"[backfill] {table}: {result.rowcount} lignes -> fuel_type=DIESEL")
             except Exception as e:
                 print(f"[backfill] WARN fuel_type {table}: {e}")
 

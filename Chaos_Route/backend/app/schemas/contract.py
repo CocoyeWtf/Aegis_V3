@@ -2,8 +2,7 @@
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.contract import TailgateType, TemperatureType, VehicleType
-from app.models.fuel_price import FuelType
+from app.models.contract import FuelType, TailgateType, TemperatureType, VehicleType
 from app.schemas.carrier import CarrierRead
 
 
