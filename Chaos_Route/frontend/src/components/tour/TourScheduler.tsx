@@ -8,7 +8,7 @@ import { useAuthStore } from '../../stores/useAuthStore'
 import { TourGantt, type GanttTour } from './TourGantt'
 import { TourPrintPlan } from './TourPrintPlan'
 import { formatDuration, parseTime, formatTime, formatDate, DEFAULT_DOCK_TIME, DEFAULT_UNLOAD_PER_EQP } from '../../utils/tourTimeUtils'
-import { VEHICLE_TYPE_DEFAULTS, TEMPERATURE_TYPE_LABELS, TEMPERATURE_COLORS } from '../../types'
+import { VEHICLE_TYPE_DEFAULTS, TEMPERATURE_TYPE_LABELS, TEMPERATURE_COLORS, TOUR_TYPE_LABELS } from '../../types'
 import api from '../../services/api'
 import { CostBreakdown } from './CostBreakdown'
 import type { Tour, BaseLogistics, Contract, DistanceEntry, PDV, VehicleType, TemperatureType, TemperatureClass, Volume, Vehicle, AssignmentMode, AvailableVehicle } from '../../types'
@@ -1390,6 +1390,11 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                         <span className="text-[11px] shrink-0" style={{ color: '#000000' }}>
                           {tour.code}
                         </span>
+                        {tour.tour_type && tour.tour_type !== 'LIVRAISON' && (
+                          <span className="text-[9px] font-bold px-1 py-0.5 rounded shrink-0" title={tour.destination ?? ''} style={{ backgroundColor: '#6366f122', color: '#6366f1' }}>
+                            {TOUR_TYPE_LABELS[tour.tour_type]}
+                          </span>
+                        )}
 
                         {/* Badge conflit chevauchement / Overlap conflict badge */}
                         {existingConflict && (

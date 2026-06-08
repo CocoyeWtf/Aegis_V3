@@ -71,6 +71,8 @@ async def init_db():
     await _migrate_missing_foreign_keys()
     # Retro-remplir le type de carburant (DIESEL/gasoil par defaut) / Backfill fuel_type
     await _backfill_fuel_type()
+    # Retro-remplir la nature des tours (LIVRAISON par defaut) / Backfill tour_type
+    await _backfill_tour_type()
     # Generer les QR/badge codes manquants / Backfill missing QR/badge codes
     await _backfill_qr_codes()
     # Marquer le support combi (code CO) si pas encore fait /
@@ -78,6 +80,30 @@ async def init_db():
     await _backfill_combi_support_type()
     # Purger les positions GPS > 30 jours / Purge GPS positions older than 30 days
     await _cleanup_old_gps()
+
+
+async def _backfill_tour_type():
+    """Retro-remplir tour_type=LIVRAISON sur les tours existants (NULL) /
+    Backfill tour_type=LIVRAISON on existing tours.
+
+    Aligne aussi la nature sur l'ancien drapeau is_pickup_tour : les tours
+    de reprise existants deviennent ENLEVEMENT.
+    """
+    async with engine.begin() as conn:
+        try:
+            r1 = await conn.execute(text(
+                "UPDATE tours SET tour_type = 'ENLEVEMENT' "
+                "WHERE tour_type IS NULL AND is_pickup_tour = "
+                + ("TRUE" if not _is_sqlite else "1")
+            ))
+            r2 = await conn.execute(text(
+                "UPDATE tours SET tour_type = 'LIVRAISON' WHERE tour_type IS NULL"
+            ))
+            n = (r1.rowcount or 0) + (r2.rowcount or 0)
+            if n:
+                print(f"[backfill] tours: {n} lignes -> tour_type (LIVRAISON/ENLEVEMENT)")
+        except Exception as e:
+            print(f"[backfill] WARN tour_type: {e}")
 
 
 async def _backfill_qr_codes():

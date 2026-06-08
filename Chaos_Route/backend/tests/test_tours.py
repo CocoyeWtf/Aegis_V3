@@ -29,6 +29,16 @@ def test_total_eqp_accepts_integer():
     assert tour.total_eqp == 45
 
 
+def test_tour_type_field():
+    """Nature de tour portée par les schémas (défaut LIVRAISON)."""
+    from app.models.tour import TourType
+
+    assert TourCreate(**_payload(10)).tour_type == TourType.LIVRAISON
+    t = TourCreate(**{**_payload(10), "tour_type": "GARAGE", "destination": "Garage X"})
+    assert t.tour_type == TourType.GARAGE
+    assert t.destination == "Garage X"
+
+
 def test_priority_field():
     """Priorité manuelle d'ordonnancement portée par les schémas Tour."""
     from app.schemas.tour import TourSchedule

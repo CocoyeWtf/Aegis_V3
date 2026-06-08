@@ -18,6 +18,29 @@ class TourStatus(str, enum.Enum):
     COMPLETED = "COMPLETED"
 
 
+class TourType(str, enum.Enum):
+    """Nature de la tournée / Tour nature.
+
+    LIVRAISON = tournée de livraison classique (PDV + volumes).
+    Les autres natures sont encodées et prises en compte (planning, coût si
+    contrat) mais ne sont pas des livraisons : pas de contrôle volume/température.
+    ENLEVEMENT/VIDANGES peuvent avoir des arrêts PDV ; DEPLACEMENT_BASE/GARAGE
+    n'en ont pas (destination libre).
+    """
+    LIVRAISON = "LIVRAISON"
+    ENLEVEMENT = "ENLEVEMENT"          # Reprise / pickup
+    VIDANGES = "VIDANGES"              # Collecte de vidanges (contenants vides)
+    DEPLACEMENT_BASE = "DEPLACEMENT_BASE"  # Déplacement camion sur/entre base(s)
+    GARAGE = "GARAGE"                  # Envoi au garage / atelier
+
+
+# Natures sans livraison (pas de contrôle volume/température, arrêts optionnels) /
+# Non-delivery natures
+NON_DELIVERY_TYPES = {TourType.ENLEVEMENT, TourType.VIDANGES, TourType.DEPLACEMENT_BASE, TourType.GARAGE}
+# Natures de type reprise (collecte PDV, comme l'ancien is_pickup_tour) / Pickup-like natures
+PICKUP_TYPES = {TourType.ENLEVEMENT, TourType.VIDANGES}
+
+
 class Tour(Base):
     __tablename__ = "tours"
     __table_args__ = (
@@ -46,6 +69,10 @@ class Tour(Base):
     delivery_date: Mapped[str | None] = mapped_column(String(10))  # YYYY-MM-DD — date de livraison
     temperature_type: Mapped[str | None] = mapped_column(String(10))  # SEC|FRAIS|GEL|BI_TEMP|TRI_TEMP
     is_pickup_tour: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Nature de la tournée. Nullable en base (migration sûre), rétro-rempli LIVRAISON.
+    tour_type: Mapped["TourType | None"] = mapped_column(Enum(TourType), nullable=True, default=TourType.LIVRAISON)
+    # Destination libre pour les tours hors-livraison (garage, base cible, note)
+    destination: Mapped[str | None] = mapped_column(String(150))
     bypass_support_rules: Mapped[bool] = mapped_column(Boolean, default=False)  # Desactive le controle support/base pour cette tournee
     # Priorité manuelle d'ordonnancement (1..n) saisie au moment de planifier ;
     # départage les tours à même heure de départ. NULL = non prioritaire (en dernier).

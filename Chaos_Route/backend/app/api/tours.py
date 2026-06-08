@@ -19,7 +19,7 @@ from app.models.distance_matrix import DistanceMatrix
 from app.models.km_tax import KmTax
 from app.models.parameter import Parameter
 from app.models.pdv import PDV
-from app.models.tour import Tour, TourStatus
+from app.models.tour import Tour, TourStatus, TourType, PICKUP_TYPES
 from app.models.tour_stop import TourStop
 from app.models.tour_surcharge import TourSurcharge, SurchargeStatus
 from app.models.volume import Volume
@@ -1253,6 +1253,13 @@ async def create_tour(
 
     total_cost = data.total_cost or 0
 
+    # Nature du tour : is_pickup_tour est dérivé de tour_type (source unique).
+    # Compat : un ancien payload pickup (is_pickup_tour=True sans tour_type) -> ENLEVEMENT.
+    tour_type = data.tour_type or TourType.LIVRAISON
+    if data.is_pickup_tour and tour_type == TourType.LIVRAISON:
+        tour_type = TourType.ENLEVEMENT
+    is_pickup = tour_type in PICKUP_TYPES
+
     tour = Tour(
         date=data.date,
         code=data.code,
@@ -1268,7 +1275,9 @@ async def create_tour(
         status=data.status,
         base_id=data.base_id,
         temperature_type=data.temperature_type,
-        is_pickup_tour=data.is_pickup_tour,
+        is_pickup_tour=is_pickup,
+        tour_type=tour_type,
+        destination=data.destination,
     )
     db.add(tour)
     await db.flush()

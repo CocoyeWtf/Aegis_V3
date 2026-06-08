@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { QRCodeSVG } from 'qrcode.react'
 import api from '../services/api'
 import type { Tour, BaseLogistics, Contract, PDV, Volume, ManifestLine, ManifestImportResult, MobileDevice, VehicleSummary, TemperatureClass } from '../types'
-import { TEMPERATURE_COLORS } from '../types'
+import { TEMPERATURE_COLORS, TOUR_TYPE_LABELS } from '../types'
 import { TourWaybill } from '../components/tour/TourWaybill'
 import { DriverRouteSheet } from '../components/tour/DriverRouteSheet'
 import { TourGantt } from '../components/operations/TourGantt'
@@ -848,6 +848,11 @@ function TourRow({
       <span className="flex items-center gap-1">
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{isExpanded ? '▾' : '▸'}</span>
         <span style={{ color: 'var(--color-primary)', fontSize: 11, fontWeight: 400 }}>{tour.code}</span>
+        {tour.tour_type && tour.tour_type !== 'LIVRAISON' && (
+          <span className="text-[9px] px-1 py-0.5 rounded font-bold" style={{ backgroundColor: '#6366f122', color: '#6366f1' }} title={tour.destination ?? ''}>
+            {TOUR_TYPE_LABELS[tour.tour_type]}
+          </span>
+        )}
         {tour.device_assignment_id ? (
           (tour.status === 'DRAFT' || tour.status === 'VALIDATED') ? (
             <button

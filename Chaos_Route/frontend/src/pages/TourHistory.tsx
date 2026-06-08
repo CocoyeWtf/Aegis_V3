@@ -6,6 +6,7 @@ import { useApi } from '../hooks/useApi'
 import { useAppStore } from '../stores/useAppStore'
 import { remove } from '../services/api'
 import type { Tour, BaseLogistics, Contract } from '../types'
+import { TOUR_TYPE_LABELS } from '../types'
 import type { Column } from '../components/data/DataTable'
 import { DataTable } from '../components/data/DataTable'
 import { CostBreakdown } from '../components/tour/CostBreakdown'
@@ -50,6 +51,13 @@ export default function TourHistory() {
 
   const columns: Column<Tour>[] = [
     { key: 'code', label: t('common.code'), width: '120px', filterable: true },
+    {
+      key: 'tour_type' as keyof Tour,
+      label: 'Nature',
+      width: '110px', filterable: true,
+      render: (row) => (row.tour_type && row.tour_type !== 'LIVRAISON' ? TOUR_TYPE_LABELS[row.tour_type] : 'Livraison'),
+      filterValue: (row) => (row.tour_type && row.tour_type !== 'LIVRAISON' ? TOUR_TYPE_LABELS[row.tour_type] : 'Livraison'),
+    },
     { key: 'date', label: t('common.date'), width: '110px', filterable: true, render: (row) => formatDate(row.date) },
     {
       key: 'base_id',

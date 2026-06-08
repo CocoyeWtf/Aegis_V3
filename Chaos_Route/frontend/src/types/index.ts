@@ -177,6 +177,9 @@ export interface TourStop {
   temperature_class?: TemperatureClass
 }
 
+// Nature de tournée / Tour nature (LIVRAISON = livraison classique)
+export type TourType = 'LIVRAISON' | 'ENLEVEMENT' | 'VIDANGES' | 'DEPLACEMENT_BASE' | 'GARAGE'
+
 export interface Tour {
   id: number
   date: string
@@ -196,6 +199,8 @@ export interface Tour {
   delivery_date?: string | null
   temperature_type?: TemperatureType
   is_pickup_tour?: boolean
+  tour_type?: TourType
+  destination?: string | null
   bypass_support_rules?: boolean
   priority?: number | null  // Priorité manuelle d'ordonnancement (1..n)
   stops: TourStop[]
@@ -340,6 +345,14 @@ export interface WaybillData {
 }
 
 /* Capacité par défaut selon le type de véhicule (en EQC) / Default capacity per vehicle type (in EQC) */
+/* Libellés courts des natures de tour (LIVRAISON non affiché) / Tour nature short labels */
+export const TOUR_TYPE_LABELS: Record<Exclude<TourType, 'LIVRAISON'>, string> = {
+  ENLEVEMENT: 'Enlèvement',
+  VIDANGES: 'Vidanges',
+  DEPLACEMENT_BASE: 'Déplacement',
+  GARAGE: 'Garage',
+}
+
 export const VEHICLE_TYPE_DEFAULTS: Record<VehicleType, { label: string; capacity_eqp: number }> = {
   SEMI: { label: 'Semi-remorque', capacity_eqp: 54 },
   PORTEUR: { label: 'Porteur', capacity_eqp: 33 },

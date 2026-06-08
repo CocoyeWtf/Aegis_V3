@@ -3,7 +3,7 @@
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.models.contract import VehicleType
-from app.models.tour import TourStatus
+from app.models.tour import TourStatus, TourType
 
 
 class TourStopBase(BaseModel):
@@ -65,6 +65,8 @@ class TourBase(BaseModel):
     delivery_date: str | None = None
     temperature_type: str | None = None
     is_pickup_tour: bool = False
+    tour_type: TourType = TourType.LIVRAISON  # nature (livraison par défaut)
+    destination: str | None = None            # destination libre (garage, base cible…)
     bypass_support_rules: bool = False
     priority: int | None = None  # Priorité manuelle d'ordonnancement (1..n)
     driver_name: str | None = None
@@ -114,6 +116,8 @@ class TourUpdate(BaseModel):
     delivery_date: str | None = None
     temperature_type: str | None = None
     is_pickup_tour: bool | None = None
+    tour_type: TourType | None = None
+    destination: str | None = None
     bypass_support_rules: bool | None = None
     priority: int | None = None
     driver_name: str | None = None

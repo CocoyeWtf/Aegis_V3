@@ -43,9 +43,14 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     totalEqp,
   } = useTour()
 
-  /* Mode livraison ou reprise vide / Delivery or pickup-only mode */
-  type TourMode = 'delivery' | 'pickup'
+  /* Mode : livraison, reprise (PDV) ou mouvement véhicule (sans arrêt) /
+     Delivery, pickup (PDV stops) or vehicle movement (stopless) */
+  type TourMode = 'delivery' | 'pickup' | 'movement'
   const [tourMode, setTourMode] = useState<TourMode>('delivery')
+  // Nature en mode reprise (Enlèvement/Vidanges) et mouvement (Déplacement/Garage)
+  const [pickupNature, setPickupNature] = useState<'ENLEVEMENT' | 'VIDANGES'>('ENLEVEMENT')
+  const [movementNature, setMovementNature] = useState<'DEPLACEMENT_BASE' | 'GARAGE'>('DEPLACEMENT_BASE')
+  const [movementDestination, setMovementDestination] = useState('')
   const [manualBaseId, setManualBaseId] = useState<number | null>(null)
   const [bypassSupportRules, setBypassSupportRules] = useState(false)
 
@@ -646,6 +651,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         total_eqp: totalEqp,
         total_km: totalKm,
         is_pickup_tour: tourMode === 'pickup',
+        tour_type: tourMode === 'pickup' ? pickupNature : 'LIVRAISON',
         bypass_support_rules: bypassSupportRules,
         temperature_type: tourMode === 'pickup' ? undefined : (selectedTemperatureType ?? undefined),
         stops: currentStops.map((s, i) => ({
@@ -671,12 +677,44 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     }
   }
 
+  /* Créer un tour mouvement (déplacement base / garage) sans arrêt PDV /
+     Create a stopless movement tour (base move / garage) */
+  const handleCreateMovement = async () => {
+    if (!selectedVehicleType || !manualBaseId) return
+    setSaving(true)
+    try {
+      await create<Tour>('/tours', {
+        date: selectedDate,
+        code: `M-${Date.now()}`,
+        vehicle_type: selectedVehicleType,
+        base_id: manualBaseId,
+        status: 'DRAFT',
+        total_eqp: 0,
+        total_km: 0,
+        is_pickup_tour: false,
+        tour_type: movementNature,
+        destination: movementDestination || null,
+        stops: [] as TourStop[],
+      })
+      setSelectedVehicleType(null)
+      setCapacityEqp(0)
+      setMovementDestination('')
+      refetchVolumes()
+    } catch (e: unknown) {
+      console.error('Failed to create movement tour', e)
+      alert(`Echec de la création du mouvement: ${getApiErrorMessage(e)}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleReset = () => {
     resetTour()
     setSelectedVehicleType(null)
     setCapacityEqp(0)
     setSelectedTemperatureType(null)
     setManualBaseId(null)
+    setMovementDestination('')
   }
 
   /* Bandeau véhicule inline / Inline vehicle banner — shown after first stop, before vehicle selection */
@@ -755,8 +793,103 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
             >
               Reprise vide
             </button>
+            <button
+              className="px-3 py-2 text-xs font-semibold transition-all"
+              style={{
+                backgroundColor: tourMode === 'movement' ? '#6366f1' : 'var(--bg-primary)',
+                color: tourMode === 'movement' ? '#fff' : 'var(--text-muted)',
+              }}
+              onClick={() => { if (tourMode !== 'movement') { handleReset(); setTourMode('movement') } }}
+            >
+              Mouvement
+            </button>
           </div>
         </div>
+
+        {/* Nature en mode reprise (Enlèvement / Vidanges) */}
+        {tourMode === 'pickup' && (
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Nature</label>
+            <select
+              value={pickupNature}
+              onChange={(e) => setPickupNature(e.target.value as 'ENLEVEMENT' | 'VIDANGES')}
+              className="rounded-lg border px-3 py-2 text-sm"
+              style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+            >
+              <option value="ENLEVEMENT">Enlèvement</option>
+              <option value="VIDANGES">Vidanges</option>
+            </select>
+          </div>
+        )}
+
+        {/* Formulaire mouvement véhicule (sans arrêt PDV) / Vehicle movement form (stopless) */}
+        {tourMode === 'movement' && (
+          <>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Nature</label>
+              <select
+                value={movementNature}
+                onChange={(e) => setMovementNature(e.target.value as 'DEPLACEMENT_BASE' | 'GARAGE')}
+                className="rounded-lg border px-3 py-2 text-sm"
+                style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+              >
+                <option value="DEPLACEMENT_BASE">Déplacement base</option>
+                <option value="GARAGE">Garage / atelier</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Base</label>
+              <select
+                value={manualBaseId ?? ''}
+                onChange={(e) => setManualBaseId(e.target.value ? Number(e.target.value) : null)}
+                className="rounded-lg border px-3 py-2 text-sm"
+                style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+              >
+                <option value="">-- Base --</option>
+                {bases.map((b) => (
+                  <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{t('tourPlanning.vehicleType')}</label>
+              <select
+                value={selectedVehicleType ?? ''}
+                onChange={(e) => {
+                  const vt = (e.target.value || null) as VehicleType | null
+                  setSelectedVehicleType(vt)
+                  setCapacityEqp(vt ? VEHICLE_TYPE_DEFAULTS[vt].capacity_eqp : 0)
+                }}
+                className="rounded-lg border px-3 py-2 text-sm"
+                style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+              >
+                <option value="">-- Type --</option>
+                {(Object.keys(VEHICLE_TYPE_DEFAULTS) as VehicleType[]).map((vt) => (
+                  <option key={vt} value={vt}>{VEHICLE_TYPE_DEFAULTS[vt].label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Destination</label>
+              <input
+                type="text"
+                value={movementDestination}
+                onChange={(e) => setMovementDestination(e.target.value)}
+                placeholder="Garage X, base Y…"
+                className="rounded-lg border px-3 py-2 text-sm w-[200px]"
+                style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+              />
+            </div>
+            <button
+              className="px-3 py-2 rounded-lg text-xs font-semibold text-white transition-all disabled:opacity-40 self-end"
+              style={{ backgroundColor: '#6366f1' }}
+              disabled={!selectedVehicleType || !manualBaseId || saving}
+              onClick={handleCreateMovement}
+            >
+              {saving ? '...' : 'Créer le mouvement'}
+            </button>
+          </>
+        )}
 
         {/* Selecteur base en mode pickup / Base selector in pickup mode */}
         {tourMode === 'pickup' && (
