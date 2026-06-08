@@ -65,7 +65,9 @@ class TourBase(BaseModel):
     delivery_date: str | None = None
     temperature_type: str | None = None
     is_pickup_tour: bool = False
-    tour_type: TourType = TourType.LIVRAISON  # nature (livraison par défaut)
+    # Optionnel pour tolérer une éventuelle ligne non rétro-remplie (lecture) ;
+    # défaut LIVRAISON à la création. Le front traite null comme LIVRAISON.
+    tour_type: TourType | None = TourType.LIVRAISON
     destination: str | None = None            # destination libre (garage, base cible…)
     bypass_support_rules: bool = False
     priority: int | None = None  # Priorité manuelle d'ordonnancement (1..n)

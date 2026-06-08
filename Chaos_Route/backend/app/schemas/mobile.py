@@ -198,7 +198,7 @@ class DriverTourRead(BaseModel):
     delivery_date: str | None = None
     departure_time: str | None = None
     return_time: str | None = None
-    total_eqp: int | None = None
+    total_eqp: float | None = None  # EQP fractionnaire (volumes injectés)
     status: str
     base_code: str | None = None
     base_name: str | None = None
@@ -217,7 +217,7 @@ class AvailableTourRead(BaseModel):
     code: str
     delivery_date: str | None = None
     departure_time: str | None = None
-    total_eqp: int | None = None
+    total_eqp: float | None = None  # EQP fractionnaire (volumes injectés)
     stops_count: int = 0
     driver_name: str | None = None
     vehicle_code: str | None = None
