@@ -60,6 +60,7 @@ RESOURCES = [
     "bottle-sorting",
     "base-drivers",
     "tour-stop-modify",
+    "tour-unschedule",  # Retirer la planification d'un tour (transport, pas le postier)
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

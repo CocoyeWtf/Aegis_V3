@@ -4,6 +4,7 @@ import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } fr
 import { useTranslation } from 'react-i18next'
 import { useApi } from '../../hooks/useApi'
 import { useAppStore } from '../../stores/useAppStore'
+import { useAuthStore } from '../../stores/useAuthStore'
 import { TourGantt, type GanttTour } from './TourGantt'
 import { TourPrintPlan } from './TourPrintPlan'
 import { formatDuration, parseTime, formatTime, formatDate, DEFAULT_DOCK_TIME, DEFAULT_UNLOAD_PER_EQP } from '../../utils/tourTimeUtils'
@@ -81,6 +82,9 @@ interface TourSchedulerProps {
 export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: TourSchedulerProps) {
   const { t } = useTranslation()
   const { selectedRegionId, theme } = useAppStore()
+  // Déplanifier ("Retirer") réservé au transport via permission dédiée /
+  // Unscheduling ("Retirer") restricted to transport via dedicated permission
+  const canUnschedule = useAuthStore((s) => s.hasPermission('tour-unschedule', 'update'))
 
   const regionParams = selectedRegionId ? { region_id: selectedRegionId } : undefined
   const { data: bases } = useApi<BaseLogistics>('/bases', regionParams)
@@ -1709,14 +1713,16 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                               {scheduling === tour.id ? '...' : 'Defaire'}
                             </button>
                           )}
-                          <button
-                            className="px-2 py-0.5 rounded text-[11px] border transition-all hover:opacity-80"
-                            style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
-                            disabled={scheduling === tour.id}
-                            onClick={(e) => { e.stopPropagation(); handleUnschedule(tour.id) }}
-                          >
-                            {scheduling === tour.id ? '...' : 'Retirer'}
-                          </button>
+                          {canUnschedule && (
+                            <button
+                              className="px-2 py-0.5 rounded text-[11px] border transition-all hover:opacity-80"
+                              style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
+                              disabled={scheduling === tour.id}
+                              onClick={(e) => { e.stopPropagation(); handleUnschedule(tour.id) }}
+                            >
+                              {scheduling === tour.id ? '...' : 'Retirer'}
+                            </button>
+                          )}
                           <button
                             className="px-2 py-0.5 rounded text-[11px] font-semibold border transition-all hover:opacity-80"
                             style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)', backgroundColor: 'rgba(239,68,68,0.1)' }}

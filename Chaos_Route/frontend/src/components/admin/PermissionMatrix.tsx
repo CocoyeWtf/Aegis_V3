@@ -43,6 +43,7 @@ const RESOURCE_GROUPS: ResourceGroup[] = [
       { resource: 'contracts', label: 'Contrats' },
       { resource: 'volumes', label: 'Volumes' },
       { resource: 'tour-planning', label: 'Planning tournees' },
+      { resource: 'tour-unschedule', label: 'Retirer planification (deplanifier)' },
       { resource: 'tour-history', label: 'Historique / Synthese transport' },
       { resource: 'aide-decision', label: 'Aide a la decision' },
       { resource: 'surcharges', label: 'Surcharges' },

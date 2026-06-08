@@ -1639,9 +1639,13 @@ async def schedule_tour(
 async def unschedule_tour(
     tour_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("tour-planning", "update")),
+    user: User = Depends(require_permission("tour-unschedule", "update")),
 ):
-    """Retirer la planification d'un tour / Remove tour scheduling."""
+    """Retirer la planification d'un tour / Remove tour scheduling.
+
+    Permission dédiée `tour-unschedule` (distincte de tour-planning:update) :
+    le transport peut retirer un tour au postier, le Poste de Garde non.
+    """
     result = await db.execute(
         select(Tour).where(Tour.id == tour_id).options(selectinload(Tour.stops))
     )
