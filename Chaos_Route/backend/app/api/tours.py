@@ -2334,8 +2334,8 @@ async def _recalc_tour_after_stop_change(db: AsyncSession, tour: Tour) -> dict:
     warnings: list[str] = []
 
     # Mettre à jour total_eqp / Update total_eqp
-    # Cast Decimal -> float -> int car total_eqp est integer en DB
-    tour.total_eqp = int(round(sum(float(s.eqp_count) for s in tour.stops)))
+    # EQP fractionnaire (volumes injectés) : on garde 2 décimales, total_eqp est numeric en DB
+    tour.total_eqp = round(sum(float(s.eqp_count) for s in tour.stops), 2)
 
     if not tour.departure_time:
         await db.flush()
