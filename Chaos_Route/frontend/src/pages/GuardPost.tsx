@@ -76,7 +76,8 @@ export default function GuardPost() {
       ])
       setVolumes(volRes.data)
       const data = toursRes.data
-      setTours(data.filter((t) => t.departure_time).sort((a, b) =>
+      // Postier : uniquement les tours validés (les planifiés non validés restent au transport)
+      setTours(data.filter((t) => t.departure_time && t.status !== 'DRAFT').sort((a, b) =>
         (parseTime(a.departure_time!) - parseTime(b.departure_time!)) || ((a.priority ?? Infinity) - (b.priority ?? Infinity))
       ))
       const now = new Date()

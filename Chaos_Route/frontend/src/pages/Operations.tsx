@@ -235,7 +235,8 @@ export default function Operations() {
       ])
       const data = toursRes.data
       setVolumes(volRes.data)
-      const scheduled = data.filter((t) => t.departure_time)
+      // Postier : ne montrer que les tours validés (planifiés non validés = en attente au transport)
+      const scheduled = data.filter((t) => t.departure_time && t.status !== 'DRAFT')
       setTours(scheduled)
       setForms((prev) => {
         const next: typeof prev = {}

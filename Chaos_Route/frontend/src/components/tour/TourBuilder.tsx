@@ -222,8 +222,13 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   const tourTemperatures = useMemo(() => {
     const temps = new Set<TemperatureClass>()
     for (const stop of currentStops) {
-      const vol = volumes.find((v) => v.pdv_id === stop.pdv_id) || allVolumes.find((v) => v.pdv_id === stop.pdv_id)
-      if (vol) temps.add(vol.temperature_class)
+      // Utiliser la classe portée par le stop (volume réellement ajouté), pas un
+      // volume arbitraire du PDV — sinon un PDV multi-classes faussait la température
+      // (ex : tour FRAIS affiché BI_TEMP). Fallback lookup pour stops legacy sans classe.
+      const cls = stop.temperature_class
+        ?? volumes.find((v) => v.pdv_id === stop.pdv_id)?.temperature_class
+        ?? allVolumes.find((v) => v.pdv_id === stop.pdv_id)?.temperature_class
+      if (cls) temps.add(cls)
     }
     return temps
   }, [currentStops, volumes, allVolumes])
