@@ -76,7 +76,9 @@ export default function GuardPost() {
       ])
       setVolumes(volRes.data)
       const data = toursRes.data
-      setTours(data.filter((t) => t.departure_time).sort((a, b) => parseTime(a.departure_time!) - parseTime(b.departure_time!)))
+      setTours(data.filter((t) => t.departure_time).sort((a, b) =>
+        (parseTime(a.departure_time!) - parseTime(b.departure_time!)) || ((a.priority ?? Infinity) - (b.priority ?? Infinity))
+      ))
       const now = new Date()
       setLastRefresh(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`)
     } catch (e) {
@@ -383,6 +385,9 @@ export default function GuardPost() {
                           <span>{t('tourPlanning.deliveryDate')}: <strong style={{ color: 'var(--text-primary)' }}>{formatDate(tour.delivery_date)}</strong></span>
                         )}
                         <span>{t('tourPlanning.departureTime')}: <strong style={{ color: 'var(--text-primary)' }}>{tour.departure_time}</strong></span>
+                        {tour.priority != null && (
+                          <span>{t('tourPlanning.priority')}: <strong style={{ color: 'var(--color-primary)' }}>{tour.priority}</strong></span>
+                        )}
                       </div>
                       {/* Affichage km / Km display */}
                       {(tour.km_departure != null || tour.km_return != null) && (

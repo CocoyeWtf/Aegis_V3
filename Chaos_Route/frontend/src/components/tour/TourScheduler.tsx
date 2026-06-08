@@ -111,8 +111,9 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
     vehicleId: number | null
     tractorId: number | null
     driverName: string
+    priority: number | null
   }
-  const EMPTY_INPUT: ScheduleInput = { time: '', deliveryDate: '', mode: 'preste', contractId: null, vehicleId: null, tractorId: null, driverName: '' }
+  const EMPTY_INPUT: ScheduleInput = { time: '', deliveryDate: '', mode: 'preste', contractId: null, vehicleId: null, tractorId: null, driverName: '', priority: null }
 
   const [tours, setTours] = useState<Tour[]>([])
   const [timeline, setTimeline] = useState<GanttTour[]>([])
@@ -341,8 +342,12 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
   /* Liste unique triée: planifiés d'abord par heure départ, puis non-planifiés /
      Unified sorted list: scheduled first by departure time, then unscheduled */
   const sortedTours = useMemo(() => {
-    const byDeparture = (a: Tour, b: Tour) =>
-      (a.departure_time ? parseTime(a.departure_time) : Infinity) - (b.departure_time ? parseTime(b.departure_time) : Infinity)
+    // Tri par heure de départ, puis par priorité manuelle (1 d'abord, NULL en dernier)
+    const byDeparture = (a: Tour, b: Tour) => {
+      const dep = (a.departure_time ? parseTime(a.departure_time) : Infinity) - (b.departure_time ? parseTime(b.departure_time) : Infinity)
+      if (dep !== 0) return dep
+      return (a.priority ?? Infinity) - (b.priority ?? Infinity)
+    }
 
     if (driverSort) {
       /* Grouper par véhicule/chauffeur, trier alpha, tours par départ à l'intérieur */
@@ -363,8 +368,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
       return result
     }
 
-    const scheduled = filteredTours.filter(t => t.departure_time)
-      .sort((a, b) => parseTime(a.departure_time!) - parseTime(b.departure_time!))
+    const scheduled = filteredTours.filter(t => t.departure_time).sort(byDeparture)
     const unscheduled = filteredTours.filter(t => !t.departure_time)
       .sort((a, b) => a.id - b.id)
     return [...scheduled, ...unscheduled]
@@ -512,6 +516,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
         departure_time: input.time,
         delivery_date: input.deliveryDate || null,
         driver_name: input.driverName || null,
+        priority: input.priority ?? null,
       }, { params: force ? { force: true } : undefined })
       await loadData()
     } catch (e: unknown) {
@@ -660,7 +665,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
 
   const updateInput = (
     tourId: number,
-    field: 'time' | 'contractId' | 'deliveryDate' | 'mode' | 'vehicleId' | 'tractorId' | 'driverName',
+    field: 'time' | 'contractId' | 'deliveryDate' | 'mode' | 'vehicleId' | 'tractorId' | 'driverName' | 'priority',
     value: string | number | null
   ) => {
     setScheduleInputs((prev) => {
@@ -1605,6 +1610,20 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                             style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                           />
 
+                          {/* Priorité manuelle (départage les départs à même heure) */}
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            placeholder="Prio"
+                            title="Priorité (1 = le plus prioritaire)"
+                            value={input.priority ?? ''}
+                            onChange={(e) => updateInput(tour.id, 'priority', e.target.value ? Number(e.target.value) : null)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="rounded border px-1.5 py-1 text-[11px] w-[56px] shrink-0"
+                            style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                          />
+
                           {/* Bouton planifier */}
                           <button
                             className="px-2 py-1 rounded text-[11px] font-semibold transition-all disabled:opacity-40 shrink-0"
@@ -1648,6 +1667,11 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                               {tourContract.code}
                             </span>
                           )}
+                          {tour.priority != null && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" title="Priorité" style={{ backgroundColor: 'rgba(249,115,22,0.12)', color: 'var(--color-primary)' }}>
+                              P{tour.priority}
+                            </span>
+                          )}
                           <span className="text-[11px] font-mono" style={{ color: 'var(--text-primary)' }}>
                             {tour.departure_time} → {tour.return_time}
                           </span>
@@ -1668,6 +1692,11 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>
                               {vehicleMap.get(tour.vehicle_id)?.license_plate ?? vehicleMap.get(tour.vehicle_id)?.code ?? `V#${tour.vehicle_id}`}
                               {tour.tractor_id && ` + ${vehicleMap.get(tour.tractor_id)?.license_plate ?? vehicleMap.get(tour.tractor_id)?.code ?? `T#${tour.tractor_id}`}`}
+                            </span>
+                          )}
+                          {tour.priority != null && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" title="Priorité" style={{ backgroundColor: 'rgba(249,115,22,0.12)', color: 'var(--color-primary)' }}>
+                              P{tour.priority}
                             </span>
                           )}
                           <span className="text-[11px] font-mono" style={{ color: 'var(--text-primary)' }}>

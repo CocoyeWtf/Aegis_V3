@@ -66,6 +66,7 @@ class TourBase(BaseModel):
     temperature_type: str | None = None
     is_pickup_tour: bool = False
     bypass_support_rules: bool = False
+    priority: int | None = None  # Priorité manuelle d'ordonnancement (1..n)
     driver_name: str | None = None
     driver_arrival_time: str | None = None
     loading_end_time: str | None = None
@@ -114,6 +115,7 @@ class TourUpdate(BaseModel):
     temperature_type: str | None = None
     is_pickup_tour: bool | None = None
     bypass_support_rules: bool | None = None
+    priority: int | None = None
     driver_name: str | None = None
     driver_arrival_time: str | None = None
     loading_end_time: str | None = None
@@ -180,6 +182,7 @@ class TourSchedule(BaseModel):
     departure_time: str                     # HH:MM
     delivery_date: str | None = None        # YYYY-MM-DD
     driver_name: str | None = None          # propre : chauffeur base
+    priority: int | None = None             # priorité manuelle d'ordonnancement (1..n)
 
     @model_validator(mode="after")
     def check_assignment(self) -> "TourSchedule":

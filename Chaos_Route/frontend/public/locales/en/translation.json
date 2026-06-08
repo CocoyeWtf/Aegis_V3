@@ -427,7 +427,8 @@
       "noDepartureTime": "No departure time set.",
       "lateReturn": "Return to base after {{time}} (limit: {{limit}}).",
       "warningLateReturn": "Late return to base expected at {{time}}."
-    }
+    },
+    "priority": "Priority"
   },
   "tourHistory": {
     "title": "Tour history",

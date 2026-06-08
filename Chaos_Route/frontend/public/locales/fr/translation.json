@@ -441,7 +441,8 @@
       "noDepartureTime": "Aucune heure de départ définie.",
       "lateReturn": "Retour base après {{time}} (limite: {{limit}}).",
       "warningLateReturn": "Retour base tardif prévu à {{time}}."
-    }
+    },
+    "priority": "Priorité"
   },
   "tourHistory": {
     "title": "Historique des tours",

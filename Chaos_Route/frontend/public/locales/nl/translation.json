@@ -427,7 +427,8 @@
       "noDepartureTime": "Geen vertrektijd ingesteld.",
       "lateReturn": "Terugkeer naar basis na {{time}} (limiet: {{limit}}).",
       "warningLateReturn": "Late terugkeer naar basis verwacht om {{time}}."
-    }
+    },
+    "priority": "Prioriteit"
   },
   "tourHistory": {
     "title": "Routegeschiedenis",

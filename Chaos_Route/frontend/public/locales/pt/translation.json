@@ -427,7 +427,8 @@
       "noDepartureTime": "Nenhuma hora de partida definida.",
       "lateReturn": "Retorno à base após {{time}} (limite: {{limit}}).",
       "warningLateReturn": "Retorno tardio à base previsto às {{time}}."
-    }
+    },
+    "priority": "Prioridade"
   },
   "tourHistory": {
     "title": "Histórico de rotas",

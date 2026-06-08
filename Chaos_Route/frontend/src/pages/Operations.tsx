@@ -52,6 +52,7 @@ const ALL_COLUMNS: OpsCol[] = [
   { key: 'vehicle', label: 'operations.vehicle', defaultWidth: 130 },
   { key: 'driver', label: 'operations.driverName', defaultWidth: 110 },
   { key: 'departure', label: 'operations.dep', defaultWidth: 60, align: 'center' },
+  { key: 'priority', label: 'tourPlanning.priority', defaultWidth: 50, align: 'center' },
   { key: 'stops', label: 'tourPlanning.stops', defaultWidth: 55, align: 'center' },
   { key: 'eqc', label: 'EQC', defaultWidth: 55, align: 'center' },
   { key: 'delay', label: 'operations.delay', defaultWidth: 75, align: 'center' },
@@ -281,7 +282,9 @@ export default function Operations() {
 
   /* Calcul retards / Delay computation */
   const toursWithDelay: TourWithDelay[] = useMemo(
-    () => tours.map(computeTourDelay).sort((a, b) => parseTime(a.departure_time || '99:99') - parseTime(b.departure_time || '99:99')),
+    () => tours.map(computeTourDelay).sort((a, b) =>
+      (parseTime(a.departure_time || '99:99') - parseTime(b.departure_time || '99:99'))
+      || ((a.priority ?? Infinity) - (b.priority ?? Infinity))),
     [tours],
   )
 
@@ -862,6 +865,7 @@ function TourRow({
     vehicle: <span className="truncate" title={vehicleLabel}>{vehicleLabel}</span>,
     driver: <span className="truncate">{tour.driver_name || '—'}</span>,
     departure: <span className="font-mono text-xs">{tour.departure_time}</span>,
+    priority: <span className="font-semibold" style={{ color: tour.priority != null ? 'var(--color-primary)' : 'var(--text-muted)' }}>{tour.priority ?? '—'}</span>,
     stops: <>{tour.stops.length}</>,
     eqc: <>{eqc}</>,
     delay: <DelayBadge delay={tour.delay_minutes} color={color} t={t} />,

@@ -116,6 +116,12 @@ export default function TourHistory() {
       render: (row) => row.departure_time ?? '—',
     },
     {
+      key: 'priority' as keyof Tour,
+      label: t('tourPlanning.priority'),
+      width: '70px',
+      render: (row) => row.priority ?? '—',
+    },
+    {
       key: 'return_time',
       label: t('tourHistory.return'),
       width: '90px',

@@ -197,6 +197,7 @@ export interface Tour {
   temperature_type?: TemperatureType
   is_pickup_tour?: boolean
   bypass_support_rules?: boolean
+  priority?: number | null  // Priorité manuelle d'ordonnancement (1..n)
   stops: TourStop[]
   driver_name?: string
   driver_arrival_time?: string

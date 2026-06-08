@@ -27,3 +27,14 @@ def test_total_eqp_accepts_fractional():
 def test_total_eqp_accepts_integer():
     tour = TourCreate(**_payload(45))
     assert tour.total_eqp == 45
+
+
+def test_priority_field():
+    """Priorité manuelle d'ordonnancement portée par les schémas Tour."""
+    from app.schemas.tour import TourSchedule
+
+    sched = TourSchedule(contract_id=1, departure_time="10:00", priority=3)
+    assert sched.priority == 3
+    # Optionnelle : absente -> None
+    assert TourSchedule(contract_id=1, departure_time="10:00").priority is None
+    assert TourCreate(**_payload(10)).priority is None

@@ -1595,6 +1595,8 @@ async def schedule_tour(
     tour.return_time = return_time
     if data.delivery_date:
         tour.delivery_date = data.delivery_date
+    # Priorité manuelle d'ordonnancement (départage les départs à même heure)
+    tour.priority = data.priority
     tour.total_km = total_km
     tour.total_duration_minutes = total_duration
 
