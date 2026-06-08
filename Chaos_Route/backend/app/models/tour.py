@@ -37,7 +37,7 @@ class Tour(Base):
     return_time: Mapped[str | None] = mapped_column(String(5))  # HH:MM
     total_km: Mapped[float | None] = mapped_column(Numeric(10, 2))
     total_duration_minutes: Mapped[int | None] = mapped_column(Integer)
-    total_eqp: Mapped[int | None] = mapped_column(Integer)
+    total_eqp: Mapped[float | None] = mapped_column(Numeric(10, 2))  # EQP fractionnaire (somme eqp_count)
     total_cost: Mapped[float | None] = mapped_column(Numeric(12, 2))
     total_weight_kg: Mapped[float | None] = mapped_column(Numeric(10, 2))
     # Poids total du tour (saisi par le postier) / Total tour weight (entered by dispatcher)

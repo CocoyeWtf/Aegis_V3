@@ -236,6 +236,7 @@ async def _migrate_column_types():
     targets = [
         ("volumes", "eqp_count", "numeric(10,2)"),
         ("tour_stops", "eqp_count", "numeric(10,2)"),
+        ("tours", "total_eqp", "numeric(10,2)"),  # EQP fractionnaire (volumes injectes)
     ]
 
     async with engine.begin() as conn:

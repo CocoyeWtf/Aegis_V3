@@ -57,7 +57,7 @@ class TourBase(BaseModel):
     return_time: str | None = None
     total_km: float | None = None
     total_duration_minutes: int | None = None
-    total_eqp: int | None = None
+    total_eqp: float | None = None  # EQP fractionnaire (somme d'eqp_count numeric)
     total_cost: float | None = None
     total_weight_kg: float | None = None
     status: TourStatus = TourStatus.DRAFT
@@ -105,7 +105,7 @@ class TourUpdate(BaseModel):
     return_time: str | None = None
     total_km: float | None = None
     total_duration_minutes: int | None = None
-    total_eqp: int | None = None
+    total_eqp: float | None = None  # EQP fractionnaire (somme d'eqp_count numeric)
     total_cost: float | None = None
     total_weight_kg: float | None = None
     status: TourStatus | None = None

@@ -20,6 +20,7 @@ import type { VehicleType, TemperatureType, TemperatureClass, Volume, PDV, BaseL
 import type { PdvVolumeStatus } from '../map/PdvMarker'
 import { VEHICLE_TYPE_DEFAULTS, TEMPERATURE_TYPE_LABELS } from '../../types'
 import { getRequiredTemperatureType, checkTemperatureCompatibility } from '../../utils/temperatureUtils'
+import { getApiErrorMessage } from '../../utils/apiError'
 
 interface TourBuilderProps {
   selectedDate: string
@@ -664,9 +665,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
       refetchVolumes()
     } catch (e: unknown) {
       console.error('Failed to save tour', e)
-      const err = e as { response?: { data?: { detail?: string }; status?: number }; message?: string }
-      const detail = err?.response?.data?.detail || err?.message || 'Erreur inconnue'
-      alert(`Echec de la sauvegarde du brouillon: ${detail}`)
+      alert(`Echec de la sauvegarde du brouillon: ${getApiErrorMessage(e)}`)
     } finally {
       setSaving(false)
     }
