@@ -6,6 +6,7 @@ from sqlalchemy import Boolean, Enum, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.fuel_price import FuelType  # noqa: F401 (réexporté pour les schémas)
 
 
 class TemperatureType(str, enum.Enum):
@@ -46,6 +47,12 @@ class Contract(Base):
     vacation: Mapped[float | None] = mapped_column(Numeric(10, 2))
     cost_per_km: Mapped[float | None] = mapped_column(Numeric(10, 4))
     cost_per_hour: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    # Type de carburant (obligatoire à la saisie ; nullable en base pour migration
+    # sûre, rétro-rempli GASOIL au démarrage). Détermine quel prix carburant utiliser.
+    # Pour le gaz, consumption_coefficient s'exprime en kg/km (sinon L/km).
+    fuel_type: Mapped[FuelType | None] = mapped_column(
+        Enum(FuelType), nullable=True, default=FuelType.GASOIL
+    )
     min_hours_per_day: Mapped[float | None] = mapped_column(Numeric(5, 2))
     min_km_per_day: Mapped[float | None] = mapped_column(Numeric(8, 2))
     consumption_coefficient: Mapped[float | None] = mapped_column(Numeric(6, 4))

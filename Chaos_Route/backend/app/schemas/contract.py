@@ -3,6 +3,7 @@
 from pydantic import BaseModel, ConfigDict
 
 from app.models.contract import TailgateType, TemperatureType, VehicleType
+from app.models.fuel_price import FuelType
 from app.schemas.carrier import CarrierRead
 
 
@@ -24,9 +25,12 @@ class ContractBase(BaseModel):
     vacation: float | None = None
     cost_per_km: float | None = None
     cost_per_hour: float | None = None
+    # Type de carburant : optionnel ici (Read tolère les anciens contrats),
+    # rendu obligatoire dans ContractCreate.
+    fuel_type: FuelType | None = None
     min_hours_per_day: float | None = None
     min_km_per_day: float | None = None
-    consumption_coefficient: float | None = None
+    consumption_coefficient: float | None = None  # L/km (gasoil) ou kg/km (gaz)
     start_date: str | None = None
     end_date: str | None = None
     region_id: int
@@ -46,6 +50,7 @@ class ContractBase(BaseModel):
 
 
 class ContractCreate(ContractBase):
+    fuel_type: FuelType  # obligatoire à la création (gasoil ou gaz)
     schedules: list[ContractScheduleBase] = []
 
 
@@ -56,6 +61,7 @@ class ContractUpdate(BaseModel):
     vacation: float | None = None
     cost_per_km: float | None = None
     cost_per_hour: float | None = None
+    fuel_type: FuelType | None = None
     min_hours_per_day: float | None = None
     min_km_per_day: float | None = None
     consumption_coefficient: float | None = None

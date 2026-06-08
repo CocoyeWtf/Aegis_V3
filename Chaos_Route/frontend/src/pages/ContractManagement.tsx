@@ -121,6 +121,15 @@ export default function ContractManagement() {
     // Fourniture transporteur / Carrier provides
     { key: 'provides_tractor', label: 'Transporteur fournit le tracteur', type: 'checkbox', helperText: 'Coche si le transporteur amene son tracteur (presté ou traction).' },
     { key: 'provides_trailer', label: 'Transporteur fournit la remorque', type: 'checkbox', helperText: 'Coche si le transporteur amene sa remorque (presté). En traction nous fournissons la remorque.' },
+    // Carburant (obligatoire) / Fuel type (required)
+    {
+      key: 'fuel_type', label: t('contracts.fuelType'), type: 'select', required: true,
+      options: [
+        { value: 'GASOIL', label: t('fuelPrices.tabGasoil') },
+        { value: 'GAZ', label: t('fuelPrices.tabGaz') },
+      ],
+      helperText: 'Detemine le prix carburant applique (gasoil €/L ou gaz €/kg).',
+    },
     // Couts
     { key: 'fixed_daily_cost', label: t('contracts.fixedDailyCost'), type: 'number', step: 0.01 },
     { key: 'vacation', label: t('contracts.vacation'), type: 'number', step: 0.01 },

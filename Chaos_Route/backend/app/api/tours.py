@@ -16,7 +16,6 @@ from app.database import get_db
 from app.models.audit import AuditLog
 from app.models.contract import Contract
 from app.models.distance_matrix import DistanceMatrix
-from app.models.fuel_price import FuelPrice
 from app.models.km_tax import KmTax
 from app.models.parameter import Parameter
 from app.models.pdv import PDV
@@ -31,6 +30,7 @@ from app.models.vehicle import Vehicle, FleetVehicleType, VehicleStatus
 from app.models.tour_manifest_line import TourManifestLine
 from app.schemas.tour import ManifestLineRead, TourCreate, TourGateUpdate, TourOperationsUpdate, TourRead, TourSchedule, TourStopInsert, TourUpdate
 from app.api.deps import require_permission, get_user_region_ids
+from app.utils.fuel_pricing import load_fuel_unit_prices, price_for_contract, contract_fuel_type
 
 router = APIRouter()
 
@@ -221,17 +221,13 @@ async def _calculate_cost(
     cost += round(float(contract.fixed_daily_cost or 0) / nb_tours, 2)
     cost += round(float(contract.vacation or 0) / nb_tours, 2)
 
-    # 2. km * prix gasoil * coefficient consommation
-    fuel = await db.scalar(
-        select(FuelPrice.price_per_liter)
-        .where(FuelPrice.start_date <= tour_date, FuelPrice.end_date >= tour_date)
-        .order_by(FuelPrice.start_date.desc())
-        .limit(1)
-    )
-    if not fuel:
-        warnings.append(f"Aucun prix gasoil trouvé pour la date {tour_date}")
-        logger.warning("No fuel price found for date %s", tour_date)
-    fuel_price = float(fuel) if fuel else 0.0
+    # 2. km * prix carburant (selon type du contrat) * coefficient consommation
+    fuel_prices = await load_fuel_unit_prices(db, tour_date)
+    fuel_price = price_for_contract(fuel_prices, contract)
+    if not fuel_price:
+        ft = contract_fuel_type(contract).lower()
+        warnings.append(f"Aucun prix {ft} trouvé pour la date {tour_date}")
+        logger.warning("No %s fuel price found for date %s", ft, tour_date)
     consumption = float(contract.consumption_coefficient or 0)
     cost += round(total_km * fuel_price * consumption, 2)
 
@@ -832,21 +828,15 @@ async def transporter_summary(
         )
         nb_tours_map[(cid, d)] = count or 1
 
-    # Pré-charger prix carburant par date unique / Pre-load fuel price per unique date
+    # Pré-charger prix carburant par date unique (par type) / Pre-load fuel prices per date (by type)
     unique_dates = list({t.date for t in tours})
-    fuel_map: dict[str, float] = {}
+    fuel_map: dict[str, dict[str, float]] = {}
     missing_fuel_dates: list[str] = []
     for d in unique_dates:
-        fuel = await db.scalar(
-            select(FuelPrice.price_per_liter)
-            .where(FuelPrice.start_date <= d, FuelPrice.end_date >= d)
-            .order_by(FuelPrice.start_date.desc())
-            .limit(1)
-        )
-        if not fuel:
+        fuel_map[d] = await load_fuel_unit_prices(db, d)
+        if not fuel_map[d]:
             missing_fuel_dates.append(d)
             logger.warning("No fuel price found for date %s in transporter summary", d)
-        fuel_map[d] = float(fuel) if fuel else 0.0
 
     # 4. Construire les données par tour / Build per-tour data
     default_dock = int(await _get_param(db, "default_dock_time_minutes", str(DEFAULT_DOCK_TIME_MINUTES)))
@@ -863,7 +853,7 @@ async def transporter_summary(
         fixed_share = round(float(contract.fixed_daily_cost or 0) / nb_tours, 2)
         vacation_share = round(float(contract.vacation or 0) / nb_tours, 2)
 
-        fuel_price = fuel_map.get(tour.date, 0.0)
+        fuel_price = price_for_contract(fuel_map.get(tour.date, {}), contract)
         consumption = float(contract.consumption_coefficient or 0)
         fuel_cost = round(total_km * fuel_price * consumption, 2)
 
@@ -1069,7 +1059,7 @@ async def transporter_summary(
             },
         })
 
-    warnings = [f"Aucun prix gasoil trouvé pour la date {d}" for d in sorted(missing_fuel_dates)]
+    warnings = [f"Aucun prix carburant trouvé pour la date {d}" for d in sorted(missing_fuel_dates)]
     return {
         "period": {"date_from": date_from, "date_to": date_to},
         "transporters": transporters_result,
@@ -2120,17 +2110,14 @@ async def get_tour_cost_breakdown(
     vacation_daily = float(contract.vacation or 0)
     vacation_share = round(vacation_daily / nb_tours, 2)
 
-    # 2. Coût carburant / Fuel cost
+    # 2. Coût carburant (selon type du contrat) / Fuel cost (by contract fuel type)
     breakdown_warnings: list[str] = []
-    fuel = await db.scalar(
-        select(FuelPrice.price_per_liter)
-        .where(FuelPrice.start_date <= tour.date, FuelPrice.end_date >= tour.date)
-        .order_by(FuelPrice.start_date.desc())
-        .limit(1)
-    )
-    if not fuel:
-        breakdown_warnings.append(f"Aucun prix gasoil trouvé pour la date {tour.date}")
-    fuel_price = float(fuel) if fuel else 0.0
+    fuel_prices = await load_fuel_unit_prices(db, tour.date)
+    fuel_price = price_for_contract(fuel_prices, contract)
+    if not fuel_price:
+        breakdown_warnings.append(
+            f"Aucun prix {contract_fuel_type(contract).lower()} trouvé pour la date {tour.date}"
+        )
     consumption = float(contract.consumption_coefficient or 0)
     fuel_cost = round(total_km * fuel_price * consumption, 2)
 

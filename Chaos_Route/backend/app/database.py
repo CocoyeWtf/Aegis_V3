@@ -3,7 +3,7 @@ Connexion a la base de donnees / Database connection.
 Supporte SQLite (dev) et PostgreSQL (prod) via SQLAlchemy 2.0 async.
 """
 
-from sqlalchemy import text
+from sqlalchemy import Enum as SAEnum, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -56,6 +56,9 @@ async def init_db():
     # Ajouter les colonnes manquantes sur tables existantes /
     # Add missing columns on existing tables
     await _migrate_enum_values()
+    # Créer les types ENUM PG manquants AVANT d'ajouter les colonnes qui les utilisent /
+    # Create missing PG ENUM types BEFORE adding columns that reference them
+    await _migrate_create_enum_types()
     await _migrate_missing_columns()
     # Aligner les types de colonnes critiques sur les modèles /
     # Align critical column types with models
@@ -66,6 +69,8 @@ async def init_db():
     # Ajouter les contraintes FK manquantes (PG uniquement) /
     # Add missing FK constraints (PG only)
     await _migrate_missing_foreign_keys()
+    # Retro-remplir le type de carburant (GASOIL par defaut) / Backfill fuel_type
+    await _backfill_fuel_type()
     # Generer les QR/badge codes manquants / Backfill missing QR/badge codes
     await _backfill_qr_codes()
     # Marquer le support combi (code CO) si pas encore fait /
@@ -169,6 +174,44 @@ async def _migrate_enum_values():
                         f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS '{val}'"
                     ))
                     print(f"[migrate] Added enum value {enum_name}.{val}")
+
+
+async def _migrate_create_enum_types():
+    """Creer les types ENUM PostgreSQL manquants / Create missing PG ENUM types.
+
+    create_all ne cree pas le type PG pour une colonne enum ajoutee a une table
+    deja existante. On cree donc explicitement chaque type enum reference par les
+    modeles (idempotent via checkfirst). PG uniquement (SQLite n'a pas de type enum).
+    """
+    if _is_sqlite:
+        return
+    seen: set[str] = set()
+    async with engine.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            for col in table.columns:
+                t = col.type
+                if isinstance(t, SAEnum) and t.name and t.name not in seen:
+                    seen.add(t.name)
+                    try:
+                        await conn.run_sync(lambda sc, tt=t: tt.create(sc, checkfirst=True))
+                    except Exception as e:
+                        print(f"[migrate] WARN: failed to create enum type {t.name}: {e}")
+
+
+async def _backfill_fuel_type():
+    """Retro-remplir fuel_type=GASOIL sur les lignes existantes (NULL) /
+    Backfill fuel_type=GASOIL on existing rows (legacy contracts/fuel prices).
+    """
+    async with engine.begin() as conn:
+        for table in ("contracts", "fuel_prices"):
+            try:
+                result = await conn.execute(text(
+                    f"UPDATE {table} SET fuel_type = 'GASOIL' WHERE fuel_type IS NULL"
+                ))
+                if result.rowcount:
+                    print(f"[backfill] {table}: {result.rowcount} lignes -> fuel_type=GASOIL")
+            except Exception as e:
+                print(f"[backfill] WARN fuel_type {table}: {e}")
 
 
 async def _migrate_missing_columns():

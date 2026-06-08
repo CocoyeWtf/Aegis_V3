@@ -37,9 +37,39 @@ async def test_create_contract_minimal(client, test_region):
         "start_date": None,
         "end_date": None,
         "transporter_name": "Test Transporteur",
+        "fuel_type": "GASOIL",
     }
     resp = await client.post("/api/contracts/", json=payload)
     assert resp.status_code == 201, f"{resp.status_code}: {resp.text}"
+    assert resp.json()["fuel_type"] == "GASOIL"
+
+
+@pytest.mark.asyncio
+async def test_create_contract_gaz(client, test_region):
+    """Création d'un contrat camion au gaz."""
+    payload = {
+        "code": f"G{uuid.uuid4().hex[:6].upper()}",
+        "region_id": test_region.id,
+        "transporter_name": "Transporteur Gaz",
+        "has_tailgate": False,
+        "fuel_type": "GAZ",
+    }
+    resp = await client.post("/api/contracts/", json=payload)
+    assert resp.status_code == 201, f"{resp.status_code}: {resp.text}"
+    assert resp.json()["fuel_type"] == "GAZ"
+
+
+@pytest.mark.asyncio
+async def test_create_contract_fuel_type_required(client, test_region):
+    """fuel_type est obligatoire à la création (422 si absent)."""
+    payload = {
+        "code": f"N{uuid.uuid4().hex[:6].upper()}",
+        "region_id": test_region.id,
+        "transporter_name": "Sans carburant",
+        "has_tailgate": False,
+    }
+    resp = await client.post("/api/contracts/", json=payload)
+    assert resp.status_code == 422, f"attendu 422, recu {resp.status_code}: {resp.text}"
 
 
 @pytest.mark.asyncio
@@ -47,7 +77,7 @@ async def test_create_contract_two_empty_vehicle_code(client, test_region):
     """Deux contrats sans vehicle_code (null) ne doivent pas violer l'unicite."""
     base = {
         "carrier_id": None, "vehicle_code": None, "region_id": test_region.id,
-        "transporter_name": "T", "has_tailgate": False,
+        "transporter_name": "T", "has_tailgate": False, "fuel_type": "GASOIL",
     }
     r1 = await client.post("/api/contracts/", json={**base, "code": f"A{uuid.uuid4().hex[:6].upper()}"})
     r2 = await client.post("/api/contracts/", json={**base, "code": f"B{uuid.uuid4().hex[:6].upper()}"})

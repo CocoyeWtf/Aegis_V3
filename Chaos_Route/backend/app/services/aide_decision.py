@@ -16,7 +16,6 @@ from app.models.base_logistics import BaseLogistics
 from app.models.contract import Contract, TemperatureType, TailgateType
 from app.models.contract_schedule import ContractSchedule
 from app.models.distance_matrix import DistanceMatrix
-from app.models.fuel_price import FuelPrice
 from app.models.km_tax import KmTax
 from app.models.pdv import PDV
 from app.models.tour import Tour
@@ -30,6 +29,7 @@ from app.schemas.aide_decision import (
     SuggestedTour,
     UnassignedPDV,
 )
+from app.utils.fuel_pricing import load_fuel_unit_prices, price_for_contract
 
 log = logging.getLogger(__name__)
 
@@ -125,10 +125,10 @@ class AideDecisionService:
             warnings.append("Aucun contrat disponible — capacité par défaut (54 EQP)")
 
         # --- 4b. Charger prix gasoil + cache taxe km / Load fuel price + km tax cache ---
-        fuel_price = await self._load_fuel_price(request.dispatch_date)
-        if fuel_price == 0.0:
+        fuel_prices = await self._load_fuel_prices(request.dispatch_date)
+        if not fuel_prices:
             warnings.append(
-                f"Aucun prix gasoil pour le {request.dispatch_date} — coût carburant à 0"
+                f"Aucun prix carburant pour le {request.dispatch_date} — coût carburant à 0"
             )
         km_tax_cache = await self._load_km_tax_cache(base.id, pdv_ids)
 
@@ -136,13 +136,13 @@ class AideDecisionService:
         if request.level == 2:
             tours, unassigned, level_warnings = self._build_tours_level2(
                 request, base, pdv_agg, pdv_ids, pdvs, dist_cache, dur_cache,
-                contracts, fuel_price, km_tax_cache,
+                contracts, fuel_prices, km_tax_cache,
             )
             warnings.extend(level_warnings)
         else:
             tours, unassigned, level_warnings = self._build_tours_level1(
                 request, base, pdv_agg, pdv_ids, pdvs, dist_cache, dur_cache,
-                contracts, fuel_price, km_tax_cache,
+                contracts, fuel_prices, km_tax_cache,
             )
             warnings.extend(level_warnings)
 
@@ -193,7 +193,7 @@ class AideDecisionService:
         dist_cache: dict,
         dur_cache: dict,
         contracts: list[Contract],
-        fuel_price: float,
+        fuel_prices: dict[str, float],
         km_tax_cache: dict[tuple, float],
     ) -> tuple[list[SuggestedTour], list[UnassignedPDV], list[str]]:
         """Construire les tours par nearest-neighbor / Build tours by nearest-neighbor."""
@@ -274,7 +274,7 @@ class AideDecisionService:
                 tour_number, sequenced, base, pdvs, pdv_agg,
                 dist_cache, dur_cache, contracts, request,
                 contract_tour_count, contract_duration, max_capacity,
-                fuel_price, km_tax_cache,
+                fuel_prices, km_tax_cache,
             )
             tours.append(tour)
 
@@ -294,7 +294,7 @@ class AideDecisionService:
         dist_cache: dict,
         dur_cache: dict,
         contracts: list[Contract],
-        fuel_price: float,
+        fuel_prices: dict[str, float],
         km_tax_cache: dict[tuple, float],
     ) -> tuple[list[SuggestedTour], list[UnassignedPDV], list[str]]:
         """Construire les tours par OR-Tools CVRPTW / Build tours with OR-Tools CVRPTW."""
@@ -312,7 +312,7 @@ class AideDecisionService:
             )
             return self._build_tours_level1(
                 request, base, pdv_agg, pdv_ids, pdvs,
-                dist_cache, dur_cache, contracts, fuel_price, km_tax_cache
+                dist_cache, dur_cache, contracts, fuel_prices, km_tax_cache
             )
 
         # ── Calculer les multiplicateurs d'optimisation / Compute optimization multipliers ──
@@ -426,9 +426,9 @@ class AideDecisionService:
                 if fixed_cents < 10000:
                     fixed_cents = 10000
 
-                # Coût km = fuel_price * consumption_coefficient (formule alignée)
+                # Coût km = prix carburant (selon type contrat) * consumption_coefficient
                 consumption = float(c.consumption_coefficient or 0)
-                km_cents = int(fuel_price * consumption * 100)
+                km_cents = int(price_for_contract(fuel_prices, c) * consumption * 100)
                 # Fallback sur cost_per_km si fuel ou conso manquant
                 if km_cents == 0:
                     km_cents = int(float(c.cost_per_km or 0) * 100)
@@ -505,7 +505,7 @@ class AideDecisionService:
             )
             return self._build_tours_level1(
                 request, base, pdv_agg, pdv_ids, pdvs,
-                dist_cache, dur_cache, contracts, fuel_price, km_tax_cache
+                dist_cache, dur_cache, contracts, fuel_prices, km_tax_cache
             )
         log.info(
             "OR-Tools L2: %d tours trouvés, %d PDVs droppés",
@@ -519,7 +519,7 @@ class AideDecisionService:
             )
             return self._build_tours_level1(
                 request, base, pdv_agg, pdv_ids, pdvs,
-                dist_cache, dur_cache, contracts, fuel_price, km_tax_cache
+                dist_cache, dur_cache, contracts, fuel_prices, km_tax_cache
             )
 
         # ── Convertir les tours bruts en SuggestedTour ──
@@ -640,7 +640,7 @@ class AideDecisionService:
                 fixed = float(c.fixed_daily_cost or 0) / nb_tours_for_contract
                 vacation = float(c.vacation or 0) / nb_tours_for_contract
                 consumption = float(c.consumption_coefficient or 0)
-                km_rate = fuel_price * consumption
+                km_rate = price_for_contract(fuel_prices, c) * consumption
                 # Fallback sur cost_per_km si fuel ou conso manquant
                 if km_rate == 0:
                     km_rate = float(c.cost_per_km or 0)
@@ -848,7 +848,7 @@ class AideDecisionService:
         contract_tour_count: dict[int, int],
         contract_duration: dict[int, int],
         max_capacity: int,
-        fuel_price: float,
+        fuel_prices: dict[str, float],
         km_tax_cache: dict[tuple, float],
     ) -> SuggestedTour:
         """Construire un tour complet à partir d'une séquence PDV / Build a complete tour from a PDV sequence."""
@@ -949,7 +949,7 @@ class AideDecisionService:
 
         total_cost = self._compute_cost(
             selected_contract, total_tour_km, contract_tour_count,
-            fuel_price, km_tax_cache, base.id, sequenced,
+            fuel_prices, km_tax_cache, base.id, sequenced,
         )
 
         sc = None
@@ -1149,18 +1149,10 @@ class AideDecisionService:
 
         return valid
 
-    async def _load_fuel_price(self, dispatch_date: str) -> float:
-        """Charger le prix gasoil pour la date / Load fuel price for the date."""
-        fuel = await self.db.scalar(
-            select(FuelPrice.price_per_liter)
-            .where(
-                FuelPrice.start_date <= dispatch_date,
-                FuelPrice.end_date >= dispatch_date,
-            )
-            .order_by(FuelPrice.start_date.desc())
-            .limit(1)
-        )
-        return float(fuel) if fuel else 0.0
+    async def _load_fuel_prices(self, dispatch_date: str) -> dict[str, float]:
+        """Charger les prix carburant (par type) pour la date /
+        Load fuel prices (by type) for the date."""
+        return await load_fuel_unit_prices(self.db, dispatch_date)
 
     async def _load_km_tax_cache(
         self, base_id: int, pdv_ids: list[int]
@@ -1384,7 +1376,7 @@ class AideDecisionService:
     def _compute_cost(
         self, selected_contract: dict | None, total_km: float,
         contract_tour_count: dict[int, int],
-        fuel_price: float, km_tax_cache: dict[tuple, float],
+        fuel_prices: dict[str, float], km_tax_cache: dict[tuple, float],
         base_id: int, sequenced_pdv_ids: list[int],
     ) -> float:
         """Calculer le coût estimé — formule alignée sur historique/synthèse.
@@ -1398,7 +1390,7 @@ class AideDecisionService:
         fixed = float(c.fixed_daily_cost or 0) / nb_tours
         vacation = float(c.vacation or 0) / nb_tours
         consumption = float(c.consumption_coefficient or 0)
-        km_rate = fuel_price * consumption
+        km_rate = price_for_contract(fuel_prices, c) * consumption
         # Fallback sur cost_per_km si fuel ou conso manquant
         if km_rate == 0:
             km_rate = float(c.cost_per_km or 0)

@@ -58,7 +58,7 @@
     "distances": "Distancier",
     "baseActivities": "Activités base",
     "parameters": "Paramètres",
-    "fuelPrices": "Prix gasoil",
+    "fuelPrices": "Prix carburant",
     "kmTax": "Taxe km",
     "tourPlanning": "Planification",
     "auditLog": "Historique actions",
@@ -273,16 +273,20 @@
     "sun": "Dim",
     "available": "Disponible",
     "unavailable": "Indisponible",
-    "consumptionCoefficient": "Coeff. consommation"
+    "consumptionCoefficient": "Coeff. consommation",
+    "fuelType": "Carburant"
   },
   "fuelPrices": {
-    "title": "Prix du gasoil",
+    "title": "Prix carburant",
     "startDate": "Date début",
     "endDate": "Date fin",
     "pricePerLiter": "Prix/litre (€)",
     "new": "Nouveau prix",
     "edit": "Modifier le prix",
-    "delete": "Supprimer le prix"
+    "delete": "Supprimer le prix",
+    "pricePerKg": "Prix/kg (€)",
+    "tabGasoil": "Gasoil",
+    "tabGaz": "Gaz"
   },
   "kmTax": {
     "title": "Taxe au kilomètre",
@@ -345,7 +349,7 @@
     "selectVehicleType": "Choisir un type de véhicule",
     "selectVehicle": "Sélectionner un véhicule",
     "assignContract": "Assigner un contrat",
-    "selectContract": "Choisir un contrat...",
+    "selectContract": "Sélectionner un contrat",
     "available": "disponible(s)",
     "noVehicles": "Aucun véhicule disponible dans cette région.",
     "validateTour": "Valider le tour",
@@ -368,7 +372,6 @@
     "noToursToday": "Aucun tour planifié pour cette journée.",
     "contract": "Contrat transporteur",
     "noContract": "Sans contrat (coûts véhicule)",
-    "selectContract": "Sélectionner un contrat",
     "contractCost": "Coût contrat",
     "vehicleCost": "Coût véhicule",
     "availableVehiclesCount": "{{count}} véhicule(s) disponible(s)",

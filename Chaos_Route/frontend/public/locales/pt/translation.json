@@ -261,16 +261,20 @@
     "sun": "Dom",
     "available": "Disponível",
     "unavailable": "Indisponível",
-    "consumptionCoefficient": "Coef. consumo"
+    "consumptionCoefficient": "Coef. consumo",
+    "fuelType": "Combustível"
   },
   "fuelPrices": {
-    "title": "Preços do combustível",
+    "title": "Preços combustível",
     "startDate": "Data início",
     "endDate": "Data fim",
     "pricePerLiter": "Preço/litro (€)",
     "new": "Novo preço",
     "edit": "Editar preço",
-    "delete": "Eliminar preço"
+    "delete": "Eliminar preço",
+    "pricePerKg": "Preço/kg (€)",
+    "tabGasoil": "Diesel",
+    "tabGaz": "Gás"
   },
   "kmTax": {
     "title": "Taxa ao quilómetro",
@@ -333,7 +337,7 @@
     "selectVehicleType": "Escolher um tipo de veículo",
     "selectVehicle": "Selecionar veículo",
     "assignContract": "Atribuir um contrato",
-    "selectContract": "Escolher um contrato...",
+    "selectContract": "Selecionar contrato",
     "available": "disponível(is)",
     "noVehicles": "Nenhum veículo disponível nesta região.",
     "validateTour": "Validar rota",
@@ -356,7 +360,6 @@
     "noToursToday": "Nenhuma rota planeada para este dia.",
     "contract": "Contrato de transporte",
     "noContract": "Sem contrato (custos do veículo)",
-    "selectContract": "Selecionar contrato",
     "contractCost": "Custo do contrato",
     "vehicleCost": "Custo do veículo",
     "availableVehiclesCount": "{{count}} veículo(s) disponível(is)",

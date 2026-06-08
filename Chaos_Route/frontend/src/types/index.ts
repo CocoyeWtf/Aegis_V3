@@ -371,11 +371,14 @@ export interface ContractSchedule {
   is_available: boolean
 }
 
+export type FuelType = 'GASOIL' | 'GAZ'
+
 export interface FuelPrice {
   id: number
+  fuel_type: FuelType
   start_date: string
   end_date: string
-  price_per_liter: number
+  price_per_liter: number  // €/L (gasoil) ou €/kg (gaz)
 }
 
 export interface KmTaxEntry {
@@ -397,6 +400,7 @@ export interface Contract {
   vacation?: number
   cost_per_km?: number
   cost_per_hour?: number
+  fuel_type?: FuelType
   min_hours_per_day?: number
   min_km_per_day?: number
   consumption_coefficient?: number

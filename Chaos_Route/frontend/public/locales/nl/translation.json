@@ -261,7 +261,8 @@
     "sun": "Zo",
     "available": "Beschikbaar",
     "unavailable": "Niet beschikbaar",
-    "consumptionCoefficient": "Verbruikscoëfficiënt"
+    "consumptionCoefficient": "Verbruikscoëfficiënt",
+    "fuelType": "Brandstof"
   },
   "fuelPrices": {
     "title": "Brandstofprijzen",
@@ -270,7 +271,10 @@
     "pricePerLiter": "Prijs/liter (€)",
     "new": "Nieuwe prijs",
     "edit": "Prijs bewerken",
-    "delete": "Prijs verwijderen"
+    "delete": "Prijs verwijderen",
+    "pricePerKg": "Prijs/kg (€)",
+    "tabGasoil": "Diesel",
+    "tabGaz": "Gas"
   },
   "kmTax": {
     "title": "Km-belasting",
@@ -333,7 +337,7 @@
     "selectVehicleType": "Kies een voertuigtype",
     "selectVehicle": "Selecteer een voertuig",
     "assignContract": "Contract toewijzen",
-    "selectContract": "Kies een contract...",
+    "selectContract": "Selecteer een contract",
     "available": "beschikbaar",
     "noVehicles": "Geen voertuigen beschikbaar in deze regio.",
     "validateTour": "Route valideren",
@@ -356,7 +360,6 @@
     "noToursToday": "Geen routes gepland voor vandaag.",
     "contract": "Transportcontract",
     "noContract": "Zonder contract (voertuigkosten)",
-    "selectContract": "Selecteer een contract",
     "contractCost": "Contractkosten",
     "vehicleCost": "Voertuigkosten",
     "availableVehiclesCount": "{{count}} voertuig(en) beschikbaar",

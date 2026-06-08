@@ -261,7 +261,8 @@
     "sun": "Sun",
     "available": "Available",
     "unavailable": "Unavailable",
-    "consumptionCoefficient": "Consumption coeff."
+    "consumptionCoefficient": "Consumption coeff.",
+    "fuelType": "Fuel"
   },
   "fuelPrices": {
     "title": "Fuel prices",
@@ -270,7 +271,10 @@
     "pricePerLiter": "Price/liter (€)",
     "new": "New price",
     "edit": "Edit price",
-    "delete": "Delete price"
+    "delete": "Delete price",
+    "pricePerKg": "Price/kg (€)",
+    "tabGasoil": "Diesel",
+    "tabGaz": "Gas"
   },
   "kmTax": {
     "title": "Km tax",
@@ -333,7 +337,7 @@
     "selectVehicleType": "Choose a vehicle type",
     "selectVehicle": "Select a vehicle",
     "assignContract": "Assign a contract",
-    "selectContract": "Choose a contract...",
+    "selectContract": "Select a contract",
     "available": "available",
     "noVehicles": "No vehicles available in this region.",
     "validateTour": "Validate tour",
@@ -356,7 +360,6 @@
     "noToursToday": "No tours planned for this day.",
     "contract": "Transport contract",
     "noContract": "No contract (vehicle costs)",
-    "selectContract": "Select a contract",
     "contractCost": "Contract cost",
     "vehicleCost": "Vehicle cost",
     "availableVehiclesCount": "{{count}} vehicle(s) available",
