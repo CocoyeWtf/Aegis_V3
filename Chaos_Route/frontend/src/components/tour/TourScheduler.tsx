@@ -140,6 +140,8 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
   const [contractFilters, setContractFilters] = useState<Set<number>>(new Set())
   /* Afficher tours validés (masqués par défaut) / Show validated tours (hidden by default) */
   const [showValidated, setShowValidated] = useState(false)
+  /* Filtrer sur les tours à planifier (sans heure de départ) / Show only to-be-planned tours */
+  const [onlyToPlan, setOnlyToPlan] = useState(false)
   /* Détachement Gantt et liste / Gantt and list detachment */
   const [ganttDetached, setGanttDetached] = useState(false)
   const [listDetached, setListDetached] = useState(false)
@@ -340,6 +342,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
   const filteredTours = useMemo(() => {
     let result = tours
     if (!showValidated) result = result.filter(t => t.status !== 'VALIDATED')
+    if (onlyToPlan) result = result.filter(t => !t.departure_time)
     if (activityFilter !== 'ALL') result = result.filter(t => t.temperature_type === activityFilter)
     if (driverFilter !== 'ALL') result = result.filter(t => tourVehicleMap.get(t.id) === driverFilter)
     if (vehicleTypeFilters.size > 0) {
@@ -355,7 +358,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
       result = result.filter(t => t.contract_id != null && contractFilters.has(t.contract_id))
     }
     return result
-  }, [tours, showValidated, activityFilter, driverFilter, tourVehicleMap, vehicleTypeFilters, modeFilters, contractFilters])
+  }, [tours, showValidated, onlyToPlan, activityFilter, driverFilter, tourVehicleMap, vehicleTypeFilters, modeFilters, contractFilters])
 
   /* Liste unique triée: planifiés d'abord par heure départ, puis non-planifiés /
      Unified sorted list: scheduled first by departure time, then unscheduled */
@@ -516,6 +519,17 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
     }
     return conflicts
   }, [timeline])
+
+  /* Mettre à jour la priorité d'un tour planifié (après planification, avant validation) /
+     Update priority of a planned tour (after scheduling, before validation) */
+  const handlePriorityUpdate = async (tourId: number, value: number | null) => {
+    try {
+      await api.put(`/tours/${tourId}`, { priority: value })
+      await loadData()
+    } catch {
+      alert('Échec de la mise à jour de la priorité')
+    }
+  }
 
   /* Planifier un tour / Schedule a tour */
   const handleSchedule = async (tourId: number, force = false) => {
@@ -1025,33 +1039,43 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
             <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
               Chauffeur
             </label>
-            <div className="flex items-center gap-1">
-              <select
-                className="px-2 py-2 text-xs rounded-lg border"
-                style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
-                value={driverFilter}
-                onChange={(e) => setDriverFilter(e.target.value)}
-              >
-                <option value="ALL">Tous</option>
-                {driverNames.map((name) => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
-              <button
-                className="px-2 py-2 text-xs rounded-lg border"
-                style={{
-                  borderColor: driverSort ? 'var(--color-primary)' : 'var(--border-color)',
-                  backgroundColor: driverSort ? 'rgba(249,115,22,0.1)' : 'var(--bg-primary)',
-                  color: driverSort ? 'var(--color-primary)' : 'var(--text-muted)',
-                }}
-                title={driverSort === 'asc' ? 'Tri chauffeur A→Z' : driverSort === 'desc' ? 'Tri chauffeur Z→A' : 'Trier par chauffeur'}
-                onClick={() => setDriverSort(prev => prev === null ? 'asc' : prev === 'asc' ? 'desc' : null)}
-              >
-                {driverSort === 'asc' ? 'A↓' : driverSort === 'desc' ? 'Z↓' : 'A↕'}
-              </button>
-            </div>
+            <select
+              className="px-2 py-2 text-xs rounded-lg border"
+              style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+              value={driverFilter}
+              onChange={(e) => setDriverFilter(e.target.value)}
+            >
+              <option value="ALL">Tous</option>
+              {driverNames.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
           </div>
         )}
+
+        {/* Tri de la liste (explicite) / List sort (explicit) */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Trier par</label>
+          <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border-color)' }}>
+            {([
+              { key: null, label: 'Heure départ' },
+              { key: 'asc', label: 'Chauffeur A→Z' },
+              { key: 'desc', label: 'Chauffeur Z→A' },
+            ] as const).map(opt => (
+              <button
+                key={opt.label}
+                className="px-3 py-2 text-xs font-medium transition-all"
+                style={{
+                  backgroundColor: driverSort === opt.key ? 'var(--color-primary)' : 'var(--bg-primary)',
+                  color: driverSort === opt.key ? '#fff' : 'var(--text-secondary)',
+                }}
+                onClick={() => setDriverSort(opt.key)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Bouton Filtres avancés / Advanced filters button */}
         <div className="flex flex-col gap-1">
@@ -1202,21 +1226,35 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
               </div>
             )}
 
-            {/* Toggle afficher validés / Show validated toggle */}
+            {/* Toggles statut / Status toggles */}
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Statut</label>
-              <button
-                className="px-3 py-2 text-xs rounded-lg border transition-all"
-                style={{
-                  borderColor: showValidated ? 'var(--color-success)' : 'var(--border-color)',
-                  backgroundColor: showValidated ? 'rgba(34,197,94,0.1)' : 'var(--bg-primary)',
-                  color: showValidated ? 'var(--color-success)' : 'var(--text-secondary)',
-                }}
-                onClick={() => setShowValidated(prev => !prev)}
-                title="Affiche aussi les tours déjà validés"
-              >
-                {showValidated ? '☑ Validés affichés' : '☐ Validés masqués'}
-              </button>
+              <div className="flex gap-1">
+                <button
+                  className="px-3 py-2 text-xs rounded-lg border transition-all"
+                  style={{
+                    borderColor: showValidated ? 'var(--color-success)' : 'var(--border-color)',
+                    backgroundColor: showValidated ? 'rgba(34,197,94,0.1)' : 'var(--bg-primary)',
+                    color: showValidated ? 'var(--color-success)' : 'var(--text-secondary)',
+                  }}
+                  onClick={() => setShowValidated(prev => !prev)}
+                  title="Affiche aussi les tours déjà validés"
+                >
+                  {showValidated ? '☑ Validés affichés' : '☐ Validés masqués'}
+                </button>
+                <button
+                  className="px-3 py-2 text-xs rounded-lg border transition-all"
+                  style={{
+                    borderColor: onlyToPlan ? 'var(--color-primary)' : 'var(--border-color)',
+                    backgroundColor: onlyToPlan ? 'rgba(249,115,22,0.1)' : 'var(--bg-primary)',
+                    color: onlyToPlan ? 'var(--color-primary)' : 'var(--text-secondary)',
+                  }}
+                  onClick={() => setOnlyToPlan(prev => !prev)}
+                  title="N'affiche que les tours à planifier (sans heure de départ)"
+                >
+                  {onlyToPlan ? '☑ À planifier' : '☐ À planifier'}
+                </button>
+              </div>
             </div>
 
             {/* Colonnes liste / List columns */}
@@ -1273,7 +1311,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
             )}
 
             {/* Bouton réinit filtres / Reset filters button */}
-            {(vehicleTypeFilters.size + modeFilters.size + contractFilters.size > 0 || showValidated) && (
+            {(vehicleTypeFilters.size + modeFilters.size + contractFilters.size > 0 || showValidated || onlyToPlan) && (
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>&nbsp;</label>
                 <button
@@ -1284,6 +1322,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                     setModeFilters(new Set())
                     setContractFilters(new Set())
                     setShowValidated(false)
+                    setOnlyToPlan(false)
                   }}
                 >
                   Réinitialiser
@@ -1729,7 +1768,26 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                               {tour.tractor_id && ` + ${vehicleMap.get(tour.tractor_id)?.license_plate ?? vehicleMap.get(tour.tractor_id)?.code ?? `T#${tour.tractor_id}`}`}
                             </span>
                           )}
-                          {tour.priority != null && (
+                          {/* Priorité : éditable tant que planifié (DRAFT), lecture seule une fois validé /
+                              Priority: editable while planned (DRAFT), read-only once validated */}
+                          {tour.status === 'DRAFT' ? (
+                            <input
+                              type="number"
+                              min={1}
+                              step={1}
+                              placeholder="Prio"
+                              title="Priorité (1 = le plus prioritaire) — modifiable après planification, avant validation"
+                              defaultValue={tour.priority ?? ''}
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                              onBlur={(e) => {
+                                const v = e.target.value ? Number(e.target.value) : null
+                                if (v !== (tour.priority ?? null)) handlePriorityUpdate(tour.id, v)
+                              }}
+                              className="rounded border px-1.5 py-0.5 text-[11px] w-[52px] shrink-0"
+                              style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--color-primary)', color: 'var(--text-primary)' }}
+                            />
+                          ) : tour.priority != null && (
                             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" title="Priorité" style={{ backgroundColor: 'rgba(249,115,22,0.12)', color: 'var(--color-primary)' }}>
                               P{tour.priority}
                             </span>
