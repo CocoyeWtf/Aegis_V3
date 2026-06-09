@@ -1510,10 +1510,11 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                           </span>
                         )}
 
-                        {/* Badge vehicule */}
+                        {/* Badge véhicule (type) — largeur fixe pour alignement uniforme */}
                         <span
-                          className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
-                          style={{ backgroundColor: 'rgba(249,115,22,0.15)', color: 'var(--color-primary)' }}
+                          className="text-[10px] font-bold px-1 py-0.5 rounded shrink-0 truncate text-center"
+                          style={{ width: '104px', backgroundColor: 'rgba(249,115,22,0.15)', color: 'var(--color-primary)' }}
+                          title={`${getVehicleLabel(tour)}(${tour.capacity_eqp ?? 0})`}
                         >
                           {getVehicleLabel(tour)}({tour.capacity_eqp ?? 0})
                         </span>
@@ -1573,8 +1574,8 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                       </div>
                     </div>
 
-                    {/* === Ligne 2 — Actions inline (no wrap) / Line 2 — Inline actions (no wrap) === */}
-                    <div className="flex items-center gap-2 px-3 pb-1.5 overflow-hidden">
+                    {/* === Ligne 2 — Actions / Line 2 — Actions (wrap en dernier recours pour rester visible) === */}
+                    <div className="flex flex-wrap items-center gap-2 px-3 pb-1.5">
                       {(!isScheduled || editingTourId === tour.id) ? (
                         /* --- Non planifié OU en modification : sélecteurs + enregistrer --- */
                         <>
@@ -1798,28 +1799,28 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                       ) : (
                         /* --- Planifié DRAFT ou VALIDATED : carte alignée, colonnes fixes --- */
                         <>
-                          {/* Moyen : contrat (+ véhicule propre) — slot largeur fixe */}
-                          <div className="flex items-center gap-1 shrink-0 overflow-hidden" style={{ width: '120px' }}>
-                            {tourContract && (
-                              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded truncate" title={`${tourContract.code} — ${tourContract.transporter_name}`} style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--color-success)' }}>
+                          {/* Moyen : contrat OU véhicule propre — badge largeur fixe uniforme */}
+                          <div className="shrink-0" style={{ width: '92px' }}>
+                            {tourContract ? (
+                              <span className="block w-full text-center text-[11px] font-bold px-1 py-0.5 rounded truncate" title={`${tourContract.code} — ${tourContract.transporter_name}`} style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--color-success)' }}>
                                 {tourContract.code}
                               </span>
-                            )}
-                            {tour.vehicle_id && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded truncate" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>
+                            ) : tour.vehicle_id ? (
+                              <span className="block w-full text-center text-[10px] font-bold px-1 py-0.5 rounded truncate" title={`${vehicleMap.get(tour.vehicle_id)?.license_plate ?? ''}${tour.tractor_id ? ' + ' + (vehicleMap.get(tour.tractor_id)?.license_plate ?? '') : ''}`} style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>
                                 {vehicleMap.get(tour.vehicle_id)?.license_plate ?? vehicleMap.get(tour.vehicle_id)?.code ?? `V#${tour.vehicle_id}`}
-                                {tour.tractor_id && ` + ${vehicleMap.get(tour.tractor_id)?.license_plate ?? vehicleMap.get(tour.tractor_id)?.code ?? `T#${tour.tractor_id}`}`}
                               </span>
+                            ) : (
+                              <span className="block w-full text-center text-[11px]" style={{ color: 'var(--text-muted)' }}>—</span>
                             )}
                           </div>
 
                           {/* Chauffeur — slot largeur fixe */}
-                          <div className="text-[11px] truncate shrink-0" style={{ width: '78px', color: 'var(--text-secondary)' }} title={tour.driver_name ?? ''}>
+                          <div className="text-[11px] truncate shrink-0 text-center" style={{ width: '66px', color: 'var(--text-secondary)' }} title={tour.driver_name ?? ''}>
                             {tour.driver_name || '—'}
                           </div>
 
                           {/* Livraison (1er) */}
-                          <div className="text-center shrink-0" style={{ width: '62px' }}>
+                          <div className="text-center shrink-0" style={{ width: '56px' }}>
                             <div className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Livr.</div>
                             <div className="text-[11px]" style={{ color: 'var(--text-primary)' }}>{tour.delivery_date ? formatDate(tour.delivery_date) : '—'}</div>
                           </div>
@@ -1827,7 +1828,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                           {/* Horaire vertical : départ ↓ retour (2e) */}
                           <div
                             className="flex flex-col items-center leading-tight shrink-0"
-                            style={{ width: '50px' }}
+                            style={{ width: '46px' }}
                             title={tour.total_duration_minutes != null ? formatDuration(tour.total_duration_minutes) : undefined}
                           >
                             <span className="text-[11px] font-mono font-bold" style={{ color: 'var(--text-primary)' }}>{tour.departure_time ?? '—'}</span>
@@ -1836,7 +1837,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                           </div>
 
                           {/* Priorité (3e) — éditable DRAFT, badge sinon */}
-                          <div className="flex items-center justify-center shrink-0" style={{ width: '44px' }}>
+                          <div className="flex items-center justify-center shrink-0" style={{ width: '40px' }}>
                             {tour.status === 'DRAFT' ? (
                               <input
                                 type="number"
@@ -1862,7 +1863,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                           </div>
 
                           {/* Coût (4e) */}
-                          <div className="text-center shrink-0" style={{ width: '56px' }}>
+                          <div className="text-center shrink-0" style={{ width: '50px' }}>
                             <div className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Coût</div>
                             <div className="text-[11px]">
                               {tour.total_cost != null ? (
@@ -1878,11 +1879,11 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                             </div>
                           </div>
 
-                          {/* Bloc boutons empilés (droite) */}
-                          <div className="ml-auto flex flex-col gap-1 shrink-0" style={{ width: '86px' }}>
+                          {/* Bloc boutons 2 colonnes x 2 lignes (droite) */}
+                          <div className="ml-auto grid grid-cols-2 gap-1 shrink-0" style={{ width: '116px' }}>
                             {tour.status === 'DRAFT' && (
                               <button
-                                className="w-full px-2 py-0.5 rounded text-[11px] font-semibold border transition-all hover:opacity-80"
+                                className="w-full px-1 py-0.5 rounded text-[10px] font-semibold border transition-all hover:opacity-80"
                                 style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
                                 disabled={scheduling === tour.id}
                                 onClick={(e) => { e.stopPropagation(); startEditTour(tour) }}
@@ -1893,7 +1894,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                             )}
                             {tour.status === 'DRAFT' ? (
                               <button
-                                className="w-full px-2 py-0.5 rounded text-[11px] font-semibold border transition-all hover:opacity-80"
+                                className="w-full px-1 py-0.5 rounded text-[10px] font-semibold border transition-all hover:opacity-80"
                                 style={{ borderColor: 'var(--color-success)', color: 'var(--color-success)' }}
                                 disabled={scheduling === tour.id}
                                 onClick={(e) => { e.stopPropagation(); handleValidate(tour.id) }}
@@ -1902,7 +1903,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                               </button>
                             ) : (
                               <button
-                                className="w-full px-2 py-0.5 rounded text-[11px] border transition-all hover:opacity-80"
+                                className="w-full px-1 py-0.5 rounded text-[10px] border transition-all hover:opacity-80"
                                 style={{ borderColor: 'var(--color-warning)', color: 'var(--color-warning)' }}
                                 disabled={scheduling === tour.id}
                                 onClick={(e) => { e.stopPropagation(); handleRevertDraft(tour.id) }}
@@ -1912,7 +1913,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                             )}
                             {canUnschedule && (
                               <button
-                                className="w-full px-2 py-0.5 rounded text-[11px] border transition-all hover:opacity-80"
+                                className="w-full px-1 py-0.5 rounded text-[10px] border transition-all hover:opacity-80"
                                 style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
                                 disabled={scheduling === tour.id}
                                 onClick={(e) => { e.stopPropagation(); handleUnschedule(tour.id) }}
@@ -1921,7 +1922,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                               </button>
                             )}
                             <button
-                              className="w-full px-2 py-0.5 rounded text-[11px] font-semibold border transition-all hover:opacity-80"
+                              className="w-full px-1 py-0.5 rounded text-[10px] font-semibold border transition-all hover:opacity-80"
                               style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)', backgroundColor: 'rgba(239,68,68,0.1)' }}
                               disabled={scheduling === tour.id}
                               onClick={(e) => { e.stopPropagation(); handleCancel(tour.id) }}
