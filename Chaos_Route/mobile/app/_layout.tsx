@@ -16,7 +16,7 @@ import { verifyKioskPassword } from '../services/kioskMode'
 export default function RootLayout() {
   const router = useRouter()
   const segments = useSegments()
-  const { isRegistered, isLoading, loadDevice } = useDeviceStore()
+  const { isRegistered, isLoading, loadDevice, pdvId: devicePdvId } = useDeviceStore()
   const authUser = useAuthStore((s) => s.user)
   const loadSession = useAuthStore((s) => s.loadSession)
 
@@ -72,25 +72,34 @@ export default function RootLayout() {
       segments[0] === 'pdv-pickup' ||
       segments[0] === 'printer-settings'
     const isPdvUser = !!authUser?.pdv_id
+    // Tablette magasin : appareil enregistre + rattache a un PDV (sans login) /
+    // Store tablet: registered device bound to a PDV (no login)
+    const isDevicePdv = isRegistered && !!devicePdvId
+    const canPdvFlow = isPdvUser || isDevicePdv
 
     // Utilisateur PDV deja authentifie -> menu PDV (eviter qu'il reste coince sur
     // /register ou /login apres restauration de session) /
-    // Already-authenticated PDV user -> PDV menu (avoid being stuck on /register
-    // or /login after session restore)
+    // Already-authenticated PDV user -> PDV menu
     if (isPdvUser && (inRegister || inLogin)) {
       router.replace('/pdv-home')
       return
     }
 
-    // Autoriser les utilisateurs PDV authentifies (JWT) a acceder aux ecrans PDV
-    // sans avoir besoin d'enregistrer un device chauffeur /
-    // Allow JWT-authenticated PDV users to access PDV screens without device registration
-    if (!isRegistered && !inRegister && !inLogin && !(isPdvUser && inPdvFlow)) {
+    // Tablette magasin (device rattache PDV) -> flux PDV directement, sans login /
+    // Store tablet (PDV-bound device) -> PDV flow directly, no login
+    if (isDevicePdv && !inPdvFlow) {
+      router.replace('/pdv-home')
+      return
+    }
+
+    // Autoriser PDV (JWT) et tablettes magasin (device) a acceder aux ecrans PDV
+    // sans enregistrer un device chauffeur / Allow PDV users + store tablets in PDV screens
+    if (!isRegistered && !inRegister && !inLogin && !(canPdvFlow && inPdvFlow)) {
       router.replace('/register')
-    } else if (isRegistered && inRegister) {
+    } else if (isRegistered && inRegister && !isDevicePdv) {
       router.replace('/(tabs)')
     }
-  }, [isRegistered, isLoading, segments, router, authUser])
+  }, [isRegistered, isLoading, segments, router, authUser, devicePdvId])
 
   const handleUpdate = async () => {
     setDownloading(true)

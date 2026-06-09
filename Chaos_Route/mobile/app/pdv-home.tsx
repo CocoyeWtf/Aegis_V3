@@ -8,18 +8,23 @@ import { useEffect } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useAuthStore } from '../stores/useAuthStore'
+import { useDeviceStore } from '../stores/useDeviceStore'
 import { COLORS } from '../constants/config'
 
 export default function PdvHomeScreen() {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
+  const devicePdvId = useDeviceStore((s) => s.pdvId)
+  const deviceName = useDeviceStore((s) => s.friendlyName)
+  // Accès PDV : utilisateur JWT (pdv_id) OU tablette magasin (device rattaché)
+  const hasPdvAccess = !!user?.pdv_id || !!devicePdvId
 
   useEffect(() => {
-    if (!user?.pdv_id) {
+    if (!hasPdvAccess) {
       router.replace('/login')
     }
-  }, [user, router])
+  }, [hasPdvAccess, router])
 
   const handleLogout = () => {
     Alert.alert(
@@ -39,7 +44,7 @@ export default function PdvHomeScreen() {
     )
   }
 
-  if (!user?.pdv_id) {
+  if (!hasPdvAccess) {
     return null
   }
 
@@ -49,7 +54,7 @@ export default function PdvHomeScreen() {
         <Text style={styles.title}>CMRO</Text>
         <Text style={styles.subtitle}>Espace point de vente</Text>
         <Text style={styles.userInfo}>
-          {user.username}
+          {user?.username ?? deviceName ?? 'Tablette magasin'}
         </Text>
       </View>
 
@@ -75,9 +80,12 @@ export default function PdvHomeScreen() {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
-        <Text style={styles.logoutText}>Se deconnecter</Text>
-      </TouchableOpacity>
+      {/* Déconnexion uniquement en mode compte (JWT). Tablette magasin : pas de login. */}
+      {user?.pdv_id && (
+        <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
+          <Text style={styles.logoutText}>Se deconnecter</Text>
+        </TouchableOpacity>
+      )}
     </View>
   )
 }

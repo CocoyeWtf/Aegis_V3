@@ -30,7 +30,7 @@ export default function RegisterScreen() {
       const deviceUUID = await getOrCreateDeviceUUID()
       const baseUrl = serverUrl.replace(/\/api\/?$/, '')
 
-      await axios.post(`${baseUrl}/api/devices/register`, {
+      const res = await axios.post(`${baseUrl}/api/devices/register`, {
         registration_code: registrationCode.trim().toUpperCase(),
         device_identifier: deviceUUID,
       })
@@ -38,10 +38,13 @@ export default function RegisterScreen() {
       await register(deviceUUID, registrationCode.trim().toUpperCase())
       await fetchDeviceInfo()
 
+      // Tablette magasin (rattachee a un PDV) -> flux declaration, sans login /
+      // Store tablet (PDV-bound) -> declaration flow, no login
+      const isPdvTablet = !!res.data?.pdv_id
       Alert.alert(
         'Enregistrement reussi',
-        'L\'appareil est maintenant enregistre.',
-        [{ text: 'OK', onPress: () => router.replace('/(tabs)') }],
+        isPdvTablet ? 'Tablette magasin enregistree.' : 'L\'appareil est maintenant enregistre.',
+        [{ text: 'OK', onPress: () => router.replace(isPdvTablet ? '/pdv-home' : '/(tabs)') }],
       )
     } catch (e: unknown) {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erreur d\'enregistrement'

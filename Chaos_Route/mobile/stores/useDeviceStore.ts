@@ -10,6 +10,7 @@ interface DeviceState {
   registrationCode: string | null // Code d'enregistrement serveur
   friendlyName: string | null    // Nom de l'appareil (depuis le serveur)
   baseName: string | null        // Nom de la base logistique
+  pdvId: number | null           // PDV rattache (tablette magasin sans login) / Bound PDV
   allowedFeatures: string[]      // Fonctionnalites autorisees / Allowed features
   controlMode: boolean           // Mode controle actif (photo obligatoire) / Control mode active
   isRegistered: boolean
@@ -28,6 +29,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
   registrationCode: null,
   friendlyName: null,
   baseName: null,
+  pdvId: null,
   allowedFeatures: ALL_FEATURES,
   controlMode: false,
   isRegistered: false,
@@ -52,12 +54,18 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
         const cachedCtrl = await SecureStore.getItemAsync('control_mode')
         if (cachedCtrl) controlMode = cachedCtrl === 'true'
       } catch { /* ignore */ }
+      let pdvId: number | null = null
+      try {
+        const cachedPdv = await SecureStore.getItemAsync('pdv_id')
+        if (cachedPdv) pdvId = parseInt(cachedPdv, 10)
+      } catch { /* ignore */ }
       const isRegistered = !!deviceId && !!registrationCode
       set({
         deviceId,
         registrationCode,
         friendlyName,
         baseName,
+        pdvId,
         allowedFeatures,
         controlMode,
         isRegistered,
@@ -93,6 +101,14 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       await SecureStore.setItemAsync('allowed_features', JSON.stringify(allowedFeatures))
       await SecureStore.setItemAsync('control_mode', String(controlMode))
       set({ friendlyName, baseName, allowedFeatures, controlMode })
+      // Rattachement PDV (tablette magasin) via /devices/me / PDV binding (store tablet)
+      try {
+        const { data: me } = await api.get('/devices/me')
+        const pdvId: number | null = me?.pdv_id ?? null
+        if (pdvId != null) await SecureStore.setItemAsync('pdv_id', String(pdvId))
+        else await SecureStore.deleteItemAsync('pdv_id')
+        set({ pdvId })
+      } catch { /* ignore — pas de rattachement PDV */ }
     } catch {
       // Charger depuis le cache local / Load from local cache
       try {
@@ -109,7 +125,8 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
     await SecureStore.deleteItemAsync('base_name')
     await SecureStore.deleteItemAsync('allowed_features')
     await SecureStore.deleteItemAsync('control_mode')
-    set({ deviceId: null, registrationCode: null, friendlyName: null, baseName: null, allowedFeatures: ALL_FEATURES, controlMode: false, isRegistered: false })
+    await SecureStore.deleteItemAsync('pdv_id')
+    set({ deviceId: null, registrationCode: null, friendlyName: null, baseName: null, pdvId: null, allowedFeatures: ALL_FEATURES, controlMode: false, isRegistered: false })
   },
 }))
 

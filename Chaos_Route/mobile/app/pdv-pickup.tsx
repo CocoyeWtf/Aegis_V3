@@ -18,6 +18,7 @@ import { useRouter } from 'expo-router'
 import api from '../services/api'
 import { COLORS } from '../constants/config'
 import { useAuthStore } from '../stores/useAuthStore'
+import { useDeviceStore } from '../stores/useDeviceStore'
 import { usePrinterStore } from '../stores/usePrinterStore'
 import { printRaw } from '../services/bluetoothPrint'
 
@@ -62,8 +63,22 @@ function tomorrowIso(): string {
 export default function PdvPickupScreen() {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
+  const devicePdvId = useDeviceStore((s) => s.pdvId)
   const printer = usePrinterStore((s) => s.printer)
   const loadPrinter = usePrinterStore((s) => s.load)
+
+  // Mode tablette magasin (auth appareil) si pas de session JWT PDV / Store-tablet mode
+  const deviceMode = !user?.pdv_id && !!devicePdvId
+  const pdvId = user?.pdv_id ?? devicePdvId ?? null
+  const EP = {
+    formData: deviceMode ? '/pickup-requests/device/form-data/' : '/pickup-requests/form-data/',
+    create: deviceMode ? '/pickup-requests/device' : '/pickup-requests/',
+    render: (id: number, proto: string) =>
+      deviceMode
+        ? `/pickup-requests/device/${id}/render-labels?protocol=${proto}`
+        : `/pickup-requests/${id}/render-labels?protocol=${proto}`,
+    printEvents: deviceMode ? '/pickup-requests/device/print-events' : '/pickup-requests/print-events',
+  }
 
   const [supportTypes, setSupportTypes] = useState<SupportType[]>([])
   const [loadingForm, setLoadingForm] = useState(true)
@@ -85,7 +100,7 @@ export default function PdvPickupScreen() {
   useEffect(() => {
     let cancelled = false
     setLoadingForm(true)
-    api.get('/pickup-requests/form-data/')
+    api.get(EP.formData)
       .then(({ data }) => {
         if (!cancelled) {
           setSupportTypes(data.support_types || [])
@@ -100,7 +115,7 @@ export default function PdvPickupScreen() {
         if (!cancelled) setLoadingForm(false)
       })
     return () => { cancelled = true }
-  }, [])
+  }, [EP.formData])
 
   // Liste filtree par type de reprise / Filtered by pickup type
   const filteredSupports = useMemo(() => {
@@ -126,8 +141,8 @@ export default function PdvPickupScreen() {
 
   const submitAndPrint = useCallback(async () => {
     const qty = parseInt(quantity, 10)
-    if (!user?.pdv_id) {
-      Alert.alert('Erreur', 'Profil PDV requis')
+    if (!pdvId) {
+      Alert.alert('Erreur', 'Aucun magasin rattaché (compte PDV ou tablette magasin requis)')
       return
     }
     if (!pickupType) {
@@ -158,8 +173,8 @@ export default function PdvPickupScreen() {
     setProgress('Creation de la demande...')
     try {
       // 1. Creer la demande / Create the request
-      const createRes = await api.post('/pickup-requests/', {
-        pdv_id: user.pdv_id,
+      const createRes = await api.post(EP.create, {
+        pdv_id: pdvId,
         support_type_id: supportTypeId,
         quantity: qty,
         availability_date: availabilityDate,
@@ -171,9 +186,7 @@ export default function PdvPickupScreen() {
 
       // 2. Rendre les etiquettes / Render labels
       setProgress('Generation des etiquettes...')
-      const renderRes = await api.post(
-        `/pickup-requests/${requestId}/render-labels?protocol=${printer.protocol}`,
-      )
+      const renderRes = await api.post(EP.render(requestId, printer.protocol))
       const labels = (renderRes.data.labels || []) as RenderedLabel[]
 
       if (labels.length === 0) {
@@ -205,7 +218,7 @@ export default function PdvPickupScreen() {
       // 4. Logger l'audit / Log audit
       setProgress('Enregistrement de l\'historique...')
       if (printedLabelIds.length > 0) {
-        await api.post('/pickup-requests/print-events', {
+        await api.post(EP.printEvents, {
           label_ids: printedLabelIds,
           protocol: printer.protocol,
           source: 'MOBILE_PDV',
@@ -215,7 +228,7 @@ export default function PdvPickupScreen() {
         }).catch(() => { /* best-effort audit */ })
       }
       if (failedLabelIds.length > 0) {
-        await api.post('/pickup-requests/print-events', {
+        await api.post(EP.printEvents, {
           label_ids: failedLabelIds,
           protocol: printer.protocol,
           source: 'MOBILE_PDV',
@@ -250,7 +263,7 @@ export default function PdvPickupScreen() {
       setProgress('')
     }
   }, [
-    user, pickupType, supportTypeId, quantity, availabilityDate,
+    pdvId, deviceMode, pickupType, supportTypeId, quantity, availabilityDate,
     withContent, showWithContent, notes, printer, needsSupport, reset, router,
   ])
 
