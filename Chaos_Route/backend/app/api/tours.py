@@ -1819,6 +1819,9 @@ async def schedule_tour(
     tour.tractor_id = data.tractor_id
     if data.driver_name:
         tour.driver_name = data.driver_name
+    # Code chauffeur Infolog figé au planning (pour l'export WMS) /
+    # Driver Infolog code captured at scheduling time (for the WMS export)
+    tour.driver_code_infolog = data.driver_code_infolog or None
     tour.departure_time = data.departure_time
     tour.return_time = return_time
     if data.delivery_date:

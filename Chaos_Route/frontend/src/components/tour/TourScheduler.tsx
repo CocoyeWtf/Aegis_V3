@@ -144,6 +144,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
      Tour being edited (scheduled -> edit time/driver/contract without cancelling) */
   const [editingTourId, setEditingTourId] = useState<number | null>(null)
   const [recalculating, setRecalculating] = useState(false)
+  const [exportingWms, setExportingWms] = useState(false)
   const [costTourId, setCostTourId] = useState<number | null>(null)
   const [showPrintPlan, setShowPrintPlan] = useState(false)
   /* Contrats disponibles par tour / Available contracts per tour */
@@ -585,6 +586,11 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
     if (input.mode === 'preste' && !input.contractId) return
     if (input.mode === 'propre' && !input.tractorId) return
     if (input.mode === 'mixte' && !input.contractId) return
+    // Retrouver le code Infolog du chauffeur sélectionné (figé pour l'export WMS) /
+    // Resolve the selected driver's Infolog code (captured for the WMS export)
+    const matchedDriver = input.driverName
+      ? baseDrivers.find((d) => `${d.last_name} ${d.first_name}` === input.driverName)
+      : undefined
     setScheduling(tourId)
     try {
       await api.put(`/tours/${tourId}/schedule`, {
@@ -594,6 +600,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
         departure_time: input.time,
         delivery_date: input.deliveryDate || null,
         driver_name: input.driverName || null,
+        driver_code_infolog: matchedDriver?.code_infolog ?? null,
         priority: input.priority ?? null,
       }, { params: force ? { force: true } : undefined })
       await loadData()
@@ -739,6 +746,32 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
       console.error('Failed to recalculate', e)
     } finally {
       setRecalculating(false)
+    }
+  }
+
+  /* Export WMS Infolog (TMS_vers_wms) — fichier pour la macro d'encodage Infolog /
+     WMS Infolog export — file for the Infolog encoding macro */
+  const handleExportWms = async () => {
+    if (!selectedDate) return
+    setExportingWms(true)
+    try {
+      const res = await api.get('/exports/wms-infolog', {
+        params: { date: selectedDate },
+        responseType: 'blob',
+      })
+      const url = URL.createObjectURL(res.data as Blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `TMS_vers_wms_${selectedDate}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('Failed to export WMS Infolog', e)
+      alert("Échec de l'export Infolog (WMS).")
+    } finally {
+      setExportingWms(false)
     }
   }
 
@@ -1178,6 +1211,15 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                 title={t('tourPlanning.printPlan.title')}
               >
                 {t('tourPlanning.printPlan.print')}
+              </button>
+              <button
+                onClick={handleExportWms}
+                disabled={exportingWms}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:opacity-80 disabled:opacity-40"
+                style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
+                title="Générer le fichier Excel pour la macro d'encodage Infolog (WMS)"
+              >
+                {exportingWms ? '...' : 'Export Infolog (WMS)'}
               </button>
             </>
           )}

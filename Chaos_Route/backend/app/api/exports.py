@@ -1,9 +1,13 @@
 """Routes Export CSV/Excel / Export API routes."""
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 import io
 
 from app.database import get_db
@@ -11,7 +15,10 @@ from app.models.country import Country
 from app.models.region import Region
 from app.models.base_logistics import BaseLogistics
 from app.models.pdv import PDV
+from app.models.parameter import Parameter
 from app.models.supplier import Supplier
+from app.models.tour import Tour
+from app.models.tour_stop import TourStop
 from app.models.volume import Volume
 from app.models.contract import Contract
 from app.models.distance_matrix import DistanceMatrix
@@ -22,6 +29,10 @@ from app.services.export_service import ExportService
 from app.api.deps import require_permission, get_user_region_ids
 
 router = APIRouter()
+
+# Code transporteur Infolog par défaut (transport propre CMRO) si le paramètre
+# wms_infolog_carrier_code n'est pas défini / Default Infolog carrier code.
+DEFAULT_WMS_CARRIER_CODE = "08000888"
 
 # Mapping entité -> modèle SQLAlchemy / Entity to model mapping
 ENTITY_MODEL_MAP = {
@@ -39,6 +50,131 @@ ENTITY_MODEL_MAP = {
 
 # Entités avec filtrage par région / Entities with region scoping
 REGION_SCOPED_ENTITIES = {"bases", "pdvs", "suppliers", "contracts"}
+
+
+# NB : déclarée AVANT la route dynamique /{entity_type} pour ne pas être
+# capturée par celle-ci / Declared BEFORE /{entity_type} so it isn't shadowed.
+@router.get("/wms-infolog")
+async def export_wms_infolog(
+    date: str = Query(..., description="Date de planification YYYY-MM-DD"),
+    base_id: int | None = Query(None, description="Filtrer sur une base logistique"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("tour-planning", "read")),
+):
+    """Export WMS Infolog (TMS_vers_wms).
+
+    Génère le fichier Excel attendu par la macro d'encodage Infolog : une ligne
+    par arrêt PDV, les tours rangés dans l'ordre ERT (priorité), et les PDV de
+    chaque tour en ordre INVERSE (le dernier livré encodé en premier).
+
+    Colonnes (A→H, sans en-tête, feuille « Export ») :
+    A = ordre ERT (priorité) · B = code PDV · C = code chauffeur Infolog ·
+    D = code transporteur · E = date de livraison · F = heure de départ ·
+    G = index global (décroissant par tour) · H = heure de départ (texte).
+    """
+    # ── Code transporteur (paramètre global configurable) ────────────────────
+    carrier_param = await db.execute(
+        select(Parameter).where(
+            Parameter.key == "wms_infolog_carrier_code",
+            Parameter.region_id.is_(None),
+        )
+    )
+    carrier_row = carrier_param.scalar_one_or_none()
+    carrier_code = (carrier_row.value if carrier_row and carrier_row.value else DEFAULT_WMS_CARRIER_CODE)
+
+    # ── Tours planifiés du jour (heure de départ renseignée) ─────────────────
+    query = (
+        select(Tour)
+        .where(Tour.date == date, Tour.departure_time.isnot(None))
+        .options(selectinload(Tour.stops).selectinload(TourStop.pdv))
+    )
+    if base_id is not None:
+        query = query.where(Tour.base_id == base_id)
+    else:
+        region_ids = get_user_region_ids(user)
+        if region_ids is not None:
+            # Restreindre aux bases des régions de l'utilisateur / Scope to user's regions
+            base_q = select(BaseLogistics.id).where(BaseLogistics.region_id.in_(region_ids))
+            allowed_bases = (await db.execute(base_q)).scalars().all()
+            query = query.where(Tour.base_id.in_(allowed_bases))
+
+    tours = list((await db.execute(query)).scalars().all())
+
+    # Ordre ERT : priorité (1..n) d'abord, NULL en dernier, puis heure puis code /
+    # ERT order: priority first (NULLs last), then departure time, then code
+    tours.sort(key=lambda t: (
+        t.priority is None,
+        t.priority if t.priority is not None else 0,
+        t.departure_time or "",
+        t.code,
+    ))
+
+    def _hhmmss(t: str | None) -> str:
+        """HH:MM → HH:MM:SS (texte attendu par la macro)."""
+        if not t:
+            return ""
+        parts = t.split(":")
+        h = parts[0] if len(parts) > 0 else "00"
+        m = parts[1] if len(parts) > 1 else "00"
+        s = parts[2] if len(parts) > 2 else "00"
+        return f"{int(h):02d}:{int(m):02d}:{int(s):02d}"
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Export"
+
+    global_index = 0
+    rank = 0
+    for tour in tours:
+        rank += 1
+        ordre = tour.priority if tour.priority is not None else rank
+        # Arrêts du tour dans l'ordre de livraison (1..n) /
+        # Tour stops in delivery order (1..n)
+        stops = sorted(tour.stops, key=lambda s: s.sequence_order)
+        if not stops:
+            continue
+        n = len(stops)
+        # Bloc d'index global contigu [global_index+1 .. global_index+n], affecté
+        # dans l'ordre de livraison ; sortie en ordre inverse (index décroissant).
+        base_index = global_index
+        global_index += n
+
+        delivery_date_str = tour.delivery_date or tour.date
+        try:
+            y, mo, d = (int(x) for x in delivery_date_str.split("-"))
+            delivery_date_val: object = datetime(y, mo, d)
+        except (ValueError, AttributeError):
+            delivery_date_val = delivery_date_str
+
+        dep_text = _hhmmss(tour.departure_time)
+
+        # Inverser : le dernier PDV livré (sequence max) en premier /
+        # Reverse: last delivered PDV (max sequence) first
+        for pos, stop in enumerate(reversed(stops)):
+            # rang de livraison 1..n (1 = premier livré) → index global croissant
+            delivery_rank = n - pos  # le dernier livré a delivery_rank = n
+            idx = base_index + delivery_rank
+            pdv_code = stop.pdv.code if stop.pdv else ""
+            ws.append([
+                ordre,                              # A
+                pdv_code,                           # B
+                tour.driver_code_infolog or "",     # C
+                carrier_code,                       # D
+                delivery_date_val,                  # E
+                dep_text,                           # F
+                idx,                                # G
+                dep_text,                           # H
+            ])
+
+    content = io.BytesIO()
+    wb.save(content)
+    content.seek(0)
+    filename = f"TMS_vers_wms_{date}.xlsx"
+    return StreamingResponse(
+        content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/{entity_type}")

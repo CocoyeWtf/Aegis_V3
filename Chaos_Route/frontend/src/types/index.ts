@@ -206,6 +206,7 @@ export interface Tour {
   priority?: number | null  // Priorité manuelle d'ordonnancement (1..n)
   stops: TourStop[]
   driver_name?: string
+  driver_code_infolog?: string | null  // Code chauffeur Infolog (export WMS)
   driver_arrival_time?: string
   loading_end_time?: string
   barrier_exit_time?: string

@@ -80,6 +80,10 @@ class Tour(Base):
 
     # Champs opérationnels / Operational fields — datetime-local YYYY-MM-DDTHH:MM
     driver_name: Mapped[str | None] = mapped_column(String(100))
+    # Code chauffeur Infolog (code_infolog du BaseDriver) figé au moment de la
+    # planification, pour l'export WMS Infolog / Driver Infolog code captured at
+    # scheduling time for the Infolog WMS export.
+    driver_code_infolog: Mapped[str | None] = mapped_column(String(30))
     driver_arrival_time: Mapped[str | None] = mapped_column(String(16))
     loading_end_time: Mapped[str | None] = mapped_column(String(16))
     barrier_exit_time: Mapped[str | None] = mapped_column(String(16))
