@@ -31,6 +31,7 @@ from app.models.tour_manifest_line import TourManifestLine
 from app.schemas.tour import ManifestLineRead, TourCreate, TourGateUpdate, TourOperationsUpdate, TourRead, TourSchedule, TourStopInsert, TourUpdate
 from app.api.deps import require_permission, get_user_region_ids
 from app.utils.fuel_pricing import load_fuel_unit_prices, price_for_contract, contract_fuel_type
+from app.services.cmro_extraction import CMRO_COLUMNS, CMRO_FIELDS, build_row as _build_cmro_row
 
 router = APIRouter()
 
@@ -599,6 +600,100 @@ async def contract_blockers(
         else:
             reasons.append(m)
     return reasons
+
+
+async def _build_cmro_rows(db, date_from, date_to, base_id, transporter_name, user) -> list[dict]:
+    """Construit les lignes d'extraction CMRO (1/tour) sur la période."""
+    query = (
+        select(Tour).where(
+            Tour.date >= date_from, Tour.date <= date_to,
+            Tour.contract_id.isnot(None), Tour.departure_time.isnot(None),
+        ).options(selectinload(Tour.stops))
+    )
+    if base_id:
+        query = query.where(Tour.base_id == base_id)
+    user_region_ids = get_user_region_ids(user)
+    if user_region_ids is not None:
+        query = query.join(BaseLogistics, Tour.base_id == BaseLogistics.id).where(
+            BaseLogistics.region_id.in_(user_region_ids)
+        )
+    tours = (await db.execute(query)).scalars().all()
+    if not tours:
+        return []
+
+    contract_ids = list({t.contract_id for t in tours if t.contract_id})
+    contracts_map = {c.id: c for c in (await db.execute(
+        select(Contract).where(Contract.id.in_(contract_ids)))).scalars().all()}
+    base_ids = list({t.base_id for t in tours})
+    bases_map = {b.id: b for b in (await db.execute(
+        select(BaseLogistics).where(BaseLogistics.id.in_(base_ids)))).scalars().all()}
+    pdv_ids = list({s.pdv_id for t in tours for s in t.stops})
+    pdvs_map = {p.id: p for p in (await db.execute(
+        select(PDV).where(PDV.id.in_(pdv_ids)))).scalars().all()} if pdv_ids else {}
+
+    if transporter_name:
+        nl = transporter_name.lower()
+        tours = [t for t in tours
+                 if (contracts_map.get(t.contract_id)
+                     and nl in (contracts_map[t.contract_id].transporter_name or "").lower())]
+
+    nb_map: dict[tuple, int] = {}
+    for cid, d in {(t.contract_id, t.date) for t in tours}:
+        nb_map[(cid, d)] = (await db.scalar(
+            select(func.count(Tour.id)).where(Tour.contract_id == cid, Tour.date == d))) or 1
+    fuel_map: dict[str, dict] = {}
+    for d in {t.date for t in tours}:
+        fuel_map[d] = await load_fuel_unit_prices(db, d)
+
+    rows: list[dict] = []
+    for t in sorted(tours, key=lambda x: (x.date, x.departure_time or "",
+                                          x.priority if x.priority is not None else 999)):
+        c = contracts_map.get(t.contract_id)
+        if not c:
+            continue
+        stops_data = [
+            {"pdv_id": s.pdv_id, "sequence_order": s.sequence_order, "eqp_count": s.eqp_count}
+            for s in sorted(t.stops, key=lambda s: s.sequence_order)
+        ]
+        km_tax_total = 0.0
+        for seg in _build_segments(t.base_id, stops_data):
+            tax = await db.scalar(select(KmTax.tax_per_km).where(
+                KmTax.origin_type == seg[0], KmTax.origin_id == seg[1],
+                KmTax.destination_type == seg[2], KmTax.destination_id == seg[3],
+            ))
+            if tax:
+                km_tax_total += float(tax)
+        eqc_liv, colis_liv = (await db.execute(
+            select(func.sum(TourManifestLine.eqc), func.sum(TourManifestLine.nb_colis))
+            .where(TourManifestLine.tour_id == t.id, TourManifestLine.scanned == True)  # noqa: E712
+        )).one()
+        fuel_price = price_for_contract(fuel_map.get(t.date, {}), c)
+        base = bases_map.get(t.base_id)
+        rows.append(_build_cmro_row(
+            t, c, base.name if base else "", nb_map.get((t.contract_id, t.date), 1),
+            fuel_price, km_tax_total, eqc_liv, colis_liv, pdvs_map,
+        ))
+    return rows
+
+
+@router.get("/cmro-extraction")
+async def cmro_extraction(
+    date_from: str = Query(...),
+    date_to: str = Query(...),
+    base_id: int | None = Query(default=None),
+    transporter_name: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("tour-history", "read")),
+):
+    """Extraction pré-facturation au format CMRO (1 ligne/tour, colonnes Tour_ERT)."""
+    rows = await _build_cmro_rows(db, date_from, date_to, base_id, transporter_name, user)
+    keep = [(f, col) for f, col in zip(CMRO_FIELDS, CMRO_COLUMNS) if col]
+    return {
+        "period": {"date_from": date_from, "date_to": date_to},
+        "columns": [col for _, col in keep],
+        "fields": [f for f, _ in keep],
+        "rows": rows,
+    }
 
 
 # Mapping type de tour → fleet_vehicle_type(s) attendu(s)
