@@ -382,8 +382,8 @@ async def _migrate_missing_foreign_keys():
     if _is_sqlite:
         return
 
-    async with engine.begin() as conn:
-        # Lister les FK existantes / List existing FK constraints
+    # 1. Lister les FK existantes (lecture seule) / List existing FK constraints
+    async with engine.connect() as conn:
         result = await conn.execute(text("""
             SELECT tc.table_name, kcu.column_name, tc.constraint_name
             FROM information_schema.table_constraints tc
@@ -393,36 +393,39 @@ async def _migrate_missing_foreign_keys():
             WHERE tc.constraint_type = 'FOREIGN KEY'
                 AND tc.table_schema = 'public'
         """))
-        # Set of (table_name, column_name) qui ont deja une FK /
-        # (table_name, column_name) tuples that already have a FK
         existing_fks = {(row[0], row[1]) for row in result.fetchall()}
 
-        for table in Base.metadata.sorted_tables:
-            for col in table.columns:
-                for fk in col.foreign_keys:
-                    if (table.name, col.name) in existing_fks:
-                        continue
-                    target_table = fk.column.table.name
-                    target_col = fk.column.name
-                    on_delete = fk.ondelete or "NO ACTION"
-                    constraint_name = f"fk_{table.name}_{col.name}"
-                    try:
-                        await conn.execute(text(
-                            f'ALTER TABLE "{table.name}" '
-                            f'ADD CONSTRAINT "{constraint_name}" '
-                            f'FOREIGN KEY ("{col.name}") '
-                            f'REFERENCES "{target_table}" ("{target_col}") '
-                            f'ON DELETE {on_delete}'
-                        ))
-                        print(
-                            f"[migrate] Added FK {constraint_name}: "
-                            f"{table.name}.{col.name} -> {target_table}.{target_col} "
-                            f"(ON DELETE {on_delete})"
-                        )
-                    except Exception as e:
-                        # Ne pas bloquer si la contrainte existe deja sous un autre nom /
-                        # Don't block if constraint exists under a different name
-                        print(
-                            f"[migrate] WARN: failed to add FK on "
-                            f"{table.name}.{col.name}: {e}"
-                        )
+    # 2. Construire la liste des FK manquantes / Build list of missing FKs
+    to_add: list[tuple[str, str, str, str, str]] = []
+    for table in Base.metadata.sorted_tables:
+        for col in table.columns:
+            for fk in col.foreign_keys:
+                if (table.name, col.name) in existing_fks:
+                    continue
+                to_add.append((
+                    table.name, col.name,
+                    fk.column.table.name, fk.column.name, fk.ondelete or "NO ACTION",
+                ))
+
+    # 3. Ajouter CHAQUE FK dans SA PROPRE transaction : un échec (ex. donnée
+    #    orpheline) ne doit pas annuler les autres / one tx per FK so a single
+    #    failure (e.g. orphan row) doesn't abort the rest.
+    for tname, cname, target_table, target_col, on_delete in to_add:
+        constraint_name = f"fk_{tname}_{cname}"
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(
+                    f'ALTER TABLE "{tname}" '
+                    f'ADD CONSTRAINT "{constraint_name}" '
+                    f'FOREIGN KEY ("{cname}") '
+                    f'REFERENCES "{target_table}" ("{target_col}") '
+                    f'ON DELETE {on_delete}'
+                ))
+            print(
+                f"[migrate] Added FK {constraint_name}: "
+                f"{tname}.{cname} -> {target_table}.{target_col} (ON DELETE {on_delete})"
+            )
+        except Exception as e:
+            # Donnée orpheline ou contrainte déjà présente sous un autre nom /
+            # Orphan data or constraint already present under another name
+            print(f"[migrate] WARN: failed to add FK on {tname}.{cname}: {e}")
