@@ -125,6 +125,8 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
   const [showPrintPlan, setShowPrintPlan] = useState(false)
   /* Contrats disponibles par tour / Available contracts per tour */
   const [availableContractsMap, setAvailableContractsMap] = useState<Record<number, Contract[]>>({})
+  // Raisons (en clair) quand aucun contrat n'est disponible / Reasons when no contract available
+  const [contractBlockersMap, setContractBlockersMap] = useState<Record<number, string[]>>({})
   /* Véhicules propres disponibles par tour / Available own vehicles per tour */
   const [availableVehiclesMap, setAvailableVehiclesMap] = useState<Record<number, { vehicles: AvailableVehicle[]; tractors: AvailableVehicle[] }>>({})
 
@@ -217,6 +219,22 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
         },
       })
       setAvailableContractsMap((prev) => ({ ...prev, [tour.id]: data }))
+      // Si aucun contrat : récupérer la raison pour ne pas laisser l'utilisateur sans explication /
+      // If no contract: fetch the reason so the user isn't left without explanation
+      if (data.length === 0) {
+        try {
+          const { data: reasons } = await api.get<string[]>(`/tours/${tour.id}/contract-blockers`, {
+            params: {
+              date: checkDate, base_id: tour.base_id,
+              vehicle_type: tour.vehicle_type,
+              temperature_type: tour.temperature_type || undefined,
+            },
+          })
+          setContractBlockersMap((prev) => ({ ...prev, [tour.id]: reasons }))
+        } catch { /* ignore */ }
+      } else {
+        setContractBlockersMap((prev) => ({ ...prev, [tour.id]: [] }))
+      }
     } catch {
       setAvailableContractsMap((prev) => ({ ...prev, [tour.id]: [] }))
     }
@@ -1510,6 +1528,18 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                               </button>
                             ))}
                           </div>
+
+                          {/* Raison quand aucun contrat disponible (presté/mixte) /
+                              Reason when no contract available */}
+                          {(input.mode === 'preste' || input.mode === 'mixte') && contracts.length === 0 && (
+                            <div className="text-[10px] leading-tight max-w-[280px]" style={{ color: 'var(--color-danger)' }}>
+                              {(availableContractsMap[tour.id]?.length ?? 0) === 0
+                                ? ((contractBlockersMap[tour.id]?.length ?? 0) > 0
+                                    ? <>Aucun contrat : {contractBlockersMap[tour.id].join(' ; ')}</>
+                                    : <>Aucun contrat compatible (type véhicule / température / disponibilité).</>)
+                                : <>Aucun contrat ne fournit {input.mode === 'preste' ? 'tracteur + remorque' : 'le tracteur'} pour ce mode.</>}
+                            </div>
+                          )}
 
                           {/* Sélecteurs selon mode / Mode-specific selectors */}
 

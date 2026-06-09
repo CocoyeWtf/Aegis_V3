@@ -1311,6 +1311,7 @@ class AideDecisionService:
             if not has_tailgate:
                 return False
         else:
+            # Quai sans niche : seul le hayon rétractable est utilisable (rabattable interdit)
             if not pdv.dock_has_niche and has_tailgate and tg_value == "RABATTABLE":
                 return False
         return True

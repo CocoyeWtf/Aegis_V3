@@ -364,7 +364,8 @@ async def _check_dock_tailgate_compatibility(
         else:
             # PDV avec quai / PDV with dock
             if not pdv.dock_has_niche and has_tailgate and tg_value == "RABATTABLE":
-                # Quai sans niche + hayon rabattable = interdit / Dock without niche + foldable = forbidden
+                # Quai sans niche : seul le hayon rétractable est utilisable (rabattable interdit) /
+                # Dock without niche: only retractable tailgate usable (foldable forbidden)
                 violations.append(f"DOCK_NO_NICHE_FOLDABLE:{pdv.code} {pdv.name}")
 
     return violations
@@ -522,6 +523,82 @@ async def available_contracts_for_tours(
         }
         for c in available
     ]
+
+
+@router.get("/{tour_id}/contract-blockers", response_model=list[str])
+async def contract_blockers(
+    tour_id: int,
+    date: str = Query(...),
+    base_id: int = Query(...),
+    vehicle_type: str | None = Query(default=None),
+    temperature_type: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("tour-planning", "read")),
+):
+    """Raisons (en clair) pour lesquelles aucun contrat n'est disponible /
+    Human-readable reasons why no contract is available for this tour.
+
+    Appelé par l'ordonnancement quand la liste des contrats est vide, pour ne
+    pas laisser l'utilisateur sans explication.
+    """
+    from app.models.contract_schedule import ContractSchedule
+
+    base = (await db.execute(select(BaseLogistics).where(BaseLogistics.id == base_id))).scalar_one_or_none()
+    tour_res = await db.execute(
+        select(Tour).where(Tour.id == tour_id).options(selectinload(Tour.stops))
+    )
+    tour = tour_res.scalar_one_or_none()
+    if not base or not tour or not tour.stops:
+        return []
+
+    contracts = list((await db.execute(
+        select(Contract).where(Contract.region_id == base.region_id)
+    )).scalars().all())
+    if not contracts:
+        return ["Aucun contrat dans la région de cette base."]
+
+    unavailable = {row[0] for row in (await db.execute(
+        select(ContractSchedule.contract_id).where(
+            ContractSchedule.date == date, ContractSchedule.is_available == False,
+        )
+    )).all()}
+    pool = [c for c in contracts if c.id not in unavailable]
+    if vehicle_type:
+        pool = [c for c in pool if not c.vehicle_type
+                or (c.vehicle_type.value if hasattr(c.vehicle_type, 'value') else c.vehicle_type) == vehicle_type]
+    if temperature_type:
+        compatible = {temperature_type, "BI_TEMP", "TRI_TEMP"}
+        pool = [c for c in pool if not c.temperature_type
+                or (c.temperature_type.value if hasattr(c.temperature_type, 'value') else c.temperature_type) in compatible]
+
+    if not pool:
+        return [f"Aucun contrat {vehicle_type or ''} compatible "
+                f"(température {temperature_type or '—'}) disponible à cette date."]
+
+    # Tous les contrats du pool sont exclus par les contraintes des PDV :
+    # agréger les raisons distinctes / Aggregate distinct PDV-constraint reasons.
+    stops_data = [
+        {"pdv_id": s.pdv_id, "sequence_order": s.sequence_order, "eqp_count": s.eqp_count}
+        for s in tour.stops
+    ]
+    codes: set[str] = set()
+    for c in pool:
+        for v in await _check_vehicle_type_compatibility(db, stops_data, c):
+            codes.add(v)
+        for v in await _check_dock_tailgate_compatibility(db, stops_data, c):
+            codes.add(v)
+
+    reasons: list[str] = []
+    for m in sorted(codes):
+        if m.startswith("TYPE_NOT_ALLOWED:"):
+            reasons.append("Type de véhicule non autorisé sur " + m.split(":", 1)[1])
+        elif m.startswith("DOCK_NO_TAILGATE:"):
+            reasons.append("PDV sans quai (hayon obligatoire) : " + m.split(":", 1)[1])
+        elif m.startswith("DOCK_NO_NICHE_FOLDABLE:"):
+            reasons.append("Quai sans niche → hayon rétractable requis (rabattable interdit) : " + m.split(":", 1)[1])
+        else:
+            reasons.append(m)
+    return reasons
 
 
 # Mapping type de tour → fleet_vehicle_type(s) attendu(s)
