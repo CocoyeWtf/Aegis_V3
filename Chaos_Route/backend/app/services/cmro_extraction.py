@@ -100,17 +100,53 @@ def type_tour_label(tour) -> str:
     return _TEMP_FR.get(temp, temp or "")
 
 
+_EMPTY_COST = {
+    "t_fixe": "", "t_km": "", "gasoil": "", "t_horaire": "", "ha": "", "t_rem": "",
+    "prime_sam": "", "prime_dim": "", "total_taxe": "", "cout_tournee": "",
+}
+
+
+def _consumption(contract, tour) -> float:
+    """Consommation L/km : override contrat si renseigné (ex. gaz kg/km),
+    sinon 0,29 pour SEMI/tracteur, 0,26 pour porteur."""
+    cc = getattr(contract, "consumption_coefficient", None)
+    if cc is not None and float(cc) > 0:
+        return float(cc)
+    vt = getattr(contract, "vehicle_type", None) or getattr(tour, "vehicle_type", None)
+    vt = vt.value if hasattr(vt, "value") else vt
+    return 0.29 if vt == "SEMI" else 0.26
+
+
+def billing_type_of(contract) -> int:
+    """Type de facturation du contrat (défaut 2 = tractionnaire)."""
+    bt = getattr(contract, "billing_type", None)
+    try:
+        return int(bt) if bt else 2
+    except (TypeError, ValueError):
+        return 2
+
+
 def compute_cost(tour, contract, nb_tours: int, fuel_price: float, km_tax_total: float) -> dict:
-    """Composantes de coût CMRO pour un tour. Retourne un dict de floats arrondis."""
-    km = float(tour.total_km or 0)
+    """Composantes de coût CMRO selon le type de facturation chauffeur."""
     nb = nb_tours or 1
-    t_fixe = round(float(contract.fixed_daily_cost or 0) / nb, 2)
+    btype = billing_type_of(contract)
+
+    # Types 1 (base/intérim), 3 (occasionnel), 4 (journalier) :
+    # forfait/éval journalier ÷ nb tournées effectuées (tous sites)
+    if btype != 2:
+        daily = float(getattr(contract, "daily_cost", 0) or 0)
+        cost = dict(_EMPTY_COST)
+        cost["cout_tournee"] = round(daily / nb, 2)
+        return cost
+
+    # Type 2 (tractionnaire sous contrat) : barème complet
+    km = float(tour.total_km or 0)
+    t_fixe = round(float(contract.fixed_daily_cost or 0) / nb, 2)          # vacation = fixe ÷ nb
+    t_rem = round(float(getattr(contract, "trailer_cost", 0) or 0) / nb, 2)  # remorque ÷ nb
     t_km = round(km * float(contract.cost_per_km or 0), 2)
-    gasoil = round(km * float(contract.consumption_coefficient or 0) * (fuel_price or 0), 2)
+    gasoil = round(km * _consumption(contract, tour) * (fuel_price or 0), 2)
     t_horaire = round(_prestation_hours(tour) * float(contract.cost_per_hour or 0), 2)
     ha = round(float(getattr(contract, "ha_cost", 0) or 0), 2)
-    t_rem = round(float(getattr(contract, "trailer_cost", 0) or 0), 2)
-    # Prime selon le jour du tour
     prime_sam = prime_dim = 0.0
     d = _parse_date(tour.date)
     if d:

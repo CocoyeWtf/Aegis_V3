@@ -61,7 +61,12 @@ class Contract(Base):
     cost_per_km: Mapped[float | None] = mapped_column(Numeric(10, 4))
     cost_per_hour: Mapped[float | None] = mapped_column(Numeric(10, 2))
     # Barème pré-facturation CMRO / CMRO pre-billing tariff
-    trailer_cost: Mapped[float | None] = mapped_column(Numeric(10, 2))        # T_rem : forfait remorque
+    # Type de facturation chauffeur : 1=base/intérim (non facturé, éval),
+    # 2=tractionnaire sous contrat (barème complet), 3=occasionnel (forfait jour),
+    # 4=journalier (éval). Défaut 2.
+    billing_type: Mapped[int | None] = mapped_column(Integer, default=2)
+    daily_cost: Mapped[float | None] = mapped_column(Numeric(10, 2))          # Forfait/éval journalier (types 1/3/4)
+    trailer_cost: Mapped[float | None] = mapped_column(Numeric(10, 2))        # T_rem : forfait remorque (÷ nb tournées)
     ha_cost: Mapped[float | None] = mapped_column(Numeric(10, 2))             # HA : forfait par tournée
     prime_saturday: Mapped[float | None] = mapped_column(Numeric(10, 2))      # Prime samedi
     prime_sunday_holiday: Mapped[float | None] = mapped_column(Numeric(10, 2))  # Prime dimanche/férié

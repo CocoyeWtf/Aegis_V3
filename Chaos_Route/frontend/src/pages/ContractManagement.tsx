@@ -136,7 +136,18 @@ export default function ContractManagement() {
     { key: 'cost_per_km', label: t('contracts.costPerKm'), type: 'number', step: 0.0001 },
     { key: 'cost_per_hour', label: t('contracts.costPerHour'), type: 'number', step: 0.01 },
     // Barème pré-facturation CMRO
-    { key: 'trailer_cost', label: 'Tarif remorque (T_rem)', type: 'number', step: 0.01, helperText: 'Forfait remorque ajouté au coût de la tournée.' },
+    {
+      key: 'billing_type', label: 'Type de facturation', type: 'select',
+      options: [
+        { value: '1', label: '1 — Base / intérim (non facturé)' },
+        { value: '2', label: '2 — Tractionnaire sous contrat (barème)' },
+        { value: '3', label: '3 — Occasionnel (forfait jour)' },
+        { value: '4', label: '4 — Journalier' },
+      ],
+      helperText: 'Type 2 = barème complet. Types 1/3/4 = forfait/éval journalier ÷ nb tournées.',
+    },
+    { key: 'daily_cost', label: 'Forfait/éval journalier', type: 'number', step: 0.01, helperText: 'Utilisé pour les types 1, 3 et 4 (÷ nb tournées du jour).' },
+    { key: 'trailer_cost', label: 'Tarif remorque (T_rem)', type: 'number', step: 0.01, helperText: 'Forfait remorque, divisé par le nb de tournées du jour.' },
     { key: 'ha_cost', label: 'HA (forfait/tournée)', type: 'number', step: 0.01 },
     { key: 'prime_saturday', label: 'Prime samedi', type: 'number', step: 0.01 },
     { key: 'prime_sunday_holiday', label: 'Prime dimanche/férié', type: 'number', step: 0.01 },
@@ -198,6 +209,7 @@ export default function ContractManagement() {
             ...d,
             region_id: Number(d.region_id),
             carrier_id: cid,
+            billing_type: d.billing_type ? Number(d.billing_type) : null,
             transporter_name: carrier?.name ?? d.transporter_name ?? '',
           }
         }}

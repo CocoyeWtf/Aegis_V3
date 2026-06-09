@@ -415,6 +415,8 @@ export interface Contract {
   vacation?: number
   cost_per_km?: number
   cost_per_hour?: number
+  billing_type?: number
+  daily_cost?: number
   trailer_cost?: number
   ha_cost?: number
   prime_saturday?: number

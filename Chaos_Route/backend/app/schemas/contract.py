@@ -25,6 +25,8 @@ class ContractBase(BaseModel):
     cost_per_km: float | None = None
     cost_per_hour: float | None = None
     # Barème pré-facturation CMRO
+    billing_type: int | None = None        # 1=base/intérim, 2=tractionnaire, 3=occasionnel, 4=journalier
+    daily_cost: float | None = None        # forfait/éval journalier (types 1/3/4)
     trailer_cost: float | None = None
     ha_cost: float | None = None
     prime_saturday: float | None = None
@@ -65,6 +67,8 @@ class ContractUpdate(BaseModel):
     vacation: float | None = None
     cost_per_km: float | None = None
     cost_per_hour: float | None = None
+    billing_type: int | None = None
+    daily_cost: float | None = None
     trailer_cost: float | None = None
     ha_cost: float | None = None
     prime_saturday: float | None = None
