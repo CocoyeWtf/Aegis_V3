@@ -140,6 +140,9 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
   const [highlightedTourId, setHighlightedTourId] = useState<number | null>(null)
   const [scheduleInputs, setScheduleInputs] = useState<Record<number, ScheduleInput>>({})
   const [scheduling, setScheduling] = useState<number | null>(null)
+  /* Tour en cours de modification (planifié -> édition heure/chauffeur/contrat sans annuler) /
+     Tour being edited (scheduled -> edit time/driver/contract without cancelling) */
+  const [editingTourId, setEditingTourId] = useState<number | null>(null)
   const [recalculating, setRecalculating] = useState(false)
   const [costTourId, setCostTourId] = useState<number | null>(null)
   const [showPrintPlan, setShowPrintPlan] = useState(false)
@@ -551,6 +554,29 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
     }
   }
 
+  /* Entrer en modification d'un tour planifié (À VALIDER) : pré-remplir le formulaire
+     avec les valeurs actuelles + charger les options, sans annuler ni libérer les volumes /
+     Edit a planned (to-validate) tour: prefill the form + load options, without cancelling */
+  const startEditTour = (tour: Tour) => {
+    const mode = getTourMode(tour) ?? 'preste'
+    setScheduleInputs((prev) => ({
+      ...prev,
+      [tour.id]: {
+        time: tour.departure_time ?? '',
+        deliveryDate: tour.delivery_date ?? '',
+        mode,
+        contractId: tour.contract_id ?? null,
+        vehicleId: tour.vehicle_id ?? null,
+        tractorId: tour.tractor_id ?? null,
+        driverName: tour.driver_name ?? '',
+        priority: tour.priority ?? null,
+      },
+    }))
+    loadContractsForTour(tour, tour.delivery_date ?? undefined)
+    loadVehiclesForTour(tour, tour.delivery_date ?? undefined)
+    setEditingTourId(tour.id)
+  }
+
   /* Planifier un tour / Schedule a tour */
   const handleSchedule = async (tourId: number, force = false) => {
     const input = scheduleInputs[tourId]
@@ -571,6 +597,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
         priority: input.priority ?? null,
       }, { params: force ? { force: true } : undefined })
       await loadData()
+      setEditingTourId(null)
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string }; status?: number } }
       const detail = err?.response?.data?.detail
@@ -1547,8 +1574,8 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
 
                     {/* === Ligne 2 — Actions inline (no wrap) / Line 2 — Inline actions (no wrap) === */}
                     <div className="flex items-center gap-2 px-3 pb-1.5 overflow-hidden">
-                      {!isScheduled ? (
-                        /* --- Non planifié: toggle mode + sélecteurs + planifier --- */
+                      {(!isScheduled || editingTourId === tour.id) ? (
+                        /* --- Non planifié OU en modification : sélecteurs + enregistrer --- */
                         <>
                           {/* Date livraison */}
                           <input
@@ -1717,17 +1744,22 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                             disabled={!canSchedule || !!overlap || scheduling === tour.id}
                             onClick={(e) => { e.stopPropagation(); handleSchedule(tour.id) }}
                           >
-                            {scheduling === tour.id ? '...' : 'Planifier'}
+                            {scheduling === tour.id ? '...' : (editingTourId === tour.id ? 'Enregistrer' : 'Planifier')}
                           </button>
 
-                          {/* Bouton supprimer (libere les volumes) / Delete button (releases volumes) */}
+                          {/* En édition : annuler la modif (ne supprime pas). Sinon : supprimer (libère les volumes) /
+                              While editing: cancel edit (no delete). Otherwise: delete (releases volumes) */}
                           <button
                             className="px-2 py-1 rounded text-[11px] font-semibold border transition-all hover:opacity-80 disabled:opacity-40 shrink-0"
                             style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)', backgroundColor: 'rgba(239,68,68,0.1)' }}
                             disabled={scheduling === tour.id}
-                            onClick={(e) => { e.stopPropagation(); handleCancel(tour.id) }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (editingTourId === tour.id) setEditingTourId(null)
+                              else handleCancel(tour.id)
+                            }}
                           >
-                            {scheduling === tour.id ? '...' : 'Supprimer'}
+                            {scheduling === tour.id ? '...' : (editingTourId === tour.id ? 'Annuler' : 'Supprimer')}
                           </button>
 
                           {/* Retour estimé inline */}
@@ -1825,9 +1857,21 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                             </span>
                           )}
                           <span className="ml-auto" />
+                          {/* Modifier : éditer heure/chauffeur/contrat d'un tour À VALIDER sans l'annuler */}
+                          {tour.status === 'DRAFT' && (
+                            <button
+                              className="px-2.5 py-1 rounded text-[11px] font-semibold border transition-all hover:opacity-80"
+                              style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
+                              disabled={scheduling === tour.id}
+                              onClick={(e) => { e.stopPropagation(); startEditTour(tour) }}
+                              title="Modifier l'heure de départ, le chauffeur ou le moyen sans annuler le tour"
+                            >
+                              Modifier
+                            </button>
+                          )}
                           {tour.status === 'DRAFT' ? (
                             <button
-                              className="px-2 py-0.5 rounded text-[11px] font-semibold border transition-all hover:opacity-80"
+                              className="px-2.5 py-1 rounded text-[11px] font-semibold border transition-all hover:opacity-80"
                               style={{ borderColor: 'var(--color-success)', color: 'var(--color-success)' }}
                               disabled={scheduling === tour.id}
                               onClick={(e) => { e.stopPropagation(); handleValidate(tour.id) }}
@@ -1836,7 +1880,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                             </button>
                           ) : (
                             <button
-                              className="px-2 py-0.5 rounded text-[11px] border transition-all hover:opacity-80"
+                              className="px-2.5 py-1 rounded text-[11px] border transition-all hover:opacity-80"
                               style={{ borderColor: 'var(--color-warning)', color: 'var(--color-warning)' }}
                               disabled={scheduling === tour.id}
                               onClick={(e) => { e.stopPropagation(); handleRevertDraft(tour.id) }}
@@ -1846,7 +1890,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                           )}
                           {canUnschedule && (
                             <button
-                              className="px-2 py-0.5 rounded text-[11px] border transition-all hover:opacity-80"
+                              className="px-2.5 py-1 rounded text-[11px] border transition-all hover:opacity-80"
                               style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
                               disabled={scheduling === tour.id}
                               onClick={(e) => { e.stopPropagation(); handleUnschedule(tour.id) }}
@@ -1855,7 +1899,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                             </button>
                           )}
                           <button
-                            className="px-2 py-0.5 rounded text-[11px] font-semibold border transition-all hover:opacity-80"
+                            className="px-2.5 py-1 rounded text-[11px] font-semibold border transition-all hover:opacity-80"
                             style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)', backgroundColor: 'rgba(239,68,68,0.1)' }}
                             disabled={scheduling === tour.id}
                             onClick={(e) => { e.stopPropagation(); handleCancel(tour.id) }}
