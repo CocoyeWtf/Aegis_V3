@@ -1073,28 +1073,19 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
           </div>
         )}
 
-        {/* Tri de la liste (explicite) / List sort (explicit) */}
+        {/* Tri de la liste (explicite, compact) / List sort (explicit, compact) */}
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Trier par</label>
-          <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border-color)' }}>
-            {([
-              { key: null, label: 'Heure départ' },
-              { key: 'asc', label: 'Chauffeur A→Z' },
-              { key: 'desc', label: 'Chauffeur Z→A' },
-            ] as const).map(opt => (
-              <button
-                key={opt.label}
-                className="px-3 py-2 text-xs font-medium transition-all"
-                style={{
-                  backgroundColor: driverSort === opt.key ? 'var(--color-primary)' : 'var(--bg-primary)',
-                  color: driverSort === opt.key ? '#fff' : 'var(--text-secondary)',
-                }}
-                onClick={() => setDriverSort(opt.key)}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          <select
+            className="px-2 py-2 text-xs rounded-lg border"
+            style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+            value={driverSort ?? 'departure'}
+            onChange={(e) => setDriverSort(e.target.value === 'departure' ? null : (e.target.value as 'asc' | 'desc'))}
+          >
+            <option value="departure">Heure de départ</option>
+            <option value="asc">Chauffeur A→Z</option>
+            <option value="desc">Chauffeur Z→A</option>
+          </select>
         </div>
 
         {/* Bouton Filtres avancés / Advanced filters button */}
@@ -1122,14 +1113,15 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
           </button>
         </div>
 
-        <div className="ml-auto flex items-center gap-4 text-right">
-          <div>
-            <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('tourPlanning.unscheduledTours')}</span>
-            <span className="text-lg font-bold" style={{ color: 'var(--color-warning)' }}>{unscheduledTours.length}</span>
+        <div className="ml-auto flex items-center gap-2.5">
+          <div className="flex items-baseline gap-1.5 text-xs" title={t('tourPlanning.unscheduledTours')}>
+            <span style={{ color: 'var(--text-muted)' }}>À planifier</span>
+            <span className="text-base font-bold" style={{ color: 'var(--color-warning)' }}>{unscheduledTours.length}</span>
           </div>
-          <div>
-            <span className="text-xs block" style={{ color: 'var(--text-muted)' }}>{t('tourPlanning.scheduledTours')}</span>
-            <span className="text-lg font-bold" style={{ color: 'var(--color-success)' }}>{scheduledTours.length}</span>
+          <span style={{ color: 'var(--border-color)' }}>·</span>
+          <div className="flex items-baseline gap-1.5 text-xs" title={t('tourPlanning.scheduledTours')}>
+            <span style={{ color: 'var(--text-muted)' }}>Planifiés</span>
+            <span className="text-base font-bold" style={{ color: 'var(--color-success)' }}>{scheduledTours.length}</span>
           </div>
           {scheduledTours.length > 0 && (
             <>
@@ -1137,7 +1129,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                 <button
                   onClick={handleValidateBatch}
                   disabled={validatingBatch}
-                  className="px-3 py-2 rounded-lg text-xs font-semibold border transition-all hover:opacity-80 disabled:opacity-40"
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:opacity-80 disabled:opacity-40"
                   style={{ borderColor: 'var(--color-success)', color: 'var(--color-success)' }}
                 >
                   {validatingBatch ? '...' : `Valider tout (${draftScheduledCount})`}
@@ -1146,7 +1138,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
               <button
                 onClick={handleRecalculate}
                 disabled={recalculating}
-                className="px-3 py-2 rounded-lg text-xs font-semibold border transition-all hover:opacity-80 disabled:opacity-40"
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:opacity-80 disabled:opacity-40"
                 style={{ borderColor: 'var(--color-warning)', color: 'var(--color-warning)' }}
                 title={t('tourPlanning.recalculateCosts')}
               >
@@ -1154,7 +1146,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
               </button>
               <button
                 onClick={() => setShowPrintPlan(true)}
-                className="px-3 py-2 rounded-lg text-xs font-semibold border transition-all hover:opacity-80"
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:opacity-80"
                 style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
                 title={t('tourPlanning.printPlan.title')}
               >
@@ -1216,26 +1208,27 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
               </div>
             </FilterGroup>
 
-            {/* Contrats — grille multi-colonnes, cases égales */}
+            {/* Contrats — grille 5 colonnes larges, cases égales, troncature + tooltip */}
             {contractsInUse.length > 0 && (
-              <FilterGroup label={`Contrats (${contractFilters.size}/${contractsInUse.length})`} className="flex-1 min-w-[260px]">
+              <FilterGroup label={`Contrats (${contractFilters.size}/${contractsInUse.length})`}>
                 <div
                   className="grid gap-1 overflow-y-auto pr-1"
-                  style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(68px, 1fr))', maxHeight: '92px' }}
+                  style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', width: '640px', maxHeight: '124px' }}
                 >
                   {contractsInUse.map(c => {
                     const active = contractFilters.has(c.id)
                     return (
                       <button
                         key={c.id}
-                        className={CHIP}
+                        className="h-7 w-full px-2 text-[11px] font-medium rounded border transition-all truncate text-center"
                         style={{
+                          lineHeight: '1.7rem',
                           borderColor: active ? 'var(--color-primary)' : 'var(--border-color)',
                           backgroundColor: active ? 'var(--color-primary)' : 'var(--bg-primary)',
                           color: active ? '#fff' : 'var(--text-secondary)',
                         }}
                         onClick={() => toggleInSet(contractFilters, c.id, setContractFilters)}
-                        title={c.transporter_name}
+                        title={`${c.code} — ${c.transporter_name}`}
                       >
                         {c.code}
                       </button>
@@ -1247,7 +1240,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
 
             {/* Statut — une colonne (2 toggles empilés) */}
             <FilterGroup label="Statut">
-              <div className="grid grid-cols-1 gap-1" style={{ width: '150px' }}>
+              <div className="grid grid-cols-1 gap-1" style={{ width: '124px' }}>
                 <button
                   className={CHIP}
                   style={{
