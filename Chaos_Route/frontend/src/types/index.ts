@@ -179,7 +179,7 @@ export interface TourStop {
 }
 
 // Nature de tournée / Tour nature (LIVRAISON = livraison classique)
-export type TourType = 'LIVRAISON' | 'ENLEVEMENT' | 'VIDANGES' | 'DEPLACEMENT_BASE' | 'GARAGE'
+export type TourType = 'LIVRAISON' | 'ENLEVEMENT' | 'VIDANGES' | 'DEPLACEMENT_BASE' | 'GARAGE' | 'TRANSFERT_PDV'
 
 export interface Tour {
   id: number
@@ -353,6 +353,7 @@ export const TOUR_TYPE_LABELS: Record<Exclude<TourType, 'LIVRAISON'>, string> = 
   VIDANGES: 'Vidanges',
   DEPLACEMENT_BASE: 'Déplacement',
   GARAGE: 'Garage',
+  TRANSFERT_PDV: 'Transfert PDV',
 }
 
 export const VEHICLE_TYPE_DEFAULTS: Record<VehicleType, { label: string; capacity_eqp: number }> = {

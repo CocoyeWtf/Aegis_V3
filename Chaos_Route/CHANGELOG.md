@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Construction (Exploitation transport) : nouvelle nature **Transfert PDV à PDV**
+  (mode « Mouvement ») — origine (chargement) → destination (dépose), sans
+  quantité. Champ **Commentaire** ajouté au mode Mouvement (transfert +
+  déplacement base + garage), persisté dans `tours.remarks`. Nouveau type
+  `TourType.TRANSFERT_PDV` (migration enum PG incluse).
+
 ### Fixed
 - Ordonnancement : faux chevauchement (overlap) entre deux tours d'une même
   répartition livrés des jours différents (ex. tour livré le 04/06 09:00-15:53

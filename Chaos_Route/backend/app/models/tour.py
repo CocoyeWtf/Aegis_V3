@@ -32,11 +32,15 @@ class TourType(str, enum.Enum):
     VIDANGES = "VIDANGES"              # Collecte de vidanges (contenants vides)
     DEPLACEMENT_BASE = "DEPLACEMENT_BASE"  # Déplacement camion sur/entre base(s)
     GARAGE = "GARAGE"                  # Envoi au garage / atelier
+    TRANSFERT_PDV = "TRANSFERT_PDV"    # Transfert de marchandises d'un PDV à un autre
 
 
 # Natures sans livraison (pas de contrôle volume/température, arrêts optionnels) /
 # Non-delivery natures
-NON_DELIVERY_TYPES = {TourType.ENLEVEMENT, TourType.VIDANGES, TourType.DEPLACEMENT_BASE, TourType.GARAGE}
+NON_DELIVERY_TYPES = {
+    TourType.ENLEVEMENT, TourType.VIDANGES, TourType.DEPLACEMENT_BASE,
+    TourType.GARAGE, TourType.TRANSFERT_PDV,
+}
 # Natures de type reprise (collecte PDV, comme l'ancien is_pickup_tour) / Pickup-like natures
 PICKUP_TYPES = {TourType.ENLEVEMENT, TourType.VIDANGES}
 

@@ -1532,6 +1532,7 @@ async def create_tour(
         is_pickup_tour=is_pickup,
         tour_type=tour_type,
         destination=data.destination,
+        remarks=data.remarks,
     )
     db.add(tour)
     await db.flush()

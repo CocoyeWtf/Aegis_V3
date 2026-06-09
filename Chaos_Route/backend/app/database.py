@@ -185,6 +185,7 @@ async def _migrate_enum_values():
         ("dockeventtype", ["UNLOADING", "DOCK_LEFT", "SITE_LEFT"]),
         ("pickupstatus", ["CANCELLED"]),  # Annulation declaration combi remplacee
         ("vehicletype", ["PORTEUR_SURBAISSE"]),  # Porteur surbaisse ajoute apres coup
+        ("tourtype", ["TRANSFERT_PDV"]),  # Transfert PDV a PDV ajoute apres coup
     ]
     async with engine.begin() as conn:
         for enum_name, new_values in enum_updates:

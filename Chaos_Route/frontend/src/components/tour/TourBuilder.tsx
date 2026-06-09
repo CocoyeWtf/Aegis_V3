@@ -49,8 +49,13 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   const [tourMode, setTourMode] = useState<TourMode>('delivery')
   // Nature en mode reprise (Enlèvement/Vidanges) et mouvement (Déplacement/Garage)
   const [pickupNature, setPickupNature] = useState<'ENLEVEMENT' | 'VIDANGES'>('ENLEVEMENT')
-  const [movementNature, setMovementNature] = useState<'DEPLACEMENT_BASE' | 'GARAGE'>('DEPLACEMENT_BASE')
+  const [movementNature, setMovementNature] = useState<'DEPLACEMENT_BASE' | 'GARAGE' | 'TRANSFERT_PDV'>('DEPLACEMENT_BASE')
   const [movementDestination, setMovementDestination] = useState('')
+  // Commentaire libre (mouvement + transfert) / Free comment (movement + transfer)
+  const [movementComment, setMovementComment] = useState('')
+  // Transfert PDV à PDV : PDV origine (chargement) et destination (dépose)
+  const [transfertOriginPdvId, setTransfertOriginPdvId] = useState<number | null>(null)
+  const [transfertDestPdvId, setTransfertDestPdvId] = useState<number | null>(null)
   const [manualBaseId, setManualBaseId] = useState<number | null>(null)
   const [bypassSupportRules, setBypassSupportRules] = useState(false)
 
@@ -682,15 +687,29 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     }
   }
 
-  /* Créer un tour mouvement (déplacement base / garage) sans arrêt PDV /
-     Create a stopless movement tour (base move / garage) */
+  /* Créer un tour mouvement (déplacement base / garage, sans arrêt) ou transfert
+     PDV à PDV (2 arrêts : origine = chargement, destination = dépose) /
+     Create a movement tour (base move / garage, stopless) or a PDV-to-PDV
+     transfer (2 stops: origin = loading, destination = drop-off) */
   const handleCreateMovement = async () => {
     if (!selectedVehicleType || !manualBaseId) return
+    const isTransfert = movementNature === 'TRANSFERT_PDV'
+    if (isTransfert && (!transfertOriginPdvId || !transfertDestPdvId)) return
+    if (isTransfert && transfertOriginPdvId === transfertDestPdvId) {
+      alert('Le PDV de destination doit être différent du PDV d\'origine.')
+      return
+    }
     setSaving(true)
     try {
+      const stops: TourStop[] = isTransfert
+        ? ([
+            { pdv_id: transfertOriginPdvId, sequence_order: 1, eqp_count: 0 },
+            { pdv_id: transfertDestPdvId, sequence_order: 2, eqp_count: 0 },
+          ] as unknown as TourStop[])
+        : ([] as TourStop[])
       await create<Tour>('/tours', {
         date: selectedDate,
-        code: `M-${Date.now()}`,
+        code: `${isTransfert ? 'TR' : 'M'}-${Date.now()}`,
         vehicle_type: selectedVehicleType,
         base_id: manualBaseId,
         status: 'DRAFT',
@@ -698,16 +717,20 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         total_km: 0,
         is_pickup_tour: false,
         tour_type: movementNature,
-        destination: movementDestination || null,
-        stops: [] as TourStop[],
+        destination: isTransfert ? null : (movementDestination || null),
+        remarks: movementComment || undefined,
+        stops,
       })
       setSelectedVehicleType(null)
       setCapacityEqp(0)
       setMovementDestination('')
+      setMovementComment('')
+      setTransfertOriginPdvId(null)
+      setTransfertDestPdvId(null)
       refetchVolumes()
     } catch (e: unknown) {
       console.error('Failed to create movement tour', e)
-      alert(`Echec de la création du mouvement: ${getApiErrorMessage(e)}`)
+      alert(`Echec de la création du ${movementNature === 'TRANSFERT_PDV' ? 'transfert' : 'mouvement'}: ${getApiErrorMessage(e)}`)
     } finally {
       setSaving(false)
     }
@@ -720,6 +743,9 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     setSelectedTemperatureType(null)
     setManualBaseId(null)
     setMovementDestination('')
+    setMovementComment('')
+    setTransfertOriginPdvId(null)
+    setTransfertDestPdvId(null)
   }
 
   /* Bandeau véhicule inline / Inline vehicle banner — shown after first stop, before vehicle selection */
@@ -834,12 +860,13 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
               <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Nature</label>
               <select
                 value={movementNature}
-                onChange={(e) => setMovementNature(e.target.value as 'DEPLACEMENT_BASE' | 'GARAGE')}
+                onChange={(e) => setMovementNature(e.target.value as 'DEPLACEMENT_BASE' | 'GARAGE' | 'TRANSFERT_PDV')}
                 className="rounded-lg border px-3 py-2 text-sm"
                 style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               >
                 <option value="DEPLACEMENT_BASE">Déplacement base</option>
                 <option value="GARAGE">Garage / atelier</option>
+                <option value="TRANSFERT_PDV">Transfert PDV à PDV</option>
               </select>
             </div>
             <div className="flex flex-col gap-1">
@@ -874,24 +901,73 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                 ))}
               </select>
             </div>
+            {/* Transfert PDV à PDV : origine (chargement) → destination (dépose) */}
+            {movementNature === 'TRANSFERT_PDV' ? (
+              <>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>PDV origine</label>
+                  <select
+                    value={transfertOriginPdvId ?? ''}
+                    onChange={(e) => setTransfertOriginPdvId(e.target.value ? Number(e.target.value) : null)}
+                    className="rounded-lg border px-3 py-2 text-sm w-[200px]"
+                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="">-- PDV origine --</option>
+                    {pdvs.map((p) => (
+                      <option key={p.id} value={p.id}>{p.code} — {p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>PDV destination</label>
+                  <select
+                    value={transfertDestPdvId ?? ''}
+                    onChange={(e) => setTransfertDestPdvId(e.target.value ? Number(e.target.value) : null)}
+                    className="rounded-lg border px-3 py-2 text-sm w-[200px]"
+                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="">-- PDV destination --</option>
+                    {pdvs.map((p) => (
+                      <option key={p.id} value={p.id}>{p.code} — {p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Destination</label>
+                <input
+                  type="text"
+                  value={movementDestination}
+                  onChange={(e) => setMovementDestination(e.target.value)}
+                  placeholder="Garage X, base Y…"
+                  className="rounded-lg border px-3 py-2 text-sm w-[200px]"
+                  style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                />
+              </div>
+            )}
+            {/* Commentaire libre (mouvement + transfert) */}
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Destination</label>
+              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Commentaire</label>
               <input
                 type="text"
-                value={movementDestination}
-                onChange={(e) => setMovementDestination(e.target.value)}
-                placeholder="Garage X, base Y…"
-                className="rounded-lg border px-3 py-2 text-sm w-[200px]"
+                value={movementComment}
+                onChange={(e) => setMovementComment(e.target.value)}
+                placeholder="Commentaire (optionnel)…"
+                className="rounded-lg border px-3 py-2 text-sm w-[220px]"
                 style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               />
             </div>
             <button
               className="px-3 py-2 rounded-lg text-xs font-semibold text-white transition-all disabled:opacity-40 self-end"
               style={{ backgroundColor: '#6366f1' }}
-              disabled={!selectedVehicleType || !manualBaseId || saving}
+              disabled={
+                !selectedVehicleType || !manualBaseId || saving
+                || (movementNature === 'TRANSFERT_PDV' && (!transfertOriginPdvId || !transfertDestPdvId))
+              }
               onClick={handleCreateMovement}
             >
-              {saving ? '...' : 'Créer le mouvement'}
+              {saving ? '...' : (movementNature === 'TRANSFERT_PDV' ? 'Créer le transfert' : 'Créer le mouvement')}
             </button>
           </>
         )}
