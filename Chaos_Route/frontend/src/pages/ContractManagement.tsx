@@ -135,6 +135,11 @@ export default function ContractManagement() {
     { key: 'vacation', label: t('contracts.vacation'), type: 'number', step: 0.01 },
     { key: 'cost_per_km', label: t('contracts.costPerKm'), type: 'number', step: 0.0001 },
     { key: 'cost_per_hour', label: t('contracts.costPerHour'), type: 'number', step: 0.01 },
+    // Barème pré-facturation CMRO
+    { key: 'trailer_cost', label: 'Tarif remorque (T_rem)', type: 'number', step: 0.01, helperText: 'Forfait remorque ajouté au coût de la tournée.' },
+    { key: 'ha_cost', label: 'HA (forfait/tournée)', type: 'number', step: 0.01 },
+    { key: 'prime_saturday', label: 'Prime samedi', type: 'number', step: 0.01 },
+    { key: 'prime_sunday_holiday', label: 'Prime dimanche/férié', type: 'number', step: 0.01 },
     // Minimums + Consommation
     { key: 'min_hours_per_day', label: t('contracts.minHoursPerDay'), type: 'number', step: 0.5 },
     { key: 'min_km_per_day', label: t('contracts.minKmPerDay'), type: 'number' },

@@ -60,6 +60,11 @@ class Contract(Base):
     vacation: Mapped[float | None] = mapped_column(Numeric(10, 2))
     cost_per_km: Mapped[float | None] = mapped_column(Numeric(10, 4))
     cost_per_hour: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    # Barème pré-facturation CMRO / CMRO pre-billing tariff
+    trailer_cost: Mapped[float | None] = mapped_column(Numeric(10, 2))        # T_rem : forfait remorque
+    ha_cost: Mapped[float | None] = mapped_column(Numeric(10, 2))             # HA : forfait par tournée
+    prime_saturday: Mapped[float | None] = mapped_column(Numeric(10, 2))      # Prime samedi
+    prime_sunday_holiday: Mapped[float | None] = mapped_column(Numeric(10, 2))  # Prime dimanche/férié
     # Type de carburant (obligatoire à la saisie ; nullable en base pour migration
     # sûre, rétro-rempli GASOIL au démarrage). Détermine quel prix carburant utiliser.
     # Pour le gaz, consumption_coefficient s'exprime en kg/km (sinon L/km).

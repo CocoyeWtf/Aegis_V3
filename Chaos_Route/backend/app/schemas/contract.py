@@ -24,6 +24,11 @@ class ContractBase(BaseModel):
     vacation: float | None = None
     cost_per_km: float | None = None
     cost_per_hour: float | None = None
+    # Barème pré-facturation CMRO
+    trailer_cost: float | None = None
+    ha_cost: float | None = None
+    prime_saturday: float | None = None
+    prime_sunday_holiday: float | None = None
     # Type de carburant : optionnel ici (Read tolère les anciens contrats),
     # rendu obligatoire dans ContractCreate.
     fuel_type: FuelType | None = None
@@ -60,6 +65,10 @@ class ContractUpdate(BaseModel):
     vacation: float | None = None
     cost_per_km: float | None = None
     cost_per_hour: float | None = None
+    trailer_cost: float | None = None
+    ha_cost: float | None = None
+    prime_saturday: float | None = None
+    prime_sunday_holiday: float | None = None
     fuel_type: FuelType | None = None
     min_hours_per_day: float | None = None
     min_km_per_day: float | None = None

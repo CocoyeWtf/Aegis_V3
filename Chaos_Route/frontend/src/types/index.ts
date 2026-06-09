@@ -415,6 +415,10 @@ export interface Contract {
   vacation?: number
   cost_per_km?: number
   cost_per_hour?: number
+  trailer_cost?: number
+  ha_cost?: number
+  prime_saturday?: number
+  prime_sunday_holiday?: number
   fuel_type?: FuelType
   min_hours_per_day?: number
   min_km_per_day?: number
