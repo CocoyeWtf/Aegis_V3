@@ -1574,8 +1574,8 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                       </div>
                     </div>
 
-                    {/* === Ligne 2 — Actions / Line 2 — Actions (wrap en dernier recours pour rester visible) === */}
-                    <div className="flex flex-wrap items-center gap-2 px-3 pb-1.5">
+                    {/* === Ligne 2 — Actions / Line 2 — Actions (alignées en bas ; wrap en dernier recours) === */}
+                    <div className="flex flex-wrap items-end gap-1.5 px-3 pb-1.5">
                       {(!isScheduled || editingTourId === tour.id) ? (
                         /* --- Non planifié OU en modification : sélecteurs + enregistrer --- */
                         <>
@@ -1800,7 +1800,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                         /* --- Planifié DRAFT ou VALIDATED : carte alignée, colonnes fixes --- */
                         <>
                           {/* Moyen : contrat OU véhicule propre — badge largeur fixe uniforme */}
-                          <div className="shrink-0" style={{ width: '92px' }}>
+                          <div className="shrink-0" style={{ width: '82px' }}>
                             {tourContract ? (
                               <span className="block w-full text-center text-[11px] font-bold px-1 py-0.5 rounded truncate" title={`${tourContract.code} — ${tourContract.transporter_name}`} style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--color-success)' }}>
                                 {tourContract.code}
@@ -1815,12 +1815,12 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                           </div>
 
                           {/* Chauffeur — slot largeur fixe */}
-                          <div className="text-[11px] truncate shrink-0 text-center" style={{ width: '66px', color: 'var(--text-secondary)' }} title={tour.driver_name ?? ''}>
+                          <div className="text-[11px] truncate shrink-0 text-center" style={{ width: '52px', color: 'var(--text-secondary)' }} title={tour.driver_name ?? ''}>
                             {tour.driver_name || '—'}
                           </div>
 
                           {/* Livraison (1er) */}
-                          <div className="text-center shrink-0" style={{ width: '56px' }}>
+                          <div className="text-center shrink-0" style={{ width: '52px' }}>
                             <div className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Livr.</div>
                             <div className="text-[11px]" style={{ color: 'var(--text-primary)' }}>{tour.delivery_date ? formatDate(tour.delivery_date) : '—'}</div>
                           </div>
@@ -1863,7 +1863,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                           </div>
 
                           {/* Coût (4e) */}
-                          <div className="text-center shrink-0" style={{ width: '50px' }}>
+                          <div className="text-center shrink-0" style={{ width: '48px' }}>
                             <div className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Coût</div>
                             <div className="text-[11px]">
                               {tour.total_cost != null ? (
@@ -1879,8 +1879,8 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                             </div>
                           </div>
 
-                          {/* Bloc boutons 2 colonnes x 2 lignes (droite) */}
-                          <div className="ml-auto grid grid-cols-2 gap-1 shrink-0" style={{ width: '116px' }}>
+                          {/* Bloc boutons 2 colonnes x 2 lignes (droite, bas aligné au coût) */}
+                          <div className="ml-auto grid grid-cols-2 gap-1 shrink-0" style={{ width: '110px' }}>
                             {tour.status === 'DRAFT' && (
                               <button
                                 className="w-full px-1 py-0.5 rounded text-[10px] font-semibold border transition-all hover:opacity-80"
