@@ -1,6 +1,6 @@
 /* Ordonnancement des tours — vue postier / Tour scheduling — postman-style view */
 
-import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useApi } from '../../hooks/useApi'
 import { useAppStore } from '../../stores/useAppStore'
@@ -26,12 +26,32 @@ const ACTIVITY_FILTERS: { key: string; label: string }[] = [
 /* Types véhicule disponibles pour filtre / Vehicle types for filter */
 const VEHICLE_TYPE_OPTIONS: VehicleType[] = ['SEMI', 'PORTEUR', 'PORTEUR_SURBAISSE', 'PORTEUR_REMORQUE', 'CITY', 'VL']
 
+/* Libellé court (cases compactes) / Short label for compact chips */
+const VEHICLE_TYPE_SHORT: Record<string, string> = {
+  SEMI: 'Semi', PORTEUR: 'Porteur', PORTEUR_SURBAISSE: 'Porteur surb.',
+  PORTEUR_REMORQUE: 'Porteur rem.', CITY: 'City', VL: 'VL',
+}
+
 /* Modes d'affectation pour filtre / Assignment modes for filter */
 const MODE_OPTIONS: { key: AssignmentMode; label: string }[] = [
   { key: 'preste', label: 'Presté' },
   { key: 'propre', label: 'Propre' },
   { key: 'mixte', label: 'Mixte' },
 ]
+
+/* Case de filtre standardisée (hauteur fixe, remplit sa cellule de grille) /
+   Standardized filter chip (fixed height, fills its grid cell) */
+const CHIP = 'h-7 px-2 text-[11px] font-medium rounded border transition-all w-full flex items-center justify-center text-center leading-none whitespace-nowrap'
+
+/* Section de filtre uniforme (label + contenu) / Uniform filter section */
+function FilterGroup({ label, children, className = '' }: { label: string; children: ReactNode; className?: string }) {
+  return (
+    <div className={`flex flex-col gap-1 ${className}`}>
+      <label className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{label}</label>
+      {children}
+    </div>
+  )
+}
 
 /* Dériver le mode d'affectation d'un tour / Derive assignment mode from tour */
 function getTourMode(tour: Tour): AssignmentMode | null {
@@ -995,7 +1015,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
     <div className="space-y-4">
       {/* Barre supérieure: date + filtre activité / Top bar: date + activity filter */}
       <div
-        className="rounded-xl border p-4 flex flex-wrap items-end gap-4"
+        className="rounded-xl border px-4 py-3 flex flex-wrap items-end gap-x-5 gap-y-2"
         style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
       >
         <div className="flex flex-col gap-1">
@@ -1146,18 +1166,19 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
 
         {/* Ligne 2 — Filtres avancés (collapsible) / Line 2 — Advanced filters (collapsible) */}
         {showAdvancedFilters && (
-          <div className="w-full mt-3 pt-3 border-t flex flex-wrap items-end gap-4"
+          <div className="w-full mt-3 pt-3 border-t flex flex-wrap items-start gap-x-6 gap-y-3"
             style={{ borderColor: 'var(--border-color)' }}>
-            {/* Filtre type véhicule (multi) / Vehicle type filter (multi) */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Type véhicule</label>
-              <div className="flex flex-wrap gap-1">
+
+            {/* Type véhicule — grille 2 colonnes, cases égales */}
+            <FilterGroup label="Type véhicule">
+              <div className="grid grid-cols-2 gap-1" style={{ width: '184px' }}>
                 {VEHICLE_TYPE_OPTIONS.map(vt => {
                   const active = vehicleTypeFilters.has(vt)
                   return (
                     <button
                       key={vt}
-                      className="px-2 py-1 text-[11px] rounded border transition-all"
+                      className={CHIP}
+                      title={vt}
                       style={{
                         borderColor: active ? 'var(--color-primary)' : 'var(--border-color)',
                         backgroundColor: active ? 'var(--color-primary)' : 'var(--bg-primary)',
@@ -1165,23 +1186,22 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                       }}
                       onClick={() => toggleInSet(vehicleTypeFilters, vt, setVehicleTypeFilters)}
                     >
-                      {vt}
+                      {VEHICLE_TYPE_SHORT[vt] ?? vt}
                     </button>
                   )
                 })}
               </div>
-            </div>
+            </FilterGroup>
 
-            {/* Filtre mode (multi) / Mode filter (multi) */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Type</label>
-              <div className="flex gap-1">
+            {/* Type (presté/propre/mixte) — une colonne */}
+            <FilterGroup label="Type">
+              <div className="grid grid-cols-1 gap-1" style={{ width: '92px' }}>
                 {MODE_OPTIONS.map(({ key, label }) => {
                   const active = modeFilters.has(key)
                   return (
                     <button
                       key={key}
-                      className="px-2 py-1 text-[11px] rounded border transition-all"
+                      className={CHIP}
                       style={{
                         borderColor: active ? 'var(--color-primary)' : 'var(--border-color)',
                         backgroundColor: active ? 'var(--color-primary)' : 'var(--bg-primary)',
@@ -1194,25 +1214,24 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                   )
                 })}
               </div>
-            </div>
+            </FilterGroup>
 
-            {/* Filtre contrats (multi) / Contracts filter (multi) */}
+            {/* Contrats — grille multi-colonnes, cases égales */}
             {contractsInUse.length > 0 && (
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-                  Contrats ({contractFilters.size}/{contractsInUse.length})
-                </label>
-                <div className="flex flex-wrap gap-1 max-w-md max-h-20 overflow-y-auto p-1 rounded border"
-                  style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-primary)' }}>
+              <FilterGroup label={`Contrats (${contractFilters.size}/${contractsInUse.length})`} className="flex-1 min-w-[260px]">
+                <div
+                  className="grid gap-1 overflow-y-auto pr-1"
+                  style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(68px, 1fr))', maxHeight: '92px' }}
+                >
                   {contractsInUse.map(c => {
                     const active = contractFilters.has(c.id)
                     return (
                       <button
                         key={c.id}
-                        className="px-2 py-0.5 text-[11px] rounded border transition-all whitespace-nowrap"
+                        className={CHIP}
                         style={{
                           borderColor: active ? 'var(--color-primary)' : 'var(--border-color)',
-                          backgroundColor: active ? 'var(--color-primary)' : 'transparent',
+                          backgroundColor: active ? 'var(--color-primary)' : 'var(--bg-primary)',
                           color: active ? '#fff' : 'var(--text-secondary)',
                         }}
                         onClick={() => toggleInSet(contractFilters, c.id, setContractFilters)}
@@ -1223,18 +1242,17 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                     )
                   })}
                 </div>
-              </div>
+              </FilterGroup>
             )}
 
-            {/* Toggles statut / Status toggles */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Statut</label>
-              <div className="flex gap-1">
+            {/* Statut — une colonne (2 toggles empilés) */}
+            <FilterGroup label="Statut">
+              <div className="grid grid-cols-1 gap-1" style={{ width: '150px' }}>
                 <button
-                  className="px-3 py-2 text-xs rounded-lg border transition-all"
+                  className={CHIP}
                   style={{
                     borderColor: showValidated ? 'var(--color-success)' : 'var(--border-color)',
-                    backgroundColor: showValidated ? 'rgba(34,197,94,0.1)' : 'var(--bg-primary)',
+                    backgroundColor: showValidated ? 'rgba(34,197,94,0.12)' : 'var(--bg-primary)',
                     color: showValidated ? 'var(--color-success)' : 'var(--text-secondary)',
                   }}
                   onClick={() => setShowValidated(prev => !prev)}
@@ -1243,10 +1261,10 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                   {showValidated ? '☑ Validés affichés' : '☐ Validés masqués'}
                 </button>
                 <button
-                  className="px-3 py-2 text-xs rounded-lg border transition-all"
+                  className={CHIP}
                   style={{
                     borderColor: onlyToPlan ? 'var(--color-primary)' : 'var(--border-color)',
-                    backgroundColor: onlyToPlan ? 'rgba(249,115,22,0.1)' : 'var(--bg-primary)',
+                    backgroundColor: onlyToPlan ? 'rgba(249,115,22,0.12)' : 'var(--bg-primary)',
                     color: onlyToPlan ? 'var(--color-primary)' : 'var(--text-secondary)',
                   }}
                   onClick={() => setOnlyToPlan(prev => !prev)}
@@ -1255,67 +1273,65 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                   {onlyToPlan ? '☑ À planifier' : '☐ À planifier'}
                 </button>
               </div>
-            </div>
+            </FilterGroup>
 
-            {/* Colonnes liste / List columns */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Colonnes liste</label>
-              <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border-color)' }}>
-                {([1, 2, 3] as const).map(n => (
-                  <button
-                    key={n}
-                    className="px-3 py-2 text-xs font-medium transition-all"
-                    style={{
-                      backgroundColor: prefs.listColumns === n ? 'var(--color-primary)' : 'var(--bg-primary)',
-                      color: prefs.listColumns === n ? '#fff' : 'var(--text-secondary)',
-                    }}
-                    onClick={() => setPrefs(p => { const next = { ...p, listColumns: n }; savePrefs(next); return next })}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Détachement (caché en mode embarqué) / Detachment (hidden in embedded mode) */}
-            {canDetach && (
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Détacher</label>
-                <div className="flex gap-1">
-                  <button
-                    className="px-3 py-2 text-xs rounded-lg border transition-all"
-                    style={{
-                      borderColor: ganttDetached ? 'var(--color-primary)' : 'var(--border-color)',
-                      backgroundColor: ganttDetached ? 'rgba(249,115,22,0.1)' : 'var(--bg-primary)',
-                      color: ganttDetached ? 'var(--color-primary)' : 'var(--text-secondary)',
-                    }}
-                    onClick={() => ganttDetached ? (ganttPopupRef.current?.close(), setGanttDetached(false)) : openDetachedGantt()}
-                    title="Détacher la timeline en fenêtre séparée"
-                  >
-                    {ganttDetached ? '⊟ Gantt' : '⊞ Gantt'}
-                  </button>
-                  <button
-                    className="px-3 py-2 text-xs rounded-lg border transition-all"
-                    style={{
-                      borderColor: listDetached ? 'var(--color-primary)' : 'var(--border-color)',
-                      backgroundColor: listDetached ? 'rgba(249,115,22,0.1)' : 'var(--bg-primary)',
-                      color: listDetached ? 'var(--color-primary)' : 'var(--text-secondary)',
-                    }}
-                    onClick={() => listDetached ? (listPopupRef.current?.close(), setListDetached(false)) : openDetachedList()}
-                    title="Détacher la liste des tours en fenêtre séparée"
-                  >
-                    {listDetached ? '⊟ Liste' : '⊞ Liste'}
-                  </button>
+            {/* Affichage — colonnes liste + détacher superposés */}
+            <FilterGroup label="Affichage">
+              <div className="grid grid-cols-1 gap-1" style={{ width: '150px' }}>
+                {/* Colonnes liste */}
+                <div className="flex rounded border overflow-hidden h-7" style={{ borderColor: 'var(--border-color)' }}>
+                  {([1, 2, 3] as const).map(n => (
+                    <button
+                      key={n}
+                      className="flex-1 text-[11px] font-medium transition-all flex items-center justify-center"
+                      style={{
+                        backgroundColor: prefs.listColumns === n ? 'var(--color-primary)' : 'var(--bg-primary)',
+                        color: prefs.listColumns === n ? '#fff' : 'var(--text-secondary)',
+                      }}
+                      onClick={() => setPrefs(p => { const next = { ...p, listColumns: n }; savePrefs(next); return next })}
+                      title={`Liste sur ${n} colonne(s)`}
+                    >
+                      {n}
+                    </button>
+                  ))}
                 </div>
+                {/* Détacher Gantt / Liste (caché en mode embarqué) */}
+                {canDetach && (
+                  <div className="grid grid-cols-2 gap-1">
+                    <button
+                      className={CHIP}
+                      style={{
+                        borderColor: ganttDetached ? 'var(--color-primary)' : 'var(--border-color)',
+                        backgroundColor: ganttDetached ? 'rgba(249,115,22,0.12)' : 'var(--bg-primary)',
+                        color: ganttDetached ? 'var(--color-primary)' : 'var(--text-secondary)',
+                      }}
+                      onClick={() => ganttDetached ? (ganttPopupRef.current?.close(), setGanttDetached(false)) : openDetachedGantt()}
+                      title="Détacher la timeline en fenêtre séparée"
+                    >
+                      {ganttDetached ? '⊟ Gantt' : '⊞ Gantt'}
+                    </button>
+                    <button
+                      className={CHIP}
+                      style={{
+                        borderColor: listDetached ? 'var(--color-primary)' : 'var(--border-color)',
+                        backgroundColor: listDetached ? 'rgba(249,115,22,0.12)' : 'var(--bg-primary)',
+                        color: listDetached ? 'var(--color-primary)' : 'var(--text-secondary)',
+                      }}
+                      onClick={() => listDetached ? (listPopupRef.current?.close(), setListDetached(false)) : openDetachedList()}
+                      title="Détacher la liste des tours en fenêtre séparée"
+                    >
+                      {listDetached ? '⊟ Liste' : '⊞ Liste'}
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
+            </FilterGroup>
 
-            {/* Bouton réinit filtres / Reset filters button */}
+            {/* Réinitialiser */}
             {(vehicleTypeFilters.size + modeFilters.size + contractFilters.size > 0 || showValidated || onlyToPlan) && (
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>&nbsp;</label>
+              <FilterGroup label="Actions">
                 <button
-                  className="px-3 py-2 text-xs rounded-lg border transition-all hover:opacity-80"
+                  className="h-7 px-3 text-[11px] font-medium rounded border transition-all hover:opacity-80 whitespace-nowrap"
                   style={{ borderColor: 'var(--border-color)', color: 'var(--text-muted)' }}
                   onClick={() => {
                     setVehicleTypeFilters(new Set())
@@ -1325,9 +1341,9 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                     setOnlyToPlan(false)
                   }}
                 >
-                  Réinitialiser
+                  ↺ Réinitialiser
                 </button>
-              </div>
+              </FilterGroup>
             )}
           </div>
         )}
