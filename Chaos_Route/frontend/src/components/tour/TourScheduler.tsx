@@ -1566,8 +1566,9 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                         )}
                       </div>
 
-                      {/* Ligne 2 — Liste complète des PDV / Line 2 — Full PDV list */}
-                      <div className="text-sm font-bold mt-0.5 pl-6" style={{ color: '#000000' }}>
+                      {/* Ligne 2 — Liste des PDV (tronquée 1 ligne ; détail complet via dépli ▸) /
+                          PDV list (truncated to 1 line; full detail via expand) */}
+                      <div className="text-sm font-bold mt-0.5 pl-6 truncate" style={{ color: '#000000' }} title={pdvSummary(tour)}>
                         {pdvSummary(tour)}
                       </div>
                     </div>
@@ -1795,117 +1796,139 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                           </span>
                         </>
                       ) : (
-                        /* --- Planifié DRAFT ou VALIDATED --- */
+                        /* --- Planifié DRAFT ou VALIDATED : carte alignée, colonnes fixes --- */
                         <>
-                          {tourContract && (
-                            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--color-success)' }}>
-                              {tourContract.code}
-                            </span>
-                          )}
-                          {/* Véhicule propre (mode propre ou mixte) / Own vehicle (own or mixed mode) */}
-                          {tour.vehicle_id && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>
-                              {vehicleMap.get(tour.vehicle_id)?.license_plate ?? vehicleMap.get(tour.vehicle_id)?.code ?? `V#${tour.vehicle_id}`}
-                              {tour.tractor_id && ` + ${vehicleMap.get(tour.tractor_id)?.license_plate ?? vehicleMap.get(tour.tractor_id)?.code ?? `T#${tour.tractor_id}`}`}
-                            </span>
-                          )}
-                          {/* Priorité : éditable tant que planifié (DRAFT), lecture seule une fois validé /
-                              Priority: editable while planned (DRAFT), read-only once validated */}
-                          {tour.status === 'DRAFT' ? (
-                            <input
-                              type="number"
-                              min={1}
-                              step={1}
-                              placeholder="Prio"
-                              title="Priorité (1 = le plus prioritaire) — modifiable après planification, avant validation"
-                              defaultValue={tour.priority ?? ''}
-                              onClick={(e) => e.stopPropagation()}
-                              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
-                              onBlur={(e) => {
-                                const v = e.target.value ? Number(e.target.value) : null
-                                if (v !== (tour.priority ?? null)) handlePriorityUpdate(tour.id, v)
-                              }}
-                              className="rounded border px-1.5 py-0.5 text-[11px] w-[52px] shrink-0"
-                              style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--color-primary)', color: 'var(--text-primary)' }}
-                            />
-                          ) : tour.priority != null && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" title="Priorité" style={{ backgroundColor: 'rgba(249,115,22,0.12)', color: 'var(--color-primary)' }}>
-                              P{tour.priority}
-                            </span>
-                          )}
-                          <span className="text-[11px] font-mono" style={{ color: 'var(--text-primary)' }}>
-                            {tour.departure_time} → {tour.return_time}
-                          </span>
-                          {tour.total_duration_minutes != null && (
-                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                              {formatDuration(tour.total_duration_minutes)}
-                              {tour.total_cost != null && (
+                          {/* Moyen : contrat (+ véhicule propre) — slot largeur fixe */}
+                          <div className="flex items-center gap-1 shrink-0 overflow-hidden" style={{ width: '120px' }}>
+                            {tourContract && (
+                              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded truncate" title={`${tourContract.code} — ${tourContract.transporter_name}`} style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--color-success)' }}>
+                                {tourContract.code}
+                              </span>
+                            )}
+                            {tour.vehicle_id && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded truncate" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>
+                                {vehicleMap.get(tour.vehicle_id)?.license_plate ?? vehicleMap.get(tour.vehicle_id)?.code ?? `V#${tour.vehicle_id}`}
+                                {tour.tractor_id && ` + ${vehicleMap.get(tour.tractor_id)?.license_plate ?? vehicleMap.get(tour.tractor_id)?.code ?? `T#${tour.tractor_id}`}`}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Chauffeur — slot largeur fixe */}
+                          <div className="text-[11px] truncate shrink-0" style={{ width: '78px', color: 'var(--text-secondary)' }} title={tour.driver_name ?? ''}>
+                            {tour.driver_name || '—'}
+                          </div>
+
+                          {/* Livraison (1er) */}
+                          <div className="text-center shrink-0" style={{ width: '62px' }}>
+                            <div className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Livr.</div>
+                            <div className="text-[11px]" style={{ color: 'var(--text-primary)' }}>{tour.delivery_date ? formatDate(tour.delivery_date) : '—'}</div>
+                          </div>
+
+                          {/* Horaire vertical : départ ↓ retour (2e) */}
+                          <div
+                            className="flex flex-col items-center leading-tight shrink-0"
+                            style={{ width: '50px' }}
+                            title={tour.total_duration_minutes != null ? formatDuration(tour.total_duration_minutes) : undefined}
+                          >
+                            <span className="text-[11px] font-mono font-bold" style={{ color: 'var(--text-primary)' }}>{tour.departure_time ?? '—'}</span>
+                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>↓</span>
+                            <span className="text-[11px] font-mono" style={{ color: 'var(--text-secondary)' }}>{tour.return_time ?? '—'}</span>
+                          </div>
+
+                          {/* Priorité (3e) — éditable DRAFT, badge sinon */}
+                          <div className="flex items-center justify-center shrink-0" style={{ width: '44px' }}>
+                            {tour.status === 'DRAFT' ? (
+                              <input
+                                type="number"
+                                min={1}
+                                step={1}
+                                placeholder="Prio"
+                                title="Priorité (1 = le plus prioritaire) — modifiable avant validation"
+                                defaultValue={tour.priority ?? ''}
+                                onClick={(e) => e.stopPropagation()}
+                                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                                onBlur={(e) => {
+                                  const v = e.target.value ? Number(e.target.value) : null
+                                  if (v !== (tour.priority ?? null)) handlePriorityUpdate(tour.id, v)
+                                }}
+                                className="rounded border px-1 py-0.5 text-[11px] w-full text-center"
+                                style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--color-primary)', color: 'var(--text-primary)' }}
+                              />
+                            ) : tour.priority != null ? (
+                              <span className="text-[11px] font-bold" style={{ color: 'var(--color-primary)' }}>P{tour.priority}</span>
+                            ) : (
+                              <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>—</span>
+                            )}
+                          </div>
+
+                          {/* Coût (4e) */}
+                          <div className="text-center shrink-0" style={{ width: '56px' }}>
+                            <div className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Coût</div>
+                            <div className="text-[11px]">
+                              {tour.total_cost != null ? (
                                 <span
-                                  className="ml-1 cursor-pointer underline decoration-dotted hover:opacity-80"
+                                  className="cursor-pointer underline decoration-dotted hover:opacity-80"
                                   style={{ color: 'var(--color-primary)' }}
                                   onClick={(e) => { e.stopPropagation(); setCostTourId(tour.id) }}
                                   title="Détail coûts"
                                 >
                                   {tour.total_cost}€
                                 </span>
-                              )}
-                            </span>
-                          )}
-                          {tour.delivery_date && (
-                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                              Livr: {formatDate(tour.delivery_date)}
-                            </span>
-                          )}
-                          <span className="ml-auto" />
-                          {/* Modifier : éditer heure/chauffeur/contrat d'un tour À VALIDER sans l'annuler */}
-                          {tour.status === 'DRAFT' && (
+                              ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                            </div>
+                          </div>
+
+                          {/* Bloc boutons empilés (droite) */}
+                          <div className="ml-auto flex flex-col gap-1 shrink-0" style={{ width: '86px' }}>
+                            {tour.status === 'DRAFT' && (
+                              <button
+                                className="w-full px-2 py-0.5 rounded text-[11px] font-semibold border transition-all hover:opacity-80"
+                                style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
+                                disabled={scheduling === tour.id}
+                                onClick={(e) => { e.stopPropagation(); startEditTour(tour) }}
+                                title="Modifier l'heure, le chauffeur ou le moyen sans annuler le tour"
+                              >
+                                Modifier
+                              </button>
+                            )}
+                            {tour.status === 'DRAFT' ? (
+                              <button
+                                className="w-full px-2 py-0.5 rounded text-[11px] font-semibold border transition-all hover:opacity-80"
+                                style={{ borderColor: 'var(--color-success)', color: 'var(--color-success)' }}
+                                disabled={scheduling === tour.id}
+                                onClick={(e) => { e.stopPropagation(); handleValidate(tour.id) }}
+                              >
+                                {scheduling === tour.id ? '...' : 'Valider'}
+                              </button>
+                            ) : (
+                              <button
+                                className="w-full px-2 py-0.5 rounded text-[11px] border transition-all hover:opacity-80"
+                                style={{ borderColor: 'var(--color-warning)', color: 'var(--color-warning)' }}
+                                disabled={scheduling === tour.id}
+                                onClick={(e) => { e.stopPropagation(); handleRevertDraft(tour.id) }}
+                              >
+                                {scheduling === tour.id ? '...' : 'Defaire'}
+                              </button>
+                            )}
+                            {canUnschedule && (
+                              <button
+                                className="w-full px-2 py-0.5 rounded text-[11px] border transition-all hover:opacity-80"
+                                style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
+                                disabled={scheduling === tour.id}
+                                onClick={(e) => { e.stopPropagation(); handleUnschedule(tour.id) }}
+                              >
+                                {scheduling === tour.id ? '...' : 'Retirer'}
+                              </button>
+                            )}
                             <button
-                              className="px-2.5 py-1 rounded text-[11px] font-semibold border transition-all hover:opacity-80"
-                              style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
+                              className="w-full px-2 py-0.5 rounded text-[11px] font-semibold border transition-all hover:opacity-80"
+                              style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)', backgroundColor: 'rgba(239,68,68,0.1)' }}
                               disabled={scheduling === tour.id}
-                              onClick={(e) => { e.stopPropagation(); startEditTour(tour) }}
-                              title="Modifier l'heure de départ, le chauffeur ou le moyen sans annuler le tour"
+                              onClick={(e) => { e.stopPropagation(); handleCancel(tour.id) }}
                             >
-                              Modifier
+                              {scheduling === tour.id ? '...' : 'Annuler'}
                             </button>
-                          )}
-                          {tour.status === 'DRAFT' ? (
-                            <button
-                              className="px-2.5 py-1 rounded text-[11px] font-semibold border transition-all hover:opacity-80"
-                              style={{ borderColor: 'var(--color-success)', color: 'var(--color-success)' }}
-                              disabled={scheduling === tour.id}
-                              onClick={(e) => { e.stopPropagation(); handleValidate(tour.id) }}
-                            >
-                              {scheduling === tour.id ? '...' : 'Valider'}
-                            </button>
-                          ) : (
-                            <button
-                              className="px-2.5 py-1 rounded text-[11px] border transition-all hover:opacity-80"
-                              style={{ borderColor: 'var(--color-warning)', color: 'var(--color-warning)' }}
-                              disabled={scheduling === tour.id}
-                              onClick={(e) => { e.stopPropagation(); handleRevertDraft(tour.id) }}
-                            >
-                              {scheduling === tour.id ? '...' : 'Defaire'}
-                            </button>
-                          )}
-                          {canUnschedule && (
-                            <button
-                              className="px-2.5 py-1 rounded text-[11px] border transition-all hover:opacity-80"
-                              style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
-                              disabled={scheduling === tour.id}
-                              onClick={(e) => { e.stopPropagation(); handleUnschedule(tour.id) }}
-                            >
-                              {scheduling === tour.id ? '...' : 'Retirer'}
-                            </button>
-                          )}
-                          <button
-                            className="px-2.5 py-1 rounded text-[11px] font-semibold border transition-all hover:opacity-80"
-                            style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)', backgroundColor: 'rgba(239,68,68,0.1)' }}
-                            disabled={scheduling === tour.id}
-                            onClick={(e) => { e.stopPropagation(); handleCancel(tour.id) }}
-                          >
-                            {scheduling === tour.id ? '...' : 'Annuler'}
-                          </button>
+                          </div>
                         </>
                       )}
                     </div>
