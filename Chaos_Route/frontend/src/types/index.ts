@@ -505,6 +505,7 @@ export interface MobileDevice {
   imei?: string | null
   registration_code: string
   base_id?: number | null
+  pdv_id?: number | null
   is_active: boolean
   registered_at?: string | null
   app_version?: string | null

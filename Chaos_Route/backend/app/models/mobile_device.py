@@ -11,6 +11,8 @@ DEVICE_PROFILES = {
     "DRIVER": "tours,pickups,declarations",
     "BASE_RECEPTION": "base_reception",
     "INVENTORY": "inventory",
+    # Tablette magasin : déclaration contenants uniquement (jamais inventaire base)
+    "PDV": "pdv_pickup",
 }
 
 
@@ -24,6 +26,8 @@ class MobileDevice(Base):
     imei: Mapped[str | None] = mapped_column(String(20), unique=True, nullable=True)  # IMEI du telephone (15 chiffres)
     registration_code: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)  # UUID court pour QR
     base_id: Mapped[int | None] = mapped_column(ForeignKey("bases_logistics.id"))
+    # Tablette magasin : rattachement à un PDV (scope sans login) / Store tablet: PDV binding
+    pdv_id: Mapped[int | None] = mapped_column(ForeignKey("pdvs.id"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     registered_at: Mapped[str | None] = mapped_column(String(32))  # ISO 8601
     app_version: Mapped[str | None] = mapped_column(String(20))
@@ -35,4 +39,5 @@ class MobileDevice(Base):
 
     # Relations
     base: Mapped["BaseLogistics | None"] = relationship()
+    pdv: Mapped["PDV | None"] = relationship()
     assignments: Mapped[list["DeviceAssignment"]] = relationship(back_populates="device")

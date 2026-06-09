@@ -17,15 +17,17 @@ class MobileDeviceCreate(BaseModel):
     friendly_name: str | None = None
     imei: str | None = None
     base_id: int | None = None
-    profile: str = "DRIVER"  # DRIVER, BASE_RECEPTION, INVENTORY
+    pdv_id: int | None = None  # tablette magasin (scope sans login)
+    profile: str = "DRIVER"  # DRIVER, BASE_RECEPTION, INVENTORY, PDV
 
 class MobileDeviceUpdate(BaseModel):
     device_identifier: str | None = None
     friendly_name: str | None = None
     imei: str | None = None
     base_id: int | None = None
+    pdv_id: int | None = None
     is_active: bool | None = None
-    profile: str | None = None  # DRIVER, BASE_RECEPTION, INVENTORY
+    profile: str | None = None  # DRIVER, BASE_RECEPTION, INVENTORY, PDV
     control_mode: bool | None = None  # null = herite du parametre global/regional
 
 class MobileDeviceRead(BaseModel):
@@ -36,6 +38,7 @@ class MobileDeviceRead(BaseModel):
     imei: str | None = None
     registration_code: str
     base_id: int | None = None
+    pdv_id: int | None = None
     is_active: bool
     registered_at: str | None = None
     app_version: str | None = None

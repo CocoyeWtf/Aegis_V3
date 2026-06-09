@@ -29,7 +29,10 @@ from app.schemas.pickup import (
     RenderLabelsResponse,
     LabelPrintEventCreate,
 )
-from app.api.deps import require_permission, enforce_pdv_scope
+from app.api.deps import (
+    require_permission, enforce_pdv_scope, get_authenticated_device, get_user_pdv_id,
+)
+from app.models.mobile_device import MobileDevice
 from app.utils.label_templates import LabelData, render as render_label
 
 router = APIRouter()
@@ -433,26 +436,13 @@ _PICKUP_TYPE_LABELS = {
 }
 
 
-@router.post("/{request_id}/render-labels", response_model=RenderLabelsResponse)
-async def render_labels_for_print(
-    request_id: int,
-    protocol: str = Query("ZPL", description="ZPL ou TSPL"),
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("pickup-requests", "read")),
-):
-    """Rendre les etiquettes d'une demande en ZPL ou TSPL pour impression mobile /
-    Render a request's labels to ZPL or TSPL for mobile printing.
+async def _render_request_labels(
+    db: AsyncSession, request_id: int, protocol: str, required_pdv_id: int | None,
+) -> RenderLabelsResponse:
+    """Rendre les étiquettes actives d'une demande en ZPL/TSPL (RAW impression mobile).
 
-    Retourne uniquement les etiquettes actives (PENDING ou PLANNED), pas les
-    annulees/recuperees/recues. L'app mobile envoie ensuite chaque payload en RAW
-    au socket Bluetooth SPP de l'imprimante portable.
-
-    L'incrementation du print_count et l'audit sont faits via /print-events apres
-    impression effective, pas ici (pour ne pas compter les rendus avortes).
-
-    Returns only active (PENDING/PLANNED) labels; cancelled/picked/received are excluded.
-    The mobile app then sends each payload RAW to the printer's Bluetooth SPP socket.
-    print_count increment and audit happen via /print-events after actual print.
+    required_pdv_id : si fourni (user PDV ou tablette), la demande doit appartenir à
+    ce PDV (sinon 403). None = pas de restriction (back-office / superadmin).
     """
     proto = protocol.strip().upper()
     if proto not in ("ZPL", "TSPL"):
@@ -472,8 +462,7 @@ async def render_labels_for_print(
         raise HTTPException(status_code=404, detail="Pickup request not found")
 
     # Verifier scope PDV / Check PDV scope
-    user_pdv = enforce_pdv_scope(user, req.pdv_id)
-    if user_pdv is not None and user_pdv != req.pdv_id:
+    if required_pdv_id is not None and req.pdv_id != required_pdv_id:
         raise HTTPException(status_code=403, detail="Acces interdit a ce PDV")
 
     if not req.pdv:
@@ -520,21 +509,38 @@ async def render_labels_for_print(
     return RenderLabelsResponse(protocol=proto, labels=rendered)
 
 
-@router.post("/print-events", status_code=201)
-async def log_print_events(
-    payload: LabelPrintEventCreate,
+@router.post("/{request_id}/render-labels", response_model=RenderLabelsResponse)
+async def render_labels_for_print(
+    request_id: int,
+    protocol: str = Query("ZPL", description="ZPL ou TSPL"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("pickup-requests", "read")),
 ):
-    """Enregistrer un evenement d'impression / Record a print event.
+    """Rendre les étiquettes d'une demande (utilisateur JWT, scopé à son PDV)."""
+    return await _render_request_labels(db, request_id, protocol, get_user_pdv_id(user))
 
-    Appele par le mobile apres impression effective d'une ou plusieurs etiquettes.
-    Cree un LabelPrintEvent par label_id et incremente print_count sur la demande
-    parente si success=True.
 
-    Called by mobile after actually printing one or more labels. Creates one
-    LabelPrintEvent per label_id and increments print_count on the parent request
-    when success=True.
+@router.post("/device/{request_id}/render-labels", response_model=RenderLabelsResponse)
+async def render_labels_for_print_device(
+    request_id: int,
+    protocol: str = Query("ZPL", description="ZPL ou TSPL"),
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Rendre les étiquettes depuis une tablette magasin (auth appareil, scope device.pdv_id)."""
+    if not device.pdv_id:
+        raise HTTPException(status_code=403, detail="Appareil non rattaché à un PDV")
+    return await _render_request_labels(db, request_id, protocol, device.pdv_id)
+
+
+async def _log_print_events_core(
+    db: AsyncSession, payload: LabelPrintEventCreate, *,
+    scope_pdv_id: int | None, user_id: int | None = None, device_id: int | None = None,
+) -> dict:
+    """Enregistrer les événements d'impression + incrémenter print_count.
+
+    scope_pdv_id : si fourni, chaque étiquette doit appartenir à ce PDV (sinon 403).
+    Audit attribué via user_id (JWT) et/ou device_id (tablette).
     """
     if not payload.label_ids:
         raise HTTPException(status_code=400, detail="label_ids requis")
@@ -560,10 +566,9 @@ async def log_print_events(
         raise HTTPException(status_code=404, detail="Une ou plusieurs etiquettes introuvables")
 
     # Verifier scope PDV pour chaque label / Check PDV scope for each label
-    user_pdv = enforce_pdv_scope(user, None)
-    if user_pdv is not None:
+    if scope_pdv_id is not None:
         for lb in labels:
-            if lb.pickup_request and lb.pickup_request.pdv_id != user_pdv:
+            if lb.pickup_request and lb.pickup_request.pdv_id != scope_pdv_id:
                 raise HTTPException(status_code=403, detail="Acces interdit a ce PDV")
 
     # Creer un event par label / One event per label
@@ -573,7 +578,8 @@ async def log_print_events(
             pickup_label_id=lb.id,
             protocol=proto,
             source=source,
-            user_id=user.id,
+            user_id=user_id,
+            device_id=device_id,
             printer_name=payload.printer_name,
             printer_address=payload.printer_address,
             success=payload.success,
@@ -598,27 +604,40 @@ async def log_print_events(
     return {"events_created": len(labels), "requests_updated": len(affected_request_ids)}
 
 
-@router.post("/", response_model=PickupRequestRead, status_code=201)
-async def create_pickup_request(
-    data: PickupRequestCreate,
+@router.post("/print-events", status_code=201)
+async def log_print_events(
+    payload: LabelPrintEventCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("pickup-requests", "create")),
+    user: User = Depends(require_permission("pickup-requests", "read")),
 ):
-    """Creer une demande + auto-generer les etiquettes /
-    Create request + auto-generate labels.
+    """Enregistrer un événement d'impression (utilisateur JWT)."""
+    return await _log_print_events_core(
+        db, payload, scope_pdv_id=get_user_pdv_id(user), user_id=user.id)
 
-    Comportement standard (non-combi) : une etiquette par unite (data.quantity etiquettes).
-    Comportement combi (support_type.is_combi=True) :
-      - 1 seule etiquette de declaration (la quantite represente le stock absolu declare)
-      - Toute declaration combi precedente non encore prise (REQUESTED ou PLANNED) sur le
-        meme PDV est annulee (status=CANCELLED) — une seule declaration combi active a
-        la fois par PDV.
+
+@router.post("/device/print-events", status_code=201)
+async def log_print_events_device(
+    payload: LabelPrintEventCreate,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Enregistrer un événement d'impression depuis une tablette magasin (auth appareil)."""
+    if not device.pdv_id:
+        raise HTTPException(status_code=403, detail="Appareil non rattaché à un PDV")
+    return await _log_print_events_core(
+        db, payload, scope_pdv_id=device.pdv_id, device_id=device.id)
+
+
+async def _do_create_pickup_request(
+    db: AsyncSession, data: PickupRequestCreate, *,
+    user_id: int | None = None, device_id: int | None = None,
+) -> PickupRequest:
+    """Logique commune : créer une demande + auto-générer les étiquettes.
+
+    `data.pdv_id` doit déjà être résolu/forcé par l'appelant. L'audit est
+    attribué via user_id (utilisateur JWT) et/ou device_id (tablette magasin).
+    Combi (is_combi) : 1 seule étiquette, annule les déclarations combi actives du PDV.
     """
-    # Forcer le PDV si utilisateur PDV / Enforce PDV for PDV users
-    forced_pdv = enforce_pdv_scope(user, data.pdv_id)
-    if forced_pdv is not None:
-        data.pdv_id = forced_pdv
-
     # Validation quantite : protection contre valeurs aberrantes /
     # Quantity validation: protect against malicious or aberrant values
     if data.quantity < 0 or data.quantity > 9999:
@@ -644,7 +663,7 @@ async def create_pickup_request(
     # Pour les combis : annuler les declarations actives precedentes sur ce PDV /
     # For combis: cancel previous active declarations on this PDV
     if is_combi:
-        await _cancel_active_combi_declarations(db, data.pdv_id, st.id, user.id)
+        await _cancel_active_combi_declarations(db, data.pdv_id, st.id, user_id)
 
     req = PickupRequest(
         pdv_id=data.pdv_id,
@@ -653,7 +672,7 @@ async def create_pickup_request(
         availability_date=data.availability_date,
         pickup_type=data.pickup_type,
         status=PickupStatus.REQUESTED,
-        requested_by_user_id=user.id,
+        requested_by_user_id=user_id,
         notes=data.notes,
         # Snapshots valeur au moment de la declaration / Value snapshots at declaration time
         with_content=data.with_content,
@@ -688,7 +707,7 @@ async def create_pickup_request(
         db.add(label)
         await db.flush()
         db.add(_create_movement(
-            label, MovementType.REQUESTED, user_id=user.id,
+            label, MovementType.REQUESTED, user_id=user_id, device_id=device_id,
             notes=f"Declaration combi : stock declare = {data.quantity}",
         ))
     else:
@@ -713,7 +732,7 @@ async def create_pickup_request(
             )
             db.add(label)
             await db.flush()
-            db.add(_create_movement(label, MovementType.REQUESTED, user_id=user.id))
+            db.add(_create_movement(label, MovementType.REQUESTED, user_id=user_id, device_id=device_id))
 
     await db.flush()
 
@@ -729,6 +748,36 @@ async def create_pickup_request(
         )
     )
     return result.scalar_one()
+
+
+@router.post("/", response_model=PickupRequestRead, status_code=201)
+async def create_pickup_request(
+    data: PickupRequestCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("pickup-requests", "create")),
+):
+    """Créer une demande + étiquettes (utilisateur JWT). PDV forcé pour un user PDV."""
+    forced_pdv = enforce_pdv_scope(user, data.pdv_id)
+    if forced_pdv is not None:
+        data.pdv_id = forced_pdv
+    return await _do_create_pickup_request(db, data, user_id=user.id)
+
+
+@router.post("/device", response_model=PickupRequestRead, status_code=201)
+async def create_pickup_request_device(
+    data: PickupRequestCreate,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Créer une demande depuis une tablette magasin (auth appareil, scope device.pdv_id).
+
+    Pas de login : l'identité provient de l'appareil (X-Device-ID), rattaché à un PDV.
+    Le PDV est forcé à celui de la tablette ; audit via device_id.
+    """
+    if not device.pdv_id:
+        raise HTTPException(status_code=403, detail="Appareil non rattaché à un PDV")
+    data.pdv_id = device.pdv_id
+    return await _do_create_pickup_request(db, data, device_id=device.id)
 
 
 async def _cancel_active_combi_declarations(

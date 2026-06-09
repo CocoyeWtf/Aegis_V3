@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import api from '../services/api'
 import { ConfirmDialog } from '../components/data/ConfirmDialog'
-import type { MobileDevice, BaseLogistics } from '../types'
+import type { MobileDevice, BaseLogistics, PDV } from '../types'
 
 /** URL publique HTTPS du backend / Public HTTPS backend URL.
  *  Utilise le domaine HTTPS pour que le telechargement APK fonctionne sur Android */
@@ -22,23 +22,26 @@ const DEVICE_PROFILES = [
   { key: 'DRIVER', label: 'Chauffeur', desc: 'Tours, reprises, declarations' },
   { key: 'BASE_RECEPTION', label: 'Reception base', desc: 'Scanner reception base' },
   { key: 'INVENTORY', label: 'Inventaire', desc: 'Inventaire PDV et base' },
+  { key: 'PDV', label: 'PDV (magasin)', desc: 'Tablette magasin : declaration contenants (sans inventaire base)' },
 ] as const
 
 export default function DeviceManagement() {
   const [devices, setDevices] = useState<MobileDevice[]>([])
   const [bases, setBases] = useState<BaseLogistics[]>([])
+  const [pdvs, setPdvs] = useState<PDV[]>([])
   const [loading, setLoading] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
-  const [form, setForm] = useState({ friendly_name: '', imei: '', base_id: '' as string, profile: 'DRIVER' })
+  const [form, setForm] = useState({ friendly_name: '', imei: '', base_id: '' as string, pdv_id: '' as string, profile: 'DRIVER' })
   const [qrDevice, setQrDevice] = useState<MobileDevice | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
-  const [editForm, setEditForm] = useState({ friendly_name: '', imei: '', base_id: '' as string, profile: 'DRIVER', control_mode: '' as string })
+  const [editForm, setEditForm] = useState({ friendly_name: '', imei: '', base_id: '' as string, pdv_id: '' as string, profile: 'DRIVER', control_mode: '' as string })
   const [serverUrl, setServerUrl] = useState(() => getServerBaseUrl())
   const [confirmAction, setConfirmAction] = useState<{ type: ConfirmActionType; deviceId: number; deviceName: string } | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {
     api.get('/bases/').then((r) => setBases(r.data)).catch(() => {})
+    api.get('/pdvs/').then((r) => setPdvs(r.data)).catch(() => {})
   }, [])
 
   const loadDevices = useCallback(async () => {
@@ -59,9 +62,10 @@ export default function DeviceManagement() {
         friendly_name: form.friendly_name || null,
         imei: form.imei || null,
         base_id: form.base_id ? Number(form.base_id) : null,
+        pdv_id: form.profile === 'PDV' && form.pdv_id ? Number(form.pdv_id) : null,
         profile: form.profile,
       })
-      setForm({ friendly_name: '', imei: '', base_id: '', profile: 'DRIVER' })
+      setForm({ friendly_name: '', imei: '', base_id: '', pdv_id: '', profile: 'DRIVER' })
       setShowCreate(false)
       setQrDevice(data)
       loadDevices()
@@ -78,6 +82,7 @@ export default function DeviceManagement() {
         friendly_name: editForm.friendly_name || null,
         imei: editForm.imei || null,
         base_id: editForm.base_id ? Number(editForm.base_id) : null,
+        pdv_id: editForm.profile === 'PDV' && editForm.pdv_id ? Number(editForm.pdv_id) : null,
         profile: editForm.profile,
         control_mode: editForm.control_mode === '' ? null : editForm.control_mode === 'true',
       })
@@ -156,6 +161,7 @@ export default function DeviceManagement() {
       friendly_name: d.friendly_name || '',
       imei: d.imei || '',
       base_id: d.base_id ? String(d.base_id) : '',
+      pdv_id: d.pdv_id ? String(d.pdv_id) : '',
       profile: d.profile || 'DRIVER',
       control_mode: d.control_mode === true ? 'true' : d.control_mode === false ? 'false' : '',
     })
@@ -195,7 +201,7 @@ export default function DeviceManagement() {
           Gestion des appareils
         </h1>
         <button
-          onClick={() => { setShowCreate(true); setForm({ friendly_name: '', imei: '', base_id: '', profile: 'DRIVER' }) }}
+          onClick={() => { setShowCreate(true); setForm({ friendly_name: '', imei: '', base_id: '', pdv_id: '', profile: 'DRIVER' }) }}
           className="px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-80"
           style={{ backgroundColor: 'var(--color-primary)', color: '#fff' }}
         >
@@ -244,6 +250,18 @@ export default function DeviceManagement() {
                 {DEVICE_PROFILES.find((p) => p.key === form.profile)?.desc}
               </span>
             </div>
+            {form.profile === 'PDV' && (
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Magasin (PDV)</label>
+                <select value={form.pdv_id} onChange={(e) => setForm({ ...form, pdv_id: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border text-sm"
+                  style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+                  <option value="">— Choisir le magasin —</option>
+                  {pdvs.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
+                </select>
+                <span className="text-[10px] mt-0.5 block" style={{ color: 'var(--text-muted)' }}>La tablette n'accedera qu'a ce magasin (declaration contenants).</span>
+              </div>
+            )}
             <div className="flex items-end gap-2">
               <button onClick={handleCreate}
                 className="px-4 py-2 rounded-lg text-sm font-semibold"
@@ -381,6 +399,14 @@ export default function DeviceManagement() {
                           style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
                           {DEVICE_PROFILES.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
                         </select>
+                        {editForm.profile === 'PDV' && (
+                          <select value={editForm.pdv_id} onChange={(e) => setEditForm({ ...editForm, pdv_id: e.target.value })}
+                            className="w-full mt-1 px-2 py-1 rounded border text-xs"
+                            style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+                            <option value="">— Magasin —</option>
+                            {pdvs.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
+                          </select>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-center whitespace-nowrap">
                         <select value={editForm.control_mode} onChange={(e) => setEditForm({ ...editForm, control_mode: e.target.value })}

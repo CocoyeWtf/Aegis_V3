@@ -43,6 +43,7 @@ async def create_device(
         device_identifier=None,  # Rempli par le telephone / Filled by phone on registration
         friendly_name=data.friendly_name,
         base_id=data.base_id,
+        pdv_id=data.pdv_id,
         registration_code=str(uuid.uuid4())[:8].upper(),
         is_active=True,
         registered_at=None,  # Sera set lors de l'enregistrement QR

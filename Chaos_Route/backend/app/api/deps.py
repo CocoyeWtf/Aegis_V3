@@ -96,6 +96,22 @@ async def get_authenticated_device(
     return device
 
 
+async def get_device_pdv(
+    device: MobileDevice = Depends(get_authenticated_device),
+) -> int:
+    """PDV rattaché à la tablette / PDV bound to the tablet.
+
+    Pour les tablettes magasin (sans login) : l'appareil porte un pdv_id et
+    tout accès est scopé à ce PDV. 403 si l'appareil n'est pas lié à un PDV.
+    """
+    if not getattr(device, "pdv_id", None):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Appareil non rattaché à un PDV",
+        )
+    return device.pdv_id
+
+
 async def require_device_tour_access(
     tour_id: int,
     device: MobileDevice = Depends(get_authenticated_device),
