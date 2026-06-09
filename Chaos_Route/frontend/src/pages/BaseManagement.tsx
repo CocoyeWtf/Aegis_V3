@@ -73,6 +73,8 @@ export default function BaseManagement() {
     // Contact
     { key: 'phone', label: t('common.phone'), type: 'text' },
     { key: 'email', label: t('common.email'), type: 'text' },
+    // Facturation : société à facturer pour les transports partant de cette base
+    { key: 'billing_company', label: 'Société facturante', type: 'text', colSpan: 2, helperText: 'Société à facturer pour les transports au départ de cette base (ex. S.A. base de Villers-le-Bouillet).' },
   ]
 
   const handleCreate = () => {

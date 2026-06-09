@@ -30,6 +30,7 @@ export interface BaseLogistics {
   longitude?: number
   latitude?: number
   region_id: number
+  billing_company?: string
   activities: BaseActivity[]
 }
 

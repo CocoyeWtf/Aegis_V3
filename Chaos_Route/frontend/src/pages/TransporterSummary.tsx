@@ -136,6 +136,7 @@ export default function TransporterSummary() {
   const [dateFrom, setDateFrom] = useState(firstOfMonth)
   const [dateTo, setDateTo] = useState(todayStr)
   const [baseId, setBaseId] = useState<string>('')
+  const [billingCompany, setBillingCompany] = useState<string>('')
   const [transporterFilter, setTransporterFilter] = useState('')
   const [data, setData] = useState<SummaryResponse | null>(null)
   const [loading, setLoading] = useState(false)
@@ -176,6 +177,7 @@ export default function TransporterSummary() {
     try {
       const params: Record<string, string> = { date_from: dateFrom, date_to: dateTo }
       if (baseId) params.base_id = baseId
+      if (billingCompany) params.billing_company = billingCompany
       if (transporterFilter.trim()) params.transporter_name = transporterFilter.trim()
       const { data: res } = await api.get<SummaryResponse>('/tours/transporter-summary', { params })
       setData(res)
@@ -190,15 +192,16 @@ export default function TransporterSummary() {
     } finally {
       setLoading(false)
     }
-  }, [dateFrom, dateTo, baseId, transporterFilter])
+  }, [dateFrom, dateTo, baseId, billingCompany, transporterFilter])
 
   /* Charger / exporter l'extraction CMRO / Load + export CMRO extraction */
   const cmroParams = useCallback(() => {
     const params: Record<string, string> = { date_from: dateFrom, date_to: dateTo }
     if (baseId) params.base_id = baseId
+    if (billingCompany) params.billing_company = billingCompany
     if (transporterFilter.trim()) params.transporter_name = transporterFilter.trim()
     return params
-  }, [dateFrom, dateTo, baseId, transporterFilter])
+  }, [dateFrom, dateTo, baseId, billingCompany, transporterFilter])
 
   const loadCmro = useCallback(async () => {
     setCmroLoading(true)
@@ -388,6 +391,20 @@ export default function TransporterSummary() {
             <option value="">{t('transporterSummary.allBases')}</option>
             {bases.map((b) => (
               <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col">
+          <label className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Société facturante</label>
+          <select
+            value={billingCompany}
+            onChange={(e) => setBillingCompany(e.target.value)}
+            className="px-3 py-1.5 rounded-lg border text-sm"
+            style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+          >
+            <option value="">Toutes</option>
+            {[...new Set(bases.map((b) => b.billing_company).filter((c): c is string => !!c))].map((c) => (
+              <option key={c} value={c}>{c}</option>
             ))}
           </select>
         </div>

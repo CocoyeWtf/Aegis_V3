@@ -21,6 +21,7 @@ class BaseLogisticsBase(BaseModel):
     longitude: float | None = None
     latitude: float | None = None
     region_id: int
+    billing_company: str | None = None
 
 
 class BaseLogisticsCreate(BaseLogisticsBase):
@@ -38,6 +39,7 @@ class BaseLogisticsUpdate(BaseModel):
     longitude: float | None = None
     latitude: float | None = None
     region_id: int | None = None
+    billing_company: str | None = None
     activity_ids: list[int] | None = None
 
 

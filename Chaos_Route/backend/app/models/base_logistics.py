@@ -21,6 +21,9 @@ class BaseLogistics(Base):
     longitude: Mapped[float | None] = mapped_column(Float)
     latitude: Mapped[float | None] = mapped_column(Float)
     region_id: Mapped[int] = mapped_column(ForeignKey("regions.id"), nullable=False)
+    # Société à facturer pour les transports partant de cette base /
+    # Billing company for transports departing from this base
+    billing_company: Mapped[str | None] = mapped_column(String(150))
 
     # Relations
     region: Mapped["Region"] = relationship(back_populates="bases")

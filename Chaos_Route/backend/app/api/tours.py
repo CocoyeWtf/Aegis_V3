@@ -603,7 +603,8 @@ async def contract_blockers(
     return reasons
 
 
-async def _build_cmro_rows(db, date_from, date_to, base_id, transporter_name, user) -> list[dict]:
+async def _build_cmro_rows(db, date_from, date_to, base_id, transporter_name, user,
+                           billing_company=None) -> list[dict]:
     """Construit les lignes d'extraction CMRO (1/tour) sur la période."""
     query = (
         select(Tour).where(
@@ -613,6 +614,10 @@ async def _build_cmro_rows(db, date_from, date_to, base_id, transporter_name, us
     )
     if base_id:
         query = query.where(Tour.base_id == base_id)
+    if billing_company:
+        bc_ids = (await db.execute(
+            select(BaseLogistics.id).where(BaseLogistics.billing_company == billing_company))).scalars().all()
+        query = query.where(Tour.base_id.in_(bc_ids if bc_ids else [-1]))
     user_region_ids = get_user_region_ids(user)
     if user_region_ids is not None:
         query = query.join(BaseLogistics, Tour.base_id == BaseLogistics.id).where(
@@ -683,11 +688,12 @@ async def cmro_extraction(
     date_to: str = Query(...),
     base_id: int | None = Query(default=None),
     transporter_name: str | None = Query(default=None),
+    billing_company: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("tour-history", "read")),
 ):
     """Extraction pré-facturation au format CMRO (1 ligne/tour, colonnes Tour_ERT)."""
-    rows = await _build_cmro_rows(db, date_from, date_to, base_id, transporter_name, user)
+    rows = await _build_cmro_rows(db, date_from, date_to, base_id, transporter_name, user, billing_company)
     keep = [(f, col) for f, col in zip(CMRO_FIELDS, CMRO_COLUMNS) if col]
     return {
         "period": {"date_from": date_from, "date_to": date_to},
@@ -703,6 +709,7 @@ async def cmro_extraction_export(
     date_to: str = Query(...),
     base_id: int | None = Query(default=None),
     transporter_name: str | None = Query(default=None),
+    billing_company: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("tour-history", "read")),
 ):
@@ -710,7 +717,7 @@ async def cmro_extraction_export(
     import io
     import openpyxl
 
-    rows = await _build_cmro_rows(db, date_from, date_to, base_id, transporter_name, user)
+    rows = await _build_cmro_rows(db, date_from, date_to, base_id, transporter_name, user, billing_company)
     keep = [(f, col) for f, col in zip(CMRO_FIELDS, CMRO_COLUMNS) if col]
 
     wb = openpyxl.Workbook()
@@ -929,6 +936,7 @@ async def transporter_summary(
     date_to: str = Query(...),
     base_id: int | None = Query(default=None),
     transporter_name: str | None = Query(default=None),
+    billing_company: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_permission("tour-history", "read")),
 ):
@@ -946,6 +954,11 @@ async def transporter_summary(
     )
     if base_id:
         query = query.where(Tour.base_id == base_id)
+    # Filtre société facturante (bases rattachées) / Billing company filter (its bases)
+    if billing_company:
+        bc_ids = (await db.execute(
+            select(BaseLogistics.id).where(BaseLogistics.billing_company == billing_company))).scalars().all()
+        query = query.where(Tour.base_id.in_(bc_ids if bc_ids else [-1]))
     # Scope région / Region scope
     user_region_ids = get_user_region_ids(user)
     if user_region_ids is not None:
