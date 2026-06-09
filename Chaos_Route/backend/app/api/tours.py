@@ -103,6 +103,41 @@ async def _get_distance(
     return result.scalar_one_or_none()
 
 
+def _day_to_minutes(day_str: str | None) -> int:
+    """YYYY-MM-DD -> minutes absolues depuis l'origine (0 si invalide) /
+    YYYY-MM-DD -> absolute minutes since epoch ordinal (0 if invalid)."""
+    if not day_str:
+        return 0
+    try:
+        y, m, d = (int(x) for x in day_str.split("-"))
+        return datetime(y, m, d).toordinal() * 24 * 60
+    except (ValueError, AttributeError):
+        return 0
+
+
+def tours_time_overlap(
+    day_a: str | None, dep_a: str, ret_a: str,
+    day_b: str | None, dep_b: str, ret_b: str,
+) -> bool:
+    """Deux tours se chevauchent-ils sur une timeline ABSOLUE (jour de livraison
+    + heure), passage minuit géré ? Deux tours livrés des jours différents ne se
+    chevauchent jamais, même à heures de journée proches. /
+    Do two tours overlap on an ABSOLUTE timeline (delivery day + time)?"""
+    def to_min(t: str) -> int:
+        h, m = t.split(":")[:2]
+        return int(h) * 60 + int(m)
+
+    a0 = _day_to_minutes(day_a) + to_min(dep_a)
+    a1 = _day_to_minutes(day_a) + to_min(ret_a)
+    if a1 <= a0:
+        a1 += 24 * 60  # retour le lendemain / return next day
+    b0 = _day_to_minutes(day_b) + to_min(dep_b)
+    b1 = _day_to_minutes(day_b) + to_min(ret_b)
+    if b1 <= b0:
+        b1 += 24 * 60
+    return a0 < b1 and a1 > b0
+
+
 async def calculate_tour_times(
     departure_time: str,
     stops_data: list[dict],
@@ -1666,22 +1701,15 @@ async def schedule_tour(
     if data.tractor_id and not data.contract_id and not data.vehicle_id:
         pass  # Mode propre valide : tracteur propre, remorque assignée par le postier
 
-    # ── Helper chevauchement gérant le passage minuit /
-    #    Overlap helper handling midnight crossover ─────────────────────────────
-    def _to_min(t: str) -> int:
-        h, m = t.split(":")
-        return int(h) * 60 + int(m)
+    # Chevauchement comparé sur une timeline ABSOLUE (jour de livraison + heure) :
+    # une même répartition peut produire des tours livrés des jours différents,
+    # qui ne se chevauchent donc pas. Voir tours_time_overlap(). /
+    # Overlap compared on an ABSOLUTE timeline (delivery day + time).
+    _intervals_overlap = tours_time_overlap
 
-    def _intervals_overlap(dep_a: str, ret_a: str, dep_b: str, ret_b: str) -> bool:
-        a0 = _to_min(dep_a)
-        a1 = _to_min(ret_a)
-        if a1 <= a0:
-            a1 += 24 * 60  # retour le lendemain / return next day
-        b0 = _to_min(dep_b)
-        b1 = _to_min(ret_b)
-        if b1 <= b0:
-            b1 += 24 * 60
-        return a0 < b1 and a1 > b0
+    # Jour de livraison du tour planifié (priorité à la nouvelle date saisie) /
+    # Delivery day of the tour being scheduled (new date takes precedence)
+    sched_day = data.delivery_date or tour.delivery_date or tour.date
 
     # ── Vérification chevauchement contrat / Contract overlap check ───────────
     if data.contract_id:
@@ -1696,7 +1724,10 @@ async def schedule_tour(
         )
         other_contract_tours = list(other_contract_tours_result.scalars().all())
         for other in other_contract_tours:
-            if _intervals_overlap(data.departure_time, return_time, other.departure_time, other.return_time):
+            if _intervals_overlap(
+                sched_day, data.departure_time, return_time,
+                other.delivery_date or other.date, other.departure_time, other.return_time,
+            ):
                 raise HTTPException(
                     status_code=409,
                     detail=f"Overlap with tour {other.code} ({other.departure_time}-{other.return_time})",
@@ -1725,7 +1756,10 @@ async def schedule_tour(
         )
         overlap_result = await db.execute(overlap_q)
         for other in overlap_result.scalars().all():
-            if _intervals_overlap(data.departure_time, return_time, other.departure_time, other.return_time):
+            if _intervals_overlap(
+                sched_day, data.departure_time, return_time,
+                other.delivery_date or other.date, other.departure_time, other.return_time,
+            ):
                 raise HTTPException(
                     status_code=409,
                     detail=f"Overlap (véhicule propre) with tour {other.code} ({other.departure_time}-{other.return_time})",
@@ -1740,7 +1774,10 @@ async def schedule_tour(
         )
         tractor_overlap_result = await db.execute(tractor_overlap_q)
         for other in tractor_overlap_result.scalars().all():
-            if _intervals_overlap(data.departure_time, return_time, other.departure_time, other.return_time):
+            if _intervals_overlap(
+                sched_day, data.departure_time, return_time,
+                other.delivery_date or other.date, other.departure_time, other.return_time,
+            ):
                 raise HTTPException(
                     status_code=409,
                     detail=f"Overlap (tracteur propre) with tour {other.code} ({other.departure_time}-{other.return_time})",

@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Ordonnancement : faux chevauchement (overlap) entre deux tours d'une même
+  répartition livrés des jours différents (ex. tour livré le 04/06 09:00-15:53
+  vs tour livré le 05/06 05:00). La détection backend comparait uniquement
+  l'heure ; elle compare désormais sur une timeline absolue (jour de livraison
+  + heure), comme le frontend. Logique extraite en `tours_time_overlap()` + tests.
+
 ### Added
 - Ordonnancement : export « Infolog (WMS) » (TMS_vers_wms) — génère le fichier
   Excel attendu par la macro d'encodage Infolog (une ligne par arrêt PDV, tours
