@@ -1,23 +1,22 @@
 /* Service impression Bluetooth Classic / Bluetooth Classic print service.
 
-   Wrapper sur react-native-bluetooth-classic. Les imprimantes Zebra (ZQ320/521) et
-   TSC (Alpha-30R) parlent Bluetooth Classic SPP (pas BLE), donc on a besoin de ce
-   module natif (incompatible Expo Go — necessite un EAS build).
+   Wrapper sur react-native-bluetooth-classic (dependance declaree dans
+   package.json). Imprimantes thermiques portables parlant Bluetooth Classic SPP
+   (pas BLE) : Zebra (ZQ320/521), TSC (Alpha-30R), Brother RJ-4 en emulation ZPL/TSPL.
 
-   ATTENTION : le module n'est pas installe par defaut. Pour activer l'impression
-   reelle, faire :
-     npm install react-native-bluetooth-classic
-   puis un EAS build. Le service utilise un import dynamique pour ne pas casser
-   l'app si le module n'est pas encore present (mode dev/preview sans Bluetooth).
+   L'impression reelle necessite un EAS build (le module natif n'est pas bundle
+   dans Expo Go). L'import du module est fait de maniere dynamique (lazy) : un
+   garde-fou pour que l'app ne crashe pas dans un environnement ou le module natif
+   est absent (Expo Go / preview) — printRaw renvoie alors une erreur explicite.
 
-   Wrapper for react-native-bluetooth-classic. Zebra (ZQ320/521) and TSC (Alpha-30R)
-   printers speak Bluetooth Classic SPP (not BLE), so this native module is required
-   (incompatible with Expo Go — needs an EAS build).
+   Wrapper for react-native-bluetooth-classic (declared dependency in package.json).
+   Portable thermal printers speaking Bluetooth Classic SPP (not BLE): Zebra
+   (ZQ320/521), TSC (Alpha-30R), Brother RJ-4 in ZPL/TSPL emulation.
 
-   NOTE: the module is not installed by default. To enable real printing, run:
-     npm install react-native-bluetooth-classic
-   then trigger an EAS build. The service uses a dynamic import so the app keeps
-   working if the module is not yet present (dev/preview without Bluetooth).
+   Real printing requires an EAS build (the native module is not bundled in Expo
+   Go). The module is imported dynamically (lazy) as a safety net so the app does
+   not crash where the native module is absent (Expo Go / preview) — printRaw then
+   returns an explicit error.
 */
 
 import { Platform, PermissionsAndroid } from 'react-native'
