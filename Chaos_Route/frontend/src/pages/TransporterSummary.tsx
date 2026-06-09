@@ -148,6 +148,11 @@ export default function TransporterSummary() {
   /* Fiche détaillée / Detail sheet */
   const [detailTour, setDetailTour] = useState<TourDetailData | null>(null)
 
+  /* Vue : synthèse (existant) ou tableur CMRO / View: summary or CMRO spreadsheet */
+  const [viewMode, setViewMode] = useState<'synthese' | 'cmro'>('synthese')
+  const [cmro, setCmro] = useState<{ columns: string[]; fields: string[]; rows: Record<string, unknown>[] } | null>(null)
+  const [cmroLoading, setCmroLoading] = useState(false)
+
   const toggleTransporter = (name: string) => {
     setOpenTransporters((prev) => {
       const next = new Set(prev)
@@ -186,6 +191,40 @@ export default function TransporterSummary() {
       setLoading(false)
     }
   }, [dateFrom, dateTo, baseId, transporterFilter])
+
+  /* Charger / exporter l'extraction CMRO / Load + export CMRO extraction */
+  const cmroParams = useCallback(() => {
+    const params: Record<string, string> = { date_from: dateFrom, date_to: dateTo }
+    if (baseId) params.base_id = baseId
+    if (transporterFilter.trim()) params.transporter_name = transporterFilter.trim()
+    return params
+  }, [dateFrom, dateTo, baseId, transporterFilter])
+
+  const loadCmro = useCallback(async () => {
+    setCmroLoading(true)
+    setError(null)
+    try {
+      const { data: res } = await api.get('/tours/cmro-extraction', { params: cmroParams() })
+      setCmro(res)
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } }; message?: string }
+      setError(err?.response?.data?.detail || err?.message || 'Unknown error')
+    } finally {
+      setCmroLoading(false)
+    }
+  }, [cmroParams])
+
+  const exportCmro = useCallback(async () => {
+    const resp = await api.get('/tours/cmro-extraction/export', { params: cmroParams(), responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([resp.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `extraction_CMRO_${dateFrom}_${dateTo}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  }, [cmroParams, dateFrom, dateTo])
 
   /* Ouvrir fiche détaillée / Open detail sheet */
   const openDetail = (tour: SummaryTour, contractGroup: ContractGroup, transporterName: string) => {
@@ -291,9 +330,27 @@ export default function TransporterSummary() {
   return (
     <div>
       {/* Titre / Title */}
-      <h2 className="text-2xl font-bold mb-6 print-hide" style={{ color: 'var(--text-primary)' }}>
+      <h2 className="text-2xl font-bold mb-4 print-hide" style={{ color: 'var(--text-primary)' }}>
         {t('transporterSummary.title')}
       </h2>
+
+      {/* Bascule de vue / View toggle */}
+      <div className="print-hide flex gap-2 mb-4">
+        {([['synthese', 'Vue synthèse'], ['cmro', 'Tableur (CMRO)']] as const).map(([m, label]) => (
+          <button
+            key={m}
+            onClick={() => { setViewMode(m); if (m === 'cmro' && !cmro) loadCmro() }}
+            className="px-4 py-1.5 rounded-lg text-sm font-semibold border transition-all"
+            style={{
+              backgroundColor: viewMode === m ? 'var(--color-primary)' : 'var(--bg-tertiary)',
+              borderColor: viewMode === m ? 'var(--color-primary)' : 'var(--border-color)',
+              color: viewMode === m ? '#fff' : 'var(--text-secondary)',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
       {/* Barre de filtres (masquée à l'impression) / Filter bar (hidden on print) */}
       <div
@@ -346,13 +403,22 @@ export default function TransporterSummary() {
           />
         </div>
         <button
-          onClick={handleLoad}
-          disabled={loading}
+          onClick={() => (viewMode === 'cmro' ? loadCmro() : handleLoad())}
+          disabled={loading || cmroLoading}
           className="px-5 py-1.5 rounded-lg text-sm font-medium transition-colors hover:opacity-80"
           style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}
         >
-          {loading ? '...' : t('transporterSummary.load')}
+          {(loading || cmroLoading) ? '...' : t('transporterSummary.load')}
         </button>
+        {viewMode === 'cmro' && cmro && cmro.rows.length > 0 && (
+          <button
+            onClick={exportCmro}
+            className="px-4 py-1.5 rounded-lg text-sm font-medium border transition-colors hover:opacity-80"
+            style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
+          >
+            Exporter CMRO (Excel)
+          </button>
+        )}
         {data && data.transporters.length > 0 && (
           <>
             <button
@@ -402,8 +468,48 @@ export default function TransporterSummary() {
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{t('transporterSummary.noData')}</p>
       )}
 
+      {/* Vue tableur CMRO / CMRO spreadsheet view */}
+      {viewMode === 'cmro' && cmro && (
+        cmro.rows.length === 0
+          ? <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{t('transporterSummary.noData')}</p>
+          : (
+            <div className="overflow-auto border rounded-lg" style={{ borderColor: 'var(--border-color)', maxHeight: '72vh' }}>
+              <table className="text-xs" style={{ borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    {cmro.columns.map((c, i) => (
+                      <th
+                        key={i}
+                        className="px-2 py-1 sticky top-0 whitespace-nowrap text-left font-semibold"
+                        style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', borderRight: '1px solid var(--border-color)' }}
+                      >
+                        {c}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {cmro.rows.map((row, ri) => (
+                    <tr key={ri} style={{ borderTop: '1px solid var(--border-color)' }}>
+                      {cmro.fields.map((f, ci) => (
+                        <td
+                          key={ci}
+                          className="px-2 py-1 whitespace-nowrap"
+                          style={{ color: 'var(--text-secondary)', borderRight: '1px solid var(--border-color)' }}
+                        >
+                          {String(row[f] ?? '')}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+      )}
+
       {/* Corps : transporteurs > contrats > tours / Body: transporters > contracts > tours */}
-      {data && data.transporters.map((tr) => {
+      {viewMode === 'synthese' && data && data.transporters.map((tr) => {
         const isOpenT = openTransporters.has(tr.transporter_name)
         return (
           <div key={tr.transporter_name} className="mb-4">

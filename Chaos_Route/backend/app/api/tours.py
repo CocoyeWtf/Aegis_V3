@@ -8,6 +8,7 @@ from types import SimpleNamespace
 logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -694,6 +695,39 @@ async def cmro_extraction(
         "fields": [f for f, _ in keep],
         "rows": rows,
     }
+
+
+@router.get("/cmro-extraction/export")
+async def cmro_extraction_export(
+    date_from: str = Query(...),
+    date_to: str = Query(...),
+    base_id: int | None = Query(default=None),
+    transporter_name: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("tour-history", "read")),
+):
+    """Export Excel de l'extraction CMRO (en-têtes/ordre du modèle Tour_ERT)."""
+    import io
+    import openpyxl
+
+    rows = await _build_cmro_rows(db, date_from, date_to, base_id, transporter_name, user)
+    keep = [(f, col) for f, col in zip(CMRO_FIELDS, CMRO_COLUMNS) if col]
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Tour_ERT"
+    ws.append([col for _, col in keep])
+    for r in rows:
+        ws.append([r.get(f, "") for f, _ in keep])
+    bio = io.BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    filename = f"extraction_CMRO_{date_from}_{date_to}.xlsx"
+    return StreamingResponse(
+        bio,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # Mapping type de tour → fleet_vehicle_type(s) attendu(s)
