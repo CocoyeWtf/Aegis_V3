@@ -24,7 +24,7 @@ from app.models.tour import Tour, TourStatus
 from app.models.user import User
 from app.models.vehicle_inspection import VehicleInspection
 from app.schemas.mobile import MobileDeviceCreate, MobileDeviceRead, MobileDeviceUpdate, DeviceRegistration
-from app.api.deps import require_permission
+from app.api.deps import require_permission, get_authenticated_device
 
 router = APIRouter()
 
@@ -200,6 +200,16 @@ async def reset_device_identity(
     device.registered_at = None
     device.is_active = True
     await db.flush()
+    return device
+
+
+@router.get("/me", response_model=MobileDeviceRead)
+async def get_my_device(device: MobileDevice = Depends(get_authenticated_device)):
+    """Infos de l'appareil courant (auth X-Device-ID) : profil, base, pdv_id…
+
+    Permet à l'app de savoir si la tablette est rattachée à un PDV (mode magasin
+    sans login) et de scoper son flux en conséquence.
+    """
     return device
 
 

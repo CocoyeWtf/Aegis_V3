@@ -104,23 +104,15 @@ def _generate_label_code(pdv_code: str, support_code: str, date_str: str, seq: i
     return f"RET-{pdv_code}-{support_code}-{date_compact}-{seq:03d}"
 
 
-@router.get("/form-data/")
-async def pickup_form_data(
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("pickup-requests", "read")),
-):
-    """Données nécessaires au formulaire de demande / Form data for pickup request creation.
-    Retourne les types de support actifs — sans exiger support-types:read.
-    """
-    # Types de support actifs / Active support types
+async def _pickup_form_data(db: AsyncSession, scope_pdv_id: int | None) -> dict:
+    """Données du formulaire (types de support actifs + PDV accessibles).
+    scope_pdv_id : si fourni, n'expose que ce PDV (user PDV ou tablette)."""
     st_result = await db.execute(select(SupportType).where(SupportType.is_active == True).order_by(SupportType.code))
     support_types = st_result.scalars().all()
 
-    # PDVs accessibles / Accessible PDVs
     pdv_query = select(PDV).order_by(PDV.code)
-    user_pdv = enforce_pdv_scope(user, None)
-    if user_pdv is not None:
-        pdv_query = pdv_query.where(PDV.id == user_pdv)
+    if scope_pdv_id is not None:
+        pdv_query = pdv_query.where(PDV.id == scope_pdv_id)
     pdv_result = await db.execute(pdv_query)
     pdvs = pdv_result.scalars().all()
 
@@ -140,6 +132,26 @@ async def pickup_form_data(
         ],
         "pdvs": [{"id": p.id, "code": p.code, "name": p.name} for p in pdvs],
     }
+
+
+@router.get("/form-data/")
+async def pickup_form_data(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("pickup-requests", "read")),
+):
+    """Données du formulaire de demande (utilisateur JWT, scopé à son PDV)."""
+    return await _pickup_form_data(db, get_user_pdv_id(user))
+
+
+@router.get("/device/form-data/")
+async def pickup_form_data_device(
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Données du formulaire depuis une tablette magasin (auth appareil, scope device.pdv_id)."""
+    if not device.pdv_id:
+        raise HTTPException(status_code=403, detail="Appareil non rattaché à un PDV")
+    return await _pickup_form_data(db, device.pdv_id)
 
 
 @router.get("/", response_model=list[PickupRequestListRead])
