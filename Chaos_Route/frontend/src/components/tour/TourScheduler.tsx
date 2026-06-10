@@ -1075,9 +1075,13 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
     <div className="space-y-4">
       {/* Barre supérieure: date + filtre activité / Top bar: date + activity filter */}
       <div
-        className="rounded-xl border px-4 py-3 flex flex-wrap items-end gap-x-5 gap-y-2"
+        className="rounded-xl border px-4 py-3"
         style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
       >
+       {/* Ligne 1 — filtres (gauche, repliables) + actions (droite, ancrées) /
+           Row 1 — filters (left, wrap) + actions (right, anchored) */}
+       <div className="flex items-end gap-4">
+        <div className="flex flex-1 flex-wrap items-end gap-x-4 gap-y-2 min-w-0">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
             Date de répartition
@@ -1173,7 +1177,10 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
           </button>
         </div>
 
-        <div className="ml-auto flex items-center gap-2.5">
+        </div>{/* fin zone filtres / end filters zone */}
+
+        {/* Zone actions : ancrée à droite, ne passe jamais à la ligne / Actions zone */}
+        <div className="shrink-0 flex items-center gap-2.5">
           <div className="flex items-baseline gap-1.5 text-xs" title={t('tourPlanning.unscheduledTours')}>
             <span style={{ color: 'var(--text-muted)' }}>À planifier</span>
             <span className="text-base font-bold" style={{ color: 'var(--color-warning)' }}>{unscheduledTours.length}</span>
@@ -1227,6 +1234,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
             </>
           )}
         </div>
+       </div>{/* fin Ligne 1 (filtres + actions) / end Row 1 */}
 
         {/* Ligne 2 — Filtres avancés (collapsible) / Line 2 — Advanced filters (collapsible) */}
         {showAdvancedFilters && (
