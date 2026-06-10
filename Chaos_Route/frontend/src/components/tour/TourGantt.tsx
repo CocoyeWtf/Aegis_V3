@@ -101,11 +101,43 @@ export function TourGantt({
 
   const headerH = headerHeightProp ?? DEFAULT_HEADER_HEIGHT
 
+  /* Jour de référence (A) = plus petite date de livraison ; décalage par tour en
+     jours, et fenêtre d'axe étendue pour couvrir les tours qui débordent sur le
+     jour B (départ/retour après minuit). / Reference day (A) = earliest delivery
+     date; per-tour day offset + axis window extended into day B. */
+  const { offsetOf, effStartHour, effEndHour } = useMemo(() => {
+    const dayOf = (t: GanttTour) => t.delivery_date || t.tour_date
+    const days = tours.map(dayOf).filter(Boolean) as string[]
+    const refDay = days.length ? days.reduce((m, d) => (d < m ? d : m)) : null
+    const offsetOf = (dayStr: string | null): number => {
+      if (!refDay || !dayStr) return 0
+      const a = Date.parse(`${refDay}T00:00:00Z`)
+      const b = Date.parse(`${dayStr}T00:00:00Z`)
+      if (isNaN(a) || isNaN(b)) return 0
+      return Math.round((b - a) / 86_400_000)
+    }
+    let minM = Infinity, maxM = -Infinity
+    for (const t of tours) {
+      if (!t.departure_time || !t.return_time) continue
+      const base = offsetOf(dayOf(t)) * 1440
+      const dep = parseTime(t.departure_time)
+      const ret = parseTime(t.return_time)
+      const depAbs = base + dep
+      const retAbs = base + ret + (ret < dep ? 1440 : 0)
+      if (depAbs < minM) minM = depAbs
+      if (retAbs > maxM) maxM = retAbs
+    }
+    let s = startHour, e = endHour
+    if (isFinite(minM)) s = Math.min(startHour, Math.floor(minM / 60))
+    if (isFinite(maxM)) e = Math.max(endHour, Math.ceil(maxM / 60))
+    return { offsetOf, effStartHour: s, effEndHour: e }
+  }, [tours, startHour, endHour])
+
   /* Axe temps — largeur minimum garantie par heure / Time axis — guaranteed min width per hour */
-  const startMin = startHour * 60
-  const endMin = endHour * 60
+  const startMin = effStartHour * 60
+  const endMin = effEndHour * 60
   const totalMin = endMin - startMin
-  const totalHours = endHour - startHour
+  const totalHours = effEndHour - effStartHour
   const minChartWidth = totalHours * MIN_PX_PER_HOUR
   const chartWidth = Math.max(containerWidth - LABEL_WIDTH - PADDING_RIGHT, minChartWidth)
   const width = chartWidth + LABEL_WIDTH + PADDING_RIGHT
@@ -127,9 +159,9 @@ export function TourGantt({
   /* Heures repères / Hour markers */
   const hours = useMemo(() => {
     const h: number[] = []
-    for (let i = startHour; i <= endHour; i++) h.push(i)
+    for (let i = effStartHour; i <= effEndHour; i++) h.push(i)
     return h
-  }, [startHour, endHour])
+  }, [effStartHour, effEndHour])
 
   /* Positions Y cumulées / Cumulative Y positions per row */
   const { rowYs, totalBodyHeight } = useMemo(() => {
@@ -153,12 +185,23 @@ export function TourGantt({
         {/* Grille horaire / Hour grid */}
         {hours.map((h) => {
           const x = toX(h * 60)
+          const isDayBoundary = h > 0 && h % 24 === 0  /* minuit → jour suivant / midnight → next day */
           return (
             <g key={h}>
-              <line x1={x} y1={headerH} x2={x} y2={svgHeight} stroke="var(--border-color)" strokeWidth={0.5} />
-              <text x={x} y={headerH / 2 + 5} textAnchor="middle" fill="#000000" fontSize={13} fontWeight="bold" fontFamily="inherit">
-                {`${String(h).padStart(2, '0')}h`}
+              <line
+                x1={x} y1={isDayBoundary ? headerH - 6 : headerH} x2={x} y2={svgHeight}
+                stroke={isDayBoundary ? 'var(--color-primary)' : 'var(--border-color)'}
+                strokeWidth={isDayBoundary ? 1.25 : 0.5}
+                strokeDasharray={isDayBoundary ? '3 2' : undefined}
+              />
+              <text x={x} y={headerH / 2 + 5} textAnchor="middle" fill={isDayBoundary ? 'var(--color-primary)' : '#000000'} fontSize={13} fontWeight="bold" fontFamily="inherit">
+                {`${String(h % 24).padStart(2, '0')}h`}
               </text>
+              {isDayBoundary && (
+                <text x={x + 3} y={headerH / 2 - 6} textAnchor="start" fill="var(--color-primary)" fontSize={9} fontWeight="bold" fontFamily="inherit">
+                  J+{h / 24}
+                </text>
+              )}
             </g>
           )
         })}
@@ -172,8 +215,19 @@ export function TourGantt({
           const hasWarning = warningTourIds?.has(tour.tour_id)
           const color = STATUS_COLORS[tour.status] || STATUS_COLORS.DRAFT
 
-          const depMin = tour.departure_time ? parseTime(tour.departure_time) : null
-          const retMin = tour.return_time ? parseTime(tour.return_time) : null
+          /* Positions ABSOLUES : offset du jour de livraison + heure, minuit géré.
+             Un tour livré le jour B s'affiche dans la zone jour B (pas à gauche). /
+             ABSOLUTE positions: delivery-day offset + time, midnight handled. */
+          const base = offsetOf(tour.delivery_date || tour.tour_date) * 1440
+          const depRaw = tour.departure_time ? parseTime(tour.departure_time) : null
+          const retRaw = tour.return_time ? parseTime(tour.return_time) : null
+          const depMin = depRaw !== null ? base + depRaw : null
+          const retMin = retRaw !== null ? base + retRaw + (depRaw !== null && retRaw < depRaw ? 1440 : 0) : null
+          /* Heure d'arrêt → absolu (jour du tour, +1j si après minuit pendant le tour) */
+          const stopAbs = (timeStr: string) => {
+            const m = parseTime(timeStr)
+            return base + m + (depRaw !== null && m < depRaw ? 1440 : 0)
+          }
 
           /* Centrer la barre dans les premiers ROW_HEIGHT pixels / Center bar in top ROW_HEIGHT pixels */
           const barH = Math.min(18, Math.min(rowH, ROW_HEIGHT) - 8)
@@ -231,7 +285,7 @@ export function TourGantt({
               {depMin !== null && retMin !== null && (
                 <rect
                   x={toX(depMin)} y={barY}
-                  width={Math.max(0, toX(retMin < depMin ? retMin + 24 * 60 : retMin) - toX(depMin))} height={barH}
+                  width={Math.max(0, toX(retMin) - toX(depMin))} height={barH}
                   rx={3}
                   fill={hasWarning ? 'rgba(239,68,68,0.8)' : color}
                   opacity={isExpanded ? 0.35 : 0.75}
@@ -243,7 +297,7 @@ export function TourGantt({
 
               {/* Marqueurs arrêts sur la barre (quand fermé) / Stop markers on bar (when collapsed) */}
               {!isExpanded && tour.stops.map((stop, si) => {
-                const arrMin = stop.arrival_time ? parseTime(stop.arrival_time) : null
+                const arrMin = stop.arrival_time ? stopAbs(stop.arrival_time) : null
                 if (arrMin === null) return null
                 return (
                   <circle
@@ -255,9 +309,9 @@ export function TourGantt({
 
               {/* === Mini-barres stops (quand déplié) / Stop mini-bars (when expanded) === */}
               {isExpanded && hasStopTimes && sortedStops.map((stop, si) => {
-                const arrMin = stop.arrival_time ? parseTime(stop.arrival_time) : null
+                const arrMin = stop.arrival_time ? stopAbs(stop.arrival_time) : null
                 if (arrMin === null) return null
-                const depStopMin = stop.departure_time ? parseTime(stop.departure_time) : null
+                const depStopMin = stop.departure_time ? stopAbs(stop.departure_time) : null
 
                 const stopY = y + STOP_AREA_TOP + si * STOP_ROW_H
                 const stopBarCenterY = stopY + STOP_ROW_H / 2
@@ -306,7 +360,7 @@ export function TourGantt({
                 const lineY2 = y + STOP_AREA_TOP + lastWithTime * STOP_ROW_H + STOP_ROW_H / 2
                 if (lineY2 > y + rowH) return null
                 /* Tracer une ligne verticale à la position du premier arrêt / Draw vertical line at first stop position */
-                const firstArr = parseTime(sortedStops[firstWithTime].arrival_time!)
+                const firstArr = stopAbs(sortedStops[firstWithTime].arrival_time!)
                 return (
                   <line
                     x1={toX(firstArr) - 6} y1={lineY1}

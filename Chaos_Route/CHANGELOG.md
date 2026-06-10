@@ -18,6 +18,10 @@ All notable changes to this project will be documented in this file.
   et rythme homogènes.
 
 ### Fixed
+- Ordonnancement (Gantt) : un tour livré le jour B (départ/retour après minuit,
+  ex. 00h01→05h15 le 05/06) s'affichait à gauche sur le jour A. Le Gantt positionne
+  désormais les barres en **temps absolu** (offset du jour de livraison + heure),
+  étend l'axe pour couvrir le jour B et marque la frontière de minuit (« J+1 »).
 - Aide à la décision : erreur 500 (niveaux 1 et 2) quand la durée totale calculée
   tombait fractionnaire (ex. 133.08 min) — `SuggestedTour.total_duration_minutes`
   (typé `int`) rejetait le float (Pydantic `int_from_float`). Les champs minutes
