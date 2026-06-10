@@ -5,13 +5,34 @@ import {
   View, Text, Modal, TouchableOpacity, ActivityIndicator,
   StyleSheet, BackHandler, TextInput, Alert, Platform,
 } from 'react-native'
-import { Stack, useRouter, useSegments } from 'expo-router'
+import { Stack, useRouter, useSegments, type ErrorBoundaryProps } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
+import * as Application from 'expo-application'
 import { useDeviceStore } from '../stores/useDeviceStore'
 import { useAuthStore } from '../stores/useAuthStore'
 import { COLORS } from '../constants/config'
 import { checkForUpdate, downloadAndInstallApk } from '../services/updateChecker'
 import { verifyKioskPassword } from '../services/kioskMode'
+
+/* Filet de sécurité : tout crash de rendu JS dans l'arbre de routes affiche un
+   message + la version AU LIEU d'un écran blanc, et permet de réessayer. Aide
+   aussi au diagnostic terrain (« je ne vois pas la version »). /
+   Safety net: any JS render crash shows a message + version instead of a blank
+   white screen, and lets the user retry. */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const ver = Application.nativeApplicationVersion ?? '?'
+  const build = Application.nativeBuildVersion ?? '?'
+  return (
+    <View style={errStyles.container}>
+      <Text style={errStyles.title}>Une erreur est survenue</Text>
+      <Text style={errStyles.version}>CMRO Driver v{ver} (build {build})</Text>
+      <Text style={errStyles.message}>{error?.message ?? 'Erreur inconnue'}</Text>
+      <TouchableOpacity onPress={retry} style={errStyles.btn}>
+        <Text style={errStyles.btnText}>Réessayer</Text>
+      </TouchableOpacity>
+    </View>
+  )
+}
 
 export default function RootLayout() {
   const router = useRouter()
@@ -260,6 +281,45 @@ export default function RootLayout() {
     </>
   )
 }
+
+const errStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.bgPrimary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 28,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.danger,
+    marginBottom: 8,
+  },
+  version: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    marginBottom: 20,
+  },
+  message: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: 28,
+    lineHeight: 18,
+  },
+  btn: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    borderRadius: 12,
+  },
+  btnText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+})
 
 const updateStyles = StyleSheet.create({
   overlay: {

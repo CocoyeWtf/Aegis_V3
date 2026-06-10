@@ -5,7 +5,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Alert, Platform } from 'react-native'
 import * as Application from 'expo-application'
-import * as FileSystem from 'expo-file-system'
+// SDK 54 : l'API classique (cacheDirectory, downloadAsync…) est sous /legacy /
+// SDK 54: the classic file API moved under /legacy
+import * as FileSystem from 'expo-file-system/legacy'
 import * as IntentLauncher from 'expo-intent-launcher'
 import api from '../services/api'
 import { useDeviceStore } from '../stores/useDeviceStore'
