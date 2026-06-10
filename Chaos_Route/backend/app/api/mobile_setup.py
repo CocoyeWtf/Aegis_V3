@@ -23,6 +23,13 @@ APK_DIR = Path(__file__).resolve().parent.parent.parent / "apk"
 APP_VERSION = "1.9.0"
 APP_BUILD_NUMBER = 11
 
+# Coupe-circuit auto-update / Auto-update kill switch.
+# Mis a False en urgence : le build 11 (1.9.0) affiche un ecran blanc au demarrage.
+# On ne force plus la mise a jour pour ne pas "bricker" les tablettes encore sur
+# l'ancien build. A remettre a True une fois un build corrige (12) servi.
+# Emergency kill switch: build 11 white-screens at launch — stop forcing updates.
+FORCE_UPDATE = False
+
 
 @router.get("/app/version")
 async def get_app_version():
@@ -33,7 +40,7 @@ async def get_app_version():
         "version": APP_VERSION,
         "build_number": APP_BUILD_NUMBER,
         "download_url": f"{base_url}/app/download/cmro-driver.apk" if apk_exists else None,
-        "force_update": True,
+        "force_update": FORCE_UPDATE,
     }
 
 
