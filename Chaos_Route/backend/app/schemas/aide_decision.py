@@ -3,10 +3,23 @@ Schémas Aide à la Décision / Decision Support schemas.
 Simulation pure — aucun impact sur les données.
 """
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 _VALID_PRIORITIES = {"cost", "punctuality", "fill_rate", "num_tours"}
 _DEFAULT_PRIORITIES = ["cost", "punctuality", "fill_rate", "num_tours"]
+
+
+def _round_minutes_to_int(v):
+    """Arrondir une durée en minutes float -> int / Round float minutes to int.
+
+    Les durées sont calculées en float (sommes de trajets) mais exposées en
+    minutes entières. Évite une ValidationError Pydantic quand la somme tombe
+    fractionnaire (ex. 133.08). / Durations are computed as floats but exposed
+    as integer minutes.
+    """
+    if isinstance(v, float):
+        return round(v)
+    return v
 
 
 class AideDecisionRequest(BaseModel):
@@ -45,6 +58,8 @@ class SuggestedStop(BaseModel):
     deadline: str | None = None          # HH:MM
     warnings: list[str] = []
 
+    _round_duration = field_validator("duration_from_previous_minutes", mode="before")(_round_minutes_to_int)
+
 
 class SuggestedContract(BaseModel):
     """Contrat sélectionné pour un tour / Selected contract for a tour."""
@@ -75,6 +90,8 @@ class SuggestedTour(BaseModel):
     return_time: str | None = None       # HH:MM
     total_duration_minutes: int
     warnings: list[str] = []
+
+    _round_duration = field_validator("total_duration_minutes", mode="before")(_round_minutes_to_int)
 
 
 class UnassignedPDV(BaseModel):

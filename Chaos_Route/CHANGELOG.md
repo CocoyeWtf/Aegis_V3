@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Aide à la décision : erreur 500 (niveaux 1 et 2) quand la durée totale calculée
+  tombait fractionnaire (ex. 133.08 min) — `SuggestedTour.total_duration_minutes`
+  (typé `int`) rejetait le float (Pydantic `int_from_float`). Les champs minutes
+  (`total_duration_minutes`, `duration_from_previous_minutes`) arrondissent
+  désormais float→int via un validator. Tests de régression ajoutés.
+
 ### Added
 - Construction (Exploitation transport) : nouvelle nature **Transfert PDV à PDV**
   (mode « Mouvement ») — origine (chargement) → destination (dépose), sans
