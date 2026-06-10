@@ -29,7 +29,7 @@ from app.models.user import User
 from app.models.pickup_request import PickupRequest, PickupLabel, PickupStatus, PickupType, LabelStatus
 from app.models.vehicle import Vehicle, FleetVehicleType, VehicleStatus
 from app.models.tour_manifest_line import TourManifestLine
-from app.schemas.tour import ManifestLineRead, TourCreate, TourGateUpdate, TourOperationsUpdate, TourRead, TourSchedule, TourStopInsert, TourUpdate
+from app.schemas.tour import ManifestLineRead, ReorderStopsRequest, TourCreate, TourGateUpdate, TourOperationsUpdate, TourRead, TourSchedule, TourStopInsert, TourUpdate
 from app.api.deps import require_permission, get_user_region_ids
 from app.utils.fuel_pricing import load_fuel_unit_prices, price_for_contract, contract_fuel_type
 from app.services.cmro_extraction import CMRO_COLUMNS, CMRO_FIELDS, build_row as _build_cmro_row
@@ -1898,6 +1898,83 @@ async def schedule_tour(
         "departure_time": data.departure_time,
         "total_cost": float(tour.total_cost) if tour.total_cost else None,
     })
+
+    await db.flush()
+    result = await db.execute(
+        select(Tour).where(Tour.id == tour.id).options(selectinload(Tour.stops))
+    )
+    return result.scalar_one()
+
+
+@router.put("/{tour_id}/reorder-stops", response_model=TourRead)
+async def reorder_tour_stops(
+    tour_id: int,
+    data: ReorderStopsRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("tour-planning", "update")),
+):
+    """Permuter / réordonner les arrêts PDV d'un tour, avec recalcul des temps,
+    km et coût. Réordonnancement manuel (pas de blocage fenêtre/chevauchement :
+    le front affiche les avertissements). / Reorder a tour's PDV stops with
+    time/km/cost recompute.
+    """
+    result = await db.execute(
+        select(Tour).where(Tour.id == tour_id).options(selectinload(Tour.stops))
+    )
+    tour = result.scalar_one_or_none()
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found")
+
+    stops_by_id = {s.id: s for s in tour.stops}
+    if set(data.stop_order) != set(stops_by_id.keys()):
+        raise HTTPException(
+            status_code=422,
+            detail="stop_order doit contenir exactement les arrêts du tour",
+        )
+
+    # Réassigner l'ordre / Reassign sequence order
+    for new_seq, sid in enumerate(data.stop_order, start=1):
+        stops_by_id[sid].sequence_order = new_seq
+    await db.flush()
+
+    # Recalcul des temps/km/coût si le tour est planifié (heure de départ) /
+    # Recompute times/km/cost if scheduled
+    if tour.departure_time:
+        stops_data = [
+            {"pdv_id": s.pdv_id, "sequence_order": s.sequence_order, "eqp_count": s.eqp_count}
+            for s in sorted(tour.stops, key=lambda s: s.sequence_order)
+        ]
+        enriched_stops, return_time, total_duration = await calculate_tour_times(
+            tour.departure_time, stops_data, tour.base_id, db
+        )
+        total_km = sum(s.get("distance_from_previous_km", 0) for s in enriched_stops)
+        if enriched_stops:
+            last_pdv_id = enriched_stops[-1]["pdv_id"]
+            return_dist = await _get_distance(db, "PDV", last_pdv_id, "BASE", tour.base_id)
+            if return_dist:
+                total_km += float(return_dist.distance_km)
+        tour.return_time = return_time
+        tour.total_km = round(total_km, 2)
+        tour.total_duration_minutes = total_duration
+
+        for stop in tour.stops:
+            for e in enriched_stops:
+                if stop.pdv_id == e["pdv_id"] and stop.sequence_order == e["sequence_order"]:
+                    stop.arrival_time = e.get("arrival_time")
+                    stop.departure_time = e.get("departure_time")
+                    stop.distance_from_previous_km = e.get("distance_from_previous_km")
+                    stop.duration_from_previous_minutes = e.get("duration_from_previous_minutes")
+                    break
+
+        await db.flush()
+        if tour.contract_id:
+            contract = await db.get(Contract, tour.contract_id)
+            if contract:
+                tour.total_cost, _ = await _calculate_cost(
+                    db, tour.total_km, contract, tour.date, tour.base_id, stops_data,
+                )
+
+    await _log_audit(db, "tour", tour.id, "REORDER_STOPS", user, {"stop_order": data.stop_order})
 
     await db.flush()
     result = await db.execute(

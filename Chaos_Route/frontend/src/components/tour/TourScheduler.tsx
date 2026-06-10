@@ -143,6 +143,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
   /* Tour en cours de modification (planifié -> édition heure/chauffeur/contrat sans annuler) /
      Tour being edited (scheduled -> edit time/driver/contract without cancelling) */
   const [editingTourId, setEditingTourId] = useState<number | null>(null)
+  const [reorderingStopId, setReorderingStopId] = useState<number | null>(null)
   const [recalculating, setRecalculating] = useState(false)
   const [exportingWms, setExportingWms] = useState(false)
   const [costTourId, setCostTourId] = useState<number | null>(null)
@@ -576,6 +577,9 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
     loadContractsForTour(tour, tour.delivery_date ?? undefined)
     loadVehiclesForTour(tour, tour.delivery_date ?? undefined)
     setEditingTourId(tour.id)
+    // Déplier le tour pour exposer la liste PDV (avec flèches de permutation) /
+    // Expand the tour to reveal the PDV list (with reorder arrows)
+    setExpandedTourIds((prev) => new Set(prev).add(tour.id))
   }
 
   /* Planifier un tour / Schedule a tour */
@@ -819,9 +823,31 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
   }
 
   /* Liste des stops d'un tour avec badges reprises + dispatch info / Stop list with pickup badges + dispatch info */
+  /* Permuter un PDV vers le haut/bas (mode édition) + recalcul serveur /
+     Move a PDV stop up/down (edit mode) with server-side recompute */
+  const handleReorderStop = async (tour: Tour, stopId: number, dir: 'up' | 'down') => {
+    const sorted = [...(tour.stops ?? [])].sort((a, b) => a.sequence_order - b.sequence_order)
+    const idx = sorted.findIndex((s) => s.id === stopId)
+    const target = dir === 'up' ? idx - 1 : idx + 1
+    if (idx < 0 || target < 0 || target >= sorted.length) return
+    const next = [...sorted]
+    ;[next[idx], next[target]] = [next[target], next[idx]]
+    setReorderingStopId(stopId)
+    try {
+      await api.put(`/tours/${tour.id}/reorder-stops`, { stop_order: next.map((s) => s.id) })
+      await loadData()
+    } catch (e) {
+      console.error('Reorder stops failed', e)
+      alert('Échec du réordonnancement des PDV')
+    } finally {
+      setReorderingStopId(null)
+    }
+  }
+
   const renderStopList = (tour: Tour) => {
     const sortedStops = [...(tour.stops ?? [])].sort((a, b) => a.sequence_order - b.sequence_order)
     if (sortedStops.length === 0) return null
+    const canReorder = editingTourId === tour.id && sortedStops.length > 1
     return (
       <div className="mt-1 mb-2 space-y-0.5">
         {sortedStops.map((stop, idx) => {
@@ -832,6 +858,24 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
           const dispatchInfo = stopVolumes.find((v) => v.dispatch_date)
           return (
             <div key={stop.id} className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] pl-2" style={{ color: 'var(--text-muted)' }}>
+              {canReorder && (
+                <span className="flex flex-col shrink-0 -my-1" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => handleReorderStop(tour, stop.id, 'up')}
+                    disabled={idx === 0 || reorderingStopId != null}
+                    className="leading-none text-[9px] px-0.5 disabled:opacity-25 hover:opacity-70"
+                    style={{ color: 'var(--color-primary)' }}
+                    title="Monter ce PDV"
+                  >▲</button>
+                  <button
+                    onClick={() => handleReorderStop(tour, stop.id, 'down')}
+                    disabled={idx === sortedStops.length - 1 || reorderingStopId != null}
+                    className="leading-none text-[9px] px-0.5 disabled:opacity-25 hover:opacity-70"
+                    style={{ color: 'var(--color-primary)' }}
+                    title="Descendre ce PDV"
+                  >▼</button>
+                </span>
+              )}
               <span className="w-4 text-right font-mono shrink-0" style={{ color: 'var(--text-primary)' }}>{idx + 1}</span>
               <span className="font-semibold shrink-0" style={{ color: 'var(--text-primary)' }}>
                 {pdv?.code ?? `#${stop.pdv_id}`}

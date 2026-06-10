@@ -205,6 +205,14 @@ class TourRead(TourBase):
     stops: list[TourStopRead] = []
 
 
+class ReorderStopsRequest(BaseModel):
+    """Permutation des arrêts d'un tour / Reorder a tour's stops.
+
+    stop_order = ids des TourStop dans le nouvel ordre de livraison (1..n).
+    """
+    stop_order: list[int]
+
+
 class ManifestLineRead(BaseModel):
     """Ligne manifeste WMS / WMS manifest line."""
     model_config = ConfigDict(from_attributes=True)

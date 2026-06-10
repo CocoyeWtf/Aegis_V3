@@ -25,6 +25,10 @@ All notable changes to this project will be documented in this file.
   désormais float→int via un validator. Tests de régression ajoutés.
 
 ### Added
+- Ordonnancement : **permutation des PDV** en mode « Modifier » — flèches ↑/↓ sur
+  chaque arrêt pour réordonner la tournée, avec recalcul serveur des temps, km et
+  coût (`PUT /tours/{id}/reorder-stops`). « Modifier » déplie le tour pour exposer
+  la liste des PDV.
 - Construction (Exploitation transport) : nouvelle nature **Transfert PDV à PDV**
   (mode « Mouvement ») — origine (chargement) → destination (dépose), sans
   quantité. Champ **Commentaire** ajouté au mode Mouvement (transfert +
