@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+- Ordonnancement : barre d'actions compactée sur une seule ligne — boutons à
+  hauteur unique (32px), *Recalculer* et *Imprimer* en icône seule (infobulle),
+  *Valider* et *WMS* en libellé court + icône. Évite le débordement sur une 2ᵉ
+  ligne apparu avec l'ajout de l'export, et gagne de la hauteur d'écran.
 - Bandeau (Header) : refonte géométrique — hauteur unique (32px) pour tous les
   contrôles, sélecteur de langue segmenté d'un bloc, séparateurs verticaux entre
   groupes, icônes SVG (épingle/soleil/lune/cadenas) au lieu des emojis. Alignement
