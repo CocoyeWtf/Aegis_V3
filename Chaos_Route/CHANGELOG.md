@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Bandeau (Header) : refonte géométrique — hauteur unique (32px) pour tous les
+  contrôles, sélecteur de langue segmenté d'un bloc, séparateurs verticaux entre
+  groupes, icônes SVG (épingle/soleil/lune/cadenas) au lieu des emojis. Alignement
+  et rythme homogènes.
+
 ### Fixed
 - Aide à la décision : erreur 500 (niveaux 1 et 2) quand la durée totale calculée
   tombait fractionnaire (ex. 133.08 min) — `SuggestedTour.total_duration_minutes`
