@@ -101,14 +101,19 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       await SecureStore.setItemAsync('allowed_features', JSON.stringify(allowedFeatures))
       await SecureStore.setItemAsync('control_mode', String(controlMode))
       set({ friendlyName, baseName, allowedFeatures, controlMode })
-      // Rattachement PDV (tablette magasin) via /devices/me / PDV binding (store tablet)
+      // Rattachement PDV (tablette magasin) via /devices/me.
+      // PERSISTANCE : on ne DÉLIE jamais la tablette sur un aléa. On ne met à jour
+      // le pdv_id QUE si le serveur renvoie une valeur ; un null/échec transitoire
+      // conserve le PDV déjà en cache (sinon écran noir au redémarrage + réinstall).
+      // Never unbind on a transient null/failure — keep the cached PDV.
       try {
         const { data: me } = await api.get('/devices/me')
         const pdvId: number | null = me?.pdv_id ?? null
-        if (pdvId != null) await SecureStore.setItemAsync('pdv_id', String(pdvId))
-        else await SecureStore.deleteItemAsync('pdv_id')
-        set({ pdvId })
-      } catch { /* ignore — pas de rattachement PDV */ }
+        if (pdvId != null) {
+          await SecureStore.setItemAsync('pdv_id', String(pdvId))
+          set({ pdvId })
+        }
+      } catch { /* ignore — on garde le rattachement PDV en cache */ }
     } catch {
       // Charger depuis le cache local / Load from local cache
       try {
@@ -135,6 +140,9 @@ export async function getOrCreateDeviceUUID(): Promise<string> {
   const existing = await SecureStore.getItemAsync('device_id')
   if (existing) return existing
 
+  // Persister immédiatement pour garantir un UUID stable même si l'enregistrement
+  // n'aboutit pas. / Persist immediately so the UUID is stable across restarts.
   const uuid = Crypto.randomUUID()
+  await SecureStore.setItemAsync('device_id', uuid)
   return uuid
 }

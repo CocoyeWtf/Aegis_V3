@@ -98,10 +98,12 @@ api.interceptors.response.use(
       }
     }
 
-    // Device inconnu — reset et retour a l'ecran register / Unknown device — reset to register
-    if (error.response?.status === 401 && url.includes('/driver/') && error.response?.data?.detail === 'Unknown device') {
-      useDeviceStore.getState().reset()
-    }
+    // NB : on NE fait PLUS de reset() automatique sur un 401 "Unknown device".
+    // Un aléa réseau / redémarrage serveur effaçait toute la registration et
+    // forçait une réinstallation. La registration est désormais conservée ; la
+    // déconnexion / ré-enregistrement doit être une action volontaire. /
+    // No more auto-reset on a background 401 — it was wiping the registration and
+    // forcing a reinstall. Registration is kept; re-enroll must be deliberate.
 
     return Promise.reject(error)
   },
