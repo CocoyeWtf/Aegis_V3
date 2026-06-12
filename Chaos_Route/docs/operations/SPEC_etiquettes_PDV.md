@@ -13,12 +13,18 @@ PL00811 PL00812 PL00813 PL00814 PL00815 PL00816 PL00817 PL00818 PL00819 PL00820
 ```
 *(format exact en base à vérifier : « PL00801 » vs « PL 00801 »)*
 
-## 2. Règle d'étiquettes (palettes PA, combis CO, balles RE)
+## 2. Règle d'étiquettes (par PRÉFIXE de code — généralisé)
 Règle générale :
 - **unités = quantité encodée ÷ `unit_quantity`** (`unit_quantity` = conversion en base)
 - **nb étiquettes = unités × labels_per_unit**
-  - `labels_per_unit = 1` par défaut
-  - `labels_per_unit = 2` pour les **balles carton/plastique** : RE 52010, RE 52020
+
+`labels_per_unit` selon le préfixe / cas :
+| Préfixe / code | labels_per_unit |
+|----------------|-----------------|
+| **RE** (toutes balles plastique + carton) | **2** (2 étiquettes par balle) |
+| **CO 10012** (EVAC) et **CO 10014** (EBR) | **0** (pas d'étiquette — voir §3) |
+| **CO** (autres combis) | 1 |
+| **PA** (toutes palettes) | 1 |
 
 Bug actuel : l'app sort 1 étiquette par **quantité** au lieu d'1 par **unité**.
 
@@ -42,6 +48,12 @@ Bug actuel : l'app sort 1 étiquette par **quantité** au lieu d'1 par **unité*
 | CO 00412 | 5  | 1 |
 | RE 52010 | 1  | **2** |
 | RE 52020 | 1  | **2** |
+
+Le tableau ci-dessus liste les `unit_quantity` connus, mais la **règle s'applique
+par préfixe** (tout nouveau code PA/CO/RE est couvert automatiquement) :
+- **PA** = toutes les palettes → 1 étiquette/unité
+- **CO** = tous les combis **sauf EVAC (CO 10012) et EBR (CO 10014)** → 1 étiquette/unité
+- **RE** = toutes les balles (plastique + carton) → **2** étiquettes/unité
 
 Exemples : encode 40 sur PA 28010 → 40/40 = 1 unité → 1 étiquette. Encode 1 sur
 RE 52010 → 1 unité → **2** étiquettes.
