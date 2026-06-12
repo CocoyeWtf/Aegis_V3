@@ -57,9 +57,13 @@ function FilterGroup({ label, children, className = '' }: { label: string; child
 function getTourMode(tour: Tour): AssignmentMode | null {
   const hasContract = !!tour.contract_id
   const hasVehicle = !!tour.vehicle_id
+  // Ressource propre = véhicule OU tracteur OU chauffeur Base (cas des mouvements
+  // affectés à un seul chauffeur, sans véhicule). / Own resource = vehicle OR
+  // tractor OR base driver (movement assigned to a driver only).
+  const hasOwnResource = hasVehicle || !!tour.tractor_id || !!tour.driver_name
   if (hasContract && hasVehicle) return 'mixte'
   if (hasContract) return 'preste'
-  if (hasVehicle) return 'propre'
+  if (hasOwnResource) return 'propre'
   return null
 }
 
@@ -1666,9 +1670,15 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
 
                       {/* Ligne 2 — Liste des PDV (tronquée 1 ligne ; détail complet via dépli ▸) /
                           PDV list (truncated to 1 line; full detail via expand) */}
-                      <div className="text-sm font-bold mt-0.5 pl-6 truncate" style={{ color: '#000000' }} title={pdvSummary(tour)}>
-                        {pdvSummary(tour)}
+                      <div className="text-sm font-bold mt-0.5 pl-6 truncate" style={{ color: '#000000' }} title={pdvSummary(tour) || tour.destination || ''}>
+                        {pdvSummary(tour) || tour.destination || ''}
                       </div>
+                      {/* Commentaire du tour (mouvements, transferts…) / Tour comment */}
+                      {tour.remarks && (
+                        <div className="text-[11px] italic pl-6 truncate" style={{ color: 'var(--text-muted)' }} title={tour.remarks}>
+                          💬 {tour.remarks}
+                        </div>
+                      )}
                     </div>
 
                     {/* === Ligne 2 — Actions / Line 2 — Actions (alignées en bas ; wrap en dernier recours) === */}
@@ -1906,14 +1916,20 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                               <span className="block w-full text-center text-[10px] font-bold px-1 py-0.5 rounded truncate" title={`${vehicleMap.get(tour.vehicle_id)?.license_plate ?? ''}${tour.tractor_id ? ' + ' + (vehicleMap.get(tour.tractor_id)?.license_plate ?? '') : ''}`} style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>
                                 {vehicleMap.get(tour.vehicle_id)?.license_plate ?? vehicleMap.get(tour.vehicle_id)?.code ?? `V#${tour.vehicle_id}`}
                               </span>
+                            ) : tour.driver_name ? (
+                              /* Mouvement propre (chauffeur Base seul) : même badge vert que les transporteurs /
+                                 Own movement (base driver only): same green badge as carriers */
+                              <span className="block w-full text-center text-[11px] font-bold px-1 py-0.5 rounded truncate" title={tour.driver_name} style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--color-success)' }}>
+                                {tour.driver_name}
+                              </span>
                             ) : (
                               <span className="block w-full text-center text-[11px]" style={{ color: 'var(--text-muted)' }}>—</span>
                             )}
                           </div>
 
-                          {/* Chauffeur — slot largeur fixe */}
+                          {/* Chauffeur — slot largeur fixe (masqué si déjà affiché dans le badge vert) */}
                           <div className="text-[11px] truncate shrink-0 text-center" style={{ width: '52px', color: 'var(--text-secondary)' }} title={tour.driver_name ?? ''}>
-                            {tour.driver_name || '—'}
+                            {(tourContract || tour.vehicle_id) ? (tour.driver_name || '—') : '—'}
                           </div>
 
                           {/* Livraison (1er) */}

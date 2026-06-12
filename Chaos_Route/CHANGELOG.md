@@ -18,6 +18,12 @@ All notable changes to this project will be documented in this file.
   et rythme homogènes.
 
 ### Fixed
+- Ordonnancement (tours Mouvement) : (1) un mouvement affecté à un seul chauffeur
+  Base était classé sans mode → invisible au filtre « Propre » ; désormais classé
+  *propre* dès qu'il y a une ressource propre (véhicule, tracteur ou chauffeur).
+  (2) Le chauffeur Base s'affiche dans le **badge vert** (même emplacement que les
+  transporteurs) au lieu du petit texte gris. (3) Le **commentaire** du tour et la
+  **destination** apparaissent désormais sur la carte.
 - Ordonnancement (Gantt) : un tour livré le jour B (départ/retour après minuit,
   ex. 00h01→05h15 le 05/06) s'affichait à gauche sur le jour A. Le Gantt positionne
   désormais les barres en **temps absolu** (offset du jour de livraison + heure),
