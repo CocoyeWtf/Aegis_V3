@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, Alert, ActivityIndicator,
+  StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import api from '../services/api'
@@ -28,7 +28,8 @@ const PICKUP_TYPE_OPTIONS: { value: PickupType; label: string }[] = [
   { value: 'CONTAINER', label: 'Contenants' },
   { value: 'CARDBOARD', label: 'Balles carton' },
   { value: 'CONSIGNMENT', label: 'Consignes' },
-  { value: 'MERCHANDISE', label: 'Retour marchandise' },
+  // « Retour marchandise » retiré : solution pas encore développée, les PDV ne
+  // doivent pas y avoir accès. / Removed: feature not developed yet.
 ]
 
 const PICKUP_TYPE_PREFIXES: Record<PickupType, string[]> = {
@@ -276,7 +277,18 @@ export default function PdvPickupScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      /* Android : on s'appuie sur adjustResize (softwareKeyboardLayoutMode: resize)
+         → pas de behavior pour éviter une double gestion. iOS : padding. */
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+    >
       {/* Statut imprimante / Printer status */}
       <View style={styles.printerBox}>
         {printer ? (
@@ -449,12 +461,13 @@ export default function PdvPickupScreen() {
         </TouchableOpacity>
       )}
     </ScrollView>
+    </KeyboardAvoidingView>
   )
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bgPrimary },
-  content: { padding: 16, paddingBottom: 40 },
+  content: { padding: 16, paddingBottom: 220 },  // marge basse pour remonter les champs au-dessus du clavier
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.bgPrimary },
 
   printerBox: {
