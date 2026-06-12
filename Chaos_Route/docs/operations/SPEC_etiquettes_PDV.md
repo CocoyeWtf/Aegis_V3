@@ -66,6 +66,11 @@ pour reprise ; le chauffeur scanne les codes-barres des combis (pas d'étiquette
 Reprendre le modèle **Zebra A5** (paysage) de la version web, au lieu de l'étiquette
 mal cadrée actuelle.
 
-## Points à clarifier
-- Quantité non multiple de `unit_quantity` (ex. encode 50 sur PA 28010 = 40) → arrondi ? refus ? bloquer la saisie aux multiples ?
-- Les valeurs `unit_quantity` ci-dessus doivent-elles être **corrigées en base** (support_types) ou y sont-elles déjà ?
+## Points clarifiés (réponses exploitation)
+- **Quantité non multiple de `unit_quantity`** → **EMPÊCHER l'encodage** (pas de
+  création, pas d'impression) + afficher un **message d'erreur clair** expliquant
+  la situation (la demande n'est pas conforme), pour que l'utilisateur corrige et
+  ré-encode une quantité conforme (multiple de l'unité).
+  *(ex. message : « Quantité 50 invalide pour PA 28010 : 1 unité = 40. Saisissez un multiple de 40. »)*
+- **Valeurs `unit_quantity`** : déjà correctes **dans la base actuelle** → on les
+  **utilise telles quelles** (`support_types.unit_quantity`), aucune modif de données.
