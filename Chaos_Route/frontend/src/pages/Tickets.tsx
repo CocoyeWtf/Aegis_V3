@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../services/api'
+import { CreateTicketModal } from '../components/support/CreateTicketModal'
 import type { Ticket, TicketStatus, TicketType } from '../types'
 import {
   TICKET_TYPE_LABELS, TICKET_STATUS_LABELS, TICKET_STATUS_COLORS, TICKET_PRIORITY_LABELS,
@@ -35,6 +36,7 @@ export default function Tickets() {
   const [selected, setSelected] = useState<Ticket | null>(null)
   const [newComment, setNewComment] = useState('')
   const [busy, setBusy] = useState(false)
+  const [creating, setCreating] = useState(false)
 
   const loadList = useCallback(async () => {
     setLoading(true)
@@ -110,15 +112,28 @@ export default function Tickets() {
             Board transparent — tout le monde voit tous les tickets et les échanges.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
-          {STATUS_ORDER.filter((s) => counts[s]).map((s) => (
-            <span key={s} className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: TICKET_STATUS_COLORS[s] }} />
-              {TICKET_STATUS_LABELS[s]} {counts[s]}
-            </span>
-          ))}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+            {STATUS_ORDER.filter((s) => counts[s]).map((s) => (
+              <span key={s} className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: TICKET_STATUS_COLORS[s] }} />
+                {TICKET_STATUS_LABELS[s]} {counts[s]}
+              </span>
+            ))}
+          </div>
+          <button onClick={() => setCreating(true)}
+            className="px-3 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90"
+            style={{ backgroundColor: 'var(--color-primary)' }}>
+            + Nouveau ticket
+          </button>
         </div>
       </div>
+
+      <CreateTicketModal
+        open={creating}
+        onClose={() => setCreating(false)}
+        onCreated={(t) => { loadList(); loadDetail(t.id) }}
+      />
 
       {/* Filtres */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
