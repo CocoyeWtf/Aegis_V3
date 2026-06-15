@@ -69,13 +69,18 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
         allowedFeatures,
         controlMode,
         isRegistered,
-        isLoading: false,
       })
-      // Rafraichir depuis le serveur si enregistre / Refresh from server if registered
+      // IMPORTANT : on résout le rattachement PDV (serveur, fallback cache) AVANT
+      // de lever isLoading, pour que la NAVIGATION au démarrage parte déjà avec le
+      // bon pdv_id et route directement vers /pdv-home (sinon course → écran noir
+      // sur le flux chauffeur). / Resolve the PDV binding BEFORE clearing isLoading
+      // so startup navigation uses the right pdv_id (no race → no black screen).
       if (isRegistered) {
         await get().fetchDeviceInfo()
       }
     } catch {
+      /* ignore — isLoading levé dans le finally */
+    } finally {
       set({ isLoading: false })
     }
   },
