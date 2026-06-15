@@ -1,16 +1,24 @@
 /* Layout principal / Main layout wrapper */
 
 import { Suspense, useEffect } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { ChunkErrorBoundary } from '../ErrorBoundary'
+import { ReportButton } from '../support/ReportButton'
 import { useAppStore } from '../../stores/useAppStore'
+import { recordRoute, installErrorCapture } from '../../services/supportContext'
 
 export function MainLayout() {
   const { t } = useTranslation()
   const { isFullscreen, exitFullscreen } = useAppStore()
+  const location = useLocation()
+
+  /* Capture de contexte pour les tickets : erreurs globales + fil d'Ariane /
+     Ticket context capture: global errors + breadcrumb */
+  useEffect(() => { installErrorCapture() }, [])
+  useEffect(() => { recordRoute(location.pathname + location.search) }, [location.pathname, location.search])
 
   /* Synchronise le state Zustand avec l'état réel du navigateur / Sync Zustand state with browser fullscreen state */
   useEffect(() => {
@@ -37,6 +45,8 @@ export function MainLayout() {
           <Outlet />
           </Suspense>
           </ChunkErrorBoundary>
+          {/* Bouton « Signaler » présent sur toutes les pages / Global report button */}
+          {!isFullscreen && <ReportButton />}
           {/* Bouton flottant quitter plein écran / Floating exit fullscreen button */}
           {isFullscreen && (
             <button

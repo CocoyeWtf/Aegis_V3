@@ -1,0 +1,245 @@
+/* Board de tickets TRANSPARENT (type « Issue Council ») : tout le monde voit
+   tous les tickets, tous les échanges et le statut. Traçabilité complète. */
+
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import api from '../services/api'
+import type { Ticket, TicketStatus, TicketType } from '../types'
+import {
+  TICKET_TYPE_LABELS, TICKET_STATUS_LABELS, TICKET_STATUS_COLORS, TICKET_PRIORITY_LABELS,
+} from '../types'
+
+const STATUS_ORDER: TicketStatus[] = ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'REJECTED']
+
+function StatusBadge({ status }: { status: TicketStatus }) {
+  const c = TICKET_STATUS_COLORS[status]
+  return (
+    <span className="px-2 py-0.5 rounded-full text-[11px] font-bold shrink-0"
+      style={{ backgroundColor: `${c}22`, color: c }}>{TICKET_STATUS_LABELS[status]}</span>
+  )
+}
+
+function fmt(d?: string | null): string {
+  if (!d) return ''
+  try { return new Date(d).toLocaleString('fr-BE', { dateStyle: 'short', timeStyle: 'short' }) } catch { return d }
+}
+
+export default function Tickets() {
+  const [params, setParams] = useSearchParams()
+  const [list, setList] = useState<Ticket[]>([])
+  const [loading, setLoading] = useState(true)
+  const [statusFilter, setStatusFilter] = useState<TicketStatus | 'ALL'>('ALL')
+  const [typeFilter, setTypeFilter] = useState<TicketType | 'ALL'>('ALL')
+  const [search, setSearch] = useState('')
+
+  const [selected, setSelected] = useState<Ticket | null>(null)
+  const [newComment, setNewComment] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const loadList = useCallback(async () => {
+    setLoading(true)
+    try {
+      const { data } = await api.get<Ticket[]>('/tickets/')
+      setList(data)
+    } catch (e) { console.error('Chargement tickets échoué', e) }
+    finally { setLoading(false) }
+  }, [])
+
+  const loadDetail = useCallback(async (id: number) => {
+    try {
+      const { data } = await api.get<Ticket>(`/tickets/${id}`)
+      setSelected(data)
+    } catch (e) { console.error('Chargement ticket échoué', e) }
+  }, [])
+
+  useEffect(() => { loadList() }, [loadList])
+
+  /* Ouverture auto via ?focus=<id> (depuis le bouton Signaler) */
+  useEffect(() => {
+    const focus = params.get('focus')
+    if (focus) { loadDetail(Number(focus)); params.delete('focus'); setParams(params, { replace: true }) }
+  }, [params, loadDetail, setParams])
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return list.filter((t) =>
+      (statusFilter === 'ALL' || t.status === statusFilter) &&
+      (typeFilter === 'ALL' || t.ticket_type === typeFilter) &&
+      (!q || t.title.toLowerCase().includes(q) || (t.created_by_name ?? '').toLowerCase().includes(q) || String(t.id) === q)
+    )
+  }, [list, statusFilter, typeFilter, search])
+
+  const counts = useMemo(() => {
+    const m: Record<string, number> = {}
+    list.forEach((t) => { m[t.status] = (m[t.status] ?? 0) + 1 })
+    return m
+  }, [list])
+
+  const addComment = async () => {
+    if (!selected || !newComment.trim()) return
+    setBusy(true)
+    try {
+      await api.post(`/tickets/${selected.id}/comments`, { body: newComment.trim() })
+      setNewComment('')
+      await loadDetail(selected.id)
+      loadList()
+    } catch (e) { console.error(e) } finally { setBusy(false) }
+  }
+
+  const changeStatus = async (status: TicketStatus) => {
+    if (!selected) return
+    setBusy(true)
+    try {
+      const { data } = await api.put<Ticket>(`/tickets/${selected.id}/status`, { status })
+      setSelected(data)
+      loadList()
+    } catch (e) { console.error(e) } finally { setBusy(false) }
+  }
+
+  const ctx = useMemo(() => {
+    if (!selected?.context) return null
+    try { return JSON.parse(selected.context) } catch { return null }
+  }, [selected])
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Tickets</h2>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Board transparent — tout le monde voit tous les tickets et les échanges.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+          {STATUS_ORDER.filter((s) => counts[s]).map((s) => (
+            <span key={s} className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: TICKET_STATUS_COLORS[s] }} />
+              {TICKET_STATUS_LABELS[s]} {counts[s]}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Filtres */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher (titre, auteur, #id)…"
+          className="rounded-lg border px-3 py-2 text-sm" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', minWidth: '240px' }} />
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as TicketStatus | 'ALL')}
+          className="rounded-lg border px-2 py-2 text-sm" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+          <option value="ALL">Tous statuts</option>
+          {STATUS_ORDER.map((s) => <option key={s} value={s}>{TICKET_STATUS_LABELS[s]}</option>)}
+        </select>
+        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as TicketType | 'ALL')}
+          className="rounded-lg border px-2 py-2 text-sm" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+          <option value="ALL">Tous types</option>
+          {(['BUG', 'FEATURE', 'QUESTION', 'OTHER'] as TicketType[]).map((t) => <option key={t} value={t}>{TICKET_TYPE_LABELS[t]}</option>)}
+        </select>
+      </div>
+
+      {/* Liste */}
+      {loading ? (
+        <div className="text-sm" style={{ color: 'var(--text-muted)' }}>Chargement…</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-sm" style={{ color: 'var(--text-muted)' }}>Aucun ticket.</div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((t) => (
+            <button key={t.id} onClick={() => loadDetail(t.id)}
+              className="w-full text-left rounded-xl border px-4 py-3 transition-all hover:opacity-90 flex items-center gap-3"
+              style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}>
+              <span className="font-mono text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>#{t.id}</span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{TICKET_TYPE_LABELS[t.ticket_type]}</span>
+              <span className="font-semibold truncate flex-1" style={{ color: 'var(--text-primary)' }}>{t.title}</span>
+              <span className="text-[11px] shrink-0" style={{ color: 'var(--text-muted)' }}>{t.created_by_name} · {fmt(t.created_at)}</span>
+              {!!t.comment_count && <span className="text-[11px] shrink-0" style={{ color: 'var(--text-muted)' }}>💬 {t.comment_count}</span>}
+              <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0" style={{ color: 'var(--text-muted)' }}>{TICKET_PRIORITY_LABELS[t.priority]}</span>
+              <StatusBadge status={t.status} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Détail (modale) */}
+      {selected && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" onClick={() => setSelected(null)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative rounded-xl border shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto"
+            style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>#{selected.id}</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{TICKET_TYPE_LABELS[selected.ticket_type]}</span>
+                  <StatusBadge status={selected.status} />
+                </div>
+                <button onClick={() => setSelected(null)} className="text-xl leading-none" style={{ color: 'var(--text-muted)' }}>×</button>
+              </div>
+              <h3 className="text-lg font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{selected.title}</h3>
+              <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>Ouvert par {selected.created_by_name} · {fmt(selected.created_at)}</p>
+              {selected.description && <p className="text-sm mb-3 whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>{selected.description}</p>}
+
+              {/* Statut */}
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Changer le statut :</span>
+                <select value={selected.status} disabled={busy} onChange={(e) => changeStatus(e.target.value as TicketStatus)}
+                  className="rounded-lg border px-2 py-1.5 text-xs" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+                  {STATUS_ORDER.map((s) => <option key={s} value={s}>{TICKET_STATUS_LABELS[s]}</option>)}
+                </select>
+              </div>
+
+              {/* Contexte capturé */}
+              {ctx && (
+                <details className="mb-4 rounded-lg border" style={{ borderColor: 'var(--border-color)' }}>
+                  <summary className="cursor-pointer px-3 py-2 text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                    🔍 Contexte technique capturé
+                  </summary>
+                  <div className="px-3 pb-3 text-[11px] font-mono space-y-1" style={{ color: 'var(--text-muted)' }}>
+                    <div>Écran : {ctx.route}</div>
+                    <div>Version : {ctx.app_version} · {ctx.screen}</div>
+                    {Array.isArray(ctx.breadcrumb) && ctx.breadcrumb.length > 0 && (
+                      <div>Parcours : {ctx.breadcrumb.map((b: { path: string }) => b.path).join(' → ')}</div>
+                    )}
+                    {Array.isArray(ctx.recent_errors) && ctx.recent_errors.length > 0 && (
+                      <div style={{ color: 'var(--color-danger)' }}>Erreurs : {ctx.recent_errors.join(' | ')}</div>
+                    )}
+                    <div>Agent : {String(ctx.user_agent).slice(0, 90)}</div>
+                  </div>
+                </details>
+              )}
+
+              {/* Échanges */}
+              <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Échanges</h4>
+              <div className="space-y-2 mb-3">
+                {(selected.comments ?? []).map((c) => (
+                  <div key={c.id} className="rounded-lg px-3 py-2 text-sm"
+                    style={{ backgroundColor: c.is_system ? 'transparent' : 'var(--bg-primary)', border: c.is_system ? 'none' : '1px solid var(--border-color)' }}>
+                    {c.is_system ? (
+                      <p className="text-[11px] italic" style={{ color: 'var(--text-muted)' }}>— {c.body} ({fmt(c.created_at)})</p>
+                    ) : (
+                      <>
+                        <p className="text-[11px] font-semibold" style={{ color: 'var(--text-secondary)' }}>{c.user_name} · {fmt(c.created_at)}</p>
+                        <p className="whitespace-pre-wrap" style={{ color: 'var(--text-primary)' }}>{c.body}</p>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Ajouter un échange */}
+              <div className="flex gap-2">
+                <input value={newComment} onChange={(e) => setNewComment(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addComment()}
+                  placeholder="Ajouter un message…"
+                  className="flex-1 rounded-lg border px-3 py-2 text-sm" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
+                <button onClick={addComment} disabled={busy || !newComment.trim()}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50" style={{ backgroundColor: 'var(--color-primary)' }}>
+                  Envoyer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

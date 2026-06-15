@@ -29,6 +29,9 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
   { key: 'dashboard', label: 'nav.dashboard', icon: '📊', path: '/', resource: 'dashboard' },
+  // Board de tickets transparent — visible par tous (pas de resource) /
+  // Transparent ticket board — visible to everyone (no resource gate)
+  { key: 'tickets', label: 'Tickets', icon: '🎫', path: '/tickets' },
   {
     key: 'database',
     label: 'nav.database',

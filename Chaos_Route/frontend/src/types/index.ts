@@ -356,6 +356,51 @@ export const TOUR_TYPE_LABELS: Record<Exclude<TourType, 'LIVRAISON'>, string> = 
   TRANSFERT_PDV: 'Transfert PDV',
 }
 
+/* ── Tickets (board transparent) ── */
+export type TicketType = 'BUG' | 'FEATURE' | 'QUESTION' | 'OTHER'
+export type TicketStatus = 'OPEN' | 'ACKNOWLEDGED' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED' | 'REJECTED'
+export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+
+export interface TicketComment {
+  id: number
+  user_id?: number | null
+  user_name?: string | null
+  body: string
+  is_system: boolean
+  created_at?: string | null
+}
+
+export interface Ticket {
+  id: number
+  ticket_type: TicketType
+  status: TicketStatus
+  priority: TicketPriority
+  title: string
+  description?: string | null
+  context?: string | null
+  created_by_user_id?: number | null
+  created_by_name?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+  comment_count?: number
+  comments?: TicketComment[]
+}
+
+export const TICKET_TYPE_LABELS: Record<TicketType, string> = {
+  BUG: 'Bug', FEATURE: 'Évolution', QUESTION: 'Question', OTHER: 'Autre',
+}
+export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
+  OPEN: 'Ouvert', ACKNOWLEDGED: 'Pris en compte', IN_PROGRESS: 'En cours',
+  RESOLVED: 'Résolu', CLOSED: 'Clôturé', REJECTED: 'Refusé',
+}
+export const TICKET_STATUS_COLORS: Record<TicketStatus, string> = {
+  OPEN: '#f97316', ACKNOWLEDGED: '#3b82f6', IN_PROGRESS: '#a855f7',
+  RESOLVED: '#22c55e', CLOSED: '#6b7280', REJECTED: '#ef4444',
+}
+export const TICKET_PRIORITY_LABELS: Record<TicketPriority, string> = {
+  LOW: 'Basse', MEDIUM: 'Moyenne', HIGH: 'Haute', CRITICAL: 'Critique',
+}
+
 export const VEHICLE_TYPE_DEFAULTS: Record<VehicleType, { label: string; capacity_eqp: number }> = {
   SEMI: { label: 'Semi-remorque', capacity_eqp: 54 },
   PORTEUR: { label: 'Porteur', capacity_eqp: 33 },

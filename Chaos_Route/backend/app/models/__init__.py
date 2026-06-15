@@ -65,6 +65,7 @@ from app.models.crate_type import CrateType
 from app.models.crate_request import CrateRequest, CrateRequestStatus
 from app.models.base_driver import BaseDriver, DriverStatus
 from app.models.operational_alert import OperationalAlert, AlertComment, AlertType, AlertStatus, AlertPriority
+from app.models.ticket import Ticket, TicketComment, TicketType, TicketStatus, TicketPriority
 
 __all__ = [
     "Country",
