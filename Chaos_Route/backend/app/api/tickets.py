@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_permission
 from app.database import get_db
 from app.models.ticket import Ticket, TicketComment, TicketStatus, TicketType, TicketPriority
 from app.models.user import User
@@ -135,9 +135,10 @@ async def update_status(
     ticket_id: int,
     data: TicketStatusUpdate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("tickets", "update")),
 ):
-    """Changer statut/priorité — tracé comme événement système / Change status/priority (traced)."""
+    """Changer statut/priorité — RÉSERVÉ admin (tickets:update ; superadmin inclus).
+    Tracé comme événement système. / Status/priority change restricted to admins."""
     # Charger SANS les commentaires (sinon la collection en cache ne refléterait
     # pas l'événement système ajouté ci-dessous au moment du rechargement). /
     # Load without comments so the freshly-added system event is visible on reload.

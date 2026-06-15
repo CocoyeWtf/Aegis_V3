@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../services/api'
 import { CreateTicketModal } from '../components/support/CreateTicketModal'
+import { useAuthStore } from '../stores/useAuthStore'
 import type { Ticket, TicketStatus, TicketType } from '../types'
 import {
   TICKET_TYPE_LABELS, TICKET_STATUS_LABELS, TICKET_STATUS_COLORS, TICKET_PRIORITY_LABELS,
@@ -37,6 +38,9 @@ export default function Tickets() {
   const [newComment, setNewComment] = useState('')
   const [busy, setBusy] = useState(false)
   const [creating, setCreating] = useState(false)
+  /* Seuls les admins (tickets:update, superadmin inclus) changent le statut */
+  const hasPermission = useAuthStore((s) => s.hasPermission)
+  const canManage = hasPermission('tickets', 'update')
 
   const loadList = useCallback(async () => {
     setLoading(true)
@@ -193,13 +197,17 @@ export default function Tickets() {
               <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>Ouvert par {selected.created_by_name} · {fmt(selected.created_at)}</p>
               {selected.description && <p className="text-sm mb-3 whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>{selected.description}</p>}
 
-              {/* Statut */}
+              {/* Statut — changement réservé aux admins (tickets:update) */}
               <div className="flex items-center gap-2 mb-4">
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Changer le statut :</span>
-                <select value={selected.status} disabled={busy} onChange={(e) => changeStatus(e.target.value as TicketStatus)}
-                  className="rounded-lg border px-2 py-1.5 text-xs" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
-                  {STATUS_ORDER.map((s) => <option key={s} value={s}>{TICKET_STATUS_LABELS[s]}</option>)}
-                </select>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Statut :</span>
+                {canManage ? (
+                  <select value={selected.status} disabled={busy} onChange={(e) => changeStatus(e.target.value as TicketStatus)}
+                    className="rounded-lg border px-2 py-1.5 text-xs" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
+                    {STATUS_ORDER.map((s) => <option key={s} value={s}>{TICKET_STATUS_LABELS[s]}</option>)}
+                  </select>
+                ) : (
+                  <StatusBadge status={selected.status} />
+                )}
               </div>
 
               {/* Contexte capturé */}
