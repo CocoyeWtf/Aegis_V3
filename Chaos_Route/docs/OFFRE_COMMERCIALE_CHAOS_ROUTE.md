@@ -215,6 +215,34 @@ Au choix (ou combiné) :
 
 ---
 
+## 10bis. Benchmark & positionnement marché (juin 2026)
+
+> Sources sectorielles ci-dessous. Prix « souvent sur devis » → ordres de grandeur.
+
+### Tarifs observés sur le marché
+- **TMS SaaS (par utilisateur)** : **50–500 $/utilisateur/mois** selon richesse fonctionnelle.
+- **TMS on-premise** : **10 000–500 000 $** de licence + **15–20 %/an** de maintenance.
+- **Par véhicule** : ~**50 $/camion/mois**. **Par expédition** : **1–5 $/expédition**.
+- **Optimisation de tournées (PME)** :
+  - **OptimoRoute** ≈ **35–44 $/chauffeur/mois** (selon volume de commandes).
+  - **Routific** : gratuit jusqu'à 100 commandes, puis ~**150 $/mois** (au volume, sans frais/chauffeur).
+  - **Onfleet** : à partir de **500 $/mois** (2 000 tâches, utilisateurs illimités).
+
+### Coûts d'infrastructure (UE, souveraineté RGPD)
+- **VPS EU** : Hetzner ~**8 €/mois** (2 vCPU/4 Go) → **~30–60 €/mois** pour 8 vCPU/32 Go (gamme CCX dédiée) ; OVH à partir de **4 €/mois**.
+- **PostgreSQL managé (Scaleway)** : à partir de **6,99 €/mois** ; **option HA** en sus ; **PITR** jusqu'à 7 j ; backup **0,025 €/Go/mois** au-delà de 100 Go inclus.
+- **Backup cloud chiffré UE (RGPD)** : ~**0,02 €/Go** ou **~4 €/appareil/mois** (ex. euBackups, AES-256).
+
+### Positionnement de CHAOS Route
+- **Hors du terrain des généralistes** (Descartes, Blue Yonder…) → on joue la **verticalisation**.
+- **Différenciateur unique** : livraison **+ reprise contenants/consignes/combis + intégration WMS + parc propre/presté/mixte**, dans un seul outil. Très peu d'acteurs couvrent la **logistique retour**.
+- **Souveraineté UE + RGPD + sur-mesure** : argument fort vs SaaS US, en Belgique/UE.
+- **Positionnement prix conseillé** : **gamme PME/mid-market** (ni low-cost type Routific, ni enterprise) — la verticalisation **justifie** le tarif.
+
+**Sources :** Locus, ShipperGuide, Aljex, QuantumByte (coûts TMS) ; Routific, OptimoRoute (Upper/Capterra), Onfleet (prix optimisation) ; Scaleway, OVHcloud, Hetzner, hoststack.dev (infra UE) ; Barracuda, Cloudwards, euBackups (backup). *(Liens fournis dans la réponse de synthèse.)*
+
+---
+
 ## 11. Mise en place côté éditeur (création de la structure)
 
 - **Société** : créer l'entité (Belgique — inscription **BCE/Banque-Carrefour des
