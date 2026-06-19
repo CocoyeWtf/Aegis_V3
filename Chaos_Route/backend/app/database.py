@@ -3,9 +3,9 @@ Connexion a la base de donnees / Database connection.
 Supporte SQLite (dev) et PostgreSQL (prod) via SQLAlchemy 2.0 async.
 """
 
-from sqlalchemy import Enum as SAEnum, text
+from sqlalchemy import Enum as SAEnum, event, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, ORMExecuteState, Session, with_loader_criteria
 
 from app.config import settings
 
@@ -36,6 +36,71 @@ class Base(DeclarativeBase):
     pass
 
 
+# ---------------------------------------------------------------------------
+# Multi-tenance : cloisonnement automatique et central par tenant_id.
+#
+# Principe : la session porte le tenant courant dans `session.info["tenant_id"]`
+# (positionné après authentification, cf. app.api.deps.get_current_user).
+#   - tenant_id = un entier  -> toute requête sur un modèle TenantMixin est filtrée
+#     automatiquement (impossible d'oublier le filtre dans un endpoint).
+#   - tenant_id = None / absent -> AUCUN filtre (superadmin, rôle « consolidation
+#     groupe », ou contextes sans utilisateur comme le démarrage/migrations).
+# À l'écriture, les nouveaux objets TenantMixin sans tenant_id héritent du tenant
+# courant (stampage central).
+#
+# Clé d'info de session servant à FORCER l'absence de filtre dans un bloc précis
+# (ex. tâches d'administration) via session.info[TENANT_BYPASS] = True.
+# ---------------------------------------------------------------------------
+TENANT_BYPASS = "tenant_bypass"
+
+
+def set_session_tenant(session, tenant_id: int | None) -> None:
+    """Positionner le tenant courant sur une session (sync ou AsyncSession).
+
+    tenant_id=None => pas de filtrage (accès multi-tenant : superadmin / consolidation).
+    """
+    info = session.info
+    info["tenant_id"] = tenant_id
+    info[TENANT_BYPASS] = tenant_id is None
+
+
+@event.listens_for(Session, "do_orm_execute")
+def _apply_tenant_filter(state: ORMExecuteState) -> None:
+    """Injecter le filtre tenant sur toute lecture ORM des modèles TenantMixin."""
+    if not state.is_select:
+        return
+    if state.execution_options.get("skip_tenant_filter"):
+        return
+    info = state.session.info
+    if info.get(TENANT_BYPASS):
+        return
+    tenant_id = info.get("tenant_id")
+    if tenant_id is None:
+        return
+    from app.models.mixins import TenantMixin
+
+    state.statement = state.statement.options(
+        with_loader_criteria(
+            TenantMixin,
+            lambda cls, tid=tenant_id: cls.tenant_id == tid,
+            include_aliases=True,
+        )
+    )
+
+
+@event.listens_for(Session, "before_flush")
+def _stamp_tenant_on_insert(session: Session, flush_context, instances) -> None:
+    """Affecter le tenant courant aux nouveaux objets TenantMixin sans tenant_id."""
+    tenant_id = session.info.get("tenant_id")
+    if tenant_id is None:
+        return
+    from app.models.mixins import TenantMixin
+
+    for obj in session.new:
+        if isinstance(obj, TenantMixin) and getattr(obj, "tenant_id", None) is None:
+            obj.tenant_id = tenant_id
+
+
 async def get_db() -> AsyncSession:
     """Dependance FastAPI pour obtenir une session DB / FastAPI dependency for DB session."""
     async with async_session() as session:
@@ -60,6 +125,9 @@ async def init_db():
     # Create missing PG ENUM types BEFORE adding columns that reference them
     await _migrate_create_enum_types()
     await _migrate_missing_columns()
+    # Multi-tenance : créer le tenant par défaut (Belgique) et retro-remplir
+    # tenant_id=1 sur toutes les lignes existantes / Seed default tenant + backfill
+    await _seed_default_tenant_and_backfill()
     # Aligner les types de colonnes critiques sur les modèles /
     # Align critical column types with models
     await _migrate_column_types()
@@ -176,6 +244,55 @@ async def _cleanup_old_gps(days: int = 30):
             print(f"[cleanup] {result.rowcount} GPS positions removed (tours before {cutoff})")
 
 
+async def _seed_default_tenant_and_backfill():
+    """Créer le tenant par défaut (id=1, Belgique) et retro-remplir tenant_id=1.
+
+    Idempotent. À exécuter APRÈS _migrate_missing_columns (les colonnes tenant_id
+    doivent exister, ajoutées en NULLABLE — donc sans DEFAULT 0 invalide).
+    Le backfill couvre TOUTE table possédant une colonne tenant_id (modèles
+    TenantMixin + users), de façon dynamique : pas de liste à maintenir.
+    """
+    from app.models.tenant import DEFAULT_TENANT_ID
+
+    async with engine.begin() as conn:
+        # 1) Créer le tenant par défaut s'il n'existe pas / Create default tenant
+        result = await conn.execute(
+            text("SELECT id FROM tenants WHERE id = :tid"),
+            {"tid": DEFAULT_TENANT_ID},
+        )
+        if result.fetchone() is None:
+            active = "TRUE" if not _is_sqlite else "1"
+            await conn.execute(
+                text(
+                    "INSERT INTO tenants (id, code, name, is_active) "
+                    f"VALUES (:tid, 'BE', 'Belgique', {active})"
+                ),
+                {"tid": DEFAULT_TENANT_ID},
+            )
+            print(f"[tenant] Created default tenant id={DEFAULT_TENANT_ID} (Belgique)")
+            # PostgreSQL : recaler la séquence d'auto-incrément après INSERT d'id
+            # explicite / realign identity sequence after explicit id insert
+            if not _is_sqlite:
+                await conn.execute(text(
+                    "SELECT setval(pg_get_serial_sequence('tenants', 'id'), "
+                    "(SELECT MAX(id) FROM tenants))"
+                ))
+
+        # 2) Backfill tenant_id=1 sur toutes les tables qui ont cette colonne /
+        #    Backfill tenant_id=1 on every table that has the column
+        for table in Base.metadata.sorted_tables:
+            if "tenant_id" not in table.columns:
+                continue
+            try:
+                r = await conn.execute(text(
+                    f'UPDATE "{table.name}" SET tenant_id = :tid WHERE tenant_id IS NULL'
+                ), {"tid": DEFAULT_TENANT_ID})
+                if r.rowcount:
+                    print(f"[tenant] backfill {table.name}: {r.rowcount} lignes -> tenant_id={DEFAULT_TENANT_ID}")
+            except Exception as e:
+                print(f"[tenant] WARN backfill {table.name}: {e}")
+
+
 async def _migrate_enum_values():
     """Ajouter les nouvelles valeurs aux types enum PostgreSQL / Add new enum values to PostgreSQL enum types."""
     if _is_sqlite:
@@ -185,7 +302,7 @@ async def _migrate_enum_values():
         ("dockeventtype", ["UNLOADING", "DOCK_LEFT", "SITE_LEFT"]),
         ("pickupstatus", ["CANCELLED"]),  # Annulation declaration combi remplacee
         ("vehicletype", ["PORTEUR_SURBAISSE"]),  # Porteur surbaisse ajoute apres coup
-        ("tourtype", ["TRANSFERT_PDV"]),  # Transfert PDV a PDV ajoute apres coup
+        ("tourtype", ["TRANSFERT_PDV", "ENLEVEMENT_DEDIE"]),  # Transfert PDV a PDV + enlevement dedie ajoutes apres coup
     ]
     async with engine.begin() as conn:
         for enum_name, new_values in enum_updates:

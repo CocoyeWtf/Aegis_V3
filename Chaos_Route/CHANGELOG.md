@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Création de tours — **Enlèvement dédié** (sous le mode *Mouvement*) : nouvelle
+  nature `ENLEVEMENT_DEDIE` permettant de choisir un **fournisseur** (point
+  d'enlèvement déjà dans le distancier, ex. e066 = AVION — fonctionne comme un
+  PDV), un **chauffeur PARC** (chauffeur Base, commentaire « Chauffeur PARC » par
+  défaut) et un créneau **heure de début → heure de fin** (saisis à la main). Le
+  km aller-retour base ↔ fournisseur est repris du distancier. Nouvelle colonne
+  `tours.supplier_id` (migration auto : colonne + FK + valeur d'enum PG ajoutées).
+- Création de tours — **Tour surprise** : tour attribué à un transporteur sans PDV
+  au moment de la création (les PDV sont ajoutés plus tard depuis l'ordonnancement).
+  Saisie base + transporteur + heure de départ.
+- Ordonnancement — bouton **Confirmation Mail** : génère, transporteur par
+  transporteur, le récapitulatif des tournées attribuées du jour (tableau Code Ch.
+  | H.Départ | N° Mission | Chauffeurs | Observations/Enlèvement | Départ | Retour
+  | PDV 1..N), avec aperçu validé « prêt à être transféré » puis envoi manuel à
+  l'adresse e-mail enregistrée dans la fiche transporteur (endpoints
+  `GET/POST /tours/transporter-confirmation`).
+
 ### Changed
 - Ordonnancement : barre d'actions compactée sur une seule ligne — boutons à
   hauteur unique (32px), *Recalculer* et *Imprimer* en icône seule (infobulle),
