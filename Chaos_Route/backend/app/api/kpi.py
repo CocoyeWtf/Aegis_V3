@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -113,6 +113,10 @@ async def get_punctuality_kpi(
 
     # Filtre région / Region filter
     user_regions = get_user_region_ids(user)
+    # Un utilisateur restreint ne peut pas demander une région hors de son périmètre /
+    # A scoped user cannot request a region outside their perimeter
+    if region_id and user_regions is not None and region_id not in user_regions:
+        raise HTTPException(status_code=403, detail="Région non autorisée")
     if region_id:
         from app.models.base_logistics import BaseLogistics
         base_ids_q = select(BaseLogistics.id).where(BaseLogistics.region_id == region_id)
@@ -503,6 +507,10 @@ async def get_pickup_rate_kpi(
 
     # Scope région / Region scope
     user_regions = get_user_region_ids(user)
+    # Un utilisateur restreint ne peut pas demander une région hors de son périmètre /
+    # A scoped user cannot request a region outside their perimeter
+    if region_id and user_regions is not None and region_id not in user_regions:
+        raise HTTPException(status_code=403, detail="Région non autorisée")
     if region_id:
         from app.models.base_logistics import BaseLogistics
         base_ids_q = select(BaseLogistics.id).where(BaseLogistics.region_id == region_id)

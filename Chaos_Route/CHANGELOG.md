@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+- **Isolation multi-tenant — correctif critique du filtre central.** Le filtre
+  `do_orm_execute` utilisait `with_loader_criteria(..., lambda cls, tid=tenant_id: …)`.
+  L'argument par défaut `tid=` est traité comme une CONSTANTE par le cache de
+  lambda-SQL de SQLAlchemy : la valeur du tenant du **premier** appel était figée
+  et réutilisée pour toutes les requêtes suivantes. Invisible avec un seul tenant
+  (Belgique), mais aurait cassé l'isolation dès l'ajout de la France (fuite ou 0
+  résultat). Passage à une variable de **closure** (suivie et re-liée en bindparam
+  par requête). Couvert par des tests d'isolation multi-tenant en un seul process.
+- **Distancier (`distance_matrix`) et taxe km (`km_tax`) cloisonnés par tenant**
+  (`TenantMixin`) : `GET /distance-matrix/` ne renvoyait pas de scope tenant →
+  fuite cross-pays potentielle des distances/temps. Colonne `tenant_id`
+  auto-migrée + backfill Belgique=1.
+- **KPI** : `region_id` fourni par le client est désormais refusé (403) s'il est
+  hors du périmètre de régions de l'utilisateur (`/kpi/punctuality`,
+  `/kpi/pickup-rate`).
+- Nouveaux **tests d'isolation au niveau API** (`tests/test_reference_data_isolation.py`) :
+  un tenant ne lit pas les données d'un autre via l'endpoint distancier ; un KPI
+  refuse une région hors périmètre.
+
+### Fixed
+- Ticketing : `create_ticket` et `update_status` ne chargeaient pas la relation
+  `photos` (ajoutée pour les pièces jointes) → `ResponseValidationError` à la
+  sérialisation de `TicketDetail`. Ajout du `selectinload(Ticket.photos)`.
+
 ### Added
 - Ticketing — **pièces jointes photo / capture d'écran** : à la création d'un
   ticket (modale « Nouveau ticket » / bouton « Signaler ») on peut joindre

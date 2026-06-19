@@ -120,7 +120,9 @@ async def create_ticket(
     ))
     await db.flush()
     result = await db.execute(
-        select(Ticket).where(Ticket.id == ticket.id).options(selectinload(Ticket.comments))
+        select(Ticket).where(Ticket.id == ticket.id).options(
+            selectinload(Ticket.comments), selectinload(Ticket.photos)
+        )
     )
     return result.scalar_one()
 
@@ -260,6 +262,8 @@ async def update_status(
         ))
     await db.flush()
     result = await db.execute(
-        select(Ticket).where(Ticket.id == ticket.id).options(selectinload(Ticket.comments))
+        select(Ticket).where(Ticket.id == ticket.id).options(
+            selectinload(Ticket.comments), selectinload(Ticket.photos)
+        )
     )
     return result.scalar_one()

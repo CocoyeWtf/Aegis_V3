@@ -4,9 +4,10 @@ from sqlalchemy import Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
-class DistanceMatrix(Base):
+class DistanceMatrix(Base, TenantMixin):
     __tablename__ = "distance_matrix"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

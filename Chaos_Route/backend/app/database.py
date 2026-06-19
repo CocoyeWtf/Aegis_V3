@@ -79,10 +79,17 @@ def _apply_tenant_filter(state: ORMExecuteState) -> None:
         return
     from app.models.mixins import TenantMixin
 
+    # IMPORTANT : `tenant_id` doit être une variable de CLÔTURE (closure), pas un
+    # argument par défaut. Le système de lambda-SQL de SQLAlchemy met en cache la
+    # criteria par identité de code ; un défaut `tid=tenant_id` est traité comme une
+    # CONSTANTE et fige la valeur du PREMIER appel → toutes les requêtes suivantes
+    # seraient filtrées sur le tenant initial (invisible à 1 seul tenant, fuite/0
+    # résultat dès 2 tenants). La forme closure ci-dessous est suivie et re-liée en
+    # bindparam à chaque exécution. / Must be a tracked closure var, not a default arg.
     state.statement = state.statement.options(
         with_loader_criteria(
             TenantMixin,
-            lambda cls, tid=tenant_id: cls.tenant_id == tid,
+            lambda cls: cls.tenant_id == tenant_id,
             include_aliases=True,
         )
     )

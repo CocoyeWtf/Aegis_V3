@@ -4,9 +4,10 @@ from sqlalchemy import Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
-class KmTax(Base):
+class KmTax(Base, TenantMixin):
     """Taxe au km par segment origine→destination / Km tax per origin→destination segment."""
     __tablename__ = "km_tax"
 
