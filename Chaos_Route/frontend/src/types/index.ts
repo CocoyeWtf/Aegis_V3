@@ -179,7 +179,7 @@ export interface TourStop {
 }
 
 // Nature de tournée / Tour nature (LIVRAISON = livraison classique)
-export type TourType = 'LIVRAISON' | 'ENLEVEMENT' | 'VIDANGES' | 'DEPLACEMENT_BASE' | 'GARAGE' | 'TRANSFERT_PDV' | 'ENLEVEMENT_DEDIE'
+export type TourType = 'LIVRAISON' | 'ENLEVEMENT' | 'VIDANGES' | 'DEPLACEMENT_BASE' | 'GARAGE' | 'TRANSFERT_PDV'
 
 export interface Tour {
   id: number
@@ -202,7 +202,6 @@ export interface Tour {
   is_pickup_tour?: boolean
   tour_type?: TourType
   destination?: string | null
-  supplier_id?: number | null  // Fournisseur cible (enlèvement dédié)
   bypass_support_rules?: boolean
   priority?: number | null  // Priorité manuelle d'ordonnancement (1..n)
   stops: TourStop[]
@@ -355,7 +354,6 @@ export const TOUR_TYPE_LABELS: Record<Exclude<TourType, 'LIVRAISON'>, string> = 
   DEPLACEMENT_BASE: 'Déplacement',
   GARAGE: 'Garage',
   TRANSFERT_PDV: 'Transfert PDV',
-  ENLEVEMENT_DEDIE: 'Enlèvement dédié',
 }
 
 /* ── Tickets (board transparent) ── */

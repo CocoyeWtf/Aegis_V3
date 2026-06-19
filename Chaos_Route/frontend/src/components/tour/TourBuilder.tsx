@@ -16,7 +16,7 @@ import { MapView } from '../map/MapView'
 import { useDetachedMap } from '../../hooks/useDetachedMap'
 import { create } from '../../services/api'
 import api from '../../services/api'
-import type { VehicleType, TemperatureType, TemperatureClass, Volume, PDV, BaseLogistics, Tour, TourStop, DistanceEntry, Contract, PdvPickupSummary, Supplier } from '../../types'
+import type { VehicleType, TemperatureType, TemperatureClass, Volume, PDV, BaseLogistics, Tour, TourStop, DistanceEntry, Contract, PdvPickupSummary } from '../../types'
 import type { PdvVolumeStatus } from '../map/PdvMarker'
 import { VEHICLE_TYPE_DEFAULTS, TEMPERATURE_TYPE_LABELS } from '../../types'
 import { getRequiredTemperatureType, checkTemperatureCompatibility } from '../../utils/temperatureUtils'
@@ -45,24 +45,14 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
 
   /* Mode : livraison, reprise (PDV) ou mouvement véhicule (sans arrêt) /
      Delivery, pickup (PDV stops) or vehicle movement (stopless) */
-  type TourMode = 'delivery' | 'pickup' | 'movement' | 'surprise'
+  type TourMode = 'delivery' | 'pickup' | 'movement'
   const [tourMode, setTourMode] = useState<TourMode>('delivery')
   // Nature en mode reprise (Enlèvement/Vidanges) et mouvement (Déplacement/Garage)
   const [pickupNature, setPickupNature] = useState<'ENLEVEMENT' | 'VIDANGES'>('ENLEVEMENT')
-  const [movementNature, setMovementNature] = useState<'DEPLACEMENT_BASE' | 'GARAGE' | 'TRANSFERT_PDV' | 'ENLEVEMENT_DEDIE'>('DEPLACEMENT_BASE')
+  const [movementNature, setMovementNature] = useState<'DEPLACEMENT_BASE' | 'GARAGE' | 'TRANSFERT_PDV'>('DEPLACEMENT_BASE')
   const [movementDestination, setMovementDestination] = useState('')
   // Commentaire libre (mouvement + transfert) / Free comment (movement + transfer)
   const [movementComment, setMovementComment] = useState('')
-  // Enlèvement dédié : fournisseur (distancier), chauffeur PARC (base) + créneau
-  // début/fin / Dedicated pickup: supplier (distancier), PARC base driver + start/end slot
-  const [dedicatedSupplierId, setDedicatedSupplierId] = useState<number | null>(null)
-  const [dedicatedDriverName, setDedicatedDriverName] = useState('')
-  const [dedicatedStartTime, setDedicatedStartTime] = useState('')
-  const [dedicatedEndTime, setDedicatedEndTime] = useState('')
-  // Tour surprise : tour attribué à un transporteur sans PDV (ajoutés plus tard) /
-  // Surprise tour: assigned to a carrier with no PDV yet (added later)
-  const [surpriseContractId, setSurpriseContractId] = useState<number | null>(null)
-  const [surpriseDepartureTime, setSurpriseDepartureTime] = useState('')
   // Transfert PDV à PDV : PDV origine (chargement) et destination (dépose)
   const [transfertOriginPdvId, setTransfertOriginPdvId] = useState<number | null>(null)
   const [transfertDestPdvId, setTransfertDestPdvId] = useState<number | null>(null)
@@ -113,10 +103,6 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
   const { data: distances } = useApi<DistanceEntry>('/distance-matrix')
   const { data: contracts } = useApi<Contract>('/contracts', regionParams)
   const { data: pickupSummaries } = useApi<PdvPickupSummary>('/pickup-requests/by-pdv/pending')
-  /* Fournisseurs (enlèvement dédié) + chauffeurs base (chauffeur PARC) /
-     Suppliers (dedicated pickup) + base drivers (PARC driver) */
-  const { data: suppliers } = useApi<Supplier>('/suppliers', regionParams)
-  const { data: baseDrivers } = useApi<{ id: number; last_name: string; first_name: string; code_infolog: string; base_id: number }>('/base-drivers')
 
   /* Index pickup par PDV / Pickup index by PDV */
   const pickupByPdv = useMemo(() => {
@@ -707,53 +693,6 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
      transfer (2 stops: origin = loading, destination = drop-off) */
   const handleCreateMovement = async () => {
     if (!selectedVehicleType || !manualBaseId) return
-
-    /* Enlèvement dédié chez un fournisseur (distancier) avec chauffeur PARC /
-       Dedicated pickup at a supplier (distancier) with a PARC base driver */
-    if (movementNature === 'ENLEVEMENT_DEDIE') {
-      if (!dedicatedSupplierId || !dedicatedStartTime) return
-      setSaving(true)
-      try {
-        const supplier = suppliers.find((s) => s.id === dedicatedSupplierId)
-        const matchedDriver = dedicatedDriverName
-          ? baseDrivers.find((d) => `${d.last_name} ${d.first_name}` === dedicatedDriverName)
-          : undefined
-        await create<Tour>('/tours', {
-          date: selectedDate,
-          code: `ED-${Date.now()}`,
-          vehicle_type: selectedVehicleType,
-          base_id: manualBaseId,
-          status: 'DRAFT',
-          total_eqp: 0,
-          total_km: 0,
-          is_pickup_tour: false,
-          tour_type: 'ENLEVEMENT_DEDIE',
-          supplier_id: dedicatedSupplierId,
-          departure_time: dedicatedStartTime,
-          return_time: dedicatedEndTime || undefined,
-          driver_name: dedicatedDriverName || undefined,
-          driver_code_infolog: matchedDriver?.code_infolog,
-          destination: supplier ? `${supplier.code} — ${supplier.name}` : undefined,
-          remarks: movementComment || 'Chauffeur PARC',
-          stops: [],
-        })
-        setSelectedVehicleType(null)
-        setCapacityEqp(0)
-        setDedicatedSupplierId(null)
-        setDedicatedDriverName('')
-        setDedicatedStartTime('')
-        setDedicatedEndTime('')
-        setMovementComment('')
-        refetchVolumes()
-      } catch (e: unknown) {
-        console.error('Failed to create dedicated pickup', e)
-        alert(`Echec de la création de l'enlèvement dédié: ${getApiErrorMessage(e)}`)
-      } finally {
-        setSaving(false)
-      }
-      return
-    }
-
     const isTransfert = movementNature === 'TRANSFERT_PDV'
     if (isTransfert && (!transfertOriginPdvId || !transfertDestPdvId)) return
     if (isTransfert && transfertOriginPdvId === transfertDestPdvId) {
@@ -797,44 +736,6 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     }
   }
 
-  /* Créer un tour surprise : attribué à un transporteur, sans PDV (ajoutés plus
-     tard via l'ordonnancement) / Create a surprise tour: assigned to a carrier,
-     with no PDV yet (added later via scheduling) */
-  const handleCreateSurprise = async () => {
-    if (!manualBaseId || !surpriseContractId || !surpriseDepartureTime) return
-    const contract = contracts.find((c) => c.id === surpriseContractId)
-    setSaving(true)
-    try {
-      await create<Tour>('/tours', {
-        date: selectedDate,
-        code: `S-${Date.now()}`,
-        vehicle_type: contract?.vehicle_type ?? undefined,
-        capacity_eqp: contract?.capacity_eqp ?? undefined,
-        base_id: manualBaseId,
-        contract_id: surpriseContractId,
-        departure_time: surpriseDepartureTime,
-        status: 'DRAFT',
-        total_eqp: 0,
-        total_km: 0,
-        is_pickup_tour: false,
-        tour_type: 'LIVRAISON',
-        temperature_type: contract?.temperature_type ?? undefined,
-        remarks: movementComment || undefined,
-        stops: [],
-      })
-      setSurpriseContractId(null)
-      setSurpriseDepartureTime('')
-      setMovementComment('')
-      setManualBaseId(null)
-      refetchVolumes()
-    } catch (e: unknown) {
-      console.error('Failed to create surprise tour', e)
-      alert(`Echec de la création du tour surprise: ${getApiErrorMessage(e)}`)
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleReset = () => {
     resetTour()
     setSelectedVehicleType(null)
@@ -845,12 +746,6 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
     setMovementComment('')
     setTransfertOriginPdvId(null)
     setTransfertDestPdvId(null)
-    setDedicatedSupplierId(null)
-    setDedicatedDriverName('')
-    setDedicatedStartTime('')
-    setDedicatedEndTime('')
-    setSurpriseContractId(null)
-    setSurpriseDepartureTime('')
   }
 
   /* Bandeau véhicule inline / Inline vehicle banner — shown after first stop, before vehicle selection */
@@ -939,16 +834,6 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
             >
               Mouvement
             </button>
-            <button
-              className="px-3 py-2 text-xs font-semibold transition-all"
-              style={{
-                backgroundColor: tourMode === 'surprise' ? '#0ea5e9' : 'var(--bg-primary)',
-                color: tourMode === 'surprise' ? '#fff' : 'var(--text-muted)',
-              }}
-              onClick={() => { if (tourMode !== 'surprise') { handleReset(); setTourMode('surprise') } }}
-            >
-              Tour surprise
-            </button>
           </div>
         </div>
 
@@ -975,20 +860,13 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
               <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Nature</label>
               <select
                 value={movementNature}
-                onChange={(e) => {
-                  const nat = e.target.value as 'DEPLACEMENT_BASE' | 'GARAGE' | 'TRANSFERT_PDV' | 'ENLEVEMENT_DEDIE'
-                  setMovementNature(nat)
-                  // Pré-remplir le commentaire « Chauffeur PARC » pour l'enlèvement dédié /
-                  // Prefill the "Chauffeur PARC" comment for the dedicated pickup
-                  if (nat === 'ENLEVEMENT_DEDIE' && !movementComment) setMovementComment('Chauffeur PARC')
-                }}
+                onChange={(e) => setMovementNature(e.target.value as 'DEPLACEMENT_BASE' | 'GARAGE' | 'TRANSFERT_PDV')}
                 className="rounded-lg border px-3 py-2 text-sm"
                 style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               >
                 <option value="DEPLACEMENT_BASE">Déplacement base</option>
                 <option value="GARAGE">Garage / atelier</option>
                 <option value="TRANSFERT_PDV">Transfert PDV à PDV</option>
-                <option value="ENLEVEMENT_DEDIE">Enlèvement dédié</option>
               </select>
             </div>
             <div className="flex flex-col gap-1">
@@ -1055,64 +933,6 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
                   </select>
                 </div>
               </>
-            ) : movementNature === 'ENLEVEMENT_DEDIE' ? (
-              <>
-                {/* Fournisseur (point d'enlèvement, dans le distancier) / Supplier pickup point */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Fournisseur</label>
-                  <select
-                    value={dedicatedSupplierId ?? ''}
-                    onChange={(e) => setDedicatedSupplierId(e.target.value ? Number(e.target.value) : null)}
-                    className="rounded-lg border px-3 py-2 text-sm w-[220px]"
-                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-                  >
-                    <option value="">-- Fournisseur --</option>
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>{s.code} — {s.name}</option>
-                    ))}
-                  </select>
-                </div>
-                {/* Chauffeur PARC (chauffeur Base) / PARC base driver */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Chauffeur PARC</label>
-                  <select
-                    value={dedicatedDriverName}
-                    onChange={(e) => setDedicatedDriverName(e.target.value)}
-                    className="rounded-lg border px-3 py-2 text-sm w-[180px]"
-                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-                  >
-                    <option value="">-- Chauffeur --</option>
-                    {baseDrivers
-                      .filter((d) => !manualBaseId || d.base_id === manualBaseId)
-                      .map((d) => {
-                        const name = `${d.last_name} ${d.first_name}`
-                        return <option key={d.id} value={name}>{name}</option>
-                      })}
-                  </select>
-                </div>
-                {/* Heure de début / Start time */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Heure de début</label>
-                  <input
-                    type="time"
-                    value={dedicatedStartTime}
-                    onChange={(e) => setDedicatedStartTime(e.target.value)}
-                    className="rounded-lg border px-3 py-2 text-sm"
-                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-                  />
-                </div>
-                {/* Heure de fin / End time */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Heure de fin</label>
-                  <input
-                    type="time"
-                    value={dedicatedEndTime}
-                    onChange={(e) => setDedicatedEndTime(e.target.value)}
-                    className="rounded-lg border px-3 py-2 text-sm"
-                    style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-                  />
-                </div>
-              </>
             ) : (
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Destination</label>
@@ -1144,82 +964,11 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
               disabled={
                 !selectedVehicleType || !manualBaseId || saving
                 || (movementNature === 'TRANSFERT_PDV' && (!transfertOriginPdvId || !transfertDestPdvId))
-                || (movementNature === 'ENLEVEMENT_DEDIE' && (!dedicatedSupplierId || !dedicatedStartTime))
               }
               onClick={handleCreateMovement}
             >
-              {saving ? '...' : (
-                movementNature === 'TRANSFERT_PDV' ? 'Créer le transfert'
-                : movementNature === 'ENLEVEMENT_DEDIE' ? 'Créer l\'enlèvement'
-                : 'Créer le mouvement'
-              )}
+              {saving ? '...' : (movementNature === 'TRANSFERT_PDV' ? 'Créer le transfert' : 'Créer le mouvement')}
             </button>
-          </>
-        )}
-
-        {/* Formulaire tour surprise (transporteur sans PDV) / Surprise tour form (carrier, no PDV) */}
-        {tourMode === 'surprise' && (
-          <>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Base</label>
-              <select
-                value={manualBaseId ?? ''}
-                onChange={(e) => setManualBaseId(e.target.value ? Number(e.target.value) : null)}
-                className="rounded-lg border px-3 py-2 text-sm"
-                style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-              >
-                <option value="">-- Base --</option>
-                {bases.map((b) => (
-                  <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Transporteur</label>
-              <select
-                value={surpriseContractId ?? ''}
-                onChange={(e) => setSurpriseContractId(e.target.value ? Number(e.target.value) : null)}
-                className="rounded-lg border px-3 py-2 text-sm w-[220px]"
-                style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-              >
-                <option value="">-- Transporteur --</option>
-                {contracts.map((c) => (
-                  <option key={c.id} value={c.id}>{c.code} — {c.transporter_name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Heure de départ</label>
-              <input
-                type="time"
-                value={surpriseDepartureTime}
-                onChange={(e) => setSurpriseDepartureTime(e.target.value)}
-                className="rounded-lg border px-3 py-2 text-sm"
-                style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Commentaire</label>
-              <input
-                type="text"
-                value={movementComment}
-                onChange={(e) => setMovementComment(e.target.value)}
-                placeholder="Commentaire (optionnel)…"
-                className="rounded-lg border px-3 py-2 text-sm w-[200px]"
-                style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-              />
-            </div>
-            <button
-              className="px-3 py-2 rounded-lg text-xs font-semibold text-white transition-all disabled:opacity-40 self-end"
-              style={{ backgroundColor: '#0ea5e9' }}
-              disabled={!manualBaseId || !surpriseContractId || !surpriseDepartureTime || saving}
-              onClick={handleCreateSurprise}
-            >
-              {saving ? '...' : 'Créer le tour surprise'}
-            </button>
-            <p className="text-xs self-end pb-2 max-w-[280px]" style={{ color: 'var(--text-muted)' }}>
-              Les PDV seront ajoutés plus tard depuis l'ordonnancement.
-            </p>
           </>
         )}
 

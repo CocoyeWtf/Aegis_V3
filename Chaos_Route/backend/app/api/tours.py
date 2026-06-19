@@ -1431,31 +1431,6 @@ async def get_tour_time_breakdown(
     }
 
 
-@router.get("/transporter-confirmation")
-async def transporter_confirmation_preview(
-    date: str = Query(...),
-    carrier_id: int = Query(...),
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("tour-planning", "read")),
-):
-    """Aperçu du mail de confirmation pour un transporteur / Preview the confirmation email.
-
-    Déclaré avant GET /{tour_id} pour ne pas être capté par la route dynamique.
-    """
-    carrier, tours, subject, html_doc, text_doc = await _build_transporter_confirmation(
-        db, date, carrier_id
-    )
-    return {
-        "carrier_id": carrier.id,
-        "carrier_name": carrier.name,
-        "to": carrier.email,
-        "subject": subject,
-        "html": html_doc,
-        "text": text_doc,
-        "tour_count": len(tours),
-    }
-
-
 @router.get("/{tour_id}", response_model=TourRead)
 async def get_tour(
     tour_id: int,
@@ -1469,183 +1444,6 @@ async def get_tour(
     if not tour:
         raise HTTPException(status_code=404, detail="Tour not found")
     return tour
-
-
-# ─── Confirmation transporteur (mail récapitulatif des tournées attribuées) ───
-# Transporter confirmation (recap email of assigned tours), one carrier at a time.
-
-async def _build_transporter_confirmation(db: AsyncSession, date: str, carrier_id: int):
-    """Construire le récapitulatif des tournées d'un transporteur pour une journée.
-
-    Retourne (carrier, tours, subject, html, text). Reproduit le tableau du
-    modèle « mouvements » : Code Ch. | H.Départ | N° Mission | Chauffeurs |
-    Observations/Enlèvement | Départ | Retour | PDV 1..N.
-    """
-    from html import escape
-    from app.models.carrier import Carrier
-
-    carrier = await db.get(Carrier, carrier_id)
-    if not carrier:
-        raise HTTPException(status_code=404, detail="Transporteur non trouvé")
-
-    contract_rows = await db.execute(
-        select(Contract.id).where(Contract.carrier_id == carrier_id)
-    )
-    contract_ids = [r[0] for r in contract_rows.all()]
-
-    tours: list[Tour] = []
-    if contract_ids:
-        tres = await db.execute(
-            select(Tour).options(selectinload(Tour.stops)).where(
-                Tour.date == date,
-                Tour.contract_id.in_(contract_ids),
-                Tour.departure_time.isnot(None),
-            )
-        )
-        tours = sorted(tres.scalars().all(), key=lambda t: t.departure_time or "")
-
-    base_ids = {t.base_id for t in tours}
-    base_map: dict[int, BaseLogistics] = {}
-    if base_ids:
-        bres = await db.execute(select(BaseLogistics).where(BaseLogistics.id.in_(base_ids)))
-        base_map = {b.id: b for b in bres.scalars().all()}
-
-    pdv_ids = {s.pdv_id for t in tours for s in t.stops}
-    pdv_map: dict[int, PDV] = {}
-    if pdv_ids:
-        pres = await db.execute(select(PDV).where(PDV.id.in_(pdv_ids)))
-        pdv_map = {p.id: p for p in pres.scalars().all()}
-
-    def base_label(bid: int) -> str:
-        b = base_map.get(bid)
-        return f"{b.code} ({b.name})" if b else ""
-
-    rows: list[dict] = []
-    max_pdv = 0
-    for t in tours:
-        stops = sorted(t.stops, key=lambda s: s.sequence_order)
-        pdv_cells: list[str] = []
-        for s in stops:
-            p = pdv_map.get(s.pdv_id)
-            if p:
-                loc = p.city or p.name or ""
-                pdv_cells.append(f"{p.code} ({loc})" if loc else p.code)
-            else:
-                pdv_cells.append(f"#{s.pdv_id}")
-        max_pdv = max(max_pdv, len(pdv_cells))
-        rows.append({
-            "code_ch": t.driver_code_infolog or "",
-            "h_depart": t.departure_time or "",
-            "n_mission": t.wms_tour_code or t.code or "",
-            "chauffeur": t.driver_name or "",
-            "observations": t.remarks or t.destination or "",
-            "depart": base_label(t.base_id),
-            "retour": base_label(t.base_id),
-            "pdvs": pdv_cells,
-        })
-
-    subject = f"Tournées attribuées — {date} — {carrier.name}"
-
-    headers = (
-        ["Code Ch.", "H.Départ", "N° Mission", "Chauffeurs",
-         "Observations/Enlèvement", "Départ", "Retour"]
-        + [f"PDV {i + 1}" for i in range(max_pdv)]
-    )
-    th = "".join(
-        f'<th style="border:1px solid #999;padding:4px 6px;background:#f0f0f0;'
-        f'font-size:12px;text-align:left;">{escape(h)}</th>' for h in headers
-    )
-    body_rows = ""
-    for r in rows:
-        cells = [r["code_ch"], r["h_depart"], r["n_mission"], r["chauffeur"],
-                 r["observations"], r["depart"], r["retour"]]
-        cells += r["pdvs"] + [""] * (max_pdv - len(r["pdvs"]))
-        tds = "".join(
-            f'<td style="border:1px solid #999;padding:4px 6px;font-size:12px;'
-            f'white-space:nowrap;">{escape(str(c))}</td>' for c in cells
-        )
-        body_rows += f"<tr>{tds}</tr>"
-
-    html_doc = (
-        '<div style="font-family:Arial,Helvetica,sans-serif;color:#222;">'
-        '<p>Bonjour,</p>'
-        f'<p>Ci-dessous le récapitulatif des tournées qui vous ont été attribuées '
-        f'pour la journée du {escape(date)}.</p>'
-        "<p>Merci d'en prendre bonne note.</p>"
-        '<table style="border-collapse:collapse;border:1px solid #999;">'
-        f'<thead><tr>{th}</tr></thead><tbody>{body_rows}</tbody></table>'
-        '<p style="margin-top:16px;">Cordialement,<br/>— Chaos RouteManager</p>'
-        '</div>'
-    )
-
-    text_lines = [
-        "Bonjour,",
-        f"Ci-dessous le récapitulatif des tournées attribuées pour la journée du {date}.",
-        "",
-    ]
-    for r in rows:
-        text_lines.append(
-            f"- {r['h_depart']} | {r['n_mission']} | "
-            f"{r['chauffeur'] or r['observations']} | "
-            f"Départ {r['depart']} → Retour {r['retour']} | "
-            "PDV: " + ", ".join(r["pdvs"])
-        )
-    text_lines += ["", "Cordialement,", "— Chaos RouteManager"]
-    text_doc = "\n".join(text_lines)
-
-    return carrier, tours, subject, html_doc, text_doc
-
-
-@router.post("/transporter-confirmation/send")
-async def transporter_confirmation_send(
-    date: str = Query(...),
-    carrier_id: int = Query(...),
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_permission("tour-planning", "update")),
-):
-    """Envoyer le mail récapitulatif au transporteur / Send the recap email to the carrier."""
-    from app.config import settings
-
-    carrier, tours, subject, html_doc, text_doc = await _build_transporter_confirmation(
-        db, date, carrier_id
-    )
-    if not carrier.email:
-        raise HTTPException(status_code=400, detail="Le transporteur n'a pas d'adresse email")
-    if not tours:
-        raise HTTPException(status_code=400, detail="Aucune tournée attribuée à ce transporteur pour cette date")
-
-    if settings.SMTP_HOST:
-        import aiosmtplib
-        from email.message import EmailMessage
-
-        msg = EmailMessage()
-        msg["From"] = settings.SMTP_FROM
-        msg["To"] = carrier.email
-        msg["Subject"] = subject
-        msg.set_content(text_doc)
-        msg.add_alternative(html_doc, subtype="html")
-        try:
-            await aiosmtplib.send(
-                msg,
-                hostname=settings.SMTP_HOST,
-                port=settings.SMTP_PORT,
-                username=settings.SMTP_USER or None,
-                password=settings.SMTP_PASSWORD or None,
-                use_tls=settings.SMTP_USE_TLS,
-            )
-        except Exception as e:
-            logger.error(f"Erreur envoi confirmation transporteur: {e}")
-            raise HTTPException(status_code=500, detail="Erreur lors de l'envoi de l'email")
-    else:
-        logger.warning(
-            f"SMTP non configuré. Confirmation transporteur:\nTo: {carrier.email}\n{text_doc}"
-        )
-
-    await _log_audit(
-        db, "tour_confirmation", carrier.id, "EMAIL_SENT", user,
-        {"to": carrier.email, "date": date, "tour_count": len(tours)},
-    )
-    return {"detail": f"Email envoyé à {carrier.email}", "to": carrier.email, "tour_count": len(tours)}
 
 
 @router.post("/", response_model=TourRead, status_code=201)
@@ -1677,12 +1475,6 @@ async def create_tour(
         return_time = None
         total_duration = None
 
-    # Heure de fin saisie à la main (enlèvement dédié / mouvement) : prime sur le
-    # calcul automatique / Manually entered end time (dedicated pickup / movement)
-    # takes precedence over the computed return time.
-    if data.return_time:
-        return_time = data.return_time
-
     contract = await db.get(Contract, data.contract_id) if data.contract_id else None
 
     # Vérification compatibilité quai/hayon (blocage dur) / Dock/tailgate compatibility (hard block)
@@ -1712,12 +1504,6 @@ async def create_tour(
             if return_dist:
                 total_km += float(return_dist.distance_km)
         total_km = round(total_km, 2)
-    elif data.supplier_id and not enriched_stops:
-        # Enlèvement dédié : aller-retour base ↔ fournisseur depuis le distancier /
-        # Dedicated pickup: base ↔ supplier round-trip from the distance matrix.
-        sup_dist = await _get_distance(db, "BASE", data.base_id, "SUPPLIER", data.supplier_id)
-        if sup_dist:
-            total_km = round(float(sup_dist.distance_km) * 2, 2)
 
     total_cost = data.total_cost or 0
 
@@ -1746,9 +1532,6 @@ async def create_tour(
         is_pickup_tour=is_pickup,
         tour_type=tour_type,
         destination=data.destination,
-        supplier_id=data.supplier_id,
-        driver_name=data.driver_name,
-        driver_code_infolog=data.driver_code_infolog,
         remarks=data.remarks,
     )
     db.add(tour)

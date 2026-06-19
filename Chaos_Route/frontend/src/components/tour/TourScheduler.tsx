@@ -11,7 +11,6 @@ import { formatDuration, parseTime, formatTime, formatDate, DEFAULT_DOCK_TIME, D
 import { VEHICLE_TYPE_DEFAULTS, TEMPERATURE_TYPE_LABELS, TEMPERATURE_COLORS, TOUR_TYPE_LABELS } from '../../types'
 import api from '../../services/api'
 import { CostBreakdown } from './CostBreakdown'
-import { TransporterConfirmationModal, type ConfirmTransporter } from './TransporterConfirmationModal'
 import type { Tour, BaseLogistics, Contract, DistanceEntry, PDV, VehicleType, TemperatureType, TemperatureClass, Volume, Vehicle, AssignmentMode, AvailableVehicle } from '../../types'
 
 /* Filtres activité / Activity filter options */
@@ -153,8 +152,6 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
   const [exportingWms, setExportingWms] = useState(false)
   const [costTourId, setCostTourId] = useState<number | null>(null)
   const [showPrintPlan, setShowPrintPlan] = useState(false)
-  /* Modale mail de confirmation transporteur / Carrier confirmation email modal */
-  const [showConfirmMail, setShowConfirmMail] = useState(false)
   /* Contrats disponibles par tour / Available contracts per tour */
   const [availableContractsMap, setAvailableContractsMap] = useState<Record<number, Contract[]>>({})
   // Raisons (en clair) quand aucun contrat n'est disponible / Reasons when no contract available
@@ -1061,22 +1058,6 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
       .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
   }, [tours, allContracts])
 
-  /* Transporteurs (carriers) ayant des tournées planifiées ce jour — pour le mail
-     de confirmation / Carriers with scheduled tours this day — for the confirmation mail */
-  const transportersForDate = useMemo<ConfirmTransporter[]>(() => {
-    const m = new Map<number, ConfirmTransporter>()
-    for (const tour of scheduledTours) {
-      if (!tour.contract_id) continue
-      const contract = contractMap.get(tour.contract_id)
-      const carrier = contract?.carrier
-      if (!carrier) continue
-      const cur = m.get(carrier.id) ?? { carrierId: carrier.id, name: carrier.name, email: carrier.email, tourCount: 0 }
-      cur.tourCount += 1
-      m.set(carrier.id, cur)
-    }
-    return [...m.values()].sort((a, b) => a.name.localeCompare(b.name, 'fr'))
-  }, [scheduledTours, contractMap])
-
   /* Ouvrir le Gantt détaché / Open detached Gantt */
   const openDetachedGantt = useCallback(() => {
     if (listDetached) {
@@ -1298,17 +1279,6 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 {exportingWms ? '...' : 'WMS'}
               </button>
-              {transportersForDate.length > 0 && (
-                <button
-                  onClick={() => setShowConfirmMail(true)}
-                  className="h-8 inline-flex items-center gap-1.5 px-2.5 rounded-lg text-xs font-semibold border transition-all hover:opacity-80"
-                  style={{ borderColor: '#0ea5e9', color: '#0ea5e9' }}
-                  title="Mail de confirmation des tournées attribuées, transporteur par transporteur"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg>
-                  Confirmation Mail
-                </button>
-              )}
             </>
           )}
         </div>
@@ -2210,14 +2180,6 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
 
       {costTourId && (
         <CostBreakdown tourId={costTourId} onClose={() => setCostTourId(null)} />
-      )}
-
-      {showConfirmMail && (
-        <TransporterConfirmationModal
-          date={selectedDate}
-          transporters={transportersForDate}
-          onClose={() => setShowConfirmMail(false)}
-        />
       )}
     </div>
   )

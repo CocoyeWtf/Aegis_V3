@@ -6,7 +6,6 @@ from sqlalchemy import Boolean, Enum, ForeignKey, Index, Integer, Numeric, Strin
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.models.mixins import TenantMixin
 from app.models.contract import VehicleType
 
 
@@ -34,20 +33,19 @@ class TourType(str, enum.Enum):
     DEPLACEMENT_BASE = "DEPLACEMENT_BASE"  # Déplacement camion sur/entre base(s)
     GARAGE = "GARAGE"                  # Envoi au garage / atelier
     TRANSFERT_PDV = "TRANSFERT_PDV"    # Transfert de marchandises d'un PDV à un autre
-    ENLEVEMENT_DEDIE = "ENLEVEMENT_DEDIE"  # Enlèvement dédié chez un fournisseur (distancier)
 
 
 # Natures sans livraison (pas de contrôle volume/température, arrêts optionnels) /
 # Non-delivery natures
 NON_DELIVERY_TYPES = {
     TourType.ENLEVEMENT, TourType.VIDANGES, TourType.DEPLACEMENT_BASE,
-    TourType.GARAGE, TourType.TRANSFERT_PDV, TourType.ENLEVEMENT_DEDIE,
+    TourType.GARAGE, TourType.TRANSFERT_PDV,
 }
 # Natures de type reprise (collecte PDV, comme l'ancien is_pickup_tour) / Pickup-like natures
 PICKUP_TYPES = {TourType.ENLEVEMENT, TourType.VIDANGES}
 
 
-class Tour(Base, TenantMixin):
+class Tour(Base):
     __tablename__ = "tours"
     __table_args__ = (
         Index("ix_tours_base_date", "base_id", "date"),
@@ -79,10 +77,6 @@ class Tour(Base, TenantMixin):
     tour_type: Mapped["TourType | None"] = mapped_column(Enum(TourType), nullable=True, default=TourType.LIVRAISON)
     # Destination libre pour les tours hors-livraison (garage, base cible, note)
     destination: Mapped[str | None] = mapped_column(String(150))
-    # Fournisseur cible pour un enlèvement dédié (ENLEVEMENT_DEDIE) — point
-    # d'enlèvement dans le distancier, fonctionne comme un PDV / Target supplier
-    # for a dedicated pickup, a distancier pickup point that behaves like a PDV.
-    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"), nullable=True)
     bypass_support_rules: Mapped[bool] = mapped_column(Boolean, default=False)  # Desactive le controle support/base pour cette tournee
     # Priorité manuelle d'ordonnancement (1..n) saisie au moment de planifier ;
     # départage les tours à même heure de départ. NULL = non prioritaire (en dernier).
@@ -133,7 +127,6 @@ class Tour(Base, TenantMixin):
     base: Mapped["BaseLogistics"] = relationship(back_populates="tours")
     vehicle: Mapped["Vehicle | None"] = relationship(foreign_keys=[vehicle_id])
     tractor: Mapped["Vehicle | None"] = relationship(foreign_keys=[tractor_id])
-    supplier: Mapped["Supplier | None"] = relationship(foreign_keys=[supplier_id])
     stops: Mapped[list["TourStop"]] = relationship(
         back_populates="tour", cascade="all, delete-orphan", order_by="TourStop.sequence_order"
     )
