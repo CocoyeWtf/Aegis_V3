@@ -1,7 +1,7 @@
 /* Modale de création de ticket — réutilisée par le bouton flottant « Signaler »
    et par le bouton « + Nouveau ticket » du board. Capture le contexte à l'envoi. */
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import api from '../../services/api'
 import { captureContext } from '../../services/supportContext'
 import { useAppStore } from '../../stores/useAppStore'
@@ -31,9 +31,22 @@ export function CreateTicketModal({ open, onClose, onCreated }: Props) {
   const [priority, setPriority] = useState<TicketPriority>('MEDIUM')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [files, setFiles] = useState<File[]>([])
   const [saving, setSaving] = useState(false)
 
-  const reset = () => { setTitle(''); setDescription(''); setType('BUG'); setPriority('MEDIUM') }
+  const MAX_PHOTOS = 5
+  /* Aperçus locaux (révoqués au changement) / Local previews (revoked on change) */
+  const previews = useMemo(() => files.map((f) => ({ name: f.name, url: URL.createObjectURL(f) })), [files])
+  useEffect(() => () => { previews.forEach((p) => URL.revokeObjectURL(p.url)) }, [previews])
+
+  const reset = () => { setTitle(''); setDescription(''); setType('BUG'); setPriority('MEDIUM'); setFiles([]) }
+
+  const onPickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith('image/'))
+    setFiles((prev) => [...prev, ...picked].slice(0, MAX_PHOTOS))
+    e.target.value = '' // permet de re-sélectionner le même fichier
+  }
+  const removeFile = (i: number) => setFiles((prev) => prev.filter((_, idx) => idx !== i))
 
   const submit = async () => {
     if (!title.trim()) return
@@ -47,6 +60,16 @@ export function CreateTicketModal({ open, onClose, onCreated }: Props) {
         priority,
         context,
       })
+      // Joindre les photos sélectionnées au ticket créé / Attach selected photos
+      for (const f of files) {
+        const fd = new FormData()
+        fd.append('file', f)
+        try {
+          await api.post(`/tickets/${data.id}/photos`, fd)
+        } catch (err) {
+          console.error('Upload photo échoué', err)
+        }
+      }
       reset()
       onClose()
       onCreated?.(data)
@@ -98,6 +121,34 @@ export function CreateTicketModal({ open, onClose, onCreated }: Props) {
             className="w-full px-3 py-2 rounded-lg border text-sm mb-3 resize-none"
             style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
           />
+
+          {/* Photos / captures d'écran (illustrer le problème) */}
+          <div className="mb-3">
+            <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>
+              Photos / captures d'écran <span className="opacity-70">(max {MAX_PHOTOS}, 5 Mo)</span>
+            </label>
+            {previews.length > 0 && (
+              <div className="grid grid-cols-4 gap-2 mb-2">
+                {previews.map((p, i) => (
+                  <div key={p.url} className="relative group">
+                    <img src={p.url} alt={p.name} className="w-full h-16 object-cover rounded-lg border"
+                      style={{ borderColor: 'var(--border-color)' }} />
+                    <button type="button" onClick={() => removeFile(i)}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full text-white text-xs flex items-center justify-center"
+                      style={{ backgroundColor: 'var(--color-danger)' }} title="Retirer">×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {files.length < MAX_PHOTOS && (
+              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-all hover:opacity-80"
+                style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-primary)' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                Ajouter une photo
+                <input type="file" accept="image/*" multiple onChange={onPickFiles} className="hidden" />
+              </label>
+            )}
+          </div>
 
           <div className="flex items-center gap-2 mb-4">
             <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Priorité</label>

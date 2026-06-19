@@ -38,6 +38,10 @@ export default function Tickets() {
   const [newComment, setNewComment] = useState('')
   const [busy, setBusy] = useState(false)
   const [creating, setCreating] = useState(false)
+  /* Photos du ticket ouvert (chargées en blob authentifié) + visionneuse */
+  const [photoUrls, setPhotoUrls] = useState<Record<number, string>>({})
+  const [lightbox, setLightbox] = useState<string | null>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
   /* Seuls les admins (tickets:update, superadmin inclus) changent le statut */
   const hasPermission = useAuthStore((s) => s.hasPermission)
   const canManage = hasPermission('tickets', 'update')
@@ -80,6 +84,48 @@ export default function Tickets() {
     list.forEach((t) => { m[t.status] = (m[t.status] ?? 0) + 1 })
     return m
   }, [list])
+
+  /* Charger les photos du ticket sélectionné en blob (endpoint authentifié) /
+     Load the selected ticket's photos as authenticated blobs */
+  useEffect(() => {
+    const created: string[] = []
+    const photos = selected?.photos ?? []
+    if (selected && photos.length) {
+      (async () => {
+        const entries = await Promise.all(photos.map(async (p) => {
+          try {
+            const res = await api.get(`/tickets/${selected.id}/photos/${p.id}`, { responseType: 'blob' })
+            const url = URL.createObjectURL(res.data as Blob)
+            created.push(url)
+            return [p.id, url] as const
+          } catch { return null }
+        }))
+        setPhotoUrls(Object.fromEntries(entries.filter(Boolean) as [number, string][]))
+      })()
+    } else {
+      setPhotoUrls({})
+    }
+    return () => { created.forEach((u) => URL.revokeObjectURL(u)) }
+  }, [selected?.id, selected?.photos?.length])
+
+  const addPhotoToTicket = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!selected || !file || !file.type.startsWith('image/')) return
+    setUploadingPhoto(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      await api.post(`/tickets/${selected.id}/photos`, fd)
+      await loadDetail(selected.id)
+      loadList()
+    } catch (err) {
+      console.error(err)
+      alert("Échec de l'ajout de la photo.")
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }
 
   const addComment = async () => {
     if (!selected || !newComment.trim()) return
@@ -171,6 +217,7 @@ export default function Tickets() {
               <span className="font-semibold truncate flex-1" style={{ color: 'var(--text-primary)' }}>{t.title}</span>
               <span className="text-[11px] shrink-0" style={{ color: 'var(--text-muted)' }}>{t.created_by_name} · {fmt(t.created_at)}</span>
               {!!t.comment_count && <span className="text-[11px] shrink-0" style={{ color: 'var(--text-muted)' }}>💬 {t.comment_count}</span>}
+              {!!t.photo_count && <span className="text-[11px] shrink-0" style={{ color: 'var(--text-muted)' }}>📎 {t.photo_count}</span>}
               <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0" style={{ color: 'var(--text-muted)' }}>{TICKET_PRIORITY_LABELS[t.priority]}</span>
               <StatusBadge status={t.status} />
             </button>
@@ -196,6 +243,38 @@ export default function Tickets() {
               <h3 className="text-lg font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{selected.title}</h3>
               <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>Ouvert par {selected.created_by_name} · {fmt(selected.created_at)}</p>
               {selected.description && <p className="text-sm mb-3 whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>{selected.description}</p>}
+
+              {/* Photos / captures jointes */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-1.5">
+                  <h4 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Photos</h4>
+                  {(selected.photos?.length ?? 0) < 5 && (
+                    <label className="text-xs cursor-pointer inline-flex items-center gap-1 px-2 py-1 rounded-lg border transition-all hover:opacity-80"
+                      style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-primary)' }}>
+                      {uploadingPhoto ? '…' : '+ Ajouter une photo'}
+                      <input type="file" accept="image/*" className="hidden" onChange={addPhotoToTicket} disabled={uploadingPhoto} />
+                    </label>
+                  )}
+                </div>
+                {(selected.photos?.length ?? 0) === 0 ? (
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Aucune photo jointe.</p>
+                ) : (
+                  <div className="grid grid-cols-4 gap-2">
+                    {selected.photos!.map((p) => (
+                      <button key={p.id} type="button" onClick={() => photoUrls[p.id] && setLightbox(photoUrls[p.id])}
+                        className="block" title={p.filename}>
+                        {photoUrls[p.id] ? (
+                          <img src={photoUrls[p.id]} alt={p.filename}
+                            className="w-full h-16 object-cover rounded-lg border" style={{ borderColor: 'var(--border-color)' }} />
+                        ) : (
+                          <div className="w-full h-16 rounded-lg border flex items-center justify-center text-[10px]"
+                            style={{ borderColor: 'var(--border-color)', color: 'var(--text-muted)' }}>…</div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {/* Statut — changement réservé aux admins (tickets:update) */}
               <div className="flex items-center gap-2 mb-4">
@@ -261,6 +340,14 @@ export default function Tickets() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Visionneuse plein écran / Fullscreen image viewer */}
+      {lightbox && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}
+          onClick={() => setLightbox(null)}>
+          <img src={lightbox} alt="" className="max-w-full max-h-full rounded-lg" />
         </div>
       )}
     </div>

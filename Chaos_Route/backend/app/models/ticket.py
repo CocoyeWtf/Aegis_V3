@@ -9,7 +9,7 @@ exchanges. Full audit trail for disputes and yearly reporting.
 
 import enum
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -73,6 +73,10 @@ class Ticket(Base, TenantMixin):
         back_populates="ticket", cascade="all, delete-orphan",
         order_by="TicketComment.created_at",
     )
+    photos: Mapped[list["TicketPhoto"]] = relationship(
+        back_populates="ticket", cascade="all, delete-orphan",
+        order_by="TicketPhoto.id",
+    )
 
     def __repr__(self) -> str:
         return f"<Ticket #{self.id} [{self.ticket_type.value}] {self.status.value}>"
@@ -93,3 +97,19 @@ class TicketComment(Base, TenantMixin):
     created_at: Mapped[str | None] = mapped_column(DateTime, server_default=func.now())
 
     ticket: Mapped["Ticket"] = relationship(back_populates="comments")
+
+
+class TicketPhoto(Base, TenantMixin):
+    """Photo / capture d'écran jointe à un ticket pour illustrer le problème. /
+    Screenshot / photo attached to a ticket to illustrate the issue."""
+    __tablename__ = "ticket_photos"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False)
+    filename: Mapped[str] = mapped_column(String(255))
+    file_path: Mapped[str] = mapped_column(String(500))
+    file_size: Mapped[int | None] = mapped_column(Integer)
+    mime_type: Mapped[str | None] = mapped_column(String(50))
+    uploaded_at: Mapped[str | None] = mapped_column(String(32))  # ISO 8601
+
+    ticket: Mapped["Ticket"] = relationship(back_populates="photos")

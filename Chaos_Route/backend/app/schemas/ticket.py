@@ -51,10 +51,22 @@ class TicketRead(BaseModel):
     updated_at: datetime | None = None
 
 
+class TicketPhotoRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    ticket_id: int
+    filename: str
+    file_size: int | None = None
+    mime_type: str | None = None
+    uploaded_at: str | None = None
+
+
 class TicketDetail(TicketRead):
     comments: list[TicketCommentRead] = []
+    photos: list[TicketPhotoRead] = []
 
 
 class TicketListItem(TicketRead):
-    """Élément de liste avec compteur d'échanges / List item with comment count."""
+    """Élément de liste avec compteurs d'échanges et de photos / List item with counts."""
     comment_count: int = 0
+    photo_count: int = 0

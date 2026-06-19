@@ -372,6 +372,15 @@ export interface TicketComment {
   created_at?: string | null
 }
 
+export interface TicketPhoto {
+  id: number
+  ticket_id: number
+  filename: string
+  file_size?: number | null
+  mime_type?: string | null
+  uploaded_at?: string | null
+}
+
 export interface Ticket {
   id: number
   ticket_type: TicketType
@@ -385,7 +394,9 @@ export interface Ticket {
   created_at?: string | null
   updated_at?: string | null
   comment_count?: number
+  photo_count?: number
   comments?: TicketComment[]
+  photos?: TicketPhoto[]
 }
 
 export const TICKET_TYPE_LABELS: Record<TicketType, string> = {

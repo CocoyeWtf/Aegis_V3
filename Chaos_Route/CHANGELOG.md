@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Ticketing — **pièces jointes photo / capture d'écran** : à la création d'un
+  ticket (modale « Nouveau ticket » / bouton « Signaler ») on peut joindre
+  jusqu'à 5 images (≤ 5 Mo) avec aperçu ; et on peut aussi ajouter des photos à
+  un ticket existant depuis son détail. Affichage en grille + visionneuse plein
+  écran. Stockage disque (`data/photos/tickets/`), table `ticket_photos`
+  (tenant-scopée), endpoints `POST/GET /tickets/{id}/photos`. Images servies via
+  le client authentifié (blob), pas d'endpoint ouvert.
 - Création de tours — **Enlèvement dédié** (sous le mode *Mouvement*) : nouvelle
   nature `ENLEVEMENT_DEDIE` permettant de choisir un **fournisseur** (point
   d'enlèvement déjà dans le distancier, ex. e066 = AVION — fonctionne comme un
