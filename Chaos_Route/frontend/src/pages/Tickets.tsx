@@ -116,7 +116,7 @@ export default function Tickets() {
     try {
       const fd = new FormData()
       fd.append('file', file)
-      await api.post(`/tickets/${selected.id}/photos`, fd)
+      await api.post(`/tickets/${selected.id}/photos`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
       await loadDetail(selected.id)
       loadList()
     } catch (err) {

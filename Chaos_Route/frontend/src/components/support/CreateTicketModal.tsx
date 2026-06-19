@@ -65,7 +65,7 @@ export function CreateTicketModal({ open, onClose, onCreated }: Props) {
         const fd = new FormData()
         fd.append('file', f)
         try {
-          await api.post(`/tickets/${data.id}/photos`, fd)
+          await api.post(`/tickets/${data.id}/photos`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
         } catch (err) {
           console.error('Upload photo échoué', err)
         }
