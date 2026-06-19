@@ -9,6 +9,7 @@ from sqlalchemy import Enum, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class GicInvoiceStatus(str, enum.Enum):
@@ -20,7 +21,7 @@ class GicInvoiceStatus(str, enum.Enum):
     CANCELLED = "CANCELLED"
 
 
-class GicInvoice(Base):
+class GicInvoice(Base, TenantMixin):
     """Facture GIC (1 par période) / GIC invoice (1 per period)."""
     __tablename__ = "gic_invoices"
 
@@ -49,7 +50,7 @@ class GicInvoice(Base):
         return f"<GicInvoice {self.period_label} — {self.status}>"
 
 
-class GicInvoiceLine(Base):
+class GicInvoiceLine(Base, TenantMixin):
     """Ligne de facture GIC / GIC invoice line item."""
     __tablename__ = "gic_invoice_lines"
 

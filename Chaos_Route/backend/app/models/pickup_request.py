@@ -6,6 +6,7 @@ from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Index, Intege
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class PickupType(str, enum.Enum):
@@ -44,7 +45,7 @@ class MovementType(str, enum.Enum):
     UNLINKED = "UNLINKED"          # Délié du tour
 
 
-class PickupRequest(Base):
+class PickupRequest(Base, TenantMixin):
     """Demande de reprise de contenants / Container pickup request."""
     __tablename__ = "pickup_requests"
     __table_args__ = (
@@ -106,7 +107,7 @@ class PickupRequest(Base):
         return round(self.quantity * unit_qty * (float(self.declared_unit_value) + content_val), 2)
 
 
-class PickupLabel(Base):
+class PickupLabel(Base, TenantMixin):
     """Étiquette individuelle par unité / Individual label per unit."""
     __tablename__ = "pickup_labels"
     __table_args__ = (
@@ -134,7 +135,7 @@ class PickupLabel(Base):
     )
 
 
-class PickupMovement(Base):
+class PickupMovement(Base, TenantMixin):
     """Mouvement contenant — traçabilité complète / Container movement — full traceability.
     Chaque changement de statut d'une étiquette crée un mouvement.
     Every label status change creates a movement record.

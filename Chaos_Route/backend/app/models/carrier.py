@@ -4,9 +4,10 @@ from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
-class Carrier(Base):
+class Carrier(Base, TenantMixin):
     """Transporteur (société) / Carrier (company)."""
     __tablename__ = "carriers"
 

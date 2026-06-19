@@ -4,6 +4,7 @@ Importer tous les modèles ici pour qu'Alembic les détecte.
 Import all models here so Alembic can detect them.
 """
 
+from app.models.tenant import Tenant, DEFAULT_TENANT_ID
 from app.models.country import Country
 from app.models.region import Region
 from app.models.base_activity import BaseActivity, base_activity_link
@@ -68,6 +69,8 @@ from app.models.operational_alert import OperationalAlert, AlertComment, AlertTy
 from app.models.ticket import Ticket, TicketComment, TicketType, TicketStatus, TicketPriority
 
 __all__ = [
+    "Tenant",
+    "DEFAULT_TENANT_ID",
     "Country",
     "Region",
     "BaseActivity",

@@ -6,6 +6,7 @@ from sqlalchemy import Date, Enum, ForeignKey, Index, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class TemperatureClass(str, enum.Enum):
@@ -15,7 +16,7 @@ class TemperatureClass(str, enum.Enum):
     GEL = "GEL"
 
 
-class Volume(Base):
+class Volume(Base, TenantMixin):
     __tablename__ = "volumes"
     __table_args__ = (
         Index("ix_volumes_pdv_date", "pdv_id", "date"),

@@ -6,6 +6,7 @@ from sqlalchemy import Boolean, Enum, Float, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class StopEventType(str, enum.Enum):
@@ -16,7 +17,7 @@ class StopEventType(str, enum.Enum):
     REOPEN = "REOPEN"
 
 
-class StopEvent(Base):
+class StopEvent(Base, TenantMixin):
     """Evenement a un arret (arrivee, depart, cloture) / Event at a stop."""
     __tablename__ = "stop_events"
     __table_args__ = (

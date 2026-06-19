@@ -4,9 +4,10 @@ from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
-class Loader(Base):
+class Loader(Base, TenantMixin):
     """Chargeur rattaché à une base / Loader linked to a logistics base."""
     __tablename__ = "loaders"
 

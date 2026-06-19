@@ -6,6 +6,7 @@ from sqlalchemy import Boolean, Enum, Float, ForeignKey, Integer, String, Text, 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class PDVType(str, enum.Enum):
@@ -20,7 +21,7 @@ class PDVType(str, enum.Enum):
     URBAIN_PROXI = "URBAIN_PROXI"
 
 
-class PDV(Base):
+class PDV(Base, TenantMixin):
     __tablename__ = "pdvs"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

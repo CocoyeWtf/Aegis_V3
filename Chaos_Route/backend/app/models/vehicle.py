@@ -11,6 +11,7 @@ from sqlalchemy import Boolean, Enum, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 from app.models.contract import TemperatureType, TailgateType, FuelType  # noqa: F401 (réexporté)
 
 
@@ -43,7 +44,7 @@ class OwnershipType(str, enum.Enum):
     RENTED = "RENTED"
 
 
-class Vehicle(Base):
+class Vehicle(Base, TenantMixin):
     """Vehicule du parc / Fleet vehicle."""
     __tablename__ = "vehicles"
 

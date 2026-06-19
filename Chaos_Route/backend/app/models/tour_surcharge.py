@@ -6,6 +6,7 @@ from sqlalchemy import Enum, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class SurchargeStatus(str, enum.Enum):
@@ -14,7 +15,7 @@ class SurchargeStatus(str, enum.Enum):
     VALIDATED = "VALIDATED"
 
 
-class TourSurcharge(Base):
+class TourSurcharge(Base, TenantMixin):
     __tablename__ = "tour_surcharges"
     __table_args__ = (
         Index("ix_tour_surcharges_tour_id", "tour_id"),

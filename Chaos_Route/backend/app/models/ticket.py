@@ -13,6 +13,7 @@ from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class TicketType(str, enum.Enum):
@@ -41,7 +42,7 @@ class TicketPriority(str, enum.Enum):
     CRITICAL = "CRITICAL"
 
 
-class Ticket(Base):
+class Ticket(Base, TenantMixin):
     """Ticket de support / évolution. / Support / feature ticket."""
     __tablename__ = "tickets"
 
@@ -77,7 +78,7 @@ class Ticket(Base):
         return f"<Ticket #{self.id} [{self.ticket_type.value}] {self.status.value}>"
 
 
-class TicketComment(Base):
+class TicketComment(Base, TenantMixin):
     """Échange / événement sur un ticket. is_system=True pour les changements de
     statut (trace). / Comment or system event (status change) on a ticket."""
     __tablename__ = "ticket_comments"

@@ -10,11 +10,17 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.database import get_db, set_session_tenant
 from app.models.device_assignment import DeviceAssignment
 from app.models.mobile_device import MobileDevice
+from app.models.tenant import DEFAULT_TENANT_ID
 from app.models.user import User
 from app.utils.auth import decode_token
+
+# Permission spéciale levant le cloisonnement tenant (lecture multi-société) /
+# Special permission lifting tenant isolation (cross-company read).
+CONSOLIDATION_RESOURCE = "consolidation"
+CONSOLIDATION_ACTION = "read"
 
 security = HTTPBearer()
 
@@ -35,7 +41,39 @@ async def get_current_user(
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
 
+    # Positionner le tenant courant sur la session : toutes les requêtes suivantes
+    # de cette requête HTTP seront filtrées automatiquement (None = pas de filtre,
+    # pour superadmin / rôle consolidation) / Set current tenant on the session.
+    set_session_tenant(db, get_user_tenant_id(user))
+
     return user
+
+
+def user_can_consolidate(user: User) -> bool:
+    """L'utilisateur a-t-il le droit de consolidation multi-société ? /
+    May the user read across tenants?
+
+    Superadmin ou rôle portant la permission `consolidation:read`.
+    """
+    if user.is_superadmin:
+        return True
+    for role in user.roles:
+        for perm in role.permissions:
+            if perm.resource == CONSOLIDATION_RESOURCE and perm.action == CONSOLIDATION_ACTION:
+                return True
+    return False
+
+
+def get_user_tenant_id(user: User) -> int | None:
+    """Tenant à appliquer pour cet utilisateur / Tenant to enforce for this user.
+
+    - None  = aucun filtre (superadmin ou rôle « consolidation groupe ») → accès
+      multi-société, à journaliser à l'audit côté endpoints sensibles.
+    - sinon = le tenant de l'utilisateur (tenant par défaut/Belgique si non assigné).
+    """
+    if user_can_consolidate(user):
+        return None
+    return user.tenant_id or DEFAULT_TENANT_ID
 
 
 def require_permission(resource: str, action: str):

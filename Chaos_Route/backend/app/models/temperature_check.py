@@ -6,6 +6,7 @@ import enum
 
 from sqlalchemy import Column, Enum, Float, ForeignKey, Index, Integer, String, Text, Boolean
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class TempCheckpoint(str, enum.Enum):
@@ -17,7 +18,7 @@ class TempCheckpoint(str, enum.Enum):
     STOP_CHECK = "STOP_CHECK"                    # Check a chaque stop
 
 
-class TemperatureCheck(Base):
+class TemperatureCheck(Base, TenantMixin):
     """Releve de temperature chaine du froid / Cold chain temperature check."""
     __tablename__ = "temperature_checks"
     __table_args__ = (
@@ -43,7 +44,7 @@ class TemperatureCheck(Base):
     photo_path = Column(String(255), nullable=True)
 
 
-class TemperatureConfig(Base):
+class TemperatureConfig(Base, TenantMixin):
     """Configuration seuils temperature par classe / Temperature thresholds per class."""
     __tablename__ = "temperature_configs"
 

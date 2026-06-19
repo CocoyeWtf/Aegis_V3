@@ -4,9 +4,10 @@ from sqlalchemy import Boolean, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
-class ContractSchedule(Base):
+class ContractSchedule(Base, TenantMixin):
     """Exception de disponibilité par date / Date-based availability exception.
 
     Convention : par défaut un contrat est disponible tous les jours.

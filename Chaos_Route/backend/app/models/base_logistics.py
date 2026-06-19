@@ -4,10 +4,11 @@ from sqlalchemy import Float, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 from app.models.base_activity import base_activity_link
 
 
-class BaseLogistics(Base):
+class BaseLogistics(Base, TenantMixin):
     __tablename__ = "bases_logistics"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

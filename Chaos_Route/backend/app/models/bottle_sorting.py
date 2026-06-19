@@ -7,6 +7,7 @@ import enum
 
 from sqlalchemy import Column, Enum, Float, Index, Integer, String, Text, ForeignKey
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class SortingStatus(str, enum.Enum):
@@ -48,7 +49,7 @@ class BottleBrand(Base):
     is_active = Column(Integer, nullable=False, default=1)
 
 
-class SortingSession(Base):
+class SortingSession(Base, TenantMixin):
     """Session de tri vidanges.
     Bottle sorting session."""
     __tablename__ = "sorting_sessions"
@@ -71,7 +72,7 @@ class SortingSession(Base):
     total_bottles = Column(Integer, nullable=True)
 
 
-class SortingLine(Base):
+class SortingLine(Base, TenantMixin):
     """Ligne de tri — comptage par marque/format.
     Sorting line — count by brand/format."""
     __tablename__ = "sorting_lines"

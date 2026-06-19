@@ -7,6 +7,7 @@ import enum
 
 from sqlalchemy import Column, Enum, ForeignKey, Index, Integer, String, Text
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class SupplierPickupStatus(str, enum.Enum):
@@ -17,7 +18,7 @@ class SupplierPickupStatus(str, enum.Enum):
     PICKED_UP = "PICKED_UP"    # Enlevee / Picked up by supplier
 
 
-class SupplierPickupRequest(Base):
+class SupplierPickupRequest(Base, TenantMixin):
     """Demande de reprise fournisseur (base -> fournisseur).
     Supplier pickup request (base -> supplier)."""
     __tablename__ = "supplier_pickup_requests"
@@ -40,7 +41,7 @@ class SupplierPickupRequest(Base):
     picked_up_at = Column(String(32), nullable=True)
 
 
-class SupplierPickupLine(Base):
+class SupplierPickupLine(Base, TenantMixin):
     """Ligne de demande reprise fournisseur / Supplier pickup request line."""
     __tablename__ = "supplier_pickup_lines"
     __table_args__ = (

@@ -4,9 +4,10 @@ from sqlalchemy import Float, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
-class GPSPosition(Base):
+class GPSPosition(Base, TenantMixin):
     """Position GPS chauffeur / Driver GPS position (~4800 rows/day for 30 phones)."""
     __tablename__ = "gps_positions"
 

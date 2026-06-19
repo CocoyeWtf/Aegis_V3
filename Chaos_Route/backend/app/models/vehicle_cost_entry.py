@@ -6,6 +6,7 @@ from sqlalchemy import Enum, ForeignKey, Index, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class CostCategory(str, enum.Enum):
@@ -19,7 +20,7 @@ class CostCategory(str, enum.Enum):
     OTHER = "OTHER"
 
 
-class VehicleCostEntry(Base):
+class VehicleCostEntry(Base, TenantMixin):
     """Cout divers vehicule / Vehicle miscellaneous cost."""
     __tablename__ = "vehicle_cost_entries"
     __table_args__ = (

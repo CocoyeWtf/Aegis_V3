@@ -10,6 +10,7 @@ from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class AlertType(str, enum.Enum):
@@ -36,7 +37,7 @@ class AlertPriority(str, enum.Enum):
     HIGH = "HIGH"
 
 
-class OperationalAlert(Base):
+class OperationalAlert(Base, TenantMixin):
     """Alerte operationnelle / Operational alert."""
     __tablename__ = "operational_alerts"
 
@@ -81,7 +82,7 @@ class OperationalAlert(Base):
         return f"<Alert {self.id} [{self.alert_type.value}] {self.status.value}>"
 
 
-class AlertComment(Base):
+class AlertComment(Base, TenantMixin):
     """Commentaire sur alerte / Alert comment."""
     __tablename__ = "alert_comments"
 

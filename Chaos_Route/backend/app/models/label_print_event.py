@@ -15,6 +15,7 @@ from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, String, Text,
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class PrintProtocol(str, enum.Enum):
@@ -31,7 +32,7 @@ class PrintSource(str, enum.Enum):
     OFFICE_BULK = "OFFICE_BULK"    # Reimpression admin/dispatcher
 
 
-class LabelPrintEvent(Base):
+class LabelPrintEvent(Base, TenantMixin):
     """Evenement d'impression d'une etiquette / Label print event."""
     __tablename__ = "pickup_label_print_events"
     __table_args__ = (

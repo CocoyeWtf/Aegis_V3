@@ -7,9 +7,10 @@ from sqlalchemy import Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
-class ConsignmentMovement(Base):
+class ConsignmentMovement(Base, TenantMixin):
     """Mouvement de consigne importé de Zèbre / Consignment movement imported from Zèbre."""
 
     __tablename__ = "consignment_movements"

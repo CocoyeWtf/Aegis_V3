@@ -4,9 +4,10 @@ from sqlalchemy import Boolean, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
-class BaseZone(Base):
+class BaseZone(Base, TenantMixin):
     """Zone dans une base logistique / Zone within a logistics base."""
     __tablename__ = "base_zones"
 

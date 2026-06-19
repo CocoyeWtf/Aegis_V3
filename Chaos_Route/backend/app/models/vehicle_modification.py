@@ -4,9 +4,10 @@ from sqlalchemy import ForeignKey, Index, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
-class VehicleModification(Base):
+class VehicleModification(Base, TenantMixin):
     """Modification apportee au vehicule / Modification applied to vehicle."""
     __tablename__ = "vehicle_modifications"
     __table_args__ = (

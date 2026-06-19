@@ -7,6 +7,7 @@ import enum
 
 from sqlalchemy import Column, Enum, Float, ForeignKey, Index, Integer, String, Text
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class CollectionStatus(str, enum.Enum):
@@ -18,7 +19,7 @@ class CollectionStatus(str, enum.Enum):
     CANCELLED = "CANCELLED"    # Annule / Cancelled
 
 
-class CollectionRequest(Base):
+class CollectionRequest(Base, TenantMixin):
     """Demande d'enlevement fournisseur (appro -> transport).
     Supplier collection request (procurement -> transport)."""
     __tablename__ = "collection_requests"

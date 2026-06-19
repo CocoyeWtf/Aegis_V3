@@ -9,6 +9,7 @@ from sqlalchemy import Boolean, Enum, ForeignKey, Index, Integer, Numeric, Strin
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class DockType(str, enum.Enum):
@@ -63,7 +64,7 @@ class PurchaseOrderStatus(str, enum.Enum):
 
 # ─── DockConfig — Configuration quais par base x type ───
 
-class DockConfig(Base):
+class DockConfig(Base, TenantMixin):
     """Configuration des quais par base et type / Dock config per base and type."""
     __tablename__ = "dock_configs"
     __table_args__ = (
@@ -90,7 +91,7 @@ class DockConfig(Base):
 
 # ─── DockSchedule — Horaires ouverture par jour ───
 
-class DockSchedule(Base):
+class DockSchedule(Base, TenantMixin):
     """Horaires ouverture quai par jour / Dock opening hours per weekday."""
     __tablename__ = "dock_schedules"
     __table_args__ = (
@@ -108,7 +109,7 @@ class DockSchedule(Base):
 
 # ─── DockScheduleOverride — Exception calendrier pour une date specifique ───
 
-class DockScheduleOverride(Base):
+class DockScheduleOverride(Base, TenantMixin):
     """Exception horaire pour une date specifique / Schedule override for a specific date."""
     __tablename__ = "dock_schedule_overrides"
     __table_args__ = (
@@ -129,7 +130,7 @@ class DockScheduleOverride(Base):
 
 # ─── Booking — Reservation creneau ───
 
-class Booking(Base):
+class Booking(Base, TenantMixin):
     """Reservation d'un creneau quai / Dock slot booking."""
     __tablename__ = "bookings"
     __table_args__ = (
@@ -185,7 +186,7 @@ class Booking(Base):
 
 # ─── BookingOrder — Commandes liees a un booking (groupage possible) ───
 
-class BookingOrder(Base):
+class BookingOrder(Base, TenantMixin):
     """Commande liee a un booking / Order linked to a booking."""
     __tablename__ = "booking_orders"
     __table_args__ = (
@@ -210,7 +211,7 @@ class BookingOrder(Base):
 
 # ─── BookingCheckin — Check-in borne chauffeur ───
 
-class BookingCheckin(Base):
+class BookingCheckin(Base, TenantMixin):
     """Check-in chauffeur a la borne / Driver check-in at kiosk."""
     __tablename__ = "booking_checkins"
 
@@ -226,7 +227,7 @@ class BookingCheckin(Base):
 
 # ─── BookingDockEvent — Evenements quai ───
 
-class BookingDockEvent(Base):
+class BookingDockEvent(Base, TenantMixin):
     """Evenement quai reception / Dock event for reception team."""
     __tablename__ = "booking_dock_events"
     __table_args__ = (
@@ -246,7 +247,7 @@ class BookingDockEvent(Base):
 
 # ─── BookingRefusal — Refus avec motif obligatoire ───
 
-class BookingRefusal(Base):
+class BookingRefusal(Base, TenantMixin):
     """Refus d'un booking par la reception / Booking refusal by reception."""
     __tablename__ = "booking_refusals"
 
@@ -263,7 +264,7 @@ class BookingRefusal(Base):
 
 # ─── OrderImport — Import quotidien commandes pour reconciliation ───
 
-class OrderImport(Base):
+class OrderImport(Base, TenantMixin):
     """Import quotidien commandes / Daily order import for reconciliation."""
     __tablename__ = "order_imports"
     __table_args__ = (
@@ -291,7 +292,7 @@ class OrderImport(Base):
 # ── Legacy tables kept for backward compat (V1 — ne plus utiliser) ──
 # ReceptionConfig, PurchaseOrder, ReceptionBooking tables still exist in DB
 # but are no longer referenced by new code.
-class ReceptionConfig(Base):
+class ReceptionConfig(Base, TenantMixin):
     __tablename__ = "reception_configs"
     id = mapped_column(Integer, primary_key=True)
     base_id = mapped_column(Integer)
@@ -302,7 +303,7 @@ class ReceptionConfig(Base):
     productivity_eqp_per_slot = mapped_column(Numeric(5, 1), default=2.0)
 
 
-class PurchaseOrder(Base):
+class PurchaseOrder(Base, TenantMixin):
     __tablename__ = "purchase_orders"
     id = mapped_column(Integer, primary_key=True)
     base_id = mapped_column(Integer)
@@ -315,7 +316,7 @@ class PurchaseOrder(Base):
     created_at = mapped_column(String(32))
 
 
-class ReceptionBooking(Base):
+class ReceptionBooking(Base, TenantMixin):
     __tablename__ = "reception_bookings"
     id = mapped_column(Integer, primary_key=True)
     purchase_order_id = mapped_column(Integer)

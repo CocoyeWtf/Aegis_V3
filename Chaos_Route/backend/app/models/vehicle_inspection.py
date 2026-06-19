@@ -10,6 +10,7 @@ from sqlalchemy import Boolean, Enum, Float, ForeignKey, Index, Integer, String,
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class InspectionType(str, enum.Enum):
@@ -34,7 +35,7 @@ class InspectionItemResult(str, enum.Enum):
     NOT_CHECKED = "NOT_CHECKED"
 
 
-class VehicleInspection(Base):
+class VehicleInspection(Base, TenantMixin):
     """Inspection vehicule (depart, retour, periodique) / Vehicle inspection."""
     __tablename__ = "vehicle_inspections"
     __table_args__ = (
@@ -72,7 +73,7 @@ class VehicleInspection(Base):
         return f"<VehicleInspection {self.id} - {self.inspection_type.value} - vehicle {self.vehicle_id}>"
 
 
-class InspectionItem(Base):
+class InspectionItem(Base, TenantMixin):
     """Resultat d'un point d'inspection / Individual inspection item result."""
     __tablename__ = "inspection_items"
     __table_args__ = (
@@ -99,7 +100,7 @@ class InspectionItem(Base):
         return f"<InspectionItem {self.label} - {self.result.value}>"
 
 
-class InspectionPhoto(Base):
+class InspectionPhoto(Base, TenantMixin):
     """Photos inspection vehicule / Vehicle inspection photos."""
     __tablename__ = "inspection_photos"
     __table_args__ = (

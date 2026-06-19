@@ -4,9 +4,10 @@ from sqlalchemy import ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
-class SmsQueue(Base):
+class SmsQueue(Base, TenantMixin):
     """Message SMS en attente d'envoi / SMS message pending send."""
     __tablename__ = "sms_queue"
     __table_args__ = (

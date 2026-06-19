@@ -4,9 +4,10 @@ from sqlalchemy import Boolean, Float, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
-class SupportScan(Base):
+class SupportScan(Base, TenantMixin):
     """Scan support individuel (code barre 1D) / Individual support scan (1D barcode)."""
     __tablename__ = "support_scans"
     __table_args__ = (

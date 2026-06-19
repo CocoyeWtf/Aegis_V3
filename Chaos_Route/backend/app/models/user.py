@@ -38,6 +38,11 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_superadmin: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Société d'appartenance (multi-tenance). NULL = non assigné → traité comme le
+    # tenant par défaut (Belgique). Colonne simple, hors TenantMixin : la table users
+    # ne doit PAS être filtrée par le tenant courant (le login précède la résolution
+    # du tenant). / Owning tenant; NOT auto-filtered (login precedes tenant resolution).
+    tenant_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
     pdv_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("pdvs.id"), nullable=True)  # Lien optionnel vers un PDV / Optional link to a PDV
     badge_code: Mapped[str | None] = mapped_column(String(8), unique=True)
     default_route: Mapped[str | None] = mapped_column(String(100))

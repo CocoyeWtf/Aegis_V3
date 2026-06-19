@@ -4,9 +4,10 @@ from sqlalchemy import Boolean, ForeignKey, Index, Integer, Numeric, String, Tex
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
-class TourStop(Base):
+class TourStop(Base, TenantMixin):
     __tablename__ = "tour_stops"
     __table_args__ = (
         Index("ix_tour_stops_tour_id", "tour_id"),

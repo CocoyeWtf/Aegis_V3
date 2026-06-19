@@ -61,6 +61,7 @@ RESOURCES = [
     "base-drivers",
     "tour-stop-modify",
     "tour-unschedule",  # Retirer la planification d'un tour (transport, pas le postier)
+    "consolidation",  # Multi-tenance : lève le cloisonnement tenant (lecture multi-société)
 ]
 ACTIONS = ["read", "create", "update", "delete"]
 

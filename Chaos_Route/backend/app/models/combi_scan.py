@@ -9,6 +9,7 @@ from sqlalchemy import Enum, Float, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class ScanContext(str, enum.Enum):
@@ -17,7 +18,7 @@ class ScanContext(str, enum.Enum):
     RECEPTION = "RECEPTION"  # Re-scan base / Base re-scan
 
 
-class CombiScan(Base):
+class CombiScan(Base, TenantMixin):
     """Scan individuel d'un combi / Individual combi scan."""
     __tablename__ = "combi_scans"
     __table_args__ = (

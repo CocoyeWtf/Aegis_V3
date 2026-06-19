@@ -6,6 +6,7 @@ from sqlalchemy import Enum, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class DeclarationType(str, enum.Enum):
@@ -18,7 +19,7 @@ class DeclarationType(str, enum.Enum):
     OTHER = "OTHER"
 
 
-class DriverDeclaration(Base):
+class DriverDeclaration(Base, TenantMixin):
     """Declarations chauffeur / Driver declarations."""
     __tablename__ = "driver_declarations"
     __table_args__ = (
@@ -40,7 +41,7 @@ class DriverDeclaration(Base):
     created_at: Mapped[str] = mapped_column(String(32), nullable=False)  # ISO 8601
 
 
-class DeclarationPhoto(Base):
+class DeclarationPhoto(Base, TenantMixin):
     """Photos attachees aux declarations / Photos attached to declarations."""
     __tablename__ = "declaration_photos"
     __table_args__ = (

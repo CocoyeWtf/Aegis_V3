@@ -6,6 +6,7 @@ from sqlalchemy import Enum, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class AlertType(str, enum.Enum):
@@ -30,7 +31,7 @@ class AlertSeverity(str, enum.Enum):
     CRITICAL = "CRITICAL"
 
 
-class DeliveryAlert(Base):
+class DeliveryAlert(Base, TenantMixin):
     """Alertes livraison / Delivery alerts."""
     __tablename__ = "delivery_alerts"
     __table_args__ = (

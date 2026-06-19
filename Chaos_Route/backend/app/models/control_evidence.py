@@ -9,6 +9,7 @@ from sqlalchemy import Enum, Float, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class ControlContext(str, enum.Enum):
@@ -19,7 +20,7 @@ class ControlContext(str, enum.Enum):
     INVENTORY = "INVENTORY"        # Inventaire
 
 
-class ControlEvidence(Base):
+class ControlEvidence(Base, TenantMixin):
     """Preuve photographique de controle / Photographic control evidence."""
     __tablename__ = "control_evidences"
     __table_args__ = (

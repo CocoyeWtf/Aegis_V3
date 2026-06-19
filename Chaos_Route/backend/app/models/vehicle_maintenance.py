@@ -6,6 +6,7 @@ from sqlalchemy import Boolean, Enum, ForeignKey, Index, Integer, Numeric, Strin
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class MaintenanceType(str, enum.Enum):
@@ -30,7 +31,7 @@ class MaintenanceStatus(str, enum.Enum):
     CANCELLED = "CANCELLED"
 
 
-class VehicleMaintenanceRecord(Base):
+class VehicleMaintenanceRecord(Base, TenantMixin):
     """Enregistrement entretien / Maintenance record."""
     __tablename__ = "vehicle_maintenance_records"
     __table_args__ = (

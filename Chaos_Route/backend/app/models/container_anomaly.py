@@ -6,6 +6,7 @@ import enum
 
 from sqlalchemy import Column, Enum, Float, Index, Integer, String, Text, ForeignKey
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class AnomalyStatus(str, enum.Enum):
@@ -35,7 +36,7 @@ class AnomalySeverity(str, enum.Enum):
     CRITICAL = "CRITICAL"
 
 
-class ContainerAnomaly(Base):
+class ContainerAnomaly(Base, TenantMixin):
     """Anomalie contenant — ticket kanban.
     Container anomaly — kanban ticket."""
     __tablename__ = "container_anomalies"
@@ -74,7 +75,7 @@ class ContainerAnomaly(Base):
     due_date = Column(String(10), nullable=True)  # YYYY-MM-DD
 
 
-class AnomalyPhoto(Base):
+class AnomalyPhoto(Base, TenantMixin):
     """Photo attachée à une anomalie / Photo attached to an anomaly."""
     __tablename__ = "anomaly_photos"
     __table_args__ = (
@@ -90,7 +91,7 @@ class AnomalyPhoto(Base):
     uploaded_at = Column(String(32), nullable=False)  # ISO 8601
 
 
-class AnomalyComment(Base):
+class AnomalyComment(Base, TenantMixin):
     """Commentaire sur une anomalie / Comment on an anomaly."""
     __tablename__ = "anomaly_comments"
     __table_args__ = (

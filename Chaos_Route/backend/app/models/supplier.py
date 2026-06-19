@@ -4,9 +4,10 @@ from sqlalchemy import Float, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
-class Supplier(Base):
+class Supplier(Base, TenantMixin):
     __tablename__ = "suppliers"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

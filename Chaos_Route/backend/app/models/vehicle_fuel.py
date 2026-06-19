@@ -4,9 +4,10 @@ from sqlalchemy import Boolean, ForeignKey, Index, Integer, Numeric, String, Tex
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
-class VehicleFuelEntry(Base):
+class VehicleFuelEntry(Base, TenantMixin):
     """Entree carburant / Fuel entry."""
     __tablename__ = "vehicle_fuel_entries"
     __table_args__ = (

@@ -9,6 +9,7 @@ from sqlalchemy import Enum, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class CrateRequestStatus(str, enum.Enum):
@@ -19,7 +20,7 @@ class CrateRequestStatus(str, enum.Enum):
     CANCELLED = "CANCELLED"   # Demande annulee
 
 
-class CrateRequest(Base):
+class CrateRequest(Base, TenantMixin):
     """Demande de casiers vides par un PDV / Empty crate request by a PDV."""
     __tablename__ = "crate_requests"
     __table_args__ = (

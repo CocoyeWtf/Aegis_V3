@@ -4,9 +4,10 @@ Suivi du stock de contenants par point de vente.
 
 from sqlalchemy import Column, Integer, Float, Index, String, ForeignKey, DateTime
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
-class PdvInventory(Base):
+class PdvInventory(Base, TenantMixin):
     """Snapshot d'inventaire — un enregistrement par type de support inventorié.
     Inventory snapshot — one record per support type inventoried."""
     __tablename__ = "pdv_inventories"
@@ -23,7 +24,7 @@ class PdvInventory(Base):
     inventoried_by = Column(String, nullable=True)  # driver name or username
 
 
-class PdvStock(Base):
+class PdvStock(Base, TenantMixin):
     """Stock courant par PDV × type de support — mis à jour par inventaire.
     Current stock per PDV × support type — updated by inventory."""
     __tablename__ = "pdv_stocks"

@@ -10,6 +10,7 @@ from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class DriverStatus(str, enum.Enum):
@@ -19,7 +20,7 @@ class DriverStatus(str, enum.Enum):
     ON_LEAVE = "ON_LEAVE"
 
 
-class BaseDriver(Base):
+class BaseDriver(Base, TenantMixin):
     """Chauffeur base / Company driver."""
     __tablename__ = "base_drivers"
 

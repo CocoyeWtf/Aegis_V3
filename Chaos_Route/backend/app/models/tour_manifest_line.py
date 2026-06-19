@@ -4,9 +4,10 @@ from sqlalchemy import Boolean, ForeignKey, Index, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
-class TourManifestLine(Base):
+class TourManifestLine(Base, TenantMixin):
     """Ligne manifeste WMS — un support chargé / WMS manifest line — one loaded support."""
     __tablename__ = "tour_manifest_lines"
     __table_args__ = (

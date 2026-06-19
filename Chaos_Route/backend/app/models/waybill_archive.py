@@ -11,6 +11,7 @@ from sqlalchemy import Enum, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class CMRStatus(str, enum.Enum):
@@ -21,7 +22,7 @@ class CMRStatus(str, enum.Enum):
     CANCELLED = "CANCELLED"  # Annulé / Cancelled
 
 
-class WaybillArchive(Base):
+class WaybillArchive(Base, TenantMixin):
     """Archive CMR — lettre de voiture immutable / CMR waybill archive — immutable consignment note."""
     __tablename__ = "waybill_archives"
     __table_args__ = (

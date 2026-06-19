@@ -7,6 +7,7 @@ import enum
 
 from sqlalchemy import Column, Enum, Index, Integer, Numeric, String, Text, ForeignKey
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class BeerTransactionType(str, enum.Enum):
@@ -17,7 +18,7 @@ class BeerTransactionType(str, enum.Enum):
     WRITE_OFF = "WRITE_OFF"          # Perte/casse / Loss/breakage
 
 
-class BeerConsignmentTx(Base):
+class BeerConsignmentTx(Base, TenantMixin):
     """Transaction consigne bière — registre livré/retourné.
     Beer consignment transaction — delivery/return ledger."""
     __tablename__ = "beer_consignment_txs"
@@ -46,7 +47,7 @@ class BeerConsignmentTx(Base):
     notes = Column(Text, nullable=True)
 
 
-class BeerConsignmentBalance(Base):
+class BeerConsignmentBalance(Base, TenantMixin):
     """Solde consigne courant par PDV × type de casier.
     Current consignment balance per PDV × crate type."""
     __tablename__ = "beer_consignment_balances"

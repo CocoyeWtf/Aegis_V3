@@ -6,6 +6,7 @@ import enum
 
 from sqlalchemy import Column, Enum, Float, Index, Integer, String, Text, ForeignKey
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
 class BaseInventoryType(str, enum.Enum):
@@ -24,7 +25,7 @@ class BaseMovementType(str, enum.Enum):
     BASE_INVENTORY = "BASE_INVENTORY"              # Inventaire mobile base
 
 
-class BaseContainerStock(Base):
+class BaseContainerStock(Base, TenantMixin):
     """Stock courant par base × type de support.
     Current stock per base × support type."""
     __tablename__ = "base_container_stocks"
@@ -37,7 +38,7 @@ class BaseContainerStock(Base):
     last_updated_at = Column(String, nullable=True)  # ISO 8601
 
 
-class BaseContainerMovement(Base):
+class BaseContainerMovement(Base, TenantMixin):
     """Mouvement contenant base — tracabilite complete.
     Base container movement — full traceability."""
     __tablename__ = "base_container_movements"
