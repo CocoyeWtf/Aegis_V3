@@ -68,6 +68,7 @@ class UserCreate(BaseModel):
     pdv_id: int | None = None
     supplier_id: int | None = None
     default_route: str | None = None
+    tenant_id: int | None = None  # Société d'appartenance ; appliqué par superadmin uniquement
 
 
 class UserUpdate(BaseModel):
@@ -81,6 +82,7 @@ class UserUpdate(BaseModel):
     pdv_id: int | None = None
     supplier_id: int | None = None
     default_route: str | None = None
+    tenant_id: int | None = None  # Société d'appartenance ; appliqué par superadmin uniquement
 
 
 class UserRead(BaseModel):
@@ -89,6 +91,7 @@ class UserRead(BaseModel):
     email: str
     is_active: bool
     is_superadmin: bool
+    tenant_id: int | None = None
     pdv_id: int | None = None
     supplier_id: int | None = None
     badge_code: str | None = None

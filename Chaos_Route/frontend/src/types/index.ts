@@ -548,12 +548,20 @@ export interface UserAccount {
   email: string
   is_active: boolean
   is_superadmin: boolean
+  tenant_id?: number | null
   pdv_id?: number | null
   badge_code?: string
   roles: { id: number; name: string }[]
   regions: { id: number; name: string }[]
   created_at: string
   updated_at: string
+}
+
+export interface Tenant {
+  id: number
+  code: string
+  name: string
+  is_active: boolean
 }
 
 /* ─── Mobile / Tracking types ─── */

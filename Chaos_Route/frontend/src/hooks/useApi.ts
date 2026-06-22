@@ -16,6 +16,13 @@ export function useApi<T>(endpoint: string, params?: Record<string, unknown>): U
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    // Endpoint vide => pas d'appel (permet de conditionner un fetch) / Empty endpoint => skip fetch
+    if (!endpoint) {
+      setData([])
+      setLoading(false)
+      setError(null)
+      return
+    }
     setLoading(true)
     setError(null)
     try {

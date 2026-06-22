@@ -69,6 +69,12 @@ async def create_user(
         badge_code=uuid.uuid4().hex[:8].upper(),
     )
 
+    # Affectation à une société (tenant) : réservée aux superadmins. Pour un admin
+    # tenant-scopé, le tenant est appliqué automatiquement (stampage before_flush)
+    # à partir de sa propre société. / Tenant assignment is superadmin-only.
+    if user.is_superadmin and data.tenant_id is not None:
+        new_user.tenant_id = data.tenant_id
+
     # Attacher les rôles / Attach roles
     if data.role_ids:
         roles_result = await db.execute(select(Role).where(Role.id.in_(data.role_ids)))
@@ -114,6 +120,9 @@ async def update_user(
         target.supplier_id = data.supplier_id
     if data.default_route is not None:
         target.default_route = data.default_route if data.default_route else None
+    # Réaffectation de société (tenant) : superadmin uniquement / Tenant reassignment: superadmin only
+    if data.tenant_id is not None and user.is_superadmin:
+        target.tenant_id = data.tenant_id
 
     if data.role_ids is not None:
         roles_result = await db.execute(select(Role).where(Role.id.in_(data.role_ids)))

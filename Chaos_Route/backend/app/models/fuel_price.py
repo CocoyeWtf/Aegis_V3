@@ -13,10 +13,16 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 from app.models.contract import FuelType  # noqa: F401 (réexporté)
+from app.models.mixins import TenantMixin
 
 
-class FuelPrice(Base):
-    """Prix carburant avec période de validité / Fuel price with validity period."""
+class FuelPrice(Base, TenantMixin):
+    """Prix carburant avec période de validité / Fuel price with validity period.
+
+    Cloisonné par société (TenantMixin) : le prix du carburant diffère d'un pays
+    à l'autre. Le filtrage/stampage tenant est automatique (cf. app.database).
+    Les lignes existantes sont rétro-rattachées à la Belgique (tenant 1) au démarrage.
+    """
     __tablename__ = "fuel_prices"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

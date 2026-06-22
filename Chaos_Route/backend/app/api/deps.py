@@ -76,6 +76,20 @@ def get_user_tenant_id(user: User) -> int | None:
     return user.tenant_id or DEFAULT_TENANT_ID
 
 
+async def require_superadmin(user: User = Depends(get_current_user)) -> User:
+    """Réserver l'accès aux superadmins / Restrict access to superadmins.
+
+    Utilisé pour les opérations transverses au cloisonnement tenant (ex. lister
+    les sociétés, affecter un utilisateur à un tenant).
+    """
+    if not user.is_superadmin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Réservé aux superadmins",
+        )
+    return user
+
+
 def require_permission(resource: str, action: str):
     """Factory de dépendance qui vérifie une permission / Dependency factory that checks a permission.
 

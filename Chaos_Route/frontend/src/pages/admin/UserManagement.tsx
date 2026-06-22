@@ -8,15 +8,20 @@ import { ConfirmDialog } from '../../components/data/ConfirmDialog'
 import { useApi } from '../../hooks/useApi'
 import { create, update, remove } from '../../services/api'
 import { DriverBadgeCard } from '../../components/print/DriverBadgeCard'
-import type { UserAccount, Role, Region, PDV, Supplier } from '../../types'
+import { useAuthStore } from '../../stores/useAuthStore'
+import type { UserAccount, Role, Region, PDV, Supplier, Tenant } from '../../types'
 
 export default function UserManagement() {
   const { t } = useTranslation()
+  const isSuperadmin = useAuthStore((s) => s.user?.is_superadmin ?? false)
   const { data: users, loading, refetch } = useApi<UserAccount>('/users')
   const { data: roles } = useApi<Role>('/roles')
   const { data: regions } = useApi<Region>('/regions')
   const { data: pdvs } = useApi<PDV>('/pdvs')
   const { data: suppliers } = useApi<Supplier>('/suppliers')
+  // Sociétés (tenants) : réservé aux superadmins (endpoint 403 sinon) /
+  // Tenants list: superadmin only
+  const { data: tenants } = useApi<Tenant>(isSuperadmin ? '/tenants' : '')
 
   const [formOpen, setFormOpen] = useState(false)
   const [editItem, setEditItem] = useState<Record<string, unknown> | undefined>()
@@ -77,6 +82,17 @@ export default function UserManagement() {
       required: !editItem?.id,
       placeholder: editItem?.id ? t('admin.users.passwordPlaceholder') : undefined,
     },
+    // Société (tenant) — superadmin uniquement / Tenant — superadmin only
+    ...(isSuperadmin ? [{
+      key: 'tenant_id',
+      label: 'Société (pays)',
+      type: 'select' as const,
+      options: [
+        { value: '', label: '— Belgique (défaut) —' },
+        ...tenants.map((tn) => ({ value: String(tn.id), label: `${tn.code} — ${tn.name}` })),
+      ],
+      helperText: 'Cloisonnement multi-société : l\'utilisateur ne verra que les données de cette société.',
+    }] : []),
     {
       key: 'pdv_id',
       label: 'PDV lié',
@@ -121,7 +137,7 @@ export default function UserManagement() {
       ],
     },
     // Statut
-    { key: 'is_active', label: t('admin.users.active'), type: 'checkbox' },
+    { key: 'is_active', label: t('admin.users.active'), type: 'checkbox', defaultValue: true },
     { key: 'is_superadmin', label: 'Superadmin', type: 'checkbox' },
     // Permissions
     {
@@ -148,6 +164,7 @@ export default function UserManagement() {
       ...row,
       role_ids: row.roles.map((r) => String(r.id)),
       region_ids: row.regions.map((r) => String(r.id)),
+      tenant_id: row.tenant_id ? String(row.tenant_id) : '',
       pdv_id: row.pdv_id ? String(row.pdv_id) : '',
       supplier_id: (row as unknown as Record<string, unknown>).supplier_id ? String((row as unknown as Record<string, unknown>).supplier_id) : '',
       default_route: (row as unknown as Record<string, unknown>).default_route || '',
@@ -171,6 +188,10 @@ export default function UserManagement() {
         pdv_id: pdvIdVal,
         supplier_id: supplierIdVal,
         default_route: (formData.default_route as string) || null,
+      }
+      // Société (tenant) — n'est envoyé/appliqué que pour les superadmins / Tenant — superadmin only
+      if (isSuperadmin) {
+        payload.tenant_id = formData.tenant_id ? Number(formData.tenant_id) : null
       }
       // N'envoyer le password que s'il est rempli / Only send password if filled
       const pwd = (formData.password as string | null) ?? ''
