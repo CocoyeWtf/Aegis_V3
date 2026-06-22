@@ -17,6 +17,7 @@ router = APIRouter()
 @router.get("/", response_model=list[VolumeRead])
 async def list_volumes(
     pdv_id: int | None = None,
+    region_id: int | None = None,
     date: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
@@ -38,10 +39,18 @@ async def list_volumes(
         query = query.where(Volume.date <= date_to)
     if base_origin_id is not None:
         query = query.where(Volume.base_origin_id == base_origin_id)
-    # Scope région via PDV / Region scope via PDV join
+    # Scope région via PDV : filtre explicite (sélecteur UI) + périmètre régional de
+    # l'utilisateur. DOIT rester cohérent avec l'endpoint /pdvs (qui honore region_id),
+    # sinon le front charge des volumes dont le PDV n'est pas dans la liste filtrée ->
+    # libellés de repli "PDV #<id>" et points absents de la carte. /
+    # Region scope via PDV join — must mirror /pdvs (which honors region_id).
     user_region_ids = get_user_region_ids(user)
-    if user_region_ids is not None:
-        query = query.join(PDV, Volume.pdv_id == PDV.id).where(PDV.region_id.in_(user_region_ids))
+    if region_id is not None or user_region_ids is not None:
+        query = query.join(PDV, Volume.pdv_id == PDV.id)
+        if region_id is not None:
+            query = query.where(PDV.region_id == region_id)
+        if user_region_ids is not None:
+            query = query.where(PDV.region_id.in_(user_region_ids))
     query = query.order_by(Volume.id.desc()).offset(offset).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
