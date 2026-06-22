@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -51,6 +52,9 @@ async def list_volumes(
             query = query.where(PDV.region_id == region_id)
         if user_region_ids is not None:
             query = query.where(PDV.region_id.in_(user_region_ids))
+    # Charger le PDV (eager) pour exposer pdv_code/pdv_name sans lazy-load /
+    # Eager-load PDV so pdv_code/pdv_name resolve without lazy-load
+    query = query.options(selectinload(Volume.pdv))
     query = query.order_by(Volume.id.desc()).offset(offset).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()

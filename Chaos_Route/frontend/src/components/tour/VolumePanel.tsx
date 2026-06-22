@@ -187,7 +187,7 @@ export function VolumePanel({
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-medium" style={{ color: consumed ? 'var(--text-muted)' : 'var(--text-primary)' }}>
-                  {pdv ? `${pdv.code} — ${pdv.name}` : `PDV #${vol.pdv_id}`}
+                  {pdv ? `${pdv.code} — ${pdv.name}` : vol.pdv_code ? `${vol.pdv_code}${vol.pdv_name ? ` — ${vol.pdv_name}` : ''}` : `PDV #${vol.pdv_id}`}
                   {pickup && pickup.pending_count > 0 && (
                     <span className="ml-2 inline-flex gap-0.5">
                       {pickup.requests.map(r => (

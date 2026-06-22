@@ -20,7 +20,7 @@ const languages = [
 export function Header() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
-  const { theme, toggleTheme, setLanguage, selectedCountryId, selectedRegionId, setSelectedCountry, setSelectedRegion } = useAppStore()
+  const { theme, toggleTheme, setLanguage, selectedCountryId, selectedRegionId, setSelectedRegion, setScope } = useAppStore()
   const { user, logout } = useAuthStore()
   const { setCenter, setZoom } = useMapStore()
   const [showScope, setShowScope] = useState(false)
@@ -54,6 +54,20 @@ export function Header() {
     return allRegions.filter((r) => r.country_id === selectedCountryId)
   }, [allRegions, selectedCountryId])
 
+  /* Cohérence du périmètre persisté : si la région choisie n'appartient pas au
+     pays sélectionné (ou n'est plus visible par l'utilisateur), on réaligne le
+     pays dessus ou on réinitialise. Évite l'état "pays sans région cohérente"
+     (cause de listes/carte vides). / Keep persisted scope coherent. */
+  useEffect(() => {
+    if (selectedRegionId == null || allRegions.length === 0) return
+    const region = allRegions.find((r) => r.id === selectedRegionId)
+    if (!region) {
+      setScope(null, null)            // région inconnue (autre tenant) -> reset
+    } else if (region.country_id !== selectedCountryId) {
+      setScope(region.country_id, selectedRegionId)  // aligner le pays sur la région
+    }
+  }, [allRegions, selectedRegionId, selectedCountryId, setScope])
+
   /* Noms pour l'indicateur / Names for the indicator */
   const countryName = countries.find((c) => c.id === selectedCountryId)?.name
   const regionName = allRegions.find((r) => r.id === selectedRegionId)?.name
@@ -71,18 +85,31 @@ export function Header() {
   }
 
   const handleCountryChange = (countryId: number | null) => {
-    setSelectedCountry(countryId)
-    if (countryId) {
-      const ids = new Set(allRegions.filter((r) => r.country_id === countryId).map((r) => r.id))
-      zoomToPoints([...pdvs.filter((p) => ids.has(p.region_id)), ...bases.filter((b) => ids.has(b.region_id))])
+    if (!countryId) {
+      setScope(null, null)
+      return
     }
+    // Imposer une région cohérente avec le pays : auto-sélection si une seule
+    // région, sinon laisser vide (l'utilisateur DOIT en choisir une). /
+    // Force a region coherent with the country.
+    const countryRegions = allRegions.filter((r) => r.country_id === countryId)
+    const autoRegionId = countryRegions.length === 1 ? countryRegions[0].id : null
+    setScope(countryId, autoRegionId)
+    const ids = new Set(countryRegions.map((r) => r.id))
+    zoomToPoints([...pdvs.filter((p) => ids.has(p.region_id)), ...bases.filter((b) => ids.has(b.region_id))])
   }
 
   const handleRegionChange = (regionId: number | null) => {
-    setSelectedRegion(regionId)
-    if (regionId) {
-      zoomToPoints([...pdvs.filter((p) => p.region_id === regionId), ...bases.filter((b) => b.region_id === regionId)])
+    if (!regionId) {
+      // Ne pas casser la cohérence : garder le pays courant / Keep current country
+      setSelectedRegion(null)
+      return
     }
+    // La région porte son pays : on aligne le pays sélectionné dessus. /
+    // Keep country aligned with the chosen region.
+    const region = allRegions.find((r) => r.id === regionId)
+    setScope(region?.country_id ?? selectedCountryId ?? null, regionId)
+    zoomToPoints([...pdvs.filter((p) => p.region_id === regionId), ...bases.filter((b) => b.region_id === regionId)])
   }
 
   const handleLogout = () => {
@@ -180,18 +207,33 @@ export function Header() {
               <div>
                 <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>
                   {t('common.region')}
+                  {selectedCountryId != null && <span style={{ color: 'var(--color-danger)' }}> *</span>}
                 </label>
                 <select
                   value={selectedRegionId ?? ''}
                   onChange={(e) => handleRegionChange(e.target.value ? Number(e.target.value) : null)}
                   className="w-full rounded-lg border px-2 py-1.5 text-sm"
-                  style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  style={{
+                    backgroundColor: 'var(--bg-primary)',
+                    /* Bordure d'alerte tant qu'aucune région n'est choisie pour le pays / Warn until a region is picked */
+                    borderColor: selectedCountryId != null && selectedRegionId == null ? 'var(--color-danger)' : 'var(--border-color)',
+                    color: 'var(--text-primary)',
+                  }}
                 >
-                  <option value="">— {t('common.filter')} —</option>
+                  {/* Pas de pays : la région agit comme filtre libre. Pays choisi :
+                      une région est obligatoire (placeholder explicite). */}
+                  <option value="">
+                    {selectedCountryId != null ? `— ${t('common.region')} ? —` : `— ${t('common.filter')} —`}
+                  </option>
                   {regions.map((r) => (
                     <option key={r.id} value={r.id}>{r.name}</option>
                   ))}
                 </select>
+                {selectedCountryId != null && selectedRegionId == null && (
+                  <p className="text-[10px] mt-1" style={{ color: 'var(--color-danger)' }}>
+                    Choisissez une région pour afficher les données de ce pays.
+                  </p>
+                )}
               </div>
             </div>
           )}

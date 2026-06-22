@@ -483,7 +483,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
       const newPdv = pdvMap.get(vol.pdv_id)
       candidates.push({
         pdvId: vol.pdv_id,
-        label: newPdv ? `${newPdv.code} — ${newPdv.name}` : `PDV #${vol.pdv_id}`,
+        label: newPdv ? `${newPdv.code} — ${newPdv.name}` : vol.pdv_code ? `${vol.pdv_code}${vol.pdv_name ? ` — ${vol.pdv_name}` : ''}` : `PDV #${vol.pdv_id}`,
         eqpCount: vol.eqp_count,
         maxKeep: Math.max(remaining115, 0),
         volume: vol,

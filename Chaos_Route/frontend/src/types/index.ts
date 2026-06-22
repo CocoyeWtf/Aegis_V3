@@ -150,6 +150,8 @@ export interface Volume {
   activity_type?: string | null      // 'SUIVI' | 'MEAV'
   promo_start_date?: string | null   // YYYY-MM-DD
   split_group_id?: number | null
+  pdv_code?: string | null           // Numéro PDV résolu côté serveur / PDV number from server
+  pdv_name?: string | null
 }
 
 export type TourStatus = 'DRAFT' | 'VALIDATED' | 'IN_PROGRESS' | 'RETURNING' | 'COMPLETED'

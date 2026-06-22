@@ -50,6 +50,10 @@ class VolumeRead(VolumeBase):
     id: int
     tour_id: int | None = None
     split_group_id: int | None = None
+    # Numéro/nom du PDV (résolus côté serveur) — l'UI affiche toujours le vrai
+    # code PDV même si la liste PDV n'est pas chargée. / PDV code/name from server.
+    pdv_code: str | None = None
+    pdv_name: str | None = None
 
 
 class VolumeSplit(BaseModel):

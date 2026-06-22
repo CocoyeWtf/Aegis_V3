@@ -2,7 +2,7 @@
 
 import enum
 
-from sqlalchemy import Date, Enum, ForeignKey, Index, Integer, Numeric, String
+from sqlalchemy import Date, Enum, ForeignKey, Index, Integer, Numeric, String, inspect as sa_inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -54,6 +54,22 @@ class Volume(Base, TenantMixin):
     pdv: Mapped["PDV"] = relationship(back_populates="volumes")
     base_origin: Mapped["BaseLogistics"] = relationship()
     tour: Mapped["Tour | None"] = relationship()
+
+    # Code/nom du PDV exposés directement sur le volume (= numéro de PDV métier).
+    # Sûrs en async : renvoient None si la relation `pdv` n'a pas été chargée
+    # (eager via selectinload dans l'endpoint liste), évitant tout lazy-load. /
+    # PDV code/name surfaced on the volume; None if `pdv` not eagerly loaded.
+    @property
+    def pdv_code(self) -> str | None:
+        if "pdv" in sa_inspect(self).unloaded:
+            return None
+        return self.pdv.code if self.pdv else None
+
+    @property
+    def pdv_name(self) -> str | None:
+        if "pdv" in sa_inspect(self).unloaded:
+            return None
+        return self.pdv.name if self.pdv else None
 
     def __repr__(self) -> str:
         return f"<Volume pdv={self.pdv_id} date={self.date} eqp={self.eqp_count}>"

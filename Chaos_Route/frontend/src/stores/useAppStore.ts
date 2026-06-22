@@ -14,6 +14,8 @@ interface AppState {
   setLanguage: (lang: string) => void
   setSelectedCountry: (id: number | null) => void
   setSelectedRegion: (id: number | null) => void
+  /* Définir pays + région de façon atomique (cohérence) / Set country+region atomically */
+  setScope: (countryId: number | null, regionId: number | null) => void
   toggleSidebar: () => void
   toggleFullscreen: () => void
   exitFullscreen: () => void
@@ -39,6 +41,7 @@ export const useAppStore = create<AppState>()(
       setLanguage: (lang) => set({ language: lang }),
       setSelectedCountry: (id) => set({ selectedCountryId: id, selectedRegionId: null }),
       setSelectedRegion: (id) => set({ selectedRegionId: id }),
+      setScope: (countryId, regionId) => set({ selectedCountryId: countryId, selectedRegionId: regionId }),
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
       toggleFullscreen: () => {
         if (!document.fullscreenElement) {
