@@ -83,6 +83,82 @@ async def test_km_tax_tenant_isolation(db_session):
     set_session_tenant(db_session, None)
 
 
+# ─── Écritures en masse (UPDATE/DELETE) cloisonnées par tenant ───
+
+@pytest.mark.asyncio
+async def test_bulk_delete_is_tenant_scoped(db_session):
+    """Un DELETE en masse sous le tenant A ne doit PAS toucher les lignes du tenant B."""
+    from sqlalchemy import delete as sa_delete
+
+    ta = Tenant(code=f"BD{uuid.uuid4().hex[:4]}", name="Tenant BD-A")
+    tb = Tenant(code=f"BD{uuid.uuid4().hex[:4]}", name="Tenant BD-B")
+    db_session.add_all([ta, tb])
+    await db_session.commit()
+
+    # Même origin_id pour que le WHERE du DELETE matche les 2 tenants / same marker
+    set_session_tenant(db_session, ta.id)
+    ka = KmTax(origin_type="BASE", origin_id=701, destination_type="PDV", destination_id=701, tax_per_km=0.10)
+    db_session.add(ka)
+    await db_session.commit()
+    set_session_tenant(db_session, tb.id)
+    kb = KmTax(origin_type="BASE", origin_id=701, destination_type="PDV", destination_id=701, tax_per_km=0.20)
+    db_session.add(kb)
+    await db_session.commit()
+    kb_id = kb.id
+
+    # DELETE en masse sous tenant A (sans filtre tenant explicite) /
+    # Bulk delete under tenant A with NO explicit tenant filter
+    set_session_tenant(db_session, ta.id)
+    await db_session.execute(
+        sa_delete(KmTax).where(KmTax.origin_id == 701).execution_options(synchronize_session=False)
+    )
+    await db_session.commit()
+
+    # La ligne du tenant B a survécu / Tenant B's row survived
+    set_session_tenant(db_session, None)
+    survivors = {k.id for k in (await db_session.execute(
+        select(KmTax).where(KmTax.origin_id == 701)
+    )).scalars().all()}
+    assert kb_id in survivors, "FUITE : le DELETE du tenant A a supprimé une ligne du tenant B"
+    assert ka.id not in survivors, "Le DELETE n'a pas supprimé la propre ligne du tenant A"
+
+    set_session_tenant(db_session, None)
+
+
+@pytest.mark.asyncio
+async def test_bulk_update_is_tenant_scoped(db_session):
+    """Un UPDATE en masse sous le tenant A ne doit PAS modifier les lignes du tenant B."""
+    from sqlalchemy import update as sa_update
+
+    ta = Tenant(code=f"BU{uuid.uuid4().hex[:4]}", name="Tenant BU-A")
+    tb = Tenant(code=f"BU{uuid.uuid4().hex[:4]}", name="Tenant BU-B")
+    db_session.add_all([ta, tb])
+    await db_session.commit()
+
+    set_session_tenant(db_session, ta.id)
+    ka = KmTax(origin_type="BASE", origin_id=702, destination_type="PDV", destination_id=702, tax_per_km=0.10)
+    db_session.add(ka)
+    await db_session.commit()
+    set_session_tenant(db_session, tb.id)
+    kb = KmTax(origin_type="BASE", origin_id=702, destination_type="PDV", destination_id=702, tax_per_km=0.20)
+    db_session.add(kb)
+    await db_session.commit()
+    kb_id = kb.id
+
+    set_session_tenant(db_session, ta.id)
+    await db_session.execute(
+        sa_update(KmTax).where(KmTax.origin_id == 702).values(tax_per_km=9.99)
+        .execution_options(synchronize_session=False)
+    )
+    await db_session.commit()
+
+    set_session_tenant(db_session, None)
+    kb_after = (await db_session.execute(select(KmTax).where(KmTax.id == kb_id))).scalar_one()
+    assert float(kb_after.tax_per_km) == 0.20, "FUITE : l'UPDATE du tenant A a modifié une ligne du tenant B"
+
+    set_session_tenant(db_session, None)
+
+
 # ─── Helper : utilisateur restreint (non-superadmin) avec rôle/permissions ───
 
 async def _make_scoped_user(db_session, *, tenant_id, regions, perms):

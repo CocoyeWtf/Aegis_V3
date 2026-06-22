@@ -137,6 +137,14 @@ async def get_authenticated_device(
     if not device.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Device deactivated")
 
+    # Positionner le tenant de l'appareil sur la session : sans ça, les opérations
+    # mobiles (scans, déclarations, GPS, événements…) tournaient en tenant=None →
+    # écrites en tenant_id=NULL puis aspirées vers la Belgique (tenant 1) par le
+    # backfill de démarrage, et lues sans cloisonnement. Une tablette appartient à
+    # une société : tout son trafic est scopé à ce tenant. /
+    # Set the device's tenant on the session (mobile ops were running tenant-less).
+    set_session_tenant(db, device.tenant_id)
+
     # Auto-update tracabilite / Auto-update traceability fields
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     device.last_seen_at = now

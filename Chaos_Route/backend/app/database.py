@@ -66,8 +66,16 @@ def set_session_tenant(session, tenant_id: int | None) -> None:
 
 @event.listens_for(Session, "do_orm_execute")
 def _apply_tenant_filter(state: ORMExecuteState) -> None:
-    """Injecter le filtre tenant sur toute lecture ORM des modèles TenantMixin."""
-    if not state.is_select:
+    """Injecter le filtre tenant sur toute lecture ET toute écriture en masse
+    (UPDATE/DELETE ORM) des modèles TenantMixin.
+
+    Les SELECT étaient déjà filtrés ; les UPDATE/DELETE en masse (ex. import mode
+    « replace », suppressions groupées) ne l'étaient PAS → un utilisateur d'un
+    tenant pouvait modifier/supprimer les lignes d'un autre tenant. with_loader_criteria
+    s'applique aussi aux UPDATE/DELETE ORM (SQLAlchemy 2.0), ce qui ajoute la
+    contrainte `tenant_id = <courant>` à leur WHERE. / Tenant filter now also covers
+    bulk ORM UPDATE/DELETE, not just SELECT."""
+    if not (state.is_select or state.is_update or state.is_delete):
         return
     if state.execution_options.get("skip_tenant_filter"):
         return

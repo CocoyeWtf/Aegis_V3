@@ -594,6 +594,23 @@ async def import_data(
     if entity_type not in ENTITY_MODEL_MAP:
         raise HTTPException(status_code=400, detail=f"Invalid entity type. Allowed: {list(ENTITY_MODEL_MAP.keys())}")
 
+    # Garde anti-orphelins : un compte sans tenant courant (superadmin / rôle
+    # consolidation, get_user_tenant_id=None) qui importe une entité cloisonnée
+    # créerait des lignes tenant_id=NULL invisibles à tous (incident du 2026-06-22)
+    # et, en mode « replace », supprimerait sans filtre tenant. On impose un compte
+    # rattaché à la société cible. / Block tenant-scoped imports by a tenant-less user.
+    from app.models.mixins import TenantMixin
+    from app.api.deps import get_user_tenant_id
+    if issubclass(ENTITY_MODEL_MAP[entity_type], TenantMixin) and get_user_tenant_id(user) is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Import refusé : votre compte n'est rattaché à aucune société (superadmin). "
+                "Connectez-vous avec un compte de la société cible (ex. France) pour importer "
+                "ces données, sinon elles seraient invisibles aux utilisateurs."
+            ),
+        )
+
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
