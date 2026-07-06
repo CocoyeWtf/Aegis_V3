@@ -17,6 +17,10 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    # init: un reaper (tini) recolte les zombies ssl_client engendres par le
+    # healthcheck wget/TLS ; sans lui, Caddy (PID 1) ne les reape pas et ils
+    # s'accumulent jusqu'a epuiser RLIMIT_NPROC (fork: Resource temporarily unavailable).
+    init: true
     ports:
       - "80:80"
       - "443:443"
@@ -28,7 +32,10 @@ services:
       app:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      # On cible le vhost IP avec le bon Host : Caddy repond 200 via l'app, sans
+      # redirection HTTPS (donc sans handshake TLS ni ssl_client a reaper).
+      # Un simple http://localhost redirige vers :443 et echoue (pas de cert localhost).
+      test: ["CMD", "wget", "-q", "--spider", "--header=Host: 76.13.58.182", "http://localhost:80/api/"]
       interval: 30s
       timeout: 10s
       retries: 3
