@@ -30,6 +30,15 @@ export function ReportButton() {
   return (
     <>
       <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-2 print-hide">
+        {/* Indicateur : la capture tourne en continu (rien à démarrer) */}
+        <div
+          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 shadow-sm text-[11px] font-medium select-none"
+          style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}
+          title="Capture de session active en continu : les 2 dernières minutes (navigation, clics, saisies masquées, erreurs réseau) sont enregistrées et jointes automatiquement au ticket quand vous cliquez sur « Signaler ». Il n'y a rien à démarrer."
+        >
+          <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--color-danger)' }} />
+          Capture active
+        </div>
         {noting ? (
           <div
             className="flex items-center gap-1 rounded-full shadow-lg px-2 py-1"
