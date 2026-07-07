@@ -5,13 +5,17 @@ les échanges. Chaque action (création, commentaire, changement de statut) est
 horodatée et attribuée → traçabilité complète (litige, bilan annuel).
 """
 
+import io
 import json
+import re
+import unicodedata
 import uuid
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -35,6 +39,131 @@ MAX_PHOTO_SIZE = 5 * 1024 * 1024  # 5 MB
 
 def _user_name(user: User) -> str:
     return getattr(user, "full_name", None) or user.username
+
+
+# ─── Export d'un ticket pour Claude Code / Ticket export helpers ───
+
+def _slug(text: str | None, maxlen: int = 40) -> str:
+    """Slug ASCII sûr pour un nom de fichier (translittère les accents)."""
+    norm = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode("ascii")
+    norm = re.sub(r"[^a-zA-Z0-9]+", "-", norm).strip("-").lower()
+    return norm[:maxlen].strip("-") or "ticket"
+
+
+def _fmt_dt(value) -> str:
+    """Formate une date (datetime ou ISO string) en lisible, sinon la renvoie telle quelle."""
+    if not value:
+        return "—"
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d %H:%M")
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M")
+    except (ValueError, TypeError):
+        return str(value)
+
+
+def _ticket_markdown(ticket: Ticket, photo_arcnames: list[tuple[str, TicketPhoto]]) -> str:
+    """Construit un Markdown auto-suffisant du ticket, prêt à injecter dans Claude Code."""
+    try:
+        ctx = json.loads(ticket.context) if ticket.context else None
+    except (json.JSONDecodeError, TypeError):
+        ctx = None
+
+    lines: list[str] = []
+    lines.append(f"# Ticket #{ticket.id} — {ticket.title}")
+    lines.append("")
+    lines.append(f"- **Type** : {ticket.ticket_type.value}")
+    lines.append(f"- **Statut** : {ticket.status.value}")
+    lines.append(f"- **Priorité** : {ticket.priority.value}")
+    lines.append(f"- **Auteur** : {ticket.created_by_name or '—'}")
+    lines.append(f"- **Créé le** : {_fmt_dt(ticket.created_at)}")
+    lines.append(f"- **Mis à jour** : {_fmt_dt(ticket.updated_at)}")
+    lines.append("")
+    lines.append("## Description")
+    lines.append("")
+    lines.append(ticket.description.strip() if ticket.description else "_(aucune description)_")
+    lines.append("")
+
+    if ctx:
+        lines.append("## Contexte technique capturé")
+        lines.append("")
+        labels = {
+            "route": "Écran", "app_version": "Version app", "platform": "Plateforme",
+            "language": "Langue", "screen": "Résolution", "user_agent": "Navigateur / OS",
+        }
+        for key, label in labels.items():
+            if ctx.get(key):
+                lines.append(f"- **{label}** : {ctx[key]}")
+        breadcrumb = ctx.get("breadcrumb")
+        if isinstance(breadcrumb, list) and breadcrumb:
+            trail = " → ".join(b.get("path", str(b)) if isinstance(b, dict) else str(b) for b in breadcrumb)
+            lines.append(f"- **Parcours (fil d'Ariane)** : {trail}")
+        errors = ctx.get("recent_errors")
+        if isinstance(errors, list) and errors:
+            lines.append("- **Erreurs récentes (console)** :")
+            for err in errors:
+                lines.append(f"  - `{err}`")
+        # Toute clé de contexte non listée ci-dessus (robustesse aux évolutions)
+        known = set(labels) | {"breadcrumb", "recent_errors"}
+        for key, val in ctx.items():
+            if key not in known and val not in (None, "", [], {}):
+                lines.append(f"- **{key}** : {val}")
+        lines.append("")
+
+    if photo_arcnames:
+        lines.append("## Captures d'écran")
+        lines.append("")
+        for arc, photo in photo_arcnames:
+            lines.append(f"### {photo.filename}")
+            lines.append("")
+            lines.append(f"![{photo.filename}]({arc})")
+            lines.append("")
+
+    comments = list(ticket.comments or [])
+    if comments:
+        lines.append("## Historique des échanges")
+        lines.append("")
+        for c in comments:
+            when = _fmt_dt(c.created_at)
+            if c.is_system:
+                lines.append(f"- _{when} — {c.body}_")
+            else:
+                lines.append(f"- **{when} · {c.user_name or 'Utilisateur'}** : {c.body}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def _ticket_json(ticket: Ticket, photo_arcnames: list[tuple[str, TicketPhoto]]) -> str:
+    """Représentation brute structurée du ticket (JSON) incluse dans l'archive."""
+    try:
+        ctx = json.loads(ticket.context) if ticket.context else None
+    except (json.JSONDecodeError, TypeError):
+        ctx = ticket.context
+    arc_by_id = {photo.id: arc for arc, photo in photo_arcnames}
+    payload = {
+        "id": ticket.id,
+        "type": ticket.ticket_type.value,
+        "status": ticket.status.value,
+        "priority": ticket.priority.value,
+        "title": ticket.title,
+        "description": ticket.description,
+        "created_by": ticket.created_by_name,
+        "created_at": _fmt_dt(ticket.created_at),
+        "updated_at": _fmt_dt(ticket.updated_at),
+        "context": ctx,
+        "photos": [
+            {"id": p.id, "filename": p.filename, "mime_type": p.mime_type,
+             "file_size": p.file_size, "archive_path": arc_by_id.get(p.id)}
+            for p in (ticket.photos or [])
+        ],
+        "comments": [
+            {"at": _fmt_dt(c.created_at), "author": c.user_name,
+             "is_system": c.is_system, "body": c.body}
+            for c in (ticket.comments or [])
+        ],
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2)
 
 
 @router.get("/", response_model=list[TicketListItem])
@@ -92,6 +221,53 @@ async def get_ticket(
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
     return ticket
+
+
+@router.get("/{ticket_id}/export")
+async def export_ticket(
+    ticket_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Exporter un ticket en archive ZIP auto-suffisante pour Claude Code.
+
+    L'archive `ticket-{id}-{slug}.zip` contient :
+      - `ticket-{id}.md`  : ticket complet en Markdown (description, contexte
+        technique, historique des échanges, captures référencées) ;
+      - `ticket-{id}.json`: données brutes structurées ;
+      - `photos/…`        : les captures d'écran jointes.
+    Il suffit de dézipper et d'ouvrir le dossier dans Claude Code pour résolution.
+    """
+    result = await db.execute(
+        select(Ticket).where(Ticket.id == ticket_id).options(
+            selectinload(Ticket.comments), selectinload(Ticket.photos)
+        )
+    )
+    ticket = result.scalar_one_or_none()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    buf = io.BytesIO()
+    photo_arcnames: list[tuple[str, TicketPhoto]] = []
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for idx, photo in enumerate(ticket.photos or [], start=1):
+            src = Path(photo.file_path)
+            if not src.is_file():
+                continue
+            ext = src.suffix or "." + (photo.mime_type or "image/jpeg").split("/")[-1].replace("jpeg", "jpg")
+            arc = f"photos/{idx:02d}-{_slug(Path(photo.filename).stem, 30)}{ext}"
+            zf.write(src, arc)
+            photo_arcnames.append((arc, photo))
+        zf.writestr(f"ticket-{ticket.id}.md", _ticket_markdown(ticket, photo_arcnames))
+        zf.writestr(f"ticket-{ticket.id}.json", _ticket_json(ticket, photo_arcnames))
+    buf.seek(0)
+
+    filename = f"ticket-{ticket.id}-{_slug(ticket.title)}.zip"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/", response_model=TicketDetail, status_code=201)

@@ -42,6 +42,7 @@ export default function Tickets() {
   const [photoUrls, setPhotoUrls] = useState<Record<number, string>>({})
   const [lightbox, setLightbox] = useState<string | null>(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [exporting, setExporting] = useState(false)
   /* Seuls les admins (tickets:update, superadmin inclus) changent le statut */
   const hasPermission = useAuthStore((s) => s.hasPermission)
   const canManage = hasPermission('tickets', 'update')
@@ -124,6 +125,30 @@ export default function Tickets() {
       alert("Échec de l'ajout de la photo.")
     } finally {
       setUploadingPhoto(false)
+    }
+  }
+
+  /* Exporter le ticket en ZIP (Markdown + JSON + photos) à injecter dans Claude Code */
+  const exportTicket = async () => {
+    if (!selected) return
+    setExporting(true)
+    try {
+      const res = await api.get(`/tickets/${selected.id}/export`, { responseType: 'blob' })
+      const cd = (res.headers?.['content-disposition'] as string | undefined) ?? ''
+      const filename = /filename="?([^"]+)"?/.exec(cd)?.[1] || `ticket-${selected.id}.zip`
+      const url = URL.createObjectURL(res.data as Blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('Export ticket échoué', e)
+      alert("Échec de l'export du ticket.")
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -238,7 +263,15 @@ export default function Tickets() {
                   <span className="px-1.5 py-0.5 rounded text-[10px] font-bold" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{TICKET_TYPE_LABELS[selected.ticket_type]}</span>
                   <StatusBadge status={selected.status} />
                 </div>
-                <button onClick={() => setSelected(null)} className="text-xl leading-none" style={{ color: 'var(--text-muted)' }}>×</button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={exportTicket} disabled={exporting}
+                    title="Télécharger un ZIP (Markdown + JSON + photos) prêt à injecter dans Claude Code"
+                    className="text-xs inline-flex items-center gap-1 px-2 py-1 rounded-lg border transition-all hover:opacity-80 disabled:opacity-50"
+                    style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-primary)' }}>
+                    {exporting ? '…' : '⬇ Exporter pour Claude Code'}
+                  </button>
+                  <button onClick={() => setSelected(null)} className="text-xl leading-none" style={{ color: 'var(--text-muted)' }}>×</button>
+                </div>
               </div>
               <h3 className="text-lg font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{selected.title}</h3>
               <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>Ouvert par {selected.created_by_name} · {fmt(selected.created_at)}</p>
