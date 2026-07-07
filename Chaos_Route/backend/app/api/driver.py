@@ -592,7 +592,7 @@ async def submit_gps_batch(
     tour = await db.get(Tour, data.tour_id)
     if positions:
         last = positions[-1]
-        await manager.broadcast({
+        await manager.broadcast(tenant_id=device.tenant_id, message={
             "type": "gps_update",
             "tour_id": data.tour_id,
             "tour_code": tour.code if tour else "",
@@ -637,7 +637,7 @@ async def scan_pdv(
         db.add(alert)
         await db.flush()
 
-        await manager.broadcast({
+        await manager.broadcast(tenant_id=device.tenant_id, message={
             "type": "alert",
             "alert_type": "WRONG_PDV",
             "tour_id": tour_id,
@@ -673,7 +673,7 @@ async def scan_pdv(
 
     await db.flush()
 
-    await manager.broadcast({
+    await manager.broadcast(tenant_id=device.tenant_id, message={
         "type": "stop_event",
         "event": "ARRIVAL",
         "tour_id": tour_id,
@@ -729,7 +729,7 @@ async def close_stop(
         db.add(alert)
         stop.forced_closure = True
 
-        await manager.broadcast({
+        await manager.broadcast(tenant_id=device.tenant_id, message={
             "type": "alert",
             "alert_type": "FORCED_CLOSURE",
             "tour_id": tour_id,
@@ -762,7 +762,7 @@ async def close_stop(
             db.add(missing_alert)
             stop.missing_supports_count = len(missing_barcodes)
 
-            await manager.broadcast({
+            await manager.broadcast(tenant_id=device.tenant_id, message={
                 "type": "alert",
                 "alert_type": "MISSING_SUPPORTS",
                 "tour_id": tour_id,
@@ -789,7 +789,7 @@ async def close_stop(
 
     await db.flush()
 
-    await manager.broadcast({
+    await manager.broadcast(tenant_id=device.tenant_id, message={
         "type": "stop_event",
         "event": "CLOSURE",
         "tour_id": tour_id,
@@ -861,7 +861,7 @@ async def reopen_stop(
 
     await db.flush()
 
-    await manager.broadcast({
+    await manager.broadcast(tenant_id=device.tenant_id, message={
         "type": "stop_event",
         "event": "REOPEN",
         "tour_id": tour_id,
@@ -897,7 +897,7 @@ async def return_to_base(
 
     await db.flush()
 
-    await manager.broadcast({
+    await manager.broadcast(tenant_id=device.tenant_id, message={
         "type": "tour_status",
         "tour_id": tour_id,
         "tour_code": tour.code,
@@ -975,7 +975,7 @@ async def scan_support(
                 created_at=data.timestamp, device_id=device.id,
             )
             db.add(alert)
-            await manager.broadcast({
+            await manager.broadcast(tenant_id=device.tenant_id, message={
                 "type": "wrong_pdv_scan",
                 "tour_id": tour_id, "stop_id": stop_id,
                 "barcode": data.barcode,
@@ -1003,7 +1003,7 @@ async def scan_support(
     await db.flush()
     await db.refresh(scan)
 
-    await manager.broadcast({
+    await manager.broadcast(tenant_id=device.tenant_id, message={
         "type": "support_scan",
         "tour_id": tour_id,
         "stop_id": stop_id,
@@ -1394,7 +1394,7 @@ async def refuse_pickup(
     await db.flush()
 
     # Broadcast WebSocket alert
-    await manager.broadcast({
+    await manager.broadcast(tenant_id=device.tenant_id, message={
         "type": "alert",
         "alert_type": "PICKUP_REFUSED",
         "tour_id": tour_id,

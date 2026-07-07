@@ -62,7 +62,7 @@ async def create_assignment(
     await db.flush()
 
     # Broadcast WebSocket — le telephone recevra via polling
-    await manager.broadcast({
+    await manager.broadcast(tenant_id=tour.tenant_id, message={
         "type": "tour_assigned",
         "device_id": data.device_id,
         "tour_id": data.tour_id,

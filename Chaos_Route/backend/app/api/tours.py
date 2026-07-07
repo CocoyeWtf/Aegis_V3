@@ -2461,7 +2461,7 @@ async def update_tour_gate(
     if "barrier_entry_time" in changes and changes["barrier_entry_time"] and tour.status == TourStatus.RETURNING:
         tour.status = TourStatus.COMPLETED
         from app.api.ws_tracking import manager
-        await manager.broadcast({
+        await manager.broadcast(tenant_id=tour.tenant_id, message={
             "type": "tour_status",
             "tour_id": tour_id,
             "tour_code": tour.code,
