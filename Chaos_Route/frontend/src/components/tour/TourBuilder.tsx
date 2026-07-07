@@ -175,31 +175,16 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
 
   const assignedPdvIds = useMemo(() => new Set(currentStops.map((s) => s.pdv_id)), [currentStops])
 
-  /* IDs des volumes consommés par les stops du tour en construction /
-     Volume IDs consumed by stops of the tour being built.
-     Supporte plusieurs stops du même PDV (split ou multi-température). */
-  const consumedVolumeIds = useMemo(() => {
-    const ids = new Set<number>()
-    for (const stop of currentStops) {
-      let remaining = stop.eqp_count
-      const pdvVols = volumes
-        .filter(v => v.pdv_id === stop.pdv_id && !ids.has(v.id))
-        .sort((a, b) => {
-          /* Préférer le match exact / Prefer exact match */
-          if (a.eqp_count === remaining && b.eqp_count !== remaining) return -1
-          if (b.eqp_count === remaining && a.eqp_count !== remaining) return 1
-          return b.eqp_count - a.eqp_count
-        })
-      for (const vol of pdvVols) {
-        if (remaining <= 0) break
-        if (vol.eqp_count <= remaining) {
-          ids.add(vol.id)
-          remaining -= vol.eqp_count
-        }
-      }
-    }
-    return ids
-  }, [currentStops, volumes])
+  /* IDs des volumes consommés par les stops du tour en construction.
+     Chaque stop porte désormais son volume source EXACT (stop.volume_id) : plus
+     de devinette par (pdv_id + eqp_count) — qui échouait quand un PDV a deux
+     volumes de même eqc (Gel 9.96 + Frais 9.96 → cf. tickets #3/#6 : la pastille
+     ne disparaissait pas et la commande passait 2×). /
+     Volume IDs consumed by the tour's stops — read directly from stop.volume_id. */
+  const consumedVolumeIds = useMemo(
+    () => new Set(currentStops.map((s) => s.volume_id).filter((id): id is number => id != null)),
+    [currentStops],
+  )
 
   /* PDV entièrement consommés — tous leurs volumes disponibles sont dans le tour.
      Les PDV partiellement consommés (découpage) restent visibles sur la carte. /
@@ -382,7 +367,8 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
       const candidates: SplitCandidate[] = []
       for (const stop of currentStops) {
         if (stop.eqp_count <= overflow) continue
-        const vol = allVolumes.find(v => v.pdv_id === stop.pdv_id && v.dispatch_date === selectedDate && !v.tour_id && v.eqp_count === stop.eqp_count)
+        const vol = (stop.volume_id != null ? allVolumes.find(v => v.id === stop.volume_id) : undefined)
+          || allVolumes.find(v => v.pdv_id === stop.pdv_id && v.dispatch_date === selectedDate && !v.tour_id && v.eqp_count === stop.eqp_count)
           || allVolumes.find(v => v.pdv_id === stop.pdv_id && v.dispatch_date === selectedDate && !v.tour_id)
         if (vol) {
           const pdv = pdvMap.get(stop.pdv_id)
@@ -416,6 +402,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         id: 0,
         tour_id: 0,
         pdv_id: vol.pdv_id,
+        volume_id: vol.id,
         sequence_order: currentStops.length + 1,
         eqp_count: vol.eqp_count,
         temperature_class: vol.temperature_class,
@@ -446,6 +433,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         id: 0,
         tour_id: 0,
         pdv_id: vol.pdv_id,
+        volume_id: vol.id,
         sequence_order: currentStops.length + 1,
         eqp_count: vol.eqp_count,
         temperature_class: vol.temperature_class,
@@ -464,7 +452,8 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
       /* Stops existants dont on peut réduire le volume / Existing stops that can be reduced */
       for (const stop of currentStops) {
         if (stop.eqp_count <= overflow) continue
-        const matchVol = allVolumes.find(v => v.pdv_id === stop.pdv_id && v.dispatch_date === selectedDate && !v.tour_id && v.eqp_count === stop.eqp_count)
+        const matchVol = (stop.volume_id != null ? allVolumes.find(v => v.id === stop.volume_id) : undefined)
+          || allVolumes.find(v => v.pdv_id === stop.pdv_id && v.dispatch_date === selectedDate && !v.tour_id && v.eqp_count === stop.eqp_count)
           || allVolumes.find(v => v.pdv_id === stop.pdv_id && v.dispatch_date === selectedDate && !v.tour_id)
         if (matchVol) {
           const pdv = pdvMap.get(stop.pdv_id)
@@ -512,6 +501,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         id: 0,
         tour_id: 0,
         pdv_id: vol.pdv_id,
+        volume_id: vol.id,
         sequence_order: currentStops.length + 1,
         eqp_count: vol.eqp_count,
         temperature_class: vol.temperature_class,
@@ -529,13 +519,17 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
       await api.post(`/volumes/${splitDialog.volume.id}/split`, { eqp_count: splitEqp })
       if (splitDialog.existingStop) {
         /* Stop déjà dans le tour → mettre à jour son EQP / Existing stop → update its EQP */
-        updateStop(splitDialog.volume.pdv_id, { eqp_count: splitEqp })
+        updateStop(
+          { pdv_id: splitDialog.volume.pdv_id, volume_id: splitDialog.volume.id },
+          { eqp_count: splitEqp },
+        )
       } else {
         /* Nouveau stop / New stop */
         addStop({
           id: 0,
           tour_id: 0,
           pdv_id: splitDialog.volume.pdv_id,
+          volume_id: splitDialog.volume.id,
           sequence_order: currentStops.length + 1,
           eqp_count: splitEqp,
           temperature_class: splitDialog.volume.temperature_class,
@@ -559,6 +553,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         id: 0,
         tour_id: 0,
         pdv_id: newVol.pdv_id,
+        volume_id: newVol.id,
         sequence_order: currentStops.length + 1,
         eqp_count: newVol.eqp_count,
         temperature_class: newVol.temperature_class,
@@ -578,6 +573,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
       id: 0,
       tour_id: 0,
       pdv_id: vol.pdv_id,
+      volume_id: vol.id,
       sequence_order: currentStops.length + 1,
       eqp_count: vol.eqp_count,
       temperature_class: vol.temperature_class,
@@ -680,6 +676,7 @@ export function TourBuilder({ selectedDate, selectedBaseId, onDateChange, onBase
         temperature_type: tourMode === 'pickup' ? undefined : (selectedTemperatureType ?? undefined),
         stops: currentStops.map((s, i) => ({
           pdv_id: s.pdv_id,
+          volume_id: s.volume_id,
           sequence_order: i + 1,
           eqp_count: s.eqp_count,
           pickup_cardboard: s.pickup_cardboard ?? false,

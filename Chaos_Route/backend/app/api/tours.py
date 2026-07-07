@@ -1658,6 +1658,7 @@ async def create_tour(
     stops_input = [
         {
             "pdv_id": s.pdv_id,
+            "volume_id": s.volume_id,
             "sequence_order": s.sequence_order,
             "eqp_count": s.eqp_count,
             "pickup_cardboard": s.pickup_cardboard,
@@ -1769,6 +1770,7 @@ async def create_tour(
         stop = TourStop(
             tour_id=tour.id,
             pdv_id=stop_data["pdv_id"],
+            volume_id=original.get("volume_id"),
             sequence_order=stop_data["sequence_order"],
             eqp_count=stop_data["eqp_count"],
             arrival_time=stop_data.get("arrival_time"),
@@ -1793,6 +1795,11 @@ async def create_tour(
             pid = stop_data["pdv_id"]
             stop_eqp_by_pdv[pid] = stop_eqp_by_pdv.get(pid, 0.0) + float(stop_data["eqp_count"])
 
+        # Volumes explicitement référencés par les stops (front récent) → assignation
+        # EXACTE, sans ambiguïté quand un PDV a plusieurs volumes de même eqc. /
+        # Volume ids explicitly referenced by stops → exact assignment.
+        explicit_ids = {s["volume_id"] for s in stops_input if s.get("volume_id") is not None}
+
         vol_result = await db.execute(
             select(Volume).where(
                 Volume.pdv_id.in_(pdv_ids),
@@ -1802,10 +1809,22 @@ async def create_tour(
         )
         all_unassigned = list(vol_result.scalars().all())
 
-        # Grouper par pdv_id et assigner selon EQP cible (plus grands d'abord)
-        # Group by pdv_id and assign up to target EQP (largest first)
+        # 1) Assigner exactement les volumes référencés et déduire leur eqc de la
+        #    cible du PDV. / Exact-assign referenced volumes, subtract from target.
+        assigned_exact: set[int] = set()
+        for vol in all_unassigned:
+            if vol.id in explicit_ids:
+                vol.tour_id = tour.id
+                assigned_exact.add(vol.id)
+                stop_eqp_by_pdv[vol.pdv_id] = stop_eqp_by_pdv.get(vol.pdv_id, 0.0) - float(vol.eqp_count)
+
+        # 2) Greedy résiduel pour les stops SANS volume_id (legacy / robustesse) :
+        #    grouper par pdv_id et compléter jusqu'à l'EQP cible restant (plus grands
+        #    d'abord). / Residual greedy for stops without a volume_id (legacy).
         by_pdv: dict[int, list[Volume]] = {}
         for vol in all_unassigned:
+            if vol.id in assigned_exact:
+                continue
             by_pdv.setdefault(vol.pdv_id, []).append(vol)
 
         for pid, vols in by_pdv.items():
@@ -2999,10 +3018,20 @@ async def remove_tour_stop(
     pdv = await db.get(PDV, pdv_id)
     pdv_code = pdv.code if pdv else str(pdv_id)
 
-    # Libérer les volumes du PDV dans ce tour / Release volumes
-    vol_result = await db.execute(
-        select(Volume).where(Volume.tour_id == tour_id, Volume.pdv_id == pdv_id)
-    )
+    # Libérer les volumes du PDV dans ce tour / Release volumes.
+    # Si le stop est rattaché à un volume précis (front récent), ne libérer QUE
+    # celui-ci : un PDV peut avoir plusieurs stops/volumes de même eqc (Gel+Frais),
+    # retirer un segment ne doit pas libérer l'autre. Sinon (legacy sans volume_id),
+    # comportement historique = tous les volumes du PDV. / Free only this stop's
+    # volume when known, else fall back to all PDV volumes (legacy).
+    if target.volume_id is not None:
+        vol_result = await db.execute(
+            select(Volume).where(Volume.tour_id == tour_id, Volume.id == target.volume_id)
+        )
+    else:
+        vol_result = await db.execute(
+            select(Volume).where(Volume.tour_id == tour_id, Volume.pdv_id == pdv_id)
+        )
     freed = list(vol_result.scalars().all())
     freed_ids = [v.id for v in freed]
     freed_eqp = sum(v.eqp_count for v in freed)

@@ -18,6 +18,14 @@ class TourStop(Base, TenantMixin):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     tour_id: Mapped[int] = mapped_column(ForeignKey("tours.id"), nullable=False)
     pdv_id: Mapped[int] = mapped_column(ForeignKey("pdvs.id"), nullable=False)
+    # Volume source EXACT de ce stop (livraison). Nullable : stops de reprise
+    # (pickup) et tours legacy créés avant l'ajout de la colonne. Clé unique d'un
+    # segment — indispensable quand un PDV a plusieurs volumes de même eqc
+    # (Gel 9.96 + Frais 9.96) : sans lui, add/remove/consommation devinaient par
+    # (pdv_id + eqp_count) et se trompaient. / Exact source volume of this stop.
+    volume_id: Mapped[int | None] = mapped_column(
+        ForeignKey("volumes.id", ondelete="SET NULL"), nullable=True
+    )
     sequence_order: Mapped[int] = mapped_column(Integer, nullable=False)
     eqp_count: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     arrival_time: Mapped[str | None] = mapped_column(String(5))  # HH:MM

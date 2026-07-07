@@ -8,6 +8,7 @@ from app.models.tour import TourStatus, TourType
 
 class TourStopBase(BaseModel):
     pdv_id: int
+    volume_id: int | None = None  # volume source exact (None pour reprise/legacy)
     sequence_order: int
     eqp_count: float
     arrival_time: str | None = None

@@ -160,6 +160,11 @@ export interface TourStop {
   id: number
   tour_id: number
   pdv_id: number
+  /** Volume source exact de ce stop (livraison). Absent pour un stop de reprise
+   *  (pickup, eqp 0). Clé UNIQUE d'un segment : indispensable quand un PDV a
+   *  plusieurs volumes de même eqc (ex. Gel 9.96 + Frais 9.96) — sinon la carte
+   *  ne sait plus lequel a été pris. / Exact source volume of this stop. */
+  volume_id?: number
   sequence_order: number
   eqp_count: number
   arrival_time?: string

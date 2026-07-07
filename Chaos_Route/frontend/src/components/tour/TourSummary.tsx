@@ -30,6 +30,17 @@ const MULTI_TEMP_COLORS: Record<string, string> = {
   TRI_TEMP: '#d946ef',
 }
 
+/* Identité d'un stop (retrait / MAJ ciblés). Le volume source quand il existe
+   (unique), sinon le PDV (pickup = 1 stop/PDV). / Stop identity for targeted ops. */
+type StopKey = Pick<TourStop, 'pdv_id' | 'volume_id'>
+const stopKey = (s: StopKey): StopKey => ({ pdv_id: s.pdv_id, volume_id: s.volume_id })
+
+/* Id DOM stable et UNIQUE (drag & drop + clé React). Basé sur le volume source
+   quand il existe, car un PDV peut avoir plusieurs stops de même eqc (Gel/Frais
+   9.96) → un id par pdv_id les ferait entrer en collision. / Stable unique DOM id. */
+const stopDomId = (s: StopKey): string =>
+  s.volume_id != null ? `stop-v${s.volume_id}` : `stop-p${s.pdv_id}`
+
 interface TourSummaryProps {
   stops: TourStop[]
   pdvs: PDV[]
@@ -38,9 +49,9 @@ interface TourSummaryProps {
   totalEqp: number
   totalKm: number
   totalCost: number
-  onRemoveStop: (pdvId: number) => void
+  onRemoveStop: (key: StopKey) => void
   onReorderStops: (stops: TourStop[]) => void
-  onUpdateStop?: (pdvId: number, data: Partial<TourStop>) => void
+  onUpdateStop?: (key: StopKey, data: Partial<TourStop>) => void
   stopTimelines?: StopTimeline[]
   returnTime?: string
   departureTime?: string
@@ -120,14 +131,14 @@ function SortableStopRow({
   idx: number
   pdv: PDV | undefined
   timeline: StopTimeline | undefined
-  onRemove: (pdvId: number) => void
-  onUpdate?: (pdvId: number, data: Partial<TourStop>) => void
+  onRemove: (key: StopKey) => void
+  onUpdate?: (key: StopKey, data: Partial<TourStop>) => void
   t: (key: string) => string
   isPickupTour?: boolean
   volumes?: Volume[]
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: `stop-${stop.pdv_id}`,
+    id: stopDomId(stop),
   })
 
   const style = {
@@ -193,7 +204,7 @@ function SortableStopRow({
         <button
           className="opacity-0 group-hover:opacity-100 transition-opacity text-xs px-2 py-1 rounded"
           style={{ color: 'var(--color-danger)', backgroundColor: 'rgba(239,68,68,0.1)' }}
-          onClick={() => onRemove(stop.pdv_id)}
+          onClick={() => onRemove(stopKey(stop))}
           title={t('common.delete')}
         >
           ✕
@@ -207,7 +218,7 @@ function SortableStopRow({
             <input
               type="checkbox"
               checked={!!stop.pickup_cardboard}
-              onChange={() => onUpdate(stop.pdv_id, { pickup_cardboard: !stop.pickup_cardboard })}
+              onChange={() => onUpdate(stopKey(stop), { pickup_cardboard: !stop.pickup_cardboard })}
               className="accent-[var(--color-primary)] w-3.5 h-3.5"
             />
             {t('tourPlanning.pickupCardboard')}
@@ -216,7 +227,7 @@ function SortableStopRow({
             <input
               type="checkbox"
               checked={!!stop.pickup_containers}
-              onChange={() => onUpdate(stop.pdv_id, { pickup_containers: !stop.pickup_containers })}
+              onChange={() => onUpdate(stopKey(stop), { pickup_containers: !stop.pickup_containers })}
               className="accent-[var(--color-primary)] w-3.5 h-3.5"
             />
             {t('tourPlanning.pickupContainers')}
@@ -225,7 +236,7 @@ function SortableStopRow({
             <input
               type="checkbox"
               checked={!!stop.pickup_returns}
-              onChange={() => onUpdate(stop.pdv_id, { pickup_returns: !stop.pickup_returns })}
+              onChange={() => onUpdate(stopKey(stop), { pickup_returns: !stop.pickup_returns })}
               className="accent-[var(--color-primary)] w-3.5 h-3.5"
             />
             {t('tourPlanning.pickupReturns')}
@@ -234,7 +245,7 @@ function SortableStopRow({
             <input
               type="checkbox"
               checked={!!stop.pickup_consignment}
-              onChange={() => onUpdate(stop.pdv_id, { pickup_consignment: !stop.pickup_consignment })}
+              onChange={() => onUpdate(stopKey(stop), { pickup_consignment: !stop.pickup_consignment })}
               className="accent-[var(--color-primary)] w-3.5 h-3.5"
             />
             Consignes
@@ -286,7 +297,7 @@ export function TourSummary({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
-  const sortableIds = stops.map((s) => `stop-${s.pdv_id}`)
+  const sortableIds = stops.map((s) => stopDomId(s))
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event
@@ -398,7 +409,7 @@ export function TourSummary({
             <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
               {stops.map((stop, idx) => (
                 <SortableStopRow
-                  key={stop.pdv_id}
+                  key={stopDomId(stop)}
                   stop={stop}
                   idx={idx}
                   pdv={pdvMap.get(stop.pdv_id)}
