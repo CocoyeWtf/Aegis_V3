@@ -4,9 +4,14 @@ from sqlalchemy import Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.mixins import TenantMixin
 
 
-class AuditLog(Base):
+class AuditLog(Base, TenantMixin):
+    """Journal d'audit, cloisonné par tenant : chaque entrée est stampée avec le
+    tenant de l'acteur (session), et la lecture est filtrée automatiquement.
+    Un compte consolidation/superadmin (tenant None) voit tout. /
+    Tenant-scoped audit log (auto-stamped + auto-filtered)."""
     __tablename__ = "audit_logs"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

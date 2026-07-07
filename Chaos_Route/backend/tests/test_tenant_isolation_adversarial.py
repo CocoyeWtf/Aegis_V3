@@ -205,3 +205,41 @@ async def test_db_get_is_tenant_filtered_in_fresh_session(db_session):
         set_session_tenant(s2, tb.id)
         got = await s2.get(DistanceMatrix, did)
     assert got is None, "FUITE : db.get() a renvoyé la ligne d'un autre tenant (identity-map)"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# M2 — Journal d'audit cloisonné par tenant
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_audit_log_is_tenant_scoped(db_session):
+    """Une entrée d'audit créée par le tenant A ne doit PAS être visible depuis le
+    tenant B (stamping + filtrage auto via TenantMixin)."""
+    from app.models.audit import AuditLog
+
+    ta = Tenant(code=f"AA{uuid.uuid4().hex[:4]}", name="AA")
+    tb = Tenant(code=f"AB{uuid.uuid4().hex[:4]}", name="AB")
+    db_session.add_all([ta, tb])
+    await db_session.commit()
+
+    marker = f"iso_{uuid.uuid4().hex[:10]}"  # entity_type unique pour isoler ce test
+    set_session_tenant(db_session, ta.id)
+    db_session.add(AuditLog(entity_type=marker, entity_id=1, action="CREATE",
+                            user="ua", timestamp="2026-07-08T09:00:00"))
+    await db_session.commit()
+
+    # Depuis le tenant B : rien / from tenant B: nothing
+    set_session_tenant(db_session, tb.id)
+    seen_b = (await db_session.execute(
+        select(AuditLog).where(AuditLog.entity_type == marker)
+    )).scalars().all()
+    # Depuis le tenant A : son entrée / from tenant A: its own
+    set_session_tenant(db_session, ta.id)
+    seen_a = (await db_session.execute(
+        select(AuditLog).where(AuditLog.entity_type == marker)
+    )).scalars().all()
+    set_session_tenant(db_session, None)
+
+    assert len(seen_b) == 0, "FUITE : audit d'un autre tenant visible"
+    assert len(seen_a) == 1, "le tenant propriétaire doit voir son audit"
+    assert seen_a[0].tenant_id == ta.id, "l'entrée d'audit doit être stampée du bon tenant"
