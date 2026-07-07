@@ -1,11 +1,11 @@
 /* Capture de contexte pour les tickets (la partie « intelligente ») :
    - fil d'Ariane des écrans + erreurs console + infos techniques ;
-   - « dashcam » : buffer glissant des dernières interactions (clics, saisies
-     MASQUÉES, navigation, erreurs, échecs réseau, notes utilisateur) pour retracer
-     ce qui s'est passé AVANT le signalement — sans interroger l'utilisateur et
-     sans capturer de données personnelles. /
-   Context capture for tickets: breadcrumb + console errors + a rolling event
-   buffer (dashcam) so a bug can be understood from what happened just before. */
+   - enregistrement de session À LA DEMANDE : l'utilisateur clique « Démarrer »,
+     reproduit le bug (clics, saisies MASQUÉES, navigation, erreurs, échecs réseau,
+     notes épinglées sont enregistrés UNIQUEMENT pendant l'enregistrement), puis
+     arrête. Rien n'est capturé hors enregistrement (pas de capture permanente),
+     rien n'est envoyé tant que le ticket n'est pas créé. /
+   On-demand session recording: nothing is captured unless the user is recording. */
 
 interface Crumb { path: string; ts: number }
 type SessionEventType = 'click' | 'input' | 'route' | 'error' | 'network' | 'note'
@@ -13,15 +13,17 @@ interface SessionEvent { ts: number; type: SessionEventType; msg: string }
 
 const MAX_CRUMBS = 12
 const MAX_ERRORS = 10
-const MAX_EVENTS = 200
-const SESSION_WINDOW_MS = 120_000 // fenêtre exportée : 2 min avant le signalement
+const MAX_EVENTS = 400 // plafond de sécurité pour un enregistrement long
 
 const breadcrumb: Crumb[] = []
 const errors: string[] = []
 const events: SessionEvent[] = []
 let installed = false
+let recording = false
+let recordingStartedAt = 0
 
 function pushEvent(type: SessionEventType, msg: string): void {
+  if (!recording) return // on ne capture QUE pendant un enregistrement explicite
   const clean = (msg || '').replace(/\s+/g, ' ').trim().slice(0, 200)
   if (!clean) return
   const now = Date.now()
@@ -47,10 +49,47 @@ export function recordNetworkError(method: string, url: string, status: number |
   pushEvent('network', `${(method || 'get').toUpperCase()} ${url} → ${status}`)
 }
 
-/** Épingler une note utilisateur à l'instant courant (annotation multi-points). /
-    Pin a user note at the current instant (multi-point annotation). */
+/** Épingler une note utilisateur à l'instant courant (annotation multi-points).
+    Ignorée hors enregistrement. / Pin a user note (ignored unless recording). */
 export function recordUserNote(note: string): void {
   pushEvent('note', note)
+}
+
+/** Démarrer un enregistrement de session (repart d'un buffer vide). /
+    Start a session recording (resets the buffer). */
+export function startRecording(): void {
+  events.length = 0
+  recording = true
+  recordingStartedAt = Date.now()
+  pushEvent('note', 'Début de l\'enregistrement')
+}
+
+/** Arrêter l'enregistrement (le buffer reste joignable au prochain ticket). /
+    Stop recording (buffer stays available for the next ticket). */
+export function stopRecording(): void {
+  recording = false
+}
+
+/** L'enregistrement est-il en cours ? / Is a recording in progress? */
+export function isRecording(): boolean {
+  return recording
+}
+
+/** Vider le buffer (après création d'un ticket) pour ne pas le ré-attacher à un
+    ticket ultérieur. / Clear the buffer after a ticket is created. */
+export function clearSession(): void {
+  events.length = 0
+  recording = false
+}
+
+/** Nb d'événements capturés dans l'enregistrement courant / Captured event count. */
+export function recordedEventCount(): number {
+  return events.length
+}
+
+/** Temps écoulé (ms) depuis le début de l'enregistrement / Elapsed recording time. */
+export function recordingElapsedMs(): number {
+  return recording ? Date.now() - recordingStartedAt : 0
 }
 
 function pushError(msg: string): void {
@@ -152,9 +191,9 @@ export function captureContext(extra?: { region_id?: number | null; country_id?:
     screen: `${window.innerWidth}x${window.innerHeight}`,
     breadcrumb: breadcrumb.map((c) => ({ path: c.path, ago_s: Math.round((now - c.ts) / 1000) })),
     recent_errors: [...errors],
-    session: events
-      .filter((e) => now - e.ts <= SESSION_WINDOW_MS)
-      .map((e) => ({ ago_s: Math.round((now - e.ts) / 1000), type: e.type, msg: e.msg })),
+    // Événements de l'enregistrement (vide si l'utilisateur n'a rien enregistré) /
+    // Recorded events (empty if the user didn't record anything)
+    session: events.map((e) => ({ ago_s: Math.round((now - e.ts) / 1000), type: e.type, msg: e.msg })),
     region_id: extra?.region_id ?? null,
     country_id: extra?.country_id ?? null,
     captured_at: new Date().toISOString(),
