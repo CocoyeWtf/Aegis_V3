@@ -183,7 +183,9 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
 
   /* Tri chauffeur / Driver sort */
-  const [driverSort, setDriverSort] = useState<'asc' | 'desc' | null>('asc')
+  /* Mode de tri de la liste : heure de départ, chauffeur A→Z / Z→A, ou ordre
+     (priorité manuelle 1→n). / List sort mode. */
+  const [sortMode, setSortMode] = useState<'departure' | 'asc' | 'desc' | 'priority'>('asc')
 
   /* Expansion boites / Box expansion */
   const [expandedTourIds, setExpandedTourIds] = useState<Set<number>>(new Set())
@@ -402,6 +404,18 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
       return (a.priority ?? Infinity) - (b.priority ?? Infinity)
     }
 
+    /* Tri par ordre : priorité manuelle 1→n (NULL en dernier), départage par
+       heure de départ. / Sort by manual order (priority), tie-break by departure. */
+    if (sortMode === 'priority') {
+      return [...filteredTours].sort((a, b) => {
+        const pa = a.priority ?? Infinity
+        const pb = b.priority ?? Infinity
+        return pa !== pb ? pa - pb : byDeparture(a, b)
+      })
+    }
+
+    /* Modes chauffeur (asc/desc) → regroupement par véhicule/chauffeur / Driver modes */
+    const driverSort = sortMode === 'asc' || sortMode === 'desc' ? sortMode : null
     if (driverSort) {
       /* Grouper par véhicule/chauffeur, trier alpha, tours par départ à l'intérieur */
       const groups = new Map<string, Tour[]>()
@@ -425,7 +439,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
     const unscheduled = filteredTours.filter(t => !t.departure_time)
       .sort((a, b) => a.id - b.id)
     return [...scheduled, ...unscheduled]
-  }, [filteredTours, driverSort, tourVehicleMap])
+  }, [filteredTours, sortMode, tourVehicleMap])
 
   /* Détecter les tours avec violation de fenêtre de livraison / Detect delivery window violations */
   const deliveryWindowViolations = useMemo(() => {
@@ -1210,12 +1224,13 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
           <select
             className="px-2 py-2 text-xs rounded-lg border"
             style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
-            value={driverSort ?? 'departure'}
-            onChange={(e) => setDriverSort(e.target.value === 'departure' ? null : (e.target.value as 'asc' | 'desc'))}
+            value={sortMode}
+            onChange={(e) => setSortMode(e.target.value as 'departure' | 'asc' | 'desc' | 'priority')}
           >
             <option value="departure">Heure de départ</option>
             <option value="asc">Chauffeur A→Z</option>
             <option value="desc">Chauffeur Z→A</option>
+            <option value="priority">Ordre (priorité)</option>
           </select>
         </div>
 
@@ -2179,7 +2194,7 @@ export function TourScheduler({ selectedDate, onDateChange, embeddedMode }: Tour
                 rowHeights={prefs.listColumns === 1 ? measuredRowHeights : []}
                 headerHeight={prefs.listColumns === 1 ? (measuredHeaderHeight || undefined) : undefined}
                 expandedTourIds={expandedTourIds}
-                driverSort={driverSort}
+                driverSort={sortMode === 'asc' || sortMode === 'desc' ? sortMode : null}
               />
             </div>
           </div>
