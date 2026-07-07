@@ -265,10 +265,10 @@ export default function Tickets() {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button onClick={exportTicket} disabled={exporting}
-                    title="Télécharger un ZIP (Markdown + JSON + photos) prêt à injecter dans Claude Code"
+                    title="Télécharger un ZIP (Markdown + JSON + photos) du ticket"
                     className="text-xs inline-flex items-center gap-1 px-2 py-1 rounded-lg border transition-all hover:opacity-80 disabled:opacity-50"
                     style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-primary)' }}>
-                    {exporting ? '…' : '⬇ Exporter pour Claude Code'}
+                    {exporting ? '…' : '⬇ Exporter'}
                   </button>
                   <button onClick={() => setSelected(null)} className="text-xl leading-none" style={{ color: 'var(--text-muted)' }}>×</button>
                 </div>
