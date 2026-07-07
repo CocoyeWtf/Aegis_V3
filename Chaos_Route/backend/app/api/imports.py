@@ -242,6 +242,24 @@ def _time_to_minutes(val) -> int | None:
     return None
 
 
+def _refuse_tenantless_import(user) -> None:
+    """Refuser un import par un compte sans société (superadmin/consolidation,
+    get_user_tenant_id=None) : les lignes cloisonnées seraient créées tenant_id=NULL
+    (invisibles à tous, puis aspirées vers le tenant par défaut au démarrage) —
+    l'incident du 2026-06-22. On impose un compte rattaché à la société cible. /
+    Block imports by a tenant-less account (would create NULL-tenant orphan rows)."""
+    from app.api.deps import get_user_tenant_id
+    if get_user_tenant_id(user) is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Import refusé : votre compte n'est rattaché à aucune société (superadmin). "
+                "Connectez-vous avec un compte de la société cible pour importer ces données, "
+                "sinon elles seraient invisibles aux utilisateurs."
+            ),
+        )
+
+
 @router.post("/time-matrix")
 async def import_time_matrix(
     file: UploadFile = File(...),
@@ -259,6 +277,9 @@ async def import_time_matrix(
     """
     if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls")):
         raise HTTPException(status_code=400, detail="Only .xlsx files are supported")
+
+    # Garde anti-orphelins tenant (distance_matrix est cloisonné) / anti-orphan guard
+    _refuse_tenantless_import(user)
 
     content = await file.read()
 
@@ -413,6 +434,9 @@ async def import_manifest(
 ):
     """Importer manifeste WMS (.xls) pour un tour / Import WMS manifest (.xls) for a tour."""
     from app.models.tour_stop import TourStop
+
+    # Garde anti-orphelins tenant (TourManifestLine est cloisonné) / anti-orphan guard
+    _refuse_tenantless_import(user)
 
     tour = await db.get(Tour, tour_id)
     if not tour:

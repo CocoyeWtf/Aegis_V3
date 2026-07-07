@@ -173,3 +173,35 @@ async def test_file_endpoints_require_auth():
         for p in paths:
             r = await ac.get(p)
             assert r.status_code in (401, 403), f"{p} accessible sans auth ({r.status_code})"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# M3 — db.get() sur un modèle TenantMixin est-il filtré ? (identity-map)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_db_get_is_tenant_filtered_in_fresh_session(db_session):
+    """Dans une SESSION FRAÎCHE (comme une vraie requête HTTP), Session.get(Model, id)
+    sur un modèle TenantMixin ne doit PAS renvoyer la ligne d'un autre tenant.
+    Résout la question du bypass via l'identity-map soulevée à l'audit."""
+    from app.database import async_session
+    from app.models.distance_matrix import DistanceMatrix
+
+    ta = Tenant(code=f"GA{uuid.uuid4().hex[:4]}", name="GA")
+    tb = Tenant(code=f"GB{uuid.uuid4().hex[:4]}", name="GB")
+    db_session.add_all([ta, tb])
+    await db_session.commit()
+
+    set_session_tenant(db_session, ta.id)
+    dm = DistanceMatrix(origin_type="BASE", origin_id=771, destination_type="PDV",
+                        destination_id=771, distance_km=1.0, duration_minutes=1)
+    db_session.add(dm)
+    await db_session.commit()
+    did = dm.id
+    set_session_tenant(db_session, None)
+
+    # Session neuve, tenant B (identity-map vide, comme en requête réelle)
+    async with async_session() as s2:
+        set_session_tenant(s2, tb.id)
+        got = await s2.get(DistanceMatrix, did)
+    assert got is None, "FUITE : db.get() a renvoyé la ligne d'un autre tenant (identity-map)"
