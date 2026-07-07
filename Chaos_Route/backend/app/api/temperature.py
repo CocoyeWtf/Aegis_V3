@@ -190,9 +190,16 @@ async def upload_check_photo(
 async def get_check_photo(
     check_id: int,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
-    """Telecharger la photo preuve / Download proof photo."""
-    check = await db.get(TemperatureCheck, check_id)
+    """Telecharger la photo preuve / Download proof photo.
+
+    Auth + cloisonnement tenant : le lookup passe par un select filtré par le
+    tenant (TenantMixin) → une photo d'un autre tenant renvoie 404.
+    """
+    check = (await db.execute(
+        select(TemperatureCheck).where(TemperatureCheck.id == check_id)
+    )).scalar_one_or_none()
     if not check or not check.photo_path:
         raise HTTPException(status_code=404, detail="Photo non trouvee")
     file_path = Path(check.photo_path)

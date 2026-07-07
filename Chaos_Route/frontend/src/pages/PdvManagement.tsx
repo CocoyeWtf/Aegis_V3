@@ -194,6 +194,20 @@ export default function PdvManagement() {
       }
     }
 
+    /* L'endpoint plan est désormais authentifié + cloisonné tenant : on ouvre via
+       une requête blob (Bearer) plutôt qu'un <a href> qui n'enverrait pas le token. */
+    const handleViewPlan = async () => {
+      if (!planUrl) return
+      try {
+        const res = await api.get(planUrl.replace(/^\/api/, ''), { responseType: 'blob' })
+        const url = URL.createObjectURL(res.data as Blob)
+        window.open(url, '_blank', 'noopener,noreferrer')
+        setTimeout(() => URL.revokeObjectURL(url), 60000)
+      } catch {
+        alert("Impossible d'ouvrir le plan")
+      }
+    }
+
     return (
       <div
         className="rounded-lg overflow-hidden border"
@@ -208,15 +222,14 @@ export default function PdvManagement() {
         <div className="p-3 flex items-center gap-3">
           {planUrl ? (
             <>
-              <a
-                href={planUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={handleViewPlan}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:opacity-80"
                 style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
               >
                 Voir le plan
-              </a>
+              </button>
               <button
                 type="button"
                 onClick={handleDelete}

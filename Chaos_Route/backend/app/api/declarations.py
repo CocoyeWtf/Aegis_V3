@@ -15,7 +15,7 @@ from app.models.driver_declaration import DeclarationPhoto, DeclarationType, Dri
 from app.models.mobile_device import MobileDevice
 from app.models.user import User
 from app.schemas.declaration import DeclarationCreate, DeclarationPhotoRead, DeclarationRead
-from app.api.deps import get_authenticated_device, require_permission
+from app.api.deps import get_authenticated_device, get_current_user, require_permission
 
 router = APIRouter()
 
@@ -272,10 +272,21 @@ async def get_photo(
     declaration_id: int,
     photo_id: int,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
-    """Servir une photo / Serve a photo."""
-    photo = await db.get(DeclarationPhoto, photo_id)
-    if not photo or photo.declaration_id != declaration_id:
+    """Servir une photo / Serve a photo.
+
+    Auth + cloisonnement tenant : lookup via select filtré (TenantMixin) → une
+    photo d'un autre tenant renvoie 404.
+    """
+    result = await db.execute(
+        select(DeclarationPhoto).where(
+            DeclarationPhoto.id == photo_id,
+            DeclarationPhoto.declaration_id == declaration_id,
+        )
+    )
+    photo = result.scalar_one_or_none()
+    if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
 
     if not os.path.exists(photo.file_path):

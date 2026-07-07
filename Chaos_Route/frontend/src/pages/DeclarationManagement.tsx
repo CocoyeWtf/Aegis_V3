@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useApi } from '../hooks/useApi'
 import { DataTable } from '../components/data/DataTable'
 import type { Column } from '../components/data/DataTable'
+import { AuthImage } from '../components/common/AuthImage'
 import type { Declaration } from '../types'
 
 const TYPE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
@@ -214,9 +215,9 @@ export default function DeclarationManagement() {
                 </h3>
                 <div className="grid grid-cols-3 gap-2">
                   {selected.photos.map((photo) => (
-                    <img
+                    <AuthImage
                       key={photo.id}
-                      src={`/api/declarations/${selected.id}/photos/${photo.id}`}
+                      path={`/declarations/${selected.id}/photos/${photo.id}`}
                       alt={photo.filename}
                       className="rounded border object-cover w-full h-24 cursor-pointer hover:opacity-80 transition-opacity"
                       style={{ borderColor: 'var(--border-color)' }}
@@ -242,8 +243,8 @@ export default function DeclarationManagement() {
           >
             x
           </button>
-          <img
-            src={`/api/declarations/${fullscreenPhoto.declarationId}/photos/${fullscreenPhoto.photoId}`}
+          <AuthImage
+            path={`/declarations/${fullscreenPhoto.declarationId}/photos/${fullscreenPhoto.photoId}`}
             alt="Photo declaration"
             className="max-w-[90vw] max-h-[90vh] object-contain rounded"
             onClick={(e) => e.stopPropagation()}

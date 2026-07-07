@@ -5,6 +5,7 @@ import { CrudPage } from '../components/data/CrudPage'
 import type { Column } from '../components/data/DataTable'
 import type { FieldDef } from '../components/data/FormDialog'
 import { DataTable } from '../components/data/DataTable'
+import { AuthImage } from '../components/common/AuthImage'
 import { useApi } from '../hooks/useApi'
 import type { VehicleInspection, InspectionTemplate, Vehicle } from '../types'
 
@@ -210,9 +211,9 @@ function InspectionsList({ vehicles }: { vehicles: Vehicle[] }) {
                 </h3>
                 <div className="grid grid-cols-3 gap-2">
                   {selected.photos.map((photo) => (
-                    <img
+                    <AuthImage
                       key={photo.id}
-                      src={`/api/inspections/${selected.id}/photos/${photo.id}`}
+                      path={`/inspections/${selected.id}/photos/${photo.id}`}
                       alt={photo.filename}
                       className="rounded border object-cover w-full h-24"
                       style={{ borderColor: 'var(--border-color)' }}

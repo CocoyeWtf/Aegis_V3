@@ -38,7 +38,7 @@ from app.schemas.inspection import (
     InspectionTemplateRead,
     InspectionTemplateUpdate,
 )
-from app.api.deps import get_authenticated_device, require_permission
+from app.api.deps import get_authenticated_device, get_current_user, require_permission
 
 router = APIRouter()
 
@@ -195,10 +195,21 @@ async def get_inspection_photo(
     inspection_id: int,
     photo_id: int,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
-    """Servir une photo d'inspection / Serve inspection photo."""
-    photo = await db.get(InspectionPhoto, photo_id)
-    if not photo or photo.inspection_id != inspection_id:
+    """Servir une photo d'inspection / Serve inspection photo.
+
+    Auth + cloisonnement tenant : lookup via select filtré (TenantMixin) → une
+    photo d'un autre tenant renvoie 404.
+    """
+    result = await db.execute(
+        select(InspectionPhoto).where(
+            InspectionPhoto.id == photo_id,
+            InspectionPhoto.inspection_id == inspection_id,
+        )
+    )
+    photo = result.scalar_one_or_none()
+    if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
     if not os.path.exists(photo.file_path):
         raise HTTPException(status_code=404, detail="Photo file missing")

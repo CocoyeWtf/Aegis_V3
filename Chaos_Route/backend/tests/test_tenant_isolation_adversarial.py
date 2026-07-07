@@ -4,7 +4,47 @@ données du tenant B par chaque chemin cartographié — l'accès DOIT échouer.
 Rejouables en CI. Chaque test échoue si l'isolation régresse.
 """
 
+import tempfile
+import uuid
+from pathlib import Path
+
 import pytest
+from fastapi import Depends
+from sqlalchemy import select
+
+from app.database import get_db, set_session_tenant
+from app.models.tenant import Tenant
+
+
+async def _make_scoped_user(db_session, *, tenant_id, regions, perms):
+    """User non-superadmin avec rôle/permissions/régions (réplique le câblage réel)."""
+    from app.models.user import Permission, Role, User
+    role = Role(name=f"role_{uuid.uuid4().hex[:8]}")
+    role.permissions = [Permission(resource=r, action=a) for (r, a) in perms]
+    db_session.add(role)
+    await db_session.commit()
+    u = User(
+        username=f"u_{uuid.uuid4().hex[:8]}", email=f"{uuid.uuid4().hex[:8]}@iso.test",
+        hashed_password="x", is_active=True, is_superadmin=False, tenant_id=tenant_id,
+    )
+    u.roles = [role]
+    u.regions = list(regions)
+    db_session.add(u)
+    await db_session.commit()
+    u = (await db_session.execute(select(User).where(User.id == u.id))).scalar_one()
+    _ = [(p.resource, p.action) for ro in u.roles for p in ro.permissions]
+    _ = [r.id for r in u.regions]
+    return u
+
+
+def _override_current_user(user):
+    """Override get_current_user reproduisant la pose du tenant sur la session."""
+    from app.api.deps import get_user_tenant_id
+
+    async def _dep(db=Depends(get_db)):
+        set_session_tenant(db, get_user_tenant_id(user))
+        return user
+    return _dep
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -60,3 +100,76 @@ async def test_ws_broadcast_requires_tenant_id():
     mgr = TrackingConnectionManager()
     with pytest.raises(TypeError):
         await mgr.broadcast({"type": "x"})  # type: ignore[call-arg]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# C2 — Endpoints fichiers : auth requise + cloisonnement tenant
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_temperature_photo_is_tenant_scoped(db_session, test_region):
+    """Un user du tenant B ne doit PAS pouvoir récupérer la photo d'un contrôle
+    température du tenant A (404) ; le propriétaire (tenant A) l'obtient (200)."""
+    from httpx import ASGITransport, AsyncClient
+    from app.api.deps import get_current_user
+    from app.main import app
+    from app.models.temperature_check import TemperatureCheck, TempCheckpoint
+
+    ta = Tenant(code=f"TA{uuid.uuid4().hex[:4]}", name="Tenant TA")
+    tb = Tenant(code=f"TB{uuid.uuid4().hex[:4]}", name="Tenant TB")
+    db_session.add_all([ta, tb])
+    await db_session.commit()
+
+    # Fichier photo réel + contrôle température stampé tenant A
+    tmp = Path(tempfile.gettempdir()) / f"tc_{uuid.uuid4().hex[:8]}.jpg"
+    tmp.write_bytes(b"\xff\xd8\xff\xe0JFIF-fake")
+    set_session_tenant(db_session, ta.id)
+    check = TemperatureCheck(
+        tour_id=1, checkpoint=TempCheckpoint.DEPARTURE_CHECK, temperature=4.0,
+        timestamp="2026-07-08T08:00:00", photo_path=str(tmp),
+    )
+    db_session.add(check)
+    await db_session.commit()
+    check_id = check.id
+    set_session_tenant(db_session, None)
+
+    user_b = await _make_scoped_user(db_session, tenant_id=tb.id, regions=[test_region],
+                                     perms=[("temperature", "read")])
+    user_a = await _make_scoped_user(db_session, tenant_id=ta.id, regions=[test_region],
+                                     perms=[("temperature", "read")])
+    try:
+        transport = ASGITransport(app=app)
+        # Tenant B → 404 (cloisonné) / cross-tenant blocked
+        app.dependency_overrides[get_current_user] = _override_current_user(user_b)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            leak = await ac.get(f"/api/temperature/checks/{check_id}/photo")
+        assert leak.status_code == 404, f"FUITE cross-tenant photo temperature: {leak.status_code}"
+        # Tenant A (propriétaire) → 200 / owner gets it
+        app.dependency_overrides[get_current_user] = _override_current_user(user_a)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            own = await ac.get(f"/api/temperature/checks/{check_id}/photo")
+        assert own.status_code == 200, own.text
+    finally:
+        app.dependency_overrides.clear()
+        tmp.unlink(missing_ok=True)
+
+
+@pytest.mark.asyncio
+async def test_file_endpoints_require_auth():
+    """Sans authentification, les endpoints fichiers ne servent RIEN (plus de
+    récupération anonyme par énumération d'ID)."""
+    from httpx import ASGITransport, AsyncClient
+    from app.main import app
+
+    app.dependency_overrides.clear()  # aucun override → vraie sécurité active
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        paths = [
+            "/api/temperature/checks/1/photo",
+            "/api/declarations/1/photos/1",
+            "/api/inspections/1/photos/1",
+            "/api/pdvs/plans/whatever.pdf",
+        ]
+        for p in paths:
+            r = await ac.get(p)
+            assert r.status_code in (401, 403), f"{p} accessible sans auth ({r.status_code})"

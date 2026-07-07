@@ -16,7 +16,7 @@ from app.models.volume import Volume
 from app.models.base_logistics import BaseLogistics
 from app.models.user import User
 from app.schemas.pdv import PDVCreate, PDVRead, PDVUpdate
-from app.api.deps import require_permission, get_user_region_ids, enforce_pdv_scope
+from app.api.deps import require_permission, get_user_region_ids, enforce_pdv_scope, get_current_user
 
 router = APIRouter()
 
@@ -258,11 +258,25 @@ async def delete_site_plan(
 
 
 @router.get("/plans/{filename}")
-async def download_site_plan(filename: str):
-    """Telecharger un plan du site / Download site plan."""
+async def download_site_plan(
+    filename: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Telecharger un plan du site / Download site plan.
+
+    Auth + cloisonnement tenant : le plan n'est servi que s'il est référencé par
+    un PDV du tenant de l'utilisateur (select filtré TenantMixin) → un plan d'un
+    autre tenant renvoie 404.
+    """
     safe_name = Path(filename).name
     if safe_name != filename or ".." in filename:
         raise HTTPException(status_code=400, detail="Nom de fichier invalide")
+    owner = (await db.execute(
+        select(PDV.id).where(PDV.site_plan_url == f"/api/pdvs/plans/{safe_name}").limit(1)
+    )).scalar_one_or_none()
+    if owner is None:
+        raise HTTPException(status_code=404, detail="Plan non trouvé")
     file_path = PLANS_DIR / safe_name
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail="Plan non trouvé")
