@@ -94,7 +94,8 @@ export function CreateTicketModal({ open, onClose, onCreated }: Props) {
         <div className="p-5">
           <h3 className="text-lg font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Nouveau ticket</h3>
           <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
-            Le contexte (écran, dernières actions, version, erreurs) est joint automatiquement.
+            Le contexte et le déroulé récent (écran, clics, saisies, navigation, erreurs
+            réseau, notes épinglées) sont joints automatiquement.
           </p>
 
           <div className="flex gap-2 mb-3">

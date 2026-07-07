@@ -2,6 +2,7 @@
 
 import axios from 'axios'
 import { useAuthStore } from '../stores/useAuthStore'
+import { recordNetworkError } from './supportContext'
 
 const api = axios.create({
   baseURL: '/api',
@@ -33,6 +34,13 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
+
+    // Dashcam : tracer l'échec réseau pour le diagnostic des tickets /
+    // Dashcam: record the network failure for ticket diagnosis
+    try {
+      const cfg = error.config || {}
+      recordNetworkError(cfg.method || 'get', cfg.url || '', error.response?.status ?? 'réseau')
+    } catch { /* ignore */ }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       const { refreshToken, setTokens, logout } = useAuthStore.getState()

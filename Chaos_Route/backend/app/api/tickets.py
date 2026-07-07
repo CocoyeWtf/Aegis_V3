@@ -104,11 +104,29 @@ def _ticket_markdown(ticket: Ticket, photo_arcnames: list[tuple[str, TicketPhoto
             for err in errors:
                 lines.append(f"  - `{err}`")
         # Toute clé de contexte non listée ci-dessus (robustesse aux évolutions)
-        known = set(labels) | {"breadcrumb", "recent_errors"}
+        known = set(labels) | {"breadcrumb", "recent_errors", "session"}
         for key, val in ctx.items():
             if key not in known and val not in (None, "", [], {}):
                 lines.append(f"- **{key}** : {val}")
         lines.append("")
+
+        # Déroulé de la session (dashcam) : ce que l'utilisateur a fait juste avant
+        # le signalement — clics, saisies masquées, navigation, erreurs, échecs
+        # réseau, notes épinglées. / Session timeline (dashcam) before the report.
+        session = ctx.get("session")
+        if isinstance(session, list) and session:
+            type_label = {
+                "route": "🧭 écran", "click": "🖱️ clic", "input": "⌨️ saisie",
+                "network": "🌐 réseau", "error": "❌ erreur", "note": "📌 note",
+            }
+            lines.append("## Déroulé de la session (dashcam, avant le signalement)")
+            lines.append("")
+            for ev in session:
+                if not isinstance(ev, dict):
+                    continue
+                lbl = type_label.get(ev.get("type", ""), ev.get("type", ""))
+                lines.append(f"- **t-{ev.get('ago_s')}s** · {lbl} — {ev.get('msg', '')}")
+            lines.append("")
 
     if photo_arcnames:
         lines.append("## Captures d'écran")
