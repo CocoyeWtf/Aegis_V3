@@ -3,6 +3,7 @@
    otpauth dans Google Authenticator / Aegis / FreeOTP, puis activation par code. */
 
 import { useState } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
 import api from '../../services/api'
 import { useAuthStore } from '../../stores/useAuthStore'
 
@@ -121,15 +122,28 @@ export function MfaDialog({ onClose }: Props) {
         {secret && (
           <>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Dans votre application d'authentification, ajoutez un compte par
-              <strong> saisie manuelle</strong> avec cette clé (affichée une seule fois) :
+              <strong>Scannez ce QR code</strong> avec votre application
+              d'authentification (Google Authenticator, Aegis, FreeOTP…) —
+              bouton « + » → « Scanner un QR code » :
+            </p>
+            {otpauthUri && (
+              <div className="flex justify-center py-2">
+                <div className="p-3 rounded-lg bg-white">
+                  <QRCodeSVG value={otpauthUri} size={168} />
+                </div>
+              </div>
+            )}
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Ou par <strong>saisie manuelle</strong> (« Saisir une clé de
+              configuration », type « basée sur l'heure ») avec cette clé,
+              affichée une seule fois :
             </p>
             <div className="text-sm font-mono break-all py-2 px-3 rounded-lg border" style={inputStyle}>
               {secret}
             </div>
-            {otpauthUri && (
-              <p className="text-[10px] break-all" style={{ color: 'var(--text-muted)' }}>{otpauthUri}</p>
-            )}
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Puis saisissez ci-dessous le code à 6 chiffres affiché par l'application :
+            </p>
             <input
               type="text" inputMode="numeric" placeholder="Code à 6 chiffres"
               value={code} onChange={(e) => setCode(e.target.value)}
