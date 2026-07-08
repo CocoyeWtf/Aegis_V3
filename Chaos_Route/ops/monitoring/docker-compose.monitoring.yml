@@ -1,0 +1,57 @@
+# Pile de supervision CHAOS Platform (STIME B4) : Loki + Promtail + Grafana.
+# Lancement (VPS) :
+#   docker compose -f /opt/chaos-route/ops/monitoring/docker-compose.monitoring.yml up -d
+# Grafana est accessible via Caddy : https://chaosroute.chaosmanager.tech/grafana/
+# (mot de passe admin dans /root/.grafana_admin — genere a l'installation).
+services:
+  loki:
+    image: grafana/loki:3.4.2
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki_data:/loki
+    expose:
+      - "3100"
+
+  promtail:
+    image: grafana/promtail:3.4.2
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail_positions:/positions
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    restart: unless-stopped
+    environment:
+      GF_SERVER_ROOT_URL: https://chaosroute.chaosmanager.tech/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana-datasources.yml:/etc/grafana/provisioning/datasources/loki.yml:ro
+      - /root/.grafana_admin:/run/secrets/grafana_admin:ro
+    expose:
+      - "3000"
+    depends_on:
+      - loki
+
+volumes:
+  loki_data:
+  promtail_positions:
+  grafana_data:
+
+# Rejoint le reseau du compose principal pour que Caddy atteigne grafana
+# et que promtail atteigne loki. / Joins the main compose network.
+networks:
+  default:
+    name: chaos-route_default
+    external: true
