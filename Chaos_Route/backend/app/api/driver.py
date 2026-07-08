@@ -567,6 +567,14 @@ async def submit_gps_batch(
     if not assignment_result.scalar_one_or_none():
         raise HTTPException(status_code=403, detail="Device not assigned to this tour")
 
+    # Opt-out geolocalisation (RGPD, STIME A7) : si le chauffeur a refuse le
+    # suivi, les positions sont ignorees cote serveur (defense en profondeur,
+    # meme si l'app cesse d'emettre) / GPS opt-out: drop positions server-side.
+    from app.services.consent import GPS_TRACKING, get_latest_consent
+    consent = await get_latest_consent(db, GPS_TRACKING, device_id=device.id)
+    if consent is not None and not consent.granted:
+        return {"inserted": 0, "detail": "Suivi GPS refuse par le chauffeur (opt-out)"}
+
     positions = []
     for pos in data.positions:
         gps = GPSPosition(

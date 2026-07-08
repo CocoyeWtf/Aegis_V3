@@ -15,15 +15,26 @@ import json
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.consent_record import ConsentRecord
+from app.models.mobile_device import MobileDevice
 from app.models.reception_booking import Booking, BookingCheckin, BookingStatus
 from app.models.sms_queue import SmsQueue
+from app.models.tour import Tour
 from app.models.user import User
 from app.models.audit import AuditLog
-from app.api.deps import require_permission
+from app.api.deps import get_authenticated_device, get_current_user, require_permission
+from app.services.consent import (
+    GPS_PRIVACY_NOTICE,
+    GPS_PRIVACY_NOTICE_VERSION,
+    GPS_TRACKING,
+    get_latest_consent,
+    record_consent,
+)
 
 router = APIRouter()
 
@@ -31,6 +42,194 @@ router = APIRouter()
 def _now_iso() -> str:
     from zoneinfo import ZoneInfo
     return datetime.now(ZoneInfo("Europe/Brussels")).isoformat(timespec="seconds")
+
+
+# ---------------------------------------------------------------------------
+# Consentement géolocalisation (STIME A7 / action DPIA A3)
+# ---------------------------------------------------------------------------
+
+class ConsentInput(BaseModel):
+    """Choix de consentement transmis par l'app mobile / Consent choice from the app."""
+    consent_type: str = Field(default=GPS_TRACKING, max_length=50)
+    granted: bool
+    subject_name: str | None = Field(default=None, max_length=150)
+    info_version: str | None = Field(default=None, max_length=20)
+
+
+@router.get("/privacy-notice/gps")
+async def gps_privacy_notice():
+    """Notice d'information géolocalisation (publique, affichée avant le choix) /
+    GPS privacy notice (public, displayed before the choice)."""
+    return {"version": GPS_PRIVACY_NOTICE_VERSION, "text": GPS_PRIVACY_NOTICE}
+
+
+@router.post("/consent/device")
+async def record_device_consent(
+    data: ConsentInput,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """Enregistrer le choix du chauffeur sur cet appareil (append-only, tracé) /
+    Record the driver's choice on this device (append-only, audited)."""
+    record = await record_consent(
+        db,
+        consent_type=data.consent_type,
+        granted=data.granted,
+        device_id=device.id,
+        subject_name=data.subject_name,
+        info_version=data.info_version or GPS_PRIVACY_NOTICE_VERSION,
+        source="mobile_app",
+    )
+    db.add(AuditLog(
+        entity_type="consent", entity_id=record.id,
+        action="CONSENT_GRANTED" if data.granted else "CONSENT_REVOKED",
+        changes=json.dumps({
+            "type": data.consent_type, "device_id": device.id,
+            "subject": data.subject_name, "version": record.info_version,
+        }, ensure_ascii=False),
+        user=f"device:{device.id}", timestamp=_now_iso(),
+    ))
+    await db.flush()
+    return {"ok": True, "consent_type": data.consent_type, "granted": data.granted}
+
+
+@router.get("/consent/device/{consent_type}")
+async def get_device_consent(
+    consent_type: str,
+    db: AsyncSession = Depends(get_db),
+    device: MobileDevice = Depends(get_authenticated_device),
+):
+    """État courant du consentement pour cet appareil / Current consent state.
+
+    granted=None : aucun choix enregistré (l'app doit afficher la notice).
+    """
+    latest = await get_latest_consent(db, consent_type, device_id=device.id)
+    return {
+        "consent_type": consent_type,
+        "granted": latest.granted if latest else None,
+        "recorded_at": latest.recorded_at if latest else None,
+        "notice_version": GPS_PRIVACY_NOTICE_VERSION,
+    }
+
+
+@router.get("/consents/")
+async def list_consents(
+    limit: int = 200,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("parameters", "read")),
+):
+    """Journal des consentements (traçabilité) / Consent log (traceability)."""
+    result = await db.execute(
+        select(ConsentRecord).order_by(ConsentRecord.id.desc()).limit(min(limit, 1000))
+    )
+    return [
+        {
+            "id": c.id, "consent_type": c.consent_type, "granted": c.granted,
+            "device_id": c.device_id, "user_id": c.user_id,
+            "subject_name": c.subject_name, "info_version": c.info_version,
+            "source": c.source, "recorded_at": c.recorded_at,
+        }
+        for c in result.scalars().all()
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Portabilité — Art. 20 RGPD (STIME A7)
+# ---------------------------------------------------------------------------
+
+@router.get("/my-data")
+async def export_my_data(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Export self-service des données de l'utilisateur connecté (Art. 20) /
+    Self-service export of the current user's data (JSON, machine-readable)."""
+    # Journal d'audit : actions effectuées par l'utilisateur / User's own actions
+    audit_rows = (await db.execute(
+        select(AuditLog).where(AuditLog.user == user.username)
+        .order_by(AuditLog.id.desc()).limit(5000)
+    )).scalars().all()
+
+    # Tournées conduites (si chauffeur) / Tours driven (if driver)
+    tours = (await db.execute(
+        select(Tour.id, Tour.code, Tour.date).where(Tour.driver_user_id == user.id)
+        .order_by(Tour.date.desc()).limit(1000)
+    )).fetchall()
+
+    consents = (await db.execute(
+        select(ConsentRecord).where(ConsentRecord.user_id == user.id)
+        .order_by(ConsentRecord.id)
+    )).scalars().all()
+
+    return {
+        "format": "chaos-route-gdpr-export/1.0",
+        "generated_at": _now_iso(),
+        "profile": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "badge_code": user.badge_code,
+            "default_route": user.default_route,
+            "roles": [r.name for r in user.roles],
+            "regions": [r.name for r in user.regions],
+            "created_at": str(user.created_at),
+        },
+        "consents": [
+            {"type": c.consent_type, "granted": c.granted, "recorded_at": c.recorded_at}
+            for c in consents
+        ],
+        "tours_driven": [
+            {"id": t.id, "code": t.code, "date": t.date} for t in tours
+        ],
+        "activity_log": [
+            {"action": a.action, "entity": f"{a.entity_type}:{a.entity_id}", "timestamp": a.timestamp}
+            for a in audit_rows
+        ],
+    }
+
+
+@router.get("/export-driver/")
+async def export_driver_data(
+    license_plate: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_permission("parameters", "read")),
+):
+    """Export des données d'un chauffeur externe par plaque (droit d'accès /
+    portabilité pour les personnes sans compte) / External driver data export."""
+    checkins = (await db.execute(
+        select(BookingCheckin).where(BookingCheckin.license_plate == license_plate)
+    )).scalars().all()
+    if not checkins:
+        raise HTTPException(status_code=404, detail="Aucune donnée trouvée pour cette plaque")
+
+    booking_ids = [ci.booking_id for ci in checkins]
+    sms = (await db.execute(
+        select(SmsQueue).where(SmsQueue.booking_id.in_(booking_ids))
+    )).scalars().all()
+
+    db.add(AuditLog(
+        entity_type="gdpr", entity_id=0, action="EXPORT_DRIVER_DATA",
+        changes=json.dumps({"plate": license_plate, "checkins": len(checkins)}, ensure_ascii=False),
+        user=user.username, timestamp=_now_iso(),
+    ))
+    await db.flush()
+
+    return {
+        "format": "chaos-route-gdpr-export/1.0",
+        "generated_at": _now_iso(),
+        "license_plate": license_plate,
+        "checkins": [
+            {
+                "booking_id": ci.booking_id, "driver_name": ci.driver_name,
+                "phone_number": ci.phone_number, "checkin_at": getattr(ci, "checkin_at", None),
+            }
+            for ci in checkins
+        ],
+        "sms": [
+            {"phone": s.phone, "body": s.body, "status": s.status, "sent_at": s.sent_at}
+            for s in sms
+        ],
+    }
 
 
 @router.post("/purge-personal-data/")
