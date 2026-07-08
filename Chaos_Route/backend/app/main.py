@@ -23,6 +23,7 @@ from app.api.mobile_setup import router as mobile_setup_router
 from app.config import settings
 from app.database import async_session, init_db
 from app.rate_limit import limiter
+from app.services import audit_trail  # noqa: F401 — enregistre l'audit ORM global (STIME A5)
 from app.utils.seed import seed_superadmin
 
 logger = logging.getLogger("chaos_route")
