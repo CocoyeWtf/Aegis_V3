@@ -18,9 +18,28 @@ import { COLORS } from '../../constants/config'
 import { TorchToggleButton } from '../../components/TorchToggleButton'
 import type { DriverTour, AvailableTour } from '../../types'
 
+/* Une seule verification de consentement GPS par session d'app /
+   Check GPS consent only once per app session */
+let gpsConsentChecked = false
+
 export default function TourListScreen() {
   const router = useRouter()
   const hasFeature = useDeviceStore((s) => s.hasFeature)
+  const deviceId = useDeviceStore((s) => s.deviceId)
+
+  // RGPD (STIME A7) : si aucun choix de consentement GPS n'est enregistre,
+  // afficher la notice + choix. / Show GPS consent notice if no choice recorded.
+  useEffect(() => {
+    if (gpsConsentChecked || !deviceId) return
+    gpsConsentChecked = true
+    api.get('/gdpr/consent/device/gps_tracking')
+      .then(({ data }) => {
+        if (data?.granted === null || data?.granted === undefined) {
+          router.push('/gps-consent')
+        }
+      })
+      .catch(() => { gpsConsentChecked = false })  // reessaiera au prochain montage
+  }, [deviceId, router])
   const [tours, setTours] = useState<DriverTour[]>([])
   const [availableTours, setAvailableTours] = useState<AvailableTour[]>([])
   const [loading, setLoading] = useState(false)
@@ -200,6 +219,16 @@ export default function TourListScreen() {
     <View style={styles.container}>
       <View style={styles.dateRow}>
         <Text style={styles.dateLabel}>{date}</Text>
+        {/* Accès permanent à la notice + choix GPS (RGPD) — les Réglages sont
+            réservés aux comptes, pas aux chauffeurs / Always-reachable GPS
+            consent (Settings are login-only, drivers can't reach them) */}
+        <TouchableOpacity
+          style={styles.privacyBtn}
+          onPress={() => router.push('/gps-consent')}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={styles.privacyText}>🛡 Confidentialité</Text>
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -373,9 +402,18 @@ const styles = StyleSheet.create({
   dateRow: {
     flexDirection: 'row',
     justifyContent: 'center',
+    alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+  },
+  privacyBtn: {
+    position: 'absolute',
+    right: 14,
+  },
+  privacyText: {
+    fontSize: 12,
+    color: COLORS.textMuted,
   },
   dateLabel: {
     fontSize: 14,

@@ -28,7 +28,7 @@ GPS_PRIVACY_NOTICE = (
     "Conservation : positions brutes conservées 60 jours puis supprimées "
     "automatiquement.\n\n"
     "Vos droits : vous pouvez refuser ou retirer votre consentement à tout "
-    "moment dans l'application (Réglages → Confidentialité) ; le suivi "
+    "moment via le bouton « Confidentialité » de l'écran d'accueil ; le suivi "
     "s'arrête alors immédiatement. Droits d'accès, de rectification et "
     "d'effacement : contactez votre responsable ou le délégué à la protection "
     "des données (coordonnées au registre des traitements)."
