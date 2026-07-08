@@ -14,11 +14,13 @@
 | **A4** | ✅ **Vert** | Cookies HttpOnly/SameSite (plus aucun jeton en JS), logout à révocation serveur (jti), refresh rotatif usage unique. Tests auto. |
 | **A5** | ✅ **Vert** | Audit ORM généralisé (59 modules couverts), acteur + tenant + diff. Tests auto. |
 | **A6** | ✅ **Vert** | Table `retention_policies` + purge quotidienne + API + plancher 6 mois audit. Registre Art. 30 à jour. |
-| **A7** | ✅ Backend | Consentement GPS (opt-out effectif à l'ingestion) + notice versionnée + export Art. 20. Reste : écran mobile. |
+| **A7** | ✅ **Vert** (code) | Consentement GPS (opt-out effectif à l'ingestion) + notice versionnée + export Art. 20 + **écran mobile** (notice au 1er lancement + bouton Confidentialité permanent) — à embarquer au build 13. |
 | **B3** | 🟡 Procédure livrée | `ops/secrets/README.md` (SOPS+age, LUKS, rotation). Exécution VPS : Dominic. |
 | **B7** | ✅ MFA en service | TOTP déployé + QR d'enrôlement ; Dominic enrôlé et flux 2 étapes validé en prod (2026-07-08). **Reste** : enrôlement d'Estelle → puis activer `REQUIRE_MFA_SUPERADMIN=true` ; allowlist IP (gabarit Caddy prêt, IP à fournir). |
 | **B8** | ✅ **Vert** | CI `security.yml` (pytest 105 ✅, bandit, semgrep, pip-audit, npm audit) + Dependabot. Deps vulnérables purgées (PyJWT, shell-quote). |
-| **B4/B5/B6** | ⬜ Sprint 2 | Monitoring, WAF, HA/PRA. |
+| **B4** | ✅ **Vert (déployé)** | Loki+Promtail (logs 180 j, 6 conteneurs) + Grafana (`/grafana`) + watchdog 2 min → push ntfy (canal testé). Reste : abonner l'app ntfy (2 min) + sonde externe UptimeRobot (10 min, D). |
+| **B5** | 🟡 Décision D | Note de décision `ops/waf/README.md` — recommandation Cloudflare Free (WAF OWASP + anti-DDoS), exécution ~1 h après migration DNS. |
+| **B6** | 🟡 PRA livré | `docs/operations/PLAN_REPRISE_ACTIVITE.md` (4 scénarios, RTO/RPO, exercice consigné du 2026-07-08). Reste : S3 externe (dépend B2), exercice annuel scénario 3, 2ᵉ VPS si exigé. |
 | **C1–C4** | ⬜ Dominic | DPO, DPA, PSSI, SSO. |
 
 ## Légende
