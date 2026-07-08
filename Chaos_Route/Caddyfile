@@ -10,7 +10,15 @@ chaosroute.chaosmanager.tech {
     }
 }
 
-# Acces IP direct pour l'app mobile (API_BASE_URL=http://76.13.58.182/api)
+# Plus d'acces HTTP en clair (STIME A3) : l'IP directe redirige vers le domaine TLS.
+# L'app mobile pointe sur https://chaosroute.chaosmanager.tech/api (constants/config.ts).
+# No more cleartext HTTP: direct IP access redirects to the TLS domain.
 http://76.13.58.182 {
-    reverse_proxy app:8000
+    redir https://chaosroute.chaosmanager.tech{uri} 308
+}
+
+# Endpoint de sante local pour le healthcheck Docker (pas de TLS, pas de redirection,
+# pas de ssl_client zombie) / Local health endpoint for the Docker healthcheck.
+http://localhost {
+    respond /caddy-health "OK" 200
 }

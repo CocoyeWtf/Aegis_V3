@@ -32,10 +32,10 @@ services:
       app:
         condition: service_healthy
     healthcheck:
-      # On cible le vhost IP avec le bon Host : Caddy repond 200 via l'app, sans
-      # redirection HTTPS (donc sans handshake TLS ni ssl_client a reaper).
-      # Un simple http://localhost redirige vers :443 et echoue (pas de cert localhost).
-      test: ["CMD", "wget", "-q", "--spider", "--header=Host: 76.13.58.182", "http://localhost:80/api/"]
+      # Endpoint de sante dedie du Caddyfile (vhost http://localhost) : repond 200
+      # sans redirection HTTPS (donc sans handshake TLS ni ssl_client a reaper).
+      # Le vhost IP est desormais une redirection 308 vers le domaine TLS (STIME A3).
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/caddy-health"]
       interval: 30s
       timeout: 10s
       retries: 3
