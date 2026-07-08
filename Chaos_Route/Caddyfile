@@ -22,3 +22,30 @@ http://76.13.58.182 {
 http://localhost {
     respond /caddy-health "OK" 200
 }
+
+# Application itmexport (service independant, conteneur "itmexport" sur le meme
+# reseau Docker). Bloc auparavant ajoute a la main sur le serveur — desormais
+# versionne. / Independent itmexport app, previously hand-added on the server.
+mexprt.chaosmanager.tech {
+    reverse_proxy itmexport:3001 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+    }
+
+    log {
+        output file /var/log/caddy/itmexport.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+}
