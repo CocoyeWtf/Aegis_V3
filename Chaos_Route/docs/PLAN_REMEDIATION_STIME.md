@@ -7,7 +7,7 @@
 
 | Réf. | État | Détail |
 |---|---|---|
-| **A1** | ✅ **Vert** | Seed env-only, refus de démarrer sans mdp fort, rotation forcée 1er login. Tests auto. |
+| **A1** | ✅ **Vert** | Seed env-only, refus de démarrer sans mdp fort, rotation forcée 1er login. Tests auto. Compte `admin` historique **neutralisé en prod** le 2026-07-08 (désactivé + rétrogradé + mdp invalidé ; suppression physique impossible — FK historiques). Vérifié : `admin/admin` → 401. |
 | **A2** | ✅ **Vert** | `validate_password_strength` (12/14, 3 classes, liste noire) branché sur les 5 flux. Tests auto. |
 | **A3** | ✅ **Vert (déployé)** | 308 HTTPS vérifié en prod le 2026-07-08 ; healthcheck `/caddy-health` sain ; vhost mexprt préservé et versionné. |
 | **B1/B2** | ✅ Installé (S3 restant) | **Audit : la sauvegarde nocturne était CASSÉE** (backup.sh absent, échecs silencieux chaque nuit — cf. `ops/backup/AUDIT_2026-07-08.md`). Chaîne chiffrée installée + cron 02:30 + backup réel + **restauration testée** (21 s, 187 users). Reste : choix S3 UE (D) + clé privée au coffre. |
@@ -16,7 +16,7 @@
 | **A6** | ✅ **Vert** | Table `retention_policies` + purge quotidienne + API + plancher 6 mois audit. Registre Art. 30 à jour. |
 | **A7** | ✅ Backend | Consentement GPS (opt-out effectif à l'ingestion) + notice versionnée + export Art. 20. Reste : écran mobile. |
 | **B3** | 🟡 Procédure livrée | `ops/secrets/README.md` (SOPS+age, LUKS, rotation). Exécution VPS : Dominic. |
-| **B7** | ✅ MFA livré | TOTP RFC 6238 : enrôlement/activation/désactivation (UI Header), login 2 étapes, jeton MFA usage unique, `REQUIRE_MFA_SUPERADMIN` à activer après enrôlement. Allowlist IP : gabarit Caddy prêt (IP à fournir, décision D). |
+| **B7** | ✅ MFA en service | TOTP déployé + QR d'enrôlement ; Dominic enrôlé et flux 2 étapes validé en prod (2026-07-08). **Reste** : enrôlement d'Estelle → puis activer `REQUIRE_MFA_SUPERADMIN=true` ; allowlist IP (gabarit Caddy prêt, IP à fournir). |
 | **B8** | ✅ **Vert** | CI `security.yml` (pytest 105 ✅, bandit, semgrep, pip-audit, npm audit) + Dependabot. Deps vulnérables purgées (PyJWT, shell-quote). |
 | **B4/B5/B6** | ⬜ Sprint 2 | Monitoring, WAF, HA/PRA. |
 | **C1–C4** | ⬜ Dominic | DPO, DPA, PSSI, SSO. |
