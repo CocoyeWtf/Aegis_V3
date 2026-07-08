@@ -18,7 +18,7 @@
 set -euo pipefail
 
 # --- Configuration (surchargée par /root/.chaos_backup.env) -----------------
-COMPOSE_DIR="${COMPOSE_DIR:-/root/Chaos_Route}"
+COMPOSE_DIR="${COMPOSE_DIR:-/opt/chaos-route}"
 BACKUP_DIR="${BACKUP_DIR:-/root/backups}"
 DB_USER="${DB_USER:-cmro}"
 DB_NAME="${DB_NAME:-cmro}"

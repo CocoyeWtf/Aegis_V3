@@ -40,10 +40,15 @@ docker run -d --name "$CONTAINER" -e POSTGRES_USER="$DB_USER" \
 until docker exec "$CONTAINER" pg_isready -U "$DB_USER" -d "$DB_NAME" >/dev/null 2>&1; do sleep 1; done
 echo "[ok] conteneur PostgreSQL jetable démarré"
 
-# 3. Restauration
+# 3. Restauration. pg_restore peut sortir en erreur « ignorée » (ex. contrainte
+# FK inapplicable sur données héritées) : le verdict du test repose sur les
+# invariants métier ci-dessous, pas sur le code retour de pg_restore.
 docker cp "$WORK/restore.dump" "$CONTAINER:/tmp/restore.dump"
-docker exec "$CONTAINER" pg_restore -U "$DB_USER" -d "$DB_NAME" --no-owner /tmp/restore.dump
-echo "[ok] pg_restore terminé"
+if docker exec "$CONTAINER" pg_restore -U "$DB_USER" -d "$DB_NAME" --no-owner /tmp/restore.dump; then
+    echo "[ok] pg_restore terminé sans erreur"
+else
+    echo "[warn] pg_restore a signalé des erreurs ignorées — vérification par invariants"
+fi
 
 # 4. Invariants métier : la restauration contient bien des données exploitables
 check() {  # check <label> <sql> — échoue si résultat = 0

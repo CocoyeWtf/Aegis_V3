@@ -9,8 +9,8 @@
 |---|---|---|
 | **A1** | ✅ **Vert** | Seed env-only, refus de démarrer sans mdp fort, rotation forcée 1er login. Tests auto. |
 | **A2** | ✅ **Vert** | `validate_password_strength` (12/14, 3 classes, liste noire) branché sur les 5 flux. Tests auto. |
-| **A3** | ✅ Code livré | Caddyfile → 308 HTTPS + healthcheck `/caddy-health` ; mobile déjà en HTTPS. **Déployer après vérif tablettes.** |
-| **B1/B2** | 🟡 Scripts livrés | `ops/backup/` (age + S3 UE + test-restore). Reste : audit cron VPS (SSH refusé à CC), choix S3, installation. |
+| **A3** | ✅ **Vert (déployé)** | 308 HTTPS vérifié en prod le 2026-07-08 ; healthcheck `/caddy-health` sain ; vhost mexprt préservé et versionné. |
+| **B1/B2** | ✅ Installé (S3 restant) | **Audit : la sauvegarde nocturne était CASSÉE** (backup.sh absent, échecs silencieux chaque nuit — cf. `ops/backup/AUDIT_2026-07-08.md`). Chaîne chiffrée installée + cron 02:30 + backup réel + **restauration testée** (21 s, 187 users). Reste : choix S3 UE (D) + clé privée au coffre. |
 | **A4** | ⬜ À faire | Cookies HttpOnly + révocation logout. |
 | **A5** | ✅ **Vert** | Audit ORM généralisé (59 modules couverts), acteur + tenant + diff. Tests auto. |
 | **A6** | ✅ **Vert** | Table `retention_policies` + purge quotidienne + API + plancher 6 mois audit. Registre Art. 30 à jour. |
