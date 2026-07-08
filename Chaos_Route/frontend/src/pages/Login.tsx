@@ -20,6 +20,9 @@ export default function Login() {
   const [mustChange, setMustChange] = useState(false)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  // Second facteur TOTP (STIME B7) / TOTP second factor
+  const [mfaToken, setMfaToken] = useState<string | null>(null)
+  const [mfaCode, setMfaCode] = useState('')
 
   const finishLogin = async () => {
     // Charger le profil / Load profile
@@ -45,6 +48,12 @@ export default function Login() {
       // ne sert qu'aux indicateurs (must_change_password)
       const { data: tokens } = await api.post('/auth/login', { username, password })
 
+      // Second facteur requis (MFA actif) / Second factor required
+      if (tokens.mfa_required) {
+        setMfaToken(tokens.mfa_token)
+        return
+      }
+
       // Mot de passe initial à remplacer avant tout usage / Initial password must be replaced
       if (tokens.must_change_password) {
         setMustChange(true)
@@ -54,6 +63,29 @@ export default function Login() {
       await finishLogin()
     } catch {
       setError(t('auth.loginError'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleMfaVerify = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      const { data: tokens } = await api.post('/auth/mfa-verify', {
+        mfa_token: mfaToken,
+        code: mfaCode,
+      })
+      if (tokens.must_change_password) {
+        setMfaToken(null)
+        setMustChange(true)
+        return
+      }
+      await finishLogin()
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail
+      setError(typeof detail === 'string' ? detail : 'Code incorrect')
     } finally {
       setLoading(false)
     }
@@ -101,12 +133,58 @@ export default function Login() {
             Chaos Route
           </h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-            {mustChange ? 'Nouveau mot de passe requis' : t('auth.login')}
+            {mfaToken ? 'Code de vérification' : mustChange ? 'Nouveau mot de passe requis' : t('auth.login')}
           </p>
         </div>
 
-        {/* Rotation forcée du mot de passe / Forced password rotation */}
-        {mustChange ? (
+        {/* Second facteur TOTP / TOTP second factor (STIME B7) */}
+        {mfaToken ? (
+          <form onSubmit={handleMfaVerify} className="space-y-4">
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Saisissez le code à 6 chiffres de votre application d'authentification.
+            </p>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={mfaCode}
+              onChange={(e) => setMfaCode(e.target.value)}
+              required
+              autoFocus
+              maxLength={8}
+              className="w-full px-3 py-2 rounded-lg text-center text-lg tracking-[0.4em] border outline-none focus:ring-1"
+              style={{
+                backgroundColor: 'var(--bg-tertiary)',
+                borderColor: 'var(--border-color)',
+                color: 'var(--text-primary)',
+              }}
+            />
+            {error && (
+              <div
+                className="text-sm text-center py-2 px-3 rounded-lg"
+                style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--color-danger)' }}
+              >
+                {error}
+              </div>
+            )}
+            <button
+              type="submit"
+              disabled={loading || mfaCode.length < 6}
+              className="w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-colors disabled:opacity-50"
+              style={{ backgroundColor: 'var(--color-primary)' }}
+            >
+              {loading ? t('common.loading') : 'Vérifier'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMfaToken(null); setMfaCode(''); setError('') }}
+              className="w-full text-xs font-medium hover:underline"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Retour au login
+            </button>
+          </form>
+        ) : mustChange ? (
           <form onSubmit={handleChangePassword} className="space-y-4">
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
               Votre mot de passe initial doit être remplacé avant de continuer

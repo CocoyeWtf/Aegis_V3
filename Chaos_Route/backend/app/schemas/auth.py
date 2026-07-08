@@ -15,13 +15,37 @@ class LoginRequest(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    """Réponse avec tokens / Token response."""
-    access_token: str
-    refresh_token: str
+    """Réponse avec tokens / Token response.
+
+    Si mfa_required=True (compte avec TOTP actif, STIME B7), les jetons sont
+    vides : le client doit appeler /auth/mfa-verify avec mfa_token + code.
+    """
+    access_token: str = ""
+    refresh_token: str = ""
     token_type: str = "bearer"
     # Changement de mot de passe requis avant tout usage (ex. compte seedé) /
     # Password change required before any use (e.g. seeded account)
     must_change_password: bool = False
+    # Second facteur requis / Second factor required (STIME B7)
+    mfa_required: bool = False
+    mfa_token: str | None = None
+
+
+class MfaVerifyRequest(BaseModel):
+    """Vérification du second facteur au login / Login second-factor check."""
+    mfa_token: str
+    code: str = Field(min_length=6, max_length=8)
+
+
+class MfaActivateRequest(BaseModel):
+    """Activation de l'enrôlement TOTP / TOTP enrollment activation."""
+    code: str = Field(min_length=6, max_length=8)
+
+
+class MfaDisableRequest(BaseModel):
+    """Désactivation du TOTP (mot de passe + code exigés) / TOTP disable."""
+    password: str = Field(min_length=1, max_length=200)
+    code: str = Field(min_length=6, max_length=8)
 
 
 class RefreshRequest(BaseModel):

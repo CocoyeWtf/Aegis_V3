@@ -42,6 +42,10 @@ class User(Base):
     # mot de passe initial connu d'un tiers) / Password change required at next
     # login (seeded account, initial password known to a third party).
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
+    # MFA TOTP (STIME B7) : secret base32 (jamais journalisé ni exposé après
+    # enrôlement) + activation effective / TOTP MFA secret + enabled flag.
+    totp_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     # Société d'appartenance (multi-tenance). NULL = non assigné → traité comme le
     # tenant par défaut (Belgique). Colonne simple, hors TenantMixin : la table users
     # ne doit PAS être filtrée par le tenant courant (le login précède la résolution

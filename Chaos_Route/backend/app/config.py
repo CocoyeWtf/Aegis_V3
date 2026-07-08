@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str = "admin@chaos-route.app"
     ADMIN_PASSWORD: str = ""
 
+    # MFA (STIME B7) : exiger le TOTP pour les superadmins. Activer une fois
+    # les comptes enrôlés (sinon blocage du login superadmin sans MFA).
+    REQUIRE_MFA_SUPERADMIN: bool = False
+
     # JWT Authentication
     SECRET_KEY: str = "change-me-in-production"
     JWT_ALGORITHM: str = "HS256"

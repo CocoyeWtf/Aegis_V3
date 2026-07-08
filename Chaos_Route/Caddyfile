@@ -3,6 +3,17 @@
 }
 
 chaosroute.chaosmanager.tech {
+    # (STIME B7 — option, decision D) Restriction IP des routes d'administration.
+    # Decommenter et renseigner les IP autorisees (bureau / VPN) : les routes
+    # sensibles seront alors inaccessibles depuis toute autre adresse.
+    # @admin_api {
+    #     path /api/users* /api/roles* /api/tenants* /api/retention*
+    #     not remote_ip 203.0.113.10 198.51.100.0/24
+    # }
+    # handle @admin_api {
+    #     respond "Acces administration restreint (IP non autorisee)" 403
+    # }
+
     reverse_proxy app:8000
 
     header {

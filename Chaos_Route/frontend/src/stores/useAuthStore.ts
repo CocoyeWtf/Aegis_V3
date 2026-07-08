@@ -14,6 +14,7 @@ export interface UserInfo {
   email: string
   is_superadmin: boolean
   must_change_password?: boolean
+  mfa_enabled?: boolean
   pdv_id?: number | null
   supplier_id?: number | null
   badge_code?: string | null

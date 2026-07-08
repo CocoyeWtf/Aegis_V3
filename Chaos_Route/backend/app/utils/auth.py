@@ -95,6 +95,13 @@ def create_refresh_token(user_id: int) -> str:
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
+def create_mfa_token(user_id: int) -> str:
+    """Jeton intermédiaire MFA (5 min, usage unique via jti) / Interim MFA token (STIME B7)."""
+    expire = datetime.now(timezone.utc) + timedelta(minutes=5)
+    payload = {"sub": str(user_id), "type": "mfa", "exp": expire, "jti": uuid.uuid4().hex}
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
 def create_reset_token(user_id: int) -> str:
     """Créer un token de réinitialisation mot de passe (15 min) / Create a password reset token."""
     expire = datetime.now(timezone.utc) + timedelta(minutes=15)

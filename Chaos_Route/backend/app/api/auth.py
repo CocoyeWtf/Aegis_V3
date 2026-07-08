@@ -18,11 +18,12 @@ from app.models.audit import AuditLog
 from app.schemas.auth import (
     LoginRequest, RefreshRequest, TokenResponse,
     ChangePasswordRequest, ForgotPasswordRequest, ResetPasswordRequest,
+    MfaVerifyRequest, MfaActivateRequest, MfaDisableRequest,
 )
 from app.schemas.user import UserMe
 from app.utils.auth import (
     create_access_token, create_refresh_token, create_reset_token,
-    decode_token, verify_password, hash_password,
+    create_mfa_token, decode_token, verify_password, hash_password,
 )
 from app.api.deps import get_current_user
 from app.services.token_revocation import is_revoked, revoke_token
@@ -94,6 +95,30 @@ async def login(request: Request, response: Response, data: LoginRequest, db: As
         await db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account disabled")
 
+    # Second facteur TOTP (STIME B7) : mot de passe validé → jeton MFA
+    # intermédiaire, les vrais jetons ne sont émis qu'après /mfa-verify.
+    if user.totp_enabled:
+        db.add(AuditLog(
+            entity_type="auth", entity_id=user.id, action="LOGIN_MFA_PENDING",
+            changes=f'{{"ip":"{ip}"}}',
+            user=user.username, timestamp=now,
+        ))
+        return TokenResponse(mfa_required=True, mfa_token=create_mfa_token(user.id))
+
+    # Exigence MFA pour superadmins (activable via REQUIRE_MFA_SUPERADMIN
+    # une fois les comptes enrôlés) / Superadmin MFA requirement gate.
+    if user.is_superadmin and settings.REQUIRE_MFA_SUPERADMIN:
+        db.add(AuditLog(
+            entity_type="auth", entity_id=user.id, action="LOGIN_MFA_NOT_ENROLLED",
+            changes=f'{{"ip":"{ip}"}}',
+            user=user.username, timestamp=now,
+        ))
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="MFA obligatoire pour les comptes superadmin : contactez l'administrateur pour l'enrôlement",
+        )
+
     # Journal de connexion réussie / Log successful login
     db.add(AuditLog(
         entity_type="auth", entity_id=user.id, action="LOGIN",
@@ -145,6 +170,139 @@ async def refresh(request: Request, response: Response, data: RefreshRequest | N
         refresh_token=refresh_token,
         must_change_password=bool(user.must_change_password),
     )
+
+
+@router.post("/mfa-verify", response_model=TokenResponse)
+@limiter.limit(settings.RATE_LIMIT_LOGIN)
+async def mfa_verify(request: Request, response: Response, data: MfaVerifyRequest,
+                     db: AsyncSession = Depends(get_db)):
+    """Second facteur TOTP après login (STIME B7) / TOTP second factor after login.
+
+    Le jeton MFA est à usage unique (jti révoqué après succès).
+    """
+    import pyotp
+
+    ip = _client_ip(request)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    payload = decode_token(data.mfa_token)
+    if payload is None or payload.get("type") != "mfa" or await is_revoked(db, payload.get("jti")):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session MFA invalide ou expirée")
+
+    user = (await db.execute(select(User).where(User.id == int(payload["sub"])))).scalar_one_or_none()
+    if user is None or not user.is_active or not user.totp_enabled or not user.totp_secret:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session MFA invalide ou expirée")
+
+    if not pyotp.TOTP(user.totp_secret).verify(data.code, valid_window=1):
+        db.add(AuditLog(
+            entity_type="auth", entity_id=user.id, action="MFA_FAILED",
+            changes=f'{{"ip":"{ip}"}}', user=user.username, timestamp=now,
+        ))
+        await db.commit()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Code de vérification incorrect")
+
+    # Usage unique du jeton MFA / One-time MFA token
+    await revoke_token(db, payload, reason="mfa-used")
+
+    db.add(AuditLog(
+        entity_type="auth", entity_id=user.id, action="LOGIN",
+        changes=f'{{"ip":"{ip}","mfa":true}}', user=user.username, timestamp=now,
+    ))
+
+    access_token = create_access_token(user.id)
+    refresh_token = create_refresh_token(user.id)
+    _set_auth_cookies(response, access_token, refresh_token)
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        must_change_password=bool(user.must_change_password),
+    )
+
+
+@router.post("/mfa/enroll")
+async def mfa_enroll(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Générer le secret TOTP (étape 1 de l'enrôlement, STIME B7) /
+    Generate TOTP secret (enrollment step 1).
+
+    Le secret n'est retourné qu'à CE moment ; il n'est plus jamais exposé
+    ensuite. L'activation exige un code valide (preuve d'enrôlement).
+    """
+    import pyotp
+
+    if user.totp_enabled:
+        raise HTTPException(status_code=400, detail="MFA déjà actif : désactivez-le avant de ré-enrôler")
+
+    secret = pyotp.random_base32()
+    user.totp_secret = secret
+    await db.flush()
+
+    db.add(AuditLog(
+        entity_type="auth", entity_id=user.id, action="MFA_ENROLL_STARTED",
+        changes=f'{{"ip":"{_client_ip(request)}"}}', user=user.username,
+        timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    ))
+
+    uri = pyotp.totp.TOTP(secret).provisioning_uri(
+        name=user.username, issuer_name="Chaos RouteManager"
+    )
+    return {"secret": secret, "otpauth_uri": uri}
+
+
+@router.post("/mfa/activate")
+async def mfa_activate(
+    request: Request,
+    data: MfaActivateRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Activer le TOTP après vérification d'un premier code / Activate TOTP."""
+    import pyotp
+
+    if not user.totp_secret:
+        raise HTTPException(status_code=400, detail="Aucun enrôlement en cours : générez d'abord le secret")
+    if not pyotp.TOTP(user.totp_secret).verify(data.code, valid_window=1):
+        raise HTTPException(status_code=400, detail="Code incorrect : vérifiez votre application d'authentification")
+
+    user.totp_enabled = True
+    await db.flush()
+    db.add(AuditLog(
+        entity_type="auth", entity_id=user.id, action="MFA_ENABLED",
+        changes=f'{{"ip":"{_client_ip(request)}"}}', user=user.username,
+        timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    ))
+    return {"detail": "MFA activé : un code sera demandé à chaque connexion"}
+
+
+@router.post("/mfa/disable")
+async def mfa_disable(
+    request: Request,
+    data: MfaDisableRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Désactiver le TOTP (mot de passe + code exigés) / Disable TOTP."""
+    import pyotp
+
+    if not user.totp_enabled:
+        raise HTTPException(status_code=400, detail="MFA non actif")
+    if not verify_password(data.password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Mot de passe incorrect")
+    if not pyotp.TOTP(user.totp_secret).verify(data.code, valid_window=1):
+        raise HTTPException(status_code=400, detail="Code incorrect")
+
+    user.totp_enabled = False
+    user.totp_secret = None
+    await db.flush()
+    db.add(AuditLog(
+        entity_type="auth", entity_id=user.id, action="MFA_DISABLED",
+        changes=f'{{"ip":"{_client_ip(request)}"}}', user=user.username,
+        timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    ))
+    return {"detail": "MFA désactivé"}
 
 
 @router.post("/logout")
@@ -331,6 +489,7 @@ async def me(user: User = Depends(get_current_user)):
         email=user.email,
         is_superadmin=user.is_superadmin,
         must_change_password=bool(user.must_change_password),
+        mfa_enabled=bool(user.totp_enabled),
         pdv_id=user.pdv_id,
         supplier_id=user.supplier_id,
         badge_code=user.badge_code,

@@ -139,6 +139,7 @@ class UserMe(BaseModel):
     email: str
     is_superadmin: bool
     must_change_password: bool = False
+    mfa_enabled: bool = False
     pdv_id: int | None = None
     supplier_id: int | None = None
     badge_code: str | None = None

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { useAppStore } from '../../stores/useAppStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useMapStore } from '../../stores/useMapStore'
+import { MfaDialog } from '../auth/MfaDialog'
 import { useApi } from '../../hooks/useApi'
 import api from '../../services/api'
 import type { Country, Region, PDV, BaseLogistics } from '../../types'
@@ -26,6 +27,7 @@ export function Header() {
   const [showScope, setShowScope] = useState(false)
   const scopeRef = useRef<HTMLDivElement>(null)
   const [showPwdDialog, setShowPwdDialog] = useState(false)
+  const [showMfaDialog, setShowMfaDialog] = useState(false)
   const [pwdCurrent, setPwdCurrent] = useState('')
   const [pwdNew, setPwdNew] = useState('')
   const [pwdConfirm, setPwdConfirm] = useState('')
@@ -130,8 +132,8 @@ export function Header() {
 
   const handleChangePassword = async () => {
     setPwdError(null)
-    if (pwdNew.length < 4) {
-      setPwdError('Le nouveau mot de passe doit contenir au moins 4 caractères')
+    if (pwdNew.length < 12) {
+      setPwdError('Le nouveau mot de passe doit contenir au moins 12 caractères (14 pour un administrateur)')
       return
     }
     if (pwdNew !== pwdConfirm) {
@@ -311,6 +313,17 @@ export function Header() {
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               </button>
               <button
+                onClick={() => setShowMfaDialog(true)}
+                className="h-8 w-8 inline-flex items-center justify-center rounded-lg transition-colors hover:opacity-80"
+                style={{
+                  backgroundColor: 'var(--bg-tertiary)',
+                  color: user.mfa_enabled ? 'var(--color-primary)' : 'var(--text-secondary)',
+                }}
+                title={user.mfa_enabled ? 'MFA actif — gérer' : 'Activer la double authentification (MFA)'}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              </button>
+              <button
                 onClick={handleLogout}
                 className="h-8 inline-flex items-center px-3 rounded-lg text-xs font-medium transition-colors hover:opacity-80"
                 style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}
@@ -322,6 +335,9 @@ export function Header() {
           </>
         )}
       </div>
+
+      {/* Dialog MFA (STIME B7) */}
+      {showMfaDialog && <MfaDialog onClose={() => setShowMfaDialog(false)} />}
 
       {/* Dialog changement de mot de passe / Change password dialog */}
       {showPwdDialog && (
