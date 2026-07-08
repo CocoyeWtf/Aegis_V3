@@ -63,6 +63,7 @@ from app.api import (
     operational_alerts,
     tickets,
     tenants,
+    retention,
 )
 
 api_router = APIRouter(prefix="/api")
@@ -126,3 +127,4 @@ api_router.include_router(base_drivers.router, prefix="/base-drivers", tags=["ba
 api_router.include_router(operational_alerts.router, prefix="/alerts", tags=["alerts"])
 api_router.include_router(tickets.router, prefix="/tickets", tags=["tickets"])
 api_router.include_router(tenants.router, prefix="/tenants", tags=["tenants"])
+api_router.include_router(retention.router, prefix="/retention", tags=["retention"])

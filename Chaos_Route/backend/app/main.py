@@ -3,6 +3,7 @@ Point d'entree FastAPI / FastAPI entry point.
 Chaos RouteManager - Optimiseur de tournees VRP.
 """
 
+import asyncio
 import logging
 import uuid
 from contextlib import asynccontextmanager
@@ -47,7 +48,14 @@ async def lifespan(app: FastAPI):
     async with async_session() as session:
         await seed_inspection_templates(session)
         await session.commit()
+    # Retention (STIME A6) : politiques par defaut + purge quotidienne /
+    # Retention: default policies + daily purge background task
+    from app.services.retention import ensure_default_policies, retention_scheduler
+    async with async_session() as session:
+        await ensure_default_policies(session)
+    retention_task = asyncio.create_task(retention_scheduler())
     yield
+    retention_task.cancel()
 
 
 # 3C. Desactiver Swagger en production / Disable Swagger in production
