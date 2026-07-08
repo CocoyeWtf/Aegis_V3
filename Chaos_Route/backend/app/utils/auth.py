@@ -7,7 +7,8 @@ Password hashing and JWT token management.
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError
 
 from app.config import settings
 
@@ -101,5 +102,5 @@ def decode_token(token: str) -> dict | None:
     """Décoder un token JWT / Decode a JWT token. Returns None if invalid."""
     try:
         return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
-    except JWTError:
+    except InvalidTokenError:
         return None

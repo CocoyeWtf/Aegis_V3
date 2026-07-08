@@ -10,7 +10,9 @@ aiosqlite>=0.20
 asyncpg>=0.30
 
 # Authentication
-python-jose[cryptography]>=3.3
+# PyJWT remplace python-jose : dependance ecdsa vulnerable sans correctif
+# (PYSEC-2026-1325) et projet non maintenu / PyJWT replaces python-jose
+PyJWT>=2.9
 bcrypt>=4.0
 
 # Rate Limiting
