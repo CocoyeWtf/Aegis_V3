@@ -1,0 +1,80 @@
+# CI securite CHAOS Platform (STIME B8) : tests + SAST + audit des dependances.
+# Le pipeline BLOQUE si une vulnerabilite critique ou un defaut SAST severe est
+# detecte. Complete tenant-isolation.yml (matrice adverse multi-tenant).
+
+name: Security & tests
+
+on:
+  push:
+    paths:
+      - 'Chaos_Route/**'
+      - '.github/workflows/security.yml'
+  pull_request:
+    paths:
+      - 'Chaos_Route/**'
+
+jobs:
+  backend-tests:
+    name: Tests backend (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Chaos_Route/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install deps
+        run: pip install -r requirements.txt
+      - name: Run test suite
+        run: python -m pytest -q tests
+
+  sast:
+    name: SAST (bandit + semgrep)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Chaos_Route/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Bandit (severite haute bloquante)
+        run: |
+          pip install bandit
+          bandit -r app --severity-level high
+      - name: Semgrep (regles securite Python)
+        # avoid-sqlalchemy-text exclue : l'auto-migration (database.py) construit
+        # du DDL avec text() a partir des metadonnees des modeles SQLAlchemy,
+        # jamais d'entree utilisateur (faux positif contextuel).
+        run: |
+          pip install semgrep
+          semgrep scan --config p/python --config p/security-audit --error \
+            --exclude-rule python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text \
+            --exclude venv app
+
+  dependency-audit:
+    name: Audit dependances (pip-audit + npm audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: pip-audit (backend)
+        working-directory: Chaos_Route/backend
+        run: |
+          pip install pip-audit
+          # Bloque sur toute vulnerabilite connue avec correctif disponible
+          pip-audit -r requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: npm audit (frontend, critiques bloquantes)
+        working-directory: Chaos_Route/frontend
+        run: npm audit --audit-level=critical
+      - name: npm audit (mobile, critiques bloquantes)
+        working-directory: Chaos_Route/mobile
+        run: npm audit --audit-level=critical

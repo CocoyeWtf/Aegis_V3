@@ -1,0 +1,26 @@
+# Veille automatique des dependances (STIME B8) : PR hebdomadaires pour les
+# mises a jour de securite backend / frontend / mobile / actions CI.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /Chaos_Route/backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /Chaos_Route/frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /Chaos_Route/mobile
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
