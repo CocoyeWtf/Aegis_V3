@@ -38,6 +38,10 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_superadmin: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Changement de mot de passe obligatoire au prochain login (compte seedé,
+    # mot de passe initial connu d'un tiers) / Password change required at next
+    # login (seeded account, initial password known to a third party).
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
     # Société d'appartenance (multi-tenance). NULL = non assigné → traité comme le
     # tenant par défaut (Belgique). Colonne simple, hors TenantMixin : la table users
     # ne doit PAS être filtrée par le tenant courant (le login précède la résolution

@@ -25,6 +25,7 @@ from app.utils.auth import (
     decode_token, verify_password, hash_password,
 )
 from app.api.deps import get_current_user
+from app.utils.password_policy import PasswordPolicyError, validate_password_strength
 
 router = APIRouter()
 
@@ -75,6 +76,7 @@ async def login(request: Request, data: LoginRequest, db: AsyncSession = Depends
     return TokenResponse(
         access_token=create_access_token(user.id),
         refresh_token=create_refresh_token(user.id),
+        must_change_password=bool(user.must_change_password),
     )
 
 
@@ -109,7 +111,15 @@ async def change_password(
     if not verify_password(data.current_password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Mot de passe actuel incorrect")
 
+    # Compte à privilèges → exigence renforcée (le schéma a déjà validé la base)
+    if user.is_superadmin:
+        try:
+            validate_password_strength(data.new_password, privileged=True)
+        except PasswordPolicyError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
     user.hashed_password = hash_password(data.new_password)
+    user.must_change_password = False
     await db.flush()
 
     ip = _client_ip(request)
@@ -206,7 +216,15 @@ async def reset_password(request: Request, data: ResetPasswordRequest, db: Async
     if not user or not user.is_active:
         raise HTTPException(status_code=400, detail="Lien invalide ou expiré")
 
+    # Compte à privilèges → exigence renforcée (le schéma a déjà validé la base)
+    if user.is_superadmin:
+        try:
+            validate_password_strength(data.new_password, privileged=True)
+        except PasswordPolicyError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
     user.hashed_password = hash_password(data.new_password)
+    user.must_change_password = False
     await db.flush()
 
     ip = _client_ip(request)
@@ -233,6 +251,7 @@ async def me(user: User = Depends(get_current_user)):
         username=user.username,
         email=user.email,
         is_superadmin=user.is_superadmin,
+        must_change_password=bool(user.must_change_password),
         pdv_id=user.pdv_id,
         supplier_id=user.supplier_id,
         badge_code=user.badge_code,

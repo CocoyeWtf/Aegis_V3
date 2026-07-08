@@ -15,6 +15,7 @@ from app.models.region import Region
 from app.schemas.user import UserCreate, UserRead, UserUpdate
 from app.api.deps import require_permission
 from app.utils.auth import hash_password
+from app.utils.password_policy import PasswordPolicyError, validate_password_strength
 
 router = APIRouter()
 
@@ -109,7 +110,14 @@ async def update_user(
     if data.email is not None:
         target.email = data.email
     if data.password is not None:
+        # Cible superadmin → exigence renforcée (le schéma ne connaît pas la cible)
+        if target.is_superadmin:
+            try:
+                validate_password_strength(data.password, privileged=True)
+            except PasswordPolicyError as e:
+                raise HTTPException(status_code=400, detail=str(e))
         target.hashed_password = hash_password(data.password)
+        target.must_change_password = False
     if data.is_active is not None:
         target.is_active = data.is_active
     if data.is_superadmin is not None:

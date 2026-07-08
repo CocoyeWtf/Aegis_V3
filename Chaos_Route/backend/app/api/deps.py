@@ -5,7 +5,7 @@ Injectées dans les routes via Depends().
 
 from datetime import datetime, timezone
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,8 +24,16 @@ CONSOLIDATION_ACTION = "read"
 
 security = HTTPBearer()
 
+# Chemins accessibles quand le changement de mot de passe est obligatoire /
+# Paths reachable while a password change is required.
+_MUST_CHANGE_PASSWORD_EXEMPT_PATHS = frozenset({
+    "/api/auth/me",
+    "/api/auth/change-password",
+})
+
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
 ) -> User:
@@ -40,6 +48,15 @@ async def get_current_user(
 
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+
+    # Compte avec rotation de mot de passe imposée (ex. superadmin seedé) :
+    # bloquer tout sauf la consultation du profil et le changement de mot de passe /
+    # Forced password rotation: block everything but profile read and password change.
+    if user.must_change_password and request.url.path not in _MUST_CHANGE_PASSWORD_EXEMPT_PATHS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Changement de mot de passe requis avant toute autre action",
+        )
 
     # Positionner le tenant courant sur la session : toutes les requêtes suivantes
     # de cette requête HTTP seront filtrées automatiquement (None = pas de filtre,

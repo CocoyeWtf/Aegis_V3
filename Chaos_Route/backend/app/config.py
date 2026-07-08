@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     # CORS - origines autorisées / allowed origins
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000", "http://localhost:8081", "http://localhost:19006"]
 
+    # Compte superadmin initial (seed au premier démarrage, base vide uniquement).
+    # ADMIN_PASSWORD est OBLIGATOIRE sur base vide : sans lui, refus de démarrer
+    # (plus de compte admin/admin par défaut — remédiation STIME A1).
+    # Initial superadmin account (seeded on first start with an empty DB only).
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_EMAIL: str = "admin@chaos-route.app"
+    ADMIN_PASSWORD: str = ""
+
     # JWT Authentication
     SECRET_KEY: str = "change-me-in-production"
     JWT_ALGORITHM: str = "HS256"

@@ -3,7 +3,9 @@ Schémas d'authentification / Authentication schemas.
 Login, tokens, refresh.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.utils.password_policy import validate_password_strength
 
 
 class LoginRequest(BaseModel):
@@ -17,6 +19,9 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+    # Changement de mot de passe requis avant tout usage (ex. compte seedé) /
+    # Password change required before any use (e.g. seeded account)
+    must_change_password: bool = False
 
 
 class RefreshRequest(BaseModel):
@@ -27,7 +32,12 @@ class RefreshRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     """Changement de mot de passe par l'utilisateur / User self password change."""
     current_password: str = Field(min_length=1, max_length=200)
-    new_password: str = Field(min_length=4, max_length=200)
+    new_password: str = Field(max_length=200)
+
+    @field_validator("new_password")
+    @classmethod
+    def _check_strength(cls, v: str) -> str:
+        return validate_password_strength(v)
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -38,4 +48,9 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     """Réinitialisation du mot de passe via token / Reset password via token."""
     token: str
-    new_password: str = Field(min_length=4, max_length=200)
+    new_password: str = Field(max_length=200)
+
+    @field_validator("new_password")
+    @classmethod
+    def _check_strength(cls, v: str) -> str:
+        return validate_password_strength(v)

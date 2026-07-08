@@ -5,7 +5,9 @@ CRUD + read avec permissions aplaties.
 
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator, model_validator
+
+from app.utils.password_policy import validate_password_strength
 
 
 # --- Permission ---
@@ -70,6 +72,18 @@ class UserCreate(BaseModel):
     default_route: str | None = None
     tenant_id: int | None = None  # Société d'appartenance ; appliqué par superadmin uniquement
 
+    @field_validator("password")
+    @classmethod
+    def _check_strength(cls, v: str) -> str:
+        return validate_password_strength(v)
+
+    @model_validator(mode="after")
+    def _check_privileged_strength(self) -> "UserCreate":
+        # Compte superadmin → exigence renforcée (14 caractères)
+        if self.is_superadmin:
+            validate_password_strength(self.password, privileged=True)
+        return self
+
 
 class UserUpdate(BaseModel):
     username: str | None = None
@@ -83,6 +97,21 @@ class UserUpdate(BaseModel):
     supplier_id: int | None = None
     default_route: str | None = None
     tenant_id: int | None = None  # Société d'appartenance ; appliqué par superadmin uniquement
+
+    @field_validator("password")
+    @classmethod
+    def _check_strength(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        return validate_password_strength(v)
+
+    @model_validator(mode="after")
+    def _check_privileged_strength(self) -> "UserUpdate":
+        # Promotion superadmin + nouveau mot de passe → exigence renforcée.
+        # (Cible déjà superadmin : vérifié côté endpoint, le schéma ne la connaît pas.)
+        if self.password is not None and self.is_superadmin:
+            validate_password_strength(self.password, privileged=True)
+        return self
 
 
 class UserRead(BaseModel):
@@ -109,6 +138,7 @@ class UserMe(BaseModel):
     username: str
     email: str
     is_superadmin: bool
+    must_change_password: bool = False
     pdv_id: int | None = None
     supplier_id: int | None = None
     badge_code: str | None = None
