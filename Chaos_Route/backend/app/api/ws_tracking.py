@@ -76,8 +76,10 @@ async def websocket_tracking(
     Le tenant du client est resolu depuis l'utilisateur du JWT (comme get_current_user)
     et sert de filtre a la reception.
     """
-    # Authentification JWT / JWT authentication
-    payload = decode_token(token) if token else None
+    # Authentification JWT : query param (legacy) ou cookie HttpOnly (web, STIME A4)
+    # JWT auth: query param (legacy) or HttpOnly cookie (web)
+    raw_token = token or websocket.cookies.get("access_token", "")
+    payload = decode_token(raw_token) if raw_token else None
     if payload is None or payload.get("type") != "access":
         await websocket.close(code=4001, reason="Invalid token")
         return

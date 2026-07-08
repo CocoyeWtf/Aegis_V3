@@ -25,8 +25,12 @@ class TokenResponse(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    """Requête de rafraîchissement / Refresh request."""
-    refresh_token: str
+    """Requête de rafraîchissement / Refresh request.
+
+    refresh_token optionnel : le web l'envoie via cookie HttpOnly (STIME A4),
+    le mobile continue de l'envoyer dans le corps.
+    """
+    refresh_token: str | None = None
 
 
 class ChangePasswordRequest(BaseModel):

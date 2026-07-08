@@ -22,25 +22,41 @@ from app.utils.auth import decode_token
 CONSOLIDATION_RESOURCE = "consolidation"
 CONSOLIDATION_ACTION = "read"
 
-security = HTTPBearer()
+# auto_error=False : le jeton peut aussi venir du cookie HttpOnly (web, STIME A4)
+security = HTTPBearer(auto_error=False)
 
 # Chemins accessibles quand le changement de mot de passe est obligatoire /
 # Paths reachable while a password change is required.
 _MUST_CHANGE_PASSWORD_EXEMPT_PATHS = frozenset({
     "/api/auth/me",
     "/api/auth/change-password",
+    "/api/auth/logout",
 })
 
 
 async def get_current_user(
     request: Request,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    """Extraire et valider l'utilisateur depuis le JWT / Extract and validate user from JWT."""
-    payload = decode_token(credentials.credentials)
+    """Extraire et valider l'utilisateur depuis le JWT / Extract and validate user from JWT.
+
+    Jeton accepté depuis le header Authorization (mobile/API) ou le cookie
+    HttpOnly `access_token` (web, STIME A4). Les jetons révoqués (logout)
+    sont refusés.
+    """
+    raw_token = credentials.credentials if credentials else request.cookies.get("access_token")
+    if not raw_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    payload = decode_token(raw_token)
     if payload is None or payload.get("type") != "access":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+
+    # Révocation serveur (logout) / Server-side revocation (logout)
+    from app.services.token_revocation import is_revoked
+    if await is_revoked(db, payload.get("jti")):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token revoked")
 
     user_id = int(payload["sub"])
     result = await db.execute(select(User).where(User.id == user_id))

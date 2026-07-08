@@ -4,27 +4,23 @@ import axios from 'axios'
 import { useAuthStore } from '../stores/useAuthStore'
 import { recordNetworkError } from './supportContext'
 
+/* STIME A4 : authentification par cookies HttpOnly (posés par le backend).
+   Aucun jeton n'est lisible ou stocké côté JS — withCredentials transmet les
+   cookies sur chaque requête même origine. */
 const api = axios.create({
   baseURL: '/api',
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 })
 
-/* Intercepteur requête : ajouter le token Bearer / Request interceptor: add Bearer token */
-api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().accessToken
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
-
-/* Intercepteur réponse : refresh token sur 401 / Response interceptor: refresh token on 401 */
+/* Intercepteur réponse : refresh silencieux sur 401 (cookie refresh_token) /
+   Response interceptor: silent cookie-based refresh on 401 */
 let isRefreshing = false
-let failedQueue: { resolve: (token: string) => void; reject: (err: unknown) => void }[] = []
+let failedQueue: { resolve: () => void; reject: (err: unknown) => void }[] = []
 
-const processQueue = (error: unknown, token: string | null) => {
+const processQueue = (error: unknown, ok: boolean) => {
   failedQueue.forEach((p) => {
-    if (token) p.resolve(token)
+    if (ok) p.resolve()
     else p.reject(error)
   })
   failedQueue = []
@@ -43,10 +39,10 @@ api.interceptors.response.use(
     } catch { /* ignore */ }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
-      const { refreshToken, setTokens, logout } = useAuthStore.getState()
+      const { logout } = useAuthStore.getState()
 
-      // Pas de refresh token ou c'est déjà la route auth → logout
-      if (!refreshToken || originalRequest.url?.includes('/auth/')) {
+      // Échec sur une route auth → session réellement morte → login
+      if (originalRequest.url?.includes('/auth/')) {
         logout()
         window.location.href = '/login'
         return Promise.reject(error)
@@ -55,10 +51,7 @@ api.interceptors.response.use(
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({
-            resolve: (token: string) => {
-              originalRequest.headers.Authorization = `Bearer ${token}`
-              resolve(api(originalRequest))
-            },
+            resolve: () => resolve(api(originalRequest)),
             reject,
           })
         })
@@ -68,20 +61,18 @@ api.interceptors.response.use(
       isRefreshing = true
 
       try {
-        const { data } = await axios.post('/api/auth/refresh', { refresh_token: refreshToken })
-        setTokens(data.access_token, data.refresh_token)
-        // Rafraîchir les permissions depuis le backend / Refresh permissions from backend
+        // Le cookie HttpOnly refresh_token est envoyé automatiquement ;
+        // le backend fait tourner les jetons et repose les cookies.
+        await axios.post('/api/auth/refresh', {}, { withCredentials: true })
+        // Rafraîchir les permissions depuis le backend / Refresh permissions
         try {
-          const { data: meData } = await axios.get('/api/auth/me', {
-            headers: { Authorization: `Bearer ${data.access_token}` },
-          })
+          const { data: meData } = await axios.get('/api/auth/me', { withCredentials: true })
           useAuthStore.getState().setUser(meData)
         } catch { /* non-bloquant — on continue avec les anciennes permissions */ }
-        processQueue(null, data.access_token)
-        originalRequest.headers.Authorization = `Bearer ${data.access_token}`
+        processQueue(null, true)
         return api(originalRequest)
       } catch (refreshError) {
-        processQueue(refreshError, null)
+        processQueue(refreshError, false)
         logout()
         window.location.href = '/login'
         return Promise.reject(refreshError)
@@ -93,6 +84,15 @@ api.interceptors.response.use(
     return Promise.reject(error)
   },
 )
+
+/* Déconnexion complète : révocation serveur des jetons + nettoyage local /
+   Full logout: server-side token revocation + local cleanup */
+export async function logoutEverywhere(): Promise<void> {
+  try {
+    await api.post('/auth/logout')
+  } catch { /* même en cas d'échec réseau, on nettoie localement */ }
+  useAuthStore.getState().logout()
+}
 
 /* Ajouter trailing slash pour correspondre aux routes FastAPI list/create /
 /* Add trailing slash to match FastAPI list/create routes */

@@ -21,7 +21,7 @@ export function Header() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { theme, toggleTheme, setLanguage, selectedCountryId, selectedRegionId, setSelectedRegion, setScope } = useAppStore()
-  const { user, logout } = useAuthStore()
+  const { user } = useAuthStore()
   const { setCenter, setZoom } = useMapStore()
   const [showScope, setShowScope] = useState(false)
   const scopeRef = useRef<HTMLDivElement>(null)
@@ -112,8 +112,10 @@ export function Header() {
     zoomToPoints([...pdvs.filter((p) => p.region_id === regionId), ...bases.filter((b) => b.region_id === regionId)])
   }
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    /* Révocation serveur des jetons (STIME A4) puis nettoyage local */
+    const { logoutEverywhere } = await import('../../services/api')
+    await logoutEverywhere()
     navigate('/login')
   }
 

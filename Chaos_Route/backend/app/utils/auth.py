@@ -4,6 +4,7 @@ Hashing de mots de passe et gestion des tokens JWT.
 Password hashing and JWT token management.
 """
 
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -78,16 +79,19 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def create_access_token(user_id: int) -> str:
-    """Créer un access token JWT / Create a JWT access token."""
+    """Créer un access token JWT / Create a JWT access token.
+
+    Porte un `jti` unique pour permettre la révocation serveur (STIME A4).
+    """
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {"sub": str(user_id), "type": "access", "exp": expire}
+    payload = {"sub": str(user_id), "type": "access", "exp": expire, "jti": uuid.uuid4().hex}
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
 def create_refresh_token(user_id: int) -> str:
-    """Créer un refresh token JWT / Create a JWT refresh token."""
+    """Créer un refresh token JWT / Create a JWT refresh token (avec jti révocable)."""
     expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    payload = {"sub": str(user_id), "type": "refresh", "exp": expire}
+    payload = {"sub": str(user_id), "type": "refresh", "exp": expire, "jti": uuid.uuid4().hex}
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 

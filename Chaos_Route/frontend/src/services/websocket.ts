@@ -18,14 +18,15 @@ class TrackingWebSocket {
     this.refCount++
     if (this.refCount > 1 && this.ws) return  /* déjà connecté par un autre consommateur */
 
-    const token = useAuthStore.getState().accessToken
-    if (!token) return
+    /* STIME A4 : plus de token en JS — le cookie HttpOnly access_token est
+       envoyé automatiquement avec la poignée de main WebSocket (même origine). */
+    if (!useAuthStore.getState().user) return
 
     this.shouldReconnect = true
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
-    const url = `${protocol}//${host}/ws/tracking?token=${token}`
+    const url = `${protocol}//${host}/ws/tracking`
 
     try {
       this.ws = new WebSocket(url)

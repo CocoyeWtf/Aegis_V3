@@ -172,6 +172,11 @@ async def run_retention_purge(session: AsyncSession) -> dict[str, int]:
             continue
         counts[policy.category] = await purger(session, policy.retention_days)
 
+    # Ménage technique : liste noire des jetons expirés (STIME A4) /
+    # Housekeeping: drop revocation entries for expired tokens
+    from app.services.token_revocation import purge_expired_revocations
+    counts["revoked_tokens_expired"] = await purge_expired_revocations(session)
+
     # Traçabilité : une entrée d'audit par purge / One audit entry per purge run
     session.add(AuditLog(
         entity_type="retention", entity_id=0, action="RETENTION_PURGE",

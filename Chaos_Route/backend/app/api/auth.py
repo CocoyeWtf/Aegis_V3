@@ -5,7 +5,7 @@ Login, refresh token, profil utilisateur.
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from app.config import settings
 from app.rate_limit import limiter
@@ -25,6 +25,7 @@ from app.utils.auth import (
     decode_token, verify_password, hash_password,
 )
 from app.api.deps import get_current_user
+from app.services.token_revocation import is_revoked, revoke_token
 from app.utils.password_policy import PasswordPolicyError, validate_password_strength
 
 router = APIRouter()
@@ -38,9 +39,36 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+# ---------------------------------------------------------------------------
+# Cookies HttpOnly (STIME A4) : le front web n'écrit plus les jetons en
+# localStorage (inexfiltrables par XSS). L'app mobile continue d'utiliser les
+# jetons du corps de réponse (Bearer). / HttpOnly cookies for the web front;
+# the mobile app keeps using body tokens (Bearer).
+# ---------------------------------------------------------------------------
+
+def _set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+    secure = not settings.DEBUG
+    response.set_cookie(
+        "access_token", access_token,
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        httponly=True, secure=secure, samesite="lax", path="/",
+    )
+    # Refresh limité au chemin auth (jamais envoyé sur les routes métier)
+    response.set_cookie(
+        "refresh_token", refresh_token,
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
+        httponly=True, secure=secure, samesite="strict", path="/api/auth",
+    )
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/api/auth")
+
+
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit(settings.RATE_LIMIT_LOGIN)
-async def login(request: Request, data: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(request: Request, response: Response, data: LoginRequest, db: AsyncSession = Depends(get_db)):
     """Connexion par identifiants / Login with credentials."""
     result = await db.execute(select(User).where(User.username == data.username))
     user = result.scalar_one_or_none()
@@ -73,19 +101,31 @@ async def login(request: Request, data: LoginRequest, db: AsyncSession = Depends
         user=user.username, timestamp=now,
     ))
 
+    access_token = create_access_token(user.id)
+    refresh_token = create_refresh_token(user.id)
+    _set_auth_cookies(response, access_token, refresh_token)
     return TokenResponse(
-        access_token=create_access_token(user.id),
-        refresh_token=create_refresh_token(user.id),
+        access_token=access_token,
+        refresh_token=refresh_token,
         must_change_password=bool(user.must_change_password),
     )
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh(data: RefreshRequest, db: AsyncSession = Depends(get_db)):
-    """Rafraîchir les tokens / Refresh tokens."""
-    payload = decode_token(data.refresh_token)
+async def refresh(request: Request, response: Response, data: RefreshRequest | None = None,
+                  db: AsyncSession = Depends(get_db)):
+    """Rafraîchir les tokens / Refresh tokens.
+
+    Jeton accepté depuis le corps (mobile) ou le cookie HttpOnly (web).
+    Rotation : l'ancien refresh token est révoqué à chaque usage (STIME A4).
+    """
+    raw_token = (data.refresh_token if data else None) or request.cookies.get("refresh_token")
+    payload = decode_token(raw_token) if raw_token else None
     if payload is None or payload.get("type") != "refresh":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+
+    if await is_revoked(db, payload.get("jti")):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token revoked")
 
     user_id = int(payload["sub"])
     result = await db.execute(select(User).where(User.id == user_id))
@@ -94,10 +134,49 @@ async def refresh(data: RefreshRequest, db: AsyncSession = Depends(get_db)):
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
 
+    # Rotation : un refresh token ne sert qu'une fois / One-time use refresh token
+    await revoke_token(db, payload, reason="rotation")
+
+    access_token = create_access_token(user.id)
+    refresh_token = create_refresh_token(user.id)
+    _set_auth_cookies(response, access_token, refresh_token)
     return TokenResponse(
-        access_token=create_access_token(user.id),
-        refresh_token=create_refresh_token(user.id),
+        access_token=access_token,
+        refresh_token=refresh_token,
+        must_change_password=bool(user.must_change_password),
     )
+
+
+@router.post("/logout")
+async def logout(
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Déconnexion avec révocation serveur des jetons (STIME A4) /
+    Logout with server-side token revocation."""
+    # Révoquer l'access token courant (header ou cookie) / Revoke current access token
+    auth_header = request.headers.get("authorization", "")
+    raw_access = auth_header[7:] if auth_header.lower().startswith("bearer ") else request.cookies.get("access_token")
+    access_payload = decode_token(raw_access) if raw_access else None
+    if access_payload:
+        await revoke_token(db, access_payload, reason="logout")
+
+    # Révoquer le refresh token si transmis (cookie web) / Revoke refresh if present
+    raw_refresh = request.cookies.get("refresh_token")
+    refresh_payload = decode_token(raw_refresh) if raw_refresh else None
+    if refresh_payload:
+        await revoke_token(db, refresh_payload, reason="logout")
+
+    _clear_auth_cookies(response)
+
+    db.add(AuditLog(
+        entity_type="auth", entity_id=user.id, action="LOGOUT",
+        changes=f'{{"ip":"{_client_ip(request)}"}}',
+        user=user.username, timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    ))
+    return {"detail": "Déconnecté"}
 
 
 @router.put("/change-password")

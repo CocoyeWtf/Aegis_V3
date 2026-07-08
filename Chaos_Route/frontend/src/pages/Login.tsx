@@ -11,7 +11,7 @@ import { getDefaultRoute } from '../utils/getDefaultRoute'
 export default function Login() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { setTokens, setUser } = useAuthStore()
+  const { setUser } = useAuthStore()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -41,9 +41,9 @@ export default function Login() {
     setLoading(true)
 
     try {
-      // Login
+      // Login — les jetons arrivent en cookies HttpOnly (STIME A4), le corps
+      // ne sert qu'aux indicateurs (must_change_password)
       const { data: tokens } = await api.post('/auth/login', { username, password })
-      setTokens(tokens.access_token, tokens.refresh_token)
 
       // Mot de passe initial à remplacer avant tout usage / Initial password must be replaced
       if (tokens.must_change_password) {
