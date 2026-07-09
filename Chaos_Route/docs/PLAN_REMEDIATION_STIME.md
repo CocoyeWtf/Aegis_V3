@@ -15,13 +15,24 @@
 | **A5** | ✅ **Vert** | Audit ORM généralisé (59 modules couverts), acteur + tenant + diff. Tests auto. |
 | **A6** | ✅ **Vert** | Table `retention_policies` + purge quotidienne + API + plancher 6 mois audit. Registre Art. 30 à jour. |
 | **A7** | ✅ **Vert** (code) | Consentement GPS (opt-out effectif à l'ingestion) + notice versionnée + export Art. 20 + **écran mobile** (notice au 1er lancement + bouton Confidentialité permanent) — à embarquer au build 13. |
-| **B3** | 🟡 Procédure livrée | `ops/secrets/README.md` (SOPS+age, LUKS, rotation). Exécution VPS : Dominic. |
+| **B3** | 🟡 Secrets ✅ / disque ⬜ | **SOPS exécuté en prod (2026-07-09)** : plus de `.env.production` en clair au repos, déchiffrement éphémère dans deploy.sh (testé E2E), wrapper compose, clé au coffre. Reste : chiffrement LUKS du volume base (fenêtre de maintenance à planifier). |
 | **B7** | ✅ MFA en service | TOTP déployé + QR d'enrôlement ; Dominic enrôlé et flux 2 étapes validé en prod (2026-07-08). **Reste** : enrôlement d'Estelle → puis activer `REQUIRE_MFA_SUPERADMIN=true` ; allowlist IP (gabarit Caddy prêt, IP à fournir). |
 | **B8** | ✅ **Vert** | CI `security.yml` (pytest 105 ✅, bandit, semgrep, pip-audit, npm audit) + Dependabot. Deps vulnérables purgées (PyJWT, shell-quote). |
 | **B4** | ✅ **Vert (déployé)** | Loki+Promtail (logs 180 j, 6 conteneurs) + Grafana (`/grafana`) + watchdog 2 min → push ntfy (canal testé). Reste : abonner l'app ntfy (2 min) + sonde externe UptimeRobot (10 min, D). |
 | **B5** | 🟡 Décision D | Note de décision `ops/waf/README.md` — recommandation Cloudflare Free (WAF OWASP + anti-DDoS), exécution ~1 h après migration DNS. |
 | **B6** | 🟡 PRA livré | `docs/operations/PLAN_REPRISE_ACTIVITE.md` (4 scénarios, RTO/RPO, exercice consigné du 2026-07-08). Reste : S3 externe (dépend B2), exercice annuel scénario 3, 2ᵉ VPS si exigé. |
-| **C1–C4** | ⬜ Dominic | DPO, DPA, PSSI, SSO. |
+| **C1** | 🟡 Trame livrée | `DPO_ANALYSE_DESIGNATION.md` : analyse Art. 37 (pas d'obligation stricte, référent recommandé) + trame de désignation à signer + checklist de publication. |
+| **C2** | 🟡 Registre livré | `REGISTRE_SOUS_TRAITANTS_DPA.md` : tableau des 6 ST actuels + 3 futurs, checklist de signature. Signatures : Dominic. |
+| **C3** | 🟡 Trames livrées | `PSSI_CHAOS_PLATFORM.md` (classification + règles adossées à l'implémenté) + `CHARTE_BON_USAGE.md` (avec volet géoloc/tablettes). À approuver/diffuser. |
+| **C4** | ⬜ Si demandé | SSO OIDC/SAML — uniquement si STIME l'exige. |
+
+### Prochaines actions (dans l'ordre)
+
+1. **Dominic (cette semaine)** : app ntfy + abonnement topic (2 min) · sonde UptimeRobot (10 min) · clés age au coffre (`~/.chaos-secrets/`) · approuver PSSI/charte/désignation référent · DPA Hostinger.
+2. **Semaine du 2026-07-13** : point Estelle → enrôlement MFA → CC active `REQUIRE_MFA_SUPERADMIN`.
+3. **Décisions à prendre** : contrat S3 UE (→ CC branche l'upload + périmètre photos) · Cloudflare (→ CC exécute le WAF en ~1 h) · fenêtre maintenance LUKS (→ CC pilote).
+4. **Après validation build 12 mobile** : build 13 avec l'écran de consentement GPS → test 1 tablette → flotte.
+5. **Ensuite** : exercice PRA scénario 3 (après S3) · pentest externe (hors périmètre code, une fois Sprint 0/1 stabilisés en audit).
 
 ## Légende
 
