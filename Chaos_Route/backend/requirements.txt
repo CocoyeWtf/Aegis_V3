@@ -36,5 +36,5 @@ ortools>=9.15
 
 # Testing
 pytest>=8.3
-pytest-asyncio>=0.24
+pytest-asyncio>=1.4.0
 httpx>=0.28
