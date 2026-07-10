@@ -229,16 +229,21 @@ export function Sidebar({ forceCollapsed = false }: SidebarProps) {
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
   const [showAbout, setShowAbout] = useState(false)
 
-  /* Nombre de tickets traités (résolus/clôturés) → info visible dans le menu, pour
-     que l'utilisateur sache que des tickets ont été traités. / Count of done tickets. */
+  /* Compteurs de tickets dans le menu : ouverts (orange, attire le regard) et
+     traités (vert). / Ticket counts in the menu: open (orange) + done (green). */
   const [doneTickets, setDoneTickets] = useState(0)
-  const fetchDoneTickets = () => {
+  const [openTickets, setOpenTickets] = useState(0)
+  const fetchTicketCounts = () => {
     api.get<{ status: string }[]>('/tickets/')
-      .then(({ data }) => setDoneTickets(data.filter((t) => t.status === 'RESOLVED' || t.status === 'CLOSED').length))
+      .then(({ data }) => {
+        const done = data.filter((t) => t.status === 'RESOLVED' || t.status === 'CLOSED').length
+        setDoneTickets(done)
+        setOpenTickets(data.length - done)
+      })
       .catch(() => { /* non-bloquant */ })
   }
-  useEffect(() => { fetchDoneTickets() }, [])
-  useEffect(() => { if (location.pathname === '/tickets') fetchDoneTickets() }, [location.pathname])
+  useEffect(() => { fetchTicketCounts() }, [])
+  useEffect(() => { if (location.pathname === '/tickets') fetchTicketCounts() }, [location.pathname])
 
   /* Popover pour groupes en mode collapsed / Popover for groups in collapsed mode */
   const [popoverGroup, setPopoverGroup] = useState<string | null>(null)
@@ -382,18 +387,35 @@ export function Sidebar({ forceCollapsed = false }: SidebarProps) {
                 >
                   <span className="text-base shrink-0 relative">
                     {group.icon}
-                    {group.key === 'tickets' && doneTickets > 0 && isCollapsed && (
-                      <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-success)' }} />
+                    {group.key === 'tickets' && (openTickets > 0 || doneTickets > 0) && isCollapsed && (
+                      /* Menu réduit : pastille orange si tickets ouverts (prioritaire), sinon verte */
+                      <span
+                        className="absolute -top-1 -right-1 w-2 h-2 rounded-full"
+                        style={{ backgroundColor: openTickets > 0 ? '#f97316' : 'var(--color-success)' }}
+                      />
                     )}
                   </span>
                   {!isCollapsed && <span className="truncate">{t(group.label)}</span>}
-                  {group.key === 'tickets' && doneTickets > 0 && !isCollapsed && (
-                    <span
-                      className="ml-auto shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                      style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: 'var(--color-success)' }}
-                      title={`${doneTickets} ticket(s) résolu(s) ou clôturé(s) — cliquez pour les consulter`}
-                    >
-                      ✓ {doneTickets}
+                  {group.key === 'tickets' && !isCollapsed && (openTickets > 0 || doneTickets > 0) && (
+                    <span className="ml-auto shrink-0 inline-flex items-center gap-1">
+                      {openTickets > 0 && (
+                        <span
+                          className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                          style={{ backgroundColor: 'rgba(249,115,22,0.15)', color: '#f97316' }}
+                          title={`${openTickets} ticket(s) ouvert(s) ou en cours — cliquez pour les consulter`}
+                        >
+                          ● {openTickets}
+                        </span>
+                      )}
+                      {doneTickets > 0 && (
+                        <span
+                          className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                          style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: 'var(--color-success)' }}
+                          title={`${doneTickets} ticket(s) résolu(s) ou clôturé(s)`}
+                        >
+                          ✓ {doneTickets}
+                        </span>
+                      )}
                     </span>
                   )}
                 </NavLink>
