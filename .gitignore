@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Anciennes versions / projets annexes présents dans ce dossier (non suivis)
+aegis-v3/
+Satanas/
+Satanas_V1/
+Satanas_Claude/
+ImagesContenants/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

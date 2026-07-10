@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
+import { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { downloadDir, join } from '@tauri-apps/api/path';
 import Database from "@tauri-apps/plugin-sql";
 import { LazyStore } from "@tauri-apps/plugin-store";
 import { DragEndEvent } from "@dnd-kit/core";
-import { ask } from '@tauri-apps/plugin-dialog';
+import { ask, open as openDialog } from '@tauri-apps/plugin-dialog';
 import * as XLSX from 'xlsx';
 import Sidebar, { FileNode } from "./Sidebar";
 
@@ -21,7 +21,6 @@ interface ActionItem { id: string; code: string; status: boolean; created: strin
 interface Note { id: string; path: string; tags?: string; }
 interface Ritual { id: string; name: string; target_time: string; frequency: string; category: string; created_at: string; }
 interface RitualLog { ritual_id: string; date: string; status: boolean; }
-interface EmailItem { id: string; subject: string; sender: string; sender_addr: string; received: string; body_preview: string; body_content: string; is_read: boolean; }
 
 // --- COMPOSANTS UTILITAIRES ---
 const AutoResizeTextarea = ({ value, onChange, placeholder, className, style }: { value: string, onChange: (e: any) => void, placeholder?: string, className?: string, style?: any }) => {
@@ -44,15 +43,41 @@ function generateUUID() { return crypto.randomUUID(); }
 function getTodayDate() { return toLocalISOString(new Date()); }
 async function computeContentHash(text: string): Promise<string> { const msgBuffer = new TextEncoder().encode(text); const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer); const hashArray = Array.from(new Uint8Array(hashBuffer)); return hashArray.map(b => b.toString(16).padStart(2, '0')).join(''); }
 const flattenNodes = (nodes: FileNode[]): FileNode[] => { let flat: FileNode[] = []; if (!nodes) return flat; for (const node of nodes) { flat.push(node); if (node.children && Array.isArray(node.children) && node.children.length > 0) { flat = flat.concat(flattenNodes(node.children)); } } return flat; };
-function stripHtml(html: string) { let doc = new DOMParser().parseFromString(html, 'text/html'); return doc.body.textContent || ""; }
+// --- V11.90 : RECHERCHE FLOUE (tolère fautes de frappe, accents, mots dans le désordre) ---
+const normalizeStr = (s: string) => s.toLowerCase().normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '');
+const fuzzyScore = (query: string, target: string): number => {
+  const q = normalizeStr(query.trim()); const t = normalizeStr(target);
+  if (!q) return 0;
+  const name = t.split('/').pop() || t;
+  // 1. Correspondance directe dans le nom du fichier : meilleur score
+  const idxName = name.indexOf(q);
+  if (idxName !== -1) return 1000 - idxName - (name.length - q.length) * 0.5;
+  // 2. Correspondance directe dans le chemin complet
+  const idxPath = t.indexOf(q);
+  if (idxPath !== -1) return 500 - idxPath * 0.5 - (t.length - q.length) * 0.1;
+  // 3. Plusieurs mots, ordre libre ("david rh" trouve "BE_RH_David_Wilmet")
+  const words = q.split(/\s+/).filter(w => w);
+  if (words.length > 1 && words.every(w => t.includes(w))) return 400 - (t.length - q.length) * 0.1;
+  // 4. Sous-séquence : les lettres dans l'ordre, trous permis ("bdgt" trouve "budget")
+  let ti = 0, score = 0, consecutive = 0;
+  for (const ch of q) {
+    if (ch === ' ') continue;
+    const found = t.indexOf(ch, ti);
+    if (found === -1) return -1;
+    consecutive = found === ti ? consecutive + 1 : 1;
+    const prev = found > 0 ? t[found - 1] : '/';
+    score += consecutive * 2 + (['/', '_', ' ', '-', '.'].includes(prev) ? 10 : 0);
+    ti = found + 1;
+  }
+  return score - t.length * 0.1;
+};
 
 function App() {
   const [vaultPath, setVaultPath] = useState<string | null>(null);
-  const [isStoreLoaded, setIsStoreLoaded] = useState(false);
   const [status, setStatus] = useState<string>("BOOTING...");
   const [db, setDb] = useState<Database | null>(null);
   const [syncStatus, setSyncStatus] = useState<string>("");
-  const [currentTab, setCurrentTab] = useState<'COCKPIT' | 'MASTER_PLAN' | 'MAILBOX' | 'TRACKER'>('COCKPIT');
+  const [currentTab, setCurrentTab] = useState<'COCKPIT' | 'MASTER_PLAN' | 'TRACKER'>('COCKPIT');
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [activeFile, setActiveFile] = useState<string>("");
   const [activeExtension, setActiveExtension] = useState<string>("");
@@ -94,10 +119,24 @@ function App() {
   const [newRitualFreq, setNewRitualFreq] = useState("DAILY");
   const [newRitualCat, setNewRitualCat] = useState("WORK");
 
+  // -- STATES QUICK FINDER (V11.90) --
+  const [paletteMode, setPaletteMode] = useState<'OPEN' | 'LINK' | null>(null);
+  const [paletteQuery, setPaletteQuery] = useState("");
+  const [paletteIndex, setPaletteIndex] = useState(0);
+  const [noteTags, setNoteTags] = useState<Map<string, string>>(new Map());
+  const [wikiSuggest, setWikiSuggest] = useState<{ query: string, start: number } | null>(null);
+  const [wikiIndex, setWikiIndex] = useState(0);
+  const paletteInputRef = useRef<HTMLInputElement>(null);
+
+  // -- STATES SPLIT EXPLORER (V11.90) --
+  const [splitMode, setSplitMode] = useState(false);
+  const [splitRoot, setSplitRoot] = useState<string>("");
+  const [expandedFoldersB, setExpandedFoldersB] = useState<Set<string>>(new Set());
+
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   // --- INIT ---
-  useEffect(() => { const load = async () => { try { const s = new LazyStore(STORE_PATH); const p = await s.get<string>("vault_path"); if (p) setVaultPath(p); } catch (e) { console.error(e); } finally { setIsStoreLoaded(true); } }; load(); }, []);
+  useEffect(() => { const load = async () => { try { const s = new LazyStore(STORE_PATH); const p = await s.get<string>("vault_path"); if (p) setVaultPath(p); } catch (e) { console.error(e); } }; load(); }, []);
 
   useEffect(() => {
     if (!vaultPath) return;
@@ -219,23 +258,22 @@ function App() {
   const handleVaultSelection = async (p: string) => { const s = new LazyStore(STORE_PATH); await s.set("vault_path", p); await s.save(); setVaultPath(p); };
   const handleCloseVault = async () => { if (!confirm("Fermer le Cockpit ?")) return; const s = new LazyStore(STORE_PATH); await s.set("vault_path", null); await s.save(); setVaultPath(null); };
   const handleGlobalSearch = async (query: string) => { setSearchQuery(query); if (!query || query.length < 2) { setSearchResults([]); return; } if (!db) return; try { const results = await db.select<any[]>(`SELECT path FROM notes WHERE content LIKE $1 OR path LIKE $1 OR tags LIKE $1 LIMIT 50`, [`%${query}%`]); const nodes: FileNode[] = results.map(r => ({ name: r.path.split('/').pop() || r.path, path: r.path, is_dir: false, children: [], extension: 'md', content: '' })); setSearchResults(nodes); } catch (e) { console.error("Search error:", e); } };
-  const handleOpenOutlookPortal = async () => { try { await invoke("open_outlook_window"); } catch (e) { alert("Erreur: " + e); } };
   const handlePasteFromClipboard = async () => { try { const text = await navigator.clipboard.readText(); if (!text || text.trim().length === 0) { alert("Presse-papier vide !"); return; } const lines = text.split('\n'); let title = lines[0].substring(0, 50).replace(/[^a-zA-Z0-9 ]/g, "").trim() || "Mail Importé"; if (title.length === 0) title = "Mail Importé"; const body = text; const inboxPath = "01_Inbox"; await invoke("create_folder", { path: `${vaultPath}\\${inboxPath}` }); const fileName = `${getTodayDate()}_MAIL_${title}.md`; const fullPath = `${vaultPath}\\${inboxPath}\\${fileName}`; const content = `# ${title}\n\n*Importé depuis Outlook le ${new Date().toLocaleString()}*\n\n${body}\n\n\n${METADATA_SEPARATOR}\nID: ${generateUUID()}\nTYPE: MAIL\nSTATUS: INBOX\nTAGS: email`; await invoke("create_note", { path: fullPath, content }); await handleScan(); alert(`Note créée dans Inbox :\n${fileName}`); setCurrentTab('COCKPIT'); setActiveFile(`${inboxPath}/${fileName}`); setSelectedFolder(inboxPath); parseFullFile(content, `${inboxPath}/${fileName}`); } catch (e) { alert("Erreur lors du collage : " + e); } };
   const handleExportExcel = async (actionsToExport: ActionItem[], filename: string) => { if (!actionsToExport || actionsToExport.length === 0) { alert("Rien à exporter."); return; } try { const data = actionsToExport.map(a => ({ WBS: a.code, Action: a.task, Statut: a.status ? "FAIT" : "A FAIRE", Pilote: a.owner, Deadline: a.deadline, Commentaire: a.comment, Source: a.note_path })); const ws = XLSX.utils.json_to_sheet(data); const rows: any[] = []; actionsToExport.forEach(a => { const level = a.code ? (a.code.split('.').length - 1) : 0; rows.push({ level: level, hidden: false }); }); if (!ws['!rows']) ws['!rows'] = rows; ws['!cols'] = [{ wch: 10 }, { wch: 50 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 30 }, { wch: 20 }]; const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Actions"); const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }); const cleanName = (filename || "Export").replace(/[^a-z0-9]/gi, '_'); const finalName = `AEGIS_${cleanName}_${getTodayDate()}.xlsx`; const downloadDirPath = await downloadDir(); const fullPath = await join(downloadDirPath, finalName); await invoke("save_binary_file", { path: fullPath, content: Array.from(new Uint8Array(wbout)) }); alert(`Fichier exporté dans vos Téléchargements :\n${finalName}`); } catch (e) { alert("Erreur Export : " + e); console.error(e); } };
   const sortActionsSemantic = (actions: ActionItem[]) => { return [...actions].sort((a, b) => { if (a.note_path && b.note_path && a.note_path !== b.note_path) return a.note_path!.localeCompare(b.note_path!); const partsA = a.code.split('.').map(n => parseInt(n, 10)); const partsB = b.code.split('.').map(n => parseInt(n, 10)); const len = Math.max(partsA.length, partsB.length); for (let i = 0; i < len; i++) { const valA = partsA[i] !== undefined ? partsA[i] : -1; const valB = partsB[i] !== undefined ? partsB[i] : -1; if (valA === -1) return -1; if (valB === -1) return 1; if (valA !== valB) return valA - valB; } return 0; }); };
-  const parseFullFile = (raw: string, path: string) => { let txt = raw.replace(/\r\n/g, "\n"); let m = { id: "", type: "NOTE", status: "ACTIVE", tags: "" }; let acts: ActionItem[] = []; const codes = new Set<string>(); if (txt.includes(METADATA_SEPARATOR)) { const p = txt.split(METADATA_SEPARATOR); txt = p[0]; p[1].split("\n").forEach(l => { if (l.startsWith("ID:")) m.id = l.replace("ID:", "").trim(); if (l.startsWith("TYPE:")) m.type = l.replace("TYPE:", "").trim(); if (l.startsWith("STATUS:")) m.status = l.replace("STATUS:", "").trim(); if (l.startsWith("TAGS:")) m.tags = l.replace("TAGS:", "").trim(); }); } if (txt.includes(ACTION_HEADER_MARKER)) { const p = txt.split(ACTION_HEADER_MARKER); txt = p[0]; if (p[1]) p[1].split("\n").forEach(l => { if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) { const c = l.split("|").map(x => x.trim()); if (c.length >= 7) { const code = c[1]; if (code && !codes.has(code)) { codes.add(code); acts.push({ id: generateUUID(), code: c[1], status: c[2].includes("x"), created: c[3], deadline: c[4], owner: c[5], task: c[6], comment: c[7] || "", note_path: path, collapsed: false }); } } } }); } const links: string[] = []; let match; const rgx = /\[\[(.*?)\]\]/g; while ((match = rgx.exec(txt)) !== null) links.push(match[1]); setBodyContent(txt.trim()); setMetadata(m); setLocalActions(sortActionsSemantic(acts)); setDetectedLinks(links); if (db) { findRelated(path, m.tags, db); findBacklinks(path, db); } };
+  const parseFullFile = (raw: string, path: string) => { let txt = raw.replace(/\r\n/g, "\n"); let m = { id: "", type: "NOTE", status: "ACTIVE", tags: "" }; let acts: ActionItem[] = []; const codes = new Set<string>(); if (txt.includes(METADATA_SEPARATOR)) { const p = txt.split(METADATA_SEPARATOR); txt = p[0]; p[1].split("\n").forEach(l => { if (l.startsWith("ID:")) m.id = l.replace("ID:", "").trim(); if (l.startsWith("TYPE:")) m.type = l.replace("TYPE:", "").trim(); if (l.startsWith("STATUS:")) m.status = l.replace("STATUS:", "").trim(); if (l.startsWith("TAGS:")) m.tags = l.replace("TAGS:", "").trim(); }); } if (txt.includes(ACTION_HEADER_MARKER)) { const p = txt.split(ACTION_HEADER_MARKER); txt = p[0]; if (p[1]) p[1].split("\n").forEach(l => { if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) { const c = l.split("|").map(x => x.trim()); if (c.length >= 7) { const code = c[1]; if (code && !codes.has(code)) { codes.add(code); acts.push({ id: generateUUID(), code: c[1], status: c[2].includes("x"), created: c[3], deadline: c[4], owner: c[5], task: c[6], comment: c[7] || "", note_path: path, collapsed: false }); } } } }); } const links: string[] = []; let match; const rgx = /\[\[(.*?)\]\]/g; while ((match = rgx.exec(txt)) !== null) links.push(match[1]); setBodyContent(txt.trim()); setMetadata(m); setLocalActions(sortActionsSemantic(acts)); setDetectedLinks(links); setWikiSuggest(null); if (db) { findRelated(path, m.tags, db); findBacklinks(path, db); } };
   const handleContentChange = (nc: string) => { setBodyContent(nc); setIsDirty(true); const rx = /\[\[(.*?)\]\]/g; const l: string[] = []; let m; while ((m = rx.exec(nc)) !== null) l.push(m[1]); setDetectedLinks(l); };
   const constructFullFile = (c: string, a: ActionItem[], m: NoteMetadata) => { let f = c + "\n\n"; if (a.length > 0) { const s = sortActionsSemantic(a); f += `${ACTION_HEADER_MARKER}\n| ID | Etat | Créé le | Deadline | Pilote | Action | Commentaire |\n| :--- | :---: | :--- | :--- | :--- | :--- | :--- |\n`; s.forEach(i => { f += `| ${i.code} | [${i.status ? 'x' : ' '}] | ${i.created} | ${i.deadline} | ${i.owner} | ${i.task} | ${i.comment} |\n`; }); } f += `\n\n${METADATA_SEPARATOR}\nID: ${m.id || generateUUID()}\nTYPE: ${m.type}\nSTATUS: ${m.status}\nTAGS: ${m.tags}`; return f; };
-  const handleScan = async (dbInst?: Database) => { const database = dbInst || db; if (!database) return; setSyncStatus("INDEXING..."); try { const treeNodes = await invoke<FileNode[]>("scan_vault_recursive", { root: vaultPath }); setFileTree(treeNodes.sort((a, b) => a.path.localeCompare(b.path))); const allFiles = flattenNodes(treeNodes); await database.execute("DROP TABLE IF EXISTS actions"); await database.execute("CREATE TABLE actions (id TEXT, note_path TEXT, code TEXT, status TEXT, task TEXT, owner TEXT, created TEXT, deadline TEXT, comment TEXT)"); for (const node of allFiles) { try { if (node.is_dir || !node.extension || node.extension.toLowerCase() !== "md") continue; let content = node.content.replace(/\r\n/g, "\n"); let fileId = ""; let type = "NOTE", status = "ACTIVE", tags = ""; if (content.includes(METADATA_SEPARATOR)) { const p = content.split(METADATA_SEPARATOR); const m = p[1]; if (m) { if (m.includes("ID:")) fileId = m.split("ID:")[1].split("\n")[0].trim(); if (m.includes("TYPE:")) type = m.split("TYPE:")[1].split("\n")[0].trim(); if (m.includes("STATUS:")) status = m.split("STATUS:")[1].split("\n")[0].trim(); if (m.includes("TAGS:")) tags = m.split("TAGS:")[1].split("\n")[0].trim(); } } if (fileId) { const c = await database.select<any[]>("SELECT path FROM notes WHERE id = $1 AND path != $2", [fileId, node.path]); if (c.length > 0) fileId = ""; } if (!fileId) { fileId = generateUUID(); if (content.includes(METADATA_SEPARATOR)) content = content.split(METADATA_SEPARATOR)[0].trim(); content += `\n\n${METADATA_SEPARATOR}\nID: ${fileId}\nTYPE: ${type}\nSTATUS: ${status}\nTAGS: ${tags}`; await invoke("save_note", { path: `${vaultPath}\\${node.path.replace(/\//g, '\\')}`, content }); } const hash = await computeContentHash(content); const ex = await database.select<any[]>("SELECT id FROM notes WHERE path = $1", [node.path]); if (ex.length === 0) await database.execute("INSERT INTO notes (id, path, last_synced, content, type, status, tags, content_hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", [fileId, node.path, Date.now(), content, type, status, tags, hash]); else await database.execute("UPDATE notes SET id=$1, last_synced=$2, content=$3, type=$4, status=$5, tags=$6, content_hash=$7 WHERE path=$8", [fileId, Date.now(), content, type, status, tags, hash, node.path]); const headerRegex = new RegExp(ACTION_HEADER_MARKER, 'i'); if (headerRegex.test(content)) { const p = content.split(headerRegex); if (p[1]) { const lines = p[1].split("\n"); for (const l of lines) { if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) { const c = l.split("|").map(x => x.trim()); if (c.length >= 7) { const code = c[1]; if (code) { await database.execute("INSERT INTO actions VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", [generateUUID(), node.path, code, c[2].includes("x") ? 'DONE' : 'TODO', c[6], c[5], c[3], c[4], c[7] || ""]); } } } } } } } catch (fileErr) { console.error("Skipped bad file:", node.path, fileErr); } } setSyncStatus("READY"); const acts = await database.select<any[]>("SELECT * FROM actions"); setGlobalActions(acts.map(a => ({ ...a, status: a.status === 'DONE', collapsed: false }))); setExpandedSources(new Set()); } catch (e) { setSyncStatus("ERROR"); console.error(e); } };
+  const handleScan = async (dbInst?: Database | null) => { const database = dbInst || db; if (!database) return; setSyncStatus("INDEXING..."); try { const treeNodes = await invoke<FileNode[]>("scan_vault_recursive", { root: vaultPath }); setFileTree(treeNodes.sort((a, b) => a.path.localeCompare(b.path))); const allFiles = flattenNodes(treeNodes); await database.execute("DROP TABLE IF EXISTS actions"); await database.execute("CREATE TABLE actions (id TEXT, note_path TEXT, code TEXT, status TEXT, task TEXT, owner TEXT, created TEXT, deadline TEXT, comment TEXT)"); for (const node of allFiles) { try { if (node.is_dir || !node.extension || node.extension.toLowerCase() !== "md") continue; let content = node.content.replace(/\r\n/g, "\n"); let fileId = ""; let type = "NOTE", status = "ACTIVE", tags = ""; if (content.includes(METADATA_SEPARATOR)) { const p = content.split(METADATA_SEPARATOR); const m = p[1]; if (m) { if (m.includes("ID:")) fileId = m.split("ID:")[1].split("\n")[0].trim(); if (m.includes("TYPE:")) type = m.split("TYPE:")[1].split("\n")[0].trim(); if (m.includes("STATUS:")) status = m.split("STATUS:")[1].split("\n")[0].trim(); if (m.includes("TAGS:")) tags = m.split("TAGS:")[1].split("\n")[0].trim(); } } if (fileId) { const c = await database.select<any[]>("SELECT path FROM notes WHERE id = $1 AND path != $2", [fileId, node.path]); if (c.length > 0) fileId = ""; } if (!fileId) { fileId = generateUUID(); if (content.includes(METADATA_SEPARATOR)) content = content.split(METADATA_SEPARATOR)[0].trim(); content += `\n\n${METADATA_SEPARATOR}\nID: ${fileId}\nTYPE: ${type}\nSTATUS: ${status}\nTAGS: ${tags}`; await invoke("save_note", { path: `${vaultPath}\\${node.path.replace(/\//g, '\\')}`, content }); } const hash = await computeContentHash(content); const ex = await database.select<any[]>("SELECT id FROM notes WHERE path = $1", [node.path]); if (ex.length === 0) await database.execute("INSERT INTO notes (id, path, last_synced, content, type, status, tags, content_hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", [fileId, node.path, Date.now(), content, type, status, tags, hash]); else await database.execute("UPDATE notes SET id=$1, last_synced=$2, content=$3, type=$4, status=$5, tags=$6, content_hash=$7 WHERE path=$8", [fileId, Date.now(), content, type, status, tags, hash, node.path]); const headerRegex = new RegExp(ACTION_HEADER_MARKER, 'i'); if (headerRegex.test(content)) { const p = content.split(headerRegex); if (p[1]) { const lines = p[1].split("\n"); for (const l of lines) { if (l.trim().startsWith("|") && !l.includes("---") && !l.includes("ID")) { const c = l.split("|").map(x => x.trim()); if (c.length >= 7) { const code = c[1]; if (code) { await database.execute("INSERT INTO actions VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", [generateUUID(), node.path, code, c[2].includes("x") ? 'DONE' : 'TODO', c[6], c[5], c[3], c[4], c[7] || ""]); } } } } } } } catch (fileErr) { console.error("Skipped bad file:", node.path, fileErr); } } setSyncStatus("READY"); const acts = await database.select<any[]>("SELECT * FROM actions"); setGlobalActions(acts.map(a => ({ ...a, status: a.status === 'DONE', collapsed: false }))); setExpandedSources(new Set()); } catch (e) { setSyncStatus("ERROR"); console.error(e); } };
   const findRelated = async (path: string, tags: string, d: Database) => { if (!tags) { setRelatedNotes([]); return; } const t = tags.split(/[;,]/).map(x => x.trim()).filter(x => x); if (t.length === 0) { setRelatedNotes([]); return; } let sql = "SELECT id, path, tags FROM notes WHERE path != $1 AND ("; const p: any[] = [path]; t.forEach((tag, i) => { if (i > 0) sql += " OR "; sql += `tags LIKE $${i + 2}`; p.push(`%${tag}%`); }); sql += ") LIMIT 5"; const r = await d.select<Note[]>(sql, p); setRelatedNotes(r); };
   const findBacklinks = async (path: string, d: Database) => { const n = path.split('/').pop()?.replace('.md', '') || ""; const p = path.replace('.md', ''); const r = await d.select<Note[]>("SELECT id, path FROM notes WHERE path != $1 AND (content LIKE $2 OR content LIKE $3)", [path, `%[[${p}]]%`, `%[[${n}]]%`]); setBacklinks(r); };
-  const handleRename = async () => { const target = activeFile || selectedFolder; if (!target) return; const oldName = target.split('/').pop() || ""; let newName = prompt(`Renommer "${oldName}" en :`, oldName); if (!newName || newName === oldName) return; if (target.endsWith('.md') && !newName.endsWith('.md')) { newName += '.md'; } try { await invoke("rename_item", { vaultPath, oldPath: target, newName }); if (target.endsWith('.md')) { const folder = target.includes('/') ? target.substring(0, target.lastIndexOf('/')) : ""; const newPathRel = folder ? `${folder}/${newName}` : newName; const oldLink = target.replace('.md', ''); const newLink = newPathRel.replace('.md', ''); await invoke("update_links_on_move", { vaultPath, oldPathRel: oldLink, newPathRel: newLink }); setActiveFile(newPathRel); } else { setSelectedFolder(""); } await handleScan(); } catch (e) { alert("Erreur Renommage: " + e); } };
+  const handleRename = async () => { const target = activeFile || selectedFolder; if (!target) return; const oldName = target.split('/').pop() || ""; let newName = prompt(`Renommer "${oldName}" en :`, oldName); if (!newName || newName === oldName) return; if (target.endsWith('.md') && !newName.endsWith('.md')) { newName += '.md'; } try { await invoke("rename_item", { vaultPath, oldPath: target, newName }); if (target.endsWith('.md')) { const folder = target.includes('/') ? target.substring(0, target.lastIndexOf('/')) : ""; const newPathRel = folder ? `${folder}/${newName}` : newName; const oldLink = target.replace('.md', ''); const newLink = newPathRel.replace('.md', ''); await invoke("update_links_on_move", { vaultPath, oldPathRel: oldLink, newPathRel: newLink }); setActiveFile(newPathRel); } else { const parentF = target.includes('/') ? target.substring(0, target.lastIndexOf('/')) : ""; const newFolderRel = parentF ? `${parentF}/${newName}` : newName; await invoke("update_links_on_move", { vaultPath, oldPathRel: target, newPathRel: newFolderRel }); if (activeFile && activeFile.startsWith(target + '/')) { const updatedPath = newFolderRel + activeFile.substring(target.length); if (!isDirty && updatedPath.endsWith('.md')) { await openNote(updatedPath); } else { setActiveFile(updatedPath); } } setSelectedFolder(""); } await handleScan(); } catch (e) { alert("Erreur Renommage: " + e); } };
   const handleNodeClick = async (node: FileNode) => { if (node.is_dir) { if (selectedFolder === node.path) setSelectedFolder(""); else setSelectedFolder(node.path); setActiveFile(""); } else { setActiveFile(node.path); const ext = node.path.split('.').pop()?.toLowerCase() || ""; setActiveExtension(ext); if (ext === 'md') { const parent = node.path.includes('/') ? node.path.substring(0, node.path.lastIndexOf('/')) : ""; setSelectedFolder(parent); const c = await invoke<string>("read_note", { path: `${vaultPath}\\${node.path}` }); parseFullFile(c, node.path); setIsDirty(false); } else { setBodyContent(""); setLocalActions([]); } setCurrentTab('COCKPIT'); } };
   const handleFlashNote = async () => { try { const now = new Date(); const yyyy = now.getFullYear(); const mm = String(now.getMonth() + 1).padStart(2, '0'); const dd = String(now.getDate()).padStart(2, '0'); const dateStr = `${yyyy}${mm}${dd}`; const inboxPath = "01_Inbox"; await invoke("create_folder", { path: `${vaultPath}\\${inboxPath}` }); let inc = 1; let finalName = `${dateStr}_${inc}_Note à classer.md`; while (fileTree.some(n => n.path === `${inboxPath}/${finalName}`)) { inc++; finalName = `${dateStr}_${inc}_Note à classer.md`; } const fullPath = `${vaultPath}\\${inboxPath}\\${finalName}`; const newId = generateUUID(); const content = `# ${finalName.replace('.md', '')}\n\nFlash Note créée le ${now.toLocaleString()}\n\n\n\n${METADATA_SEPARATOR}\nID: ${newId}\nTYPE: NOTE\nSTATUS: INBOX\nTAGS: `; await invoke("create_note", { path: fullPath, content }); await handleScan(); setActiveFile(`${inboxPath}/${finalName}`); setSelectedFolder(inboxPath); parseFullFile(content, `${inboxPath}/${finalName}`); setCurrentTab('COCKPIT'); } catch (e) { alert("Erreur Flash: " + e); } };
   const handleCreateNote = async () => { try { const nameInput = prompt("Nom de la nouvelle note :", "Nouvelle Note"); if (!nameInput || nameInput.trim() === "") return; let targetFolder = selectedFolder; if (!targetFolder && activeFile) { const lastSlash = activeFile.lastIndexOf('/'); if (lastSlash !== -1) { targetFolder = activeFile.substring(0, lastSlash); } } let finalName = nameInput.trim(); if (!finalName.endsWith('.md')) finalName += '.md'; const getRelPath = (name: string) => targetFolder ? `${targetFolder}/${name}` : name; let counter = 1; let baseName = finalName.replace('.md', ''); while (fileTree.some(n => n.path === getRelPath(finalName))) { finalName = `${baseName} ${counter}.md`; counter++; } const fullPath = targetFolder ? `${vaultPath}\\${targetFolder}\\${finalName}`.replace(/\//g, '\\') : `${vaultPath}\\${finalName}`; const newId = generateUUID(); const content = `# ${finalName.replace('.md', '')}\n\nCreated: ${new Date().toLocaleString()}\n\n\n\n${METADATA_SEPARATOR}\nID: ${newId}\nTYPE: NOTE\nSTATUS: ACTIVE\nTAGS: `; await invoke("create_note", { path: fullPath, content }); await handleScan(); const relativePath = getRelPath(finalName); setActiveFile(relativePath); setSelectedFolder(targetFolder); parseFullFile(content, relativePath); setCurrentTab('COCKPIT'); } catch (e) { alert("Erreur Création Note: " + e); } };
   const handleCreateFolder = async () => { const parent = selectedFolder ? `DANS ${selectedFolder}` : "à la RACINE"; const name = prompt(`Nom du nouveau dossier (${parent}) :`); if (!name) return; const path = selectedFolder ? `${selectedFolder}/${name}` : name; await invoke("create_folder", { path: `${vaultPath}\\${path.replace(/\//g, '\\')}` }); await handleScan(); };
   const handleDelete = async () => { const target = activeFile || selectedFolder; if (!target) return; const confirmation = await ask(`Confirmer la suppression de :\n"${target}" ?`, { title: 'Confirmation Requise', kind: 'warning', okLabel: 'Supprimer', cancelLabel: 'Annuler' }); if (!confirmation) return; try { if (target.endsWith('.md')) { await invoke("delete_note", { path: `${vaultPath}\\${target.replace(/\//g, '\\')}` }); } else { await invoke("delete_folder", { path: `${vaultPath}\\${target.replace(/\//g, '\\')}` }); } setActiveFile(""); setSelectedFolder(""); await handleScan(); } catch (e) { alert("Erreur: " + e); } };
-  const handleDragEnd = async (event: DragEndEvent) => { const { active, over } = event; if (!over || active.id === over.id) return; try { const activePath = active.id as string; let targetFolder = ""; if (over.id !== "ROOT_TOP" && over.id !== "ROOT_BOTTOM") { targetFolder = over.id as string; } if (activePath === targetFolder || targetFolder.startsWith(activePath + "/")) return; const currentFolder = activePath.substring(0, activePath.lastIndexOf('/')); if (currentFolder === targetFolder) return; const fullSource = `${vaultPath}\\${activePath.replace(/\//g, '\\')}`; const fullDest = targetFolder ? `${vaultPath}\\${targetFolder.replace(/\//g, '\\')}` : `${vaultPath}`; await invoke("move_file_system_entry", { sourcePath: fullSource, destinationFolder: fullDest }); const fileName = activePath.split('/').pop() || ""; const newPathRel = targetFolder ? `${targetFolder}/${fileName}` : fileName; const oldLink = activePath.replace('.md', ''); const newLink = newPathRel.replace('.md', ''); if (oldLink !== newLink) await invoke("update_links_on_move", { vaultPath, oldPathRel: oldLink, newPathRel: newLink }); if (activeFile === activePath) { setActiveFile(newPathRel); setSelectedFolder(targetFolder); } await handleScan(); } catch (e) { alert("Move Error: " + e); } };
+  const handleDragEnd = async (event: DragEndEvent) => { const { active, over } = event; if (!over || active.id === over.id) return; try { const stripPane = (s: string) => s.startsWith('B::') ? s.substring(3) : s; const activePath = stripPane(active.id as string); const rawOver = over.id as string; if (activePath === stripPane(rawOver)) return; let targetFolder = ""; if (rawOver !== "ROOT_TOP" && rawOver !== "ROOT_BOTTOM") { targetFolder = stripPane(rawOver); } if (activePath === targetFolder || targetFolder.startsWith(activePath + "/")) return; const currentFolder = activePath.substring(0, activePath.lastIndexOf('/')); if (currentFolder === targetFolder) return; const fullSource = `${vaultPath}\\${activePath.replace(/\//g, '\\')}`; const fullDest = targetFolder ? `${vaultPath}\\${targetFolder.replace(/\//g, '\\')}` : `${vaultPath}`; await invoke("move_file_system_entry", { sourcePath: fullSource, destinationFolder: fullDest }); const fileName = activePath.split('/').pop() || ""; const newPathRel = targetFolder ? `${targetFolder}/${fileName}` : fileName; const oldLink = activePath.replace('.md', ''); const newLink = newPathRel.replace('.md', ''); if (oldLink !== newLink) await invoke("update_links_on_move", { vaultPath, oldPathRel: oldLink, newPathRel: newLink }); if (activeFile === activePath) { setActiveFile(newPathRel); setSelectedFolder(targetFolder); } else if (activeFile && activeFile.startsWith(activePath + '/')) { const updatedPath = newPathRel + activeFile.substring(activePath.length); if (!isDirty && updatedPath.endsWith('.md')) { await openNote(updatedPath); } else { setActiveFile(updatedPath); } } else if (activeFile && activeFile.endsWith('.md') && !isDirty && currentTab === 'COCKPIT') { await openNote(activeFile); } await handleScan(); } catch (e) { alert("Move Error: " + e); } };
   const handleInsertLink = (node: FileNode) => { if (!activeFile) return; const ta = textAreaRef.current; if (!ta) return; const txt = `[[${node.path.replace('.md', '')}]]`; const s = ta.selectionStart; const e = ta.selectionEnd; const prev = bodyContent.charAt(s - 1); const pad = (s > 0 && prev !== ' ' && prev !== '\n') ? ' ' : ''; const n = bodyContent.substring(0, s) + pad + txt + bodyContent.substring(e); handleContentChange(n); setTimeout(() => { ta.focus(); const pos = s + pad.length + txt.length; ta.selectionStart = pos; ta.selectionEnd = pos; }, 0); };
   const toggleFolderExpand = (path: string) => { const next = new Set(expandedFolders); if (next.has(path)) next.delete(path); else next.add(path); setExpandedFolders(next); };
   const toggleSourceExpand = (source: string) => { const next = new Set(expandedSources); if (next.has(source)) next.delete(source); else next.add(source); setExpandedSources(next); };
@@ -263,24 +301,27 @@ function App() {
   const uniqueSources = Array.from(new Set(filteredActions.map(a => a.note_path || "Inconnu"))).sort();
   const handleOpenExternal = async () => { if (!activeFile || !vaultPath) return; const fullPath = `${vaultPath}\\${activeFile.replace(/\//g, '\\')}`; try { await invoke("open_file", { path: fullPath }); } catch (e) { alert("Erreur ouverture: " + e); } };
 
-  // --- RENDER HELPERS ---
-  const renderMailbox = () => {
-    return (
-      <div className="flex flex-col h-full bg-gray-900/50 text-white items-center justify-center p-20 gap-8">
-        <div className="text-center space-y-4">
-          <div className="text-6xl mb-4 text-amber-500">📧</div>
-          <h2 className="text-2xl font-bold tracking-widest text-amber-400">OUTLOOK PORTAL</h2>
-          <p className="text-gray-400 max-w-md mx-auto text-sm leading-relaxed">En raison des restrictions de sécurité de votre entreprise, Aegis utilise le mode <strong>"Portail Sécurisé"</strong>.</p>
-          <p className="text-gray-500 text-xs italic">1. Cliquez pour ouvrir Outlook.<br />2. Copiez le texte (CTRL+C).<br />3. "Coller & Créer Note" ici.</p>
-        </div>
-        <div className="flex gap-6">
-          <button onClick={handleOpenOutlookPortal} className="bg-amber-700 hover:bg-amber-600 text-white font-bold py-4 px-8 rounded-lg shadow-lg shadow-amber-900/20 transition-all flex items-center gap-3 border border-amber-600"><span>🚀</span> OPEN OUTLOOK</button>
-          <button onClick={handlePasteFromClipboard} className="bg-gray-800 hover:bg-gray-700 text-green-400 font-bold py-4 px-8 rounded-lg shadow-lg border border-gray-700 transition-all flex items-center gap-3"><span>📋</span> COLLER & CRÉER NOTE</button>
-        </div>
-      </div>
-    );
-  };
+  // --- V11.90 : QUICK FINDER (Ctrl+K ouvrir / Ctrl+Shift+K lier) ---
+  const paletteCandidates = useMemo(() => flattenNodes(fileTree).filter(n => !n.is_dir), [fileTree]);
+  const paletteResults = useMemo(() => {
+    if (paletteMode === null) return [];
+    const pool = paletteMode === 'LINK' ? paletteCandidates.filter(n => n.extension === 'md' && n.path !== activeFile) : paletteCandidates;
+    if (!paletteQuery.trim()) return pool.slice(0, 15);
+    return pool.map(n => ({ n, s: fuzzyScore(paletteQuery, `${n.path} ${noteTags.get(n.path) || ""}`) })).filter(x => x.s >= 0).sort((a, b) => b.s - a.s).slice(0, 15).map(x => x.n);
+  }, [paletteMode, paletteQuery, paletteCandidates, noteTags, activeFile]);
+  const openPalette = async (mode: 'OPEN' | 'LINK') => { if (mode === 'LINK' && (!activeFile || activeExtension !== 'md')) mode = 'OPEN'; setPaletteQuery(""); setPaletteIndex(0); setPaletteMode(mode); if (db) { try { const rows = await db.select<any[]>("SELECT path, tags FROM notes"); setNoteTags(new Map(rows.map(r => [r.path, r.tags || ""]))); } catch (e) { console.error(e); } } setTimeout(() => paletteInputRef.current?.focus(), 50); };
+  const selectPaletteItem = (node: FileNode) => { const mode = paletteMode; setPaletteMode(null); if (mode === 'LINK') { handleInsertLink(node); } else { handleNodeClick(node); } };
+  useEffect(() => { const onKey = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(e.shiftKey ? 'LINK' : 'OPEN'); } }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [activeFile, activeExtension, db]);
 
+  // --- V11.90 : AUTOCOMPLETE [[ DANS L'EDITEUR ---
+  const detectWikiTrigger = (text: string, caret: number) => { const upto = text.substring(0, caret); const open = upto.lastIndexOf('[['); if (open === -1) { setWikiSuggest(null); return; } const between = upto.substring(open + 2); if (between.includes(']]') || between.includes('\n') || between.length > 60) { setWikiSuggest(null); return; } setWikiSuggest({ query: between, start: open + 2 }); setWikiIndex(0); };
+  const wikiResults = useMemo(() => { if (!wikiSuggest) return []; const pool = paletteCandidates.filter(n => n.extension === 'md' && n.path !== activeFile); if (!wikiSuggest.query.trim()) return pool.slice(0, 8); return pool.map(n => ({ n, s: fuzzyScore(wikiSuggest.query, n.path) })).filter(x => x.s >= 0).sort((a, b) => b.s - a.s).slice(0, 8).map(x => x.n); }, [wikiSuggest, paletteCandidates, activeFile]);
+  const acceptWikiSuggestion = (node: FileNode) => { if (!wikiSuggest) return; const ta = textAreaRef.current; if (!ta) return; const caret = ta.selectionStart; const link = node.path.replace(/\.md$/, ''); const alreadyClosed = bodyContent.substring(caret, caret + 2) === ']]'; const newText = bodyContent.substring(0, wikiSuggest.start) + link + ']]' + bodyContent.substring(alreadyClosed ? caret + 2 : caret); handleContentChange(newText); setWikiSuggest(null); const pos = wikiSuggest.start + link.length + 2; setTimeout(() => { ta.focus(); ta.selectionStart = pos; ta.selectionEnd = pos; }, 0); };
+
+  // --- V11.90 : SPLIT EXPLORER ---
+  const toggleFolderExpandB = (path: string) => { const next = new Set(expandedFoldersB); if (next.has(path)) next.delete(path); else next.add(path); setExpandedFoldersB(next); };
+
+  // --- RENDER HELPERS ---
   const MiniCalendar = () => {
     const year = calDate.getFullYear();
     const month = calDate.getMonth();
@@ -317,6 +358,18 @@ function App() {
     return (<div className="flex flex-col h-full bg-gray-950 text-white p-6 overflow-hidden gap-4"> <div className="flex items-center justify-between shrink-0 border-b border-gray-800 pb-4"> <h2 className="text-xl font-bold tracking-widest text-amber-500 uppercase flex items-center gap-3"><span>⚔️</span> PROTOCOLS TRACKER</h2> <div className="flex items-center gap-4"> <button onClick={() => setCalDate(new Date(year, month - 1, 1))} className="text-gray-500 hover:text-white text-lg font-bold">◀</button> <span className="text-sm font-bold text-gray-300 w-32 text-center">{calDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' }).toUpperCase()}</span> <button onClick={() => setCalDate(new Date(year, month + 1, 1))} className="text-gray-500 hover:text-white text-lg font-bold">▶</button> </div> </div> <div className="bg-gray-900/50 border border-gray-800 p-3 rounded flex gap-2 items-center shrink-0"> <input type="text" placeholder="Nouveau rituel (ex: Sport, Lecture...)" className="flex-1 bg-black border border-gray-700 text-gray-300 text-xs rounded px-3 py-2 focus:border-amber-500 focus:outline-none" value={newRitualName} onChange={(e) => setNewRitualName(e.target.value)} /> <select value={newRitualFreq} onChange={(e) => setNewRitualFreq(e.target.value)} className="bg-black border border-gray-700 text-gray-300 text-xs rounded px-2 py-2 focus:border-amber-500 outline-none w-32"> <option value="DAILY">Quotidien</option> <option value="WEEKLY">Hebdo</option> <option value="WORKDAYS">Lun-Ven</option> </select> <select value={newRitualCat} onChange={(e) => setNewRitualCat(e.target.value)} className="bg-black border border-gray-700 text-gray-300 text-xs rounded px-2 py-2 focus:border-amber-500 outline-none w-32"> <option value="WORK">Travail</option> <option value="PERSO">Perso</option> <option value="HEALTH">Santé</option> </select> <input type="time" className="bg-black border border-gray-700 text-gray-300 text-xs rounded px-2 py-2 focus:border-amber-500 outline-none" value={newRitualTime} onChange={(e) => setNewRitualTime(e.target.value)} /> <button onClick={addRitual} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-4 py-2 rounded transition-colors">+ AJOUTER</button> </div> <div className="flex-1 overflow-auto border border-gray-800 rounded-lg bg-black/40 shadow-2xl relative"> <div className="min-w-max"> <div className="flex border-b border-gray-800 bg-gray-900 sticky top-0 z-10"> <div className="w-64 p-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-r border-gray-800 sticky left-0 bg-gray-900 z-20">RITUEL</div> <div className="w-16 p-3 text-[10px] font-bold text-gray-500 border-r border-gray-800 text-center">HEURE</div> {Array.from({ length: daysInMonth }).map((_, i) => (<div key={i} className={`w-8 p-3 text-[10px] font-bold text-center border-r border-gray-800 ${i + 1 === new Date().getDate() && month === new Date().getMonth() ? 'text-amber-500 bg-amber-900/20' : 'text-gray-600'}`}>{i + 1}</div>))} <div className="w-20 p-3 text-[10px] font-bold text-gray-500 text-center">STAT</div> </div> {rituals.map(ritual => { const monthLogs = ritualLogs.filter(l => l.ritual_id === ritual.id && l.date.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`)); const successCount = monthLogs.filter(l => l.status).length; const rate = Math.round((successCount / daysInMonth) * 100); const catColor = ritual.category === 'WORK' ? 'bg-blue-500' : ritual.category === 'HEALTH' ? 'bg-green-500' : 'bg-purple-500'; return (<div key={ritual.id} className="flex border-b border-gray-800/50 hover:bg-gray-900/30 transition-colors"> <div className="w-64 p-3 text-xs font-bold text-gray-300 border-r border-gray-800 sticky left-0 bg-black z-10 flex justify-between items-center group"> <div className="flex items-center gap-2"> <div className={`w-1.5 h-1.5 rounded-full ${catColor}`}></div> <span>{ritual.name}</span> <span className="text-[8px] text-gray-600 uppercase bg-gray-900 px-1 rounded border border-gray-800">{ritual.frequency.substring(0, 3)}</span> </div> <button onClick={() => deleteRitual(ritual.id)} className="text-gray-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">×</button> </div> <div className="w-16 p-3 text-[10px] font-mono text-amber-600/80 border-r border-gray-800 text-center font-bold">{ritual.target_time || "-"}</div> {Array.from({ length: daysInMonth }).map((_, i) => { const currentD = new Date(year, month, i + 1); const dayStr = toLocalISOString(currentD); const isDone = ritualLogs.some(l => l.ritual_id === ritual.id && l.date === dayStr && l.status); return (<div key={i} onClick={() => toggleRitualDate(ritual.id, dayStr)} className={`w-8 border-r border-gray-800 cursor-pointer flex items-center justify-center transition-colors hover:bg-white/5`}>{isDone && <div className="w-4 h-4 bg-amber-500 rounded-sm shadow-sm shadow-amber-500/50"></div>}</div>); })} <div className="w-20 p-3 text-xs font-bold text-gray-500 text-center flex items-center justify-center"><div className="text-amber-600">{rate}%</div></div> </div>); })} </div> </div> </div>);
   };
 
+  // V11.90 : écran de sélection du coffre (auparavant : écran noir si aucun coffre défini)
+  if (!vaultPath) {
+    return (
+      <div className="h-screen w-screen bg-black text-white flex flex-col items-center justify-center gap-8 font-sans select-none">
+        <div className="text-7xl">🛡️</div>
+        <h1 className="text-3xl font-bold tracking-widest text-amber-500">AEGIS COCKPIT</h1>
+        <p className="text-gray-500 text-sm max-w-md text-center leading-relaxed">Sélectionne le dossier racine de ton coffre<br />pour démarrer le cockpit.</p>
+        <button onClick={async () => { try { const p = await openDialog({ directory: true, multiple: false, title: "Choisir le coffre AEGIS" }); if (typeof p === 'string' && p) await handleVaultSelection(p); } catch (e) { alert("Erreur: " + e); } }} className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-10 rounded shadow-lg shadow-amber-900/20 transition-all">📂 OUVRIR LE COFFRE</button>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen w-screen bg-black text-white flex flex-col overflow-hidden font-sans select-none" onMouseUp={stopResizing}>
       {isDraggingFile && (
@@ -328,16 +381,54 @@ function App() {
         </div>
       )}
 
+      {/* V11.90: QUICK FINDER PALETTE (Ctrl+K) */}
+      {paletteMode && (
+        <div className="fixed inset-0 z-[9998] bg-black/70 backdrop-blur-sm flex items-start justify-center pt-[12vh]" onClick={() => setPaletteMode(null)}>
+          <div className="w-[620px] max-w-[90vw] bg-gray-950 border border-amber-700/60 rounded-lg shadow-2xl shadow-amber-900/20 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-800 bg-black">
+              <span className="text-amber-500 text-sm font-bold shrink-0">{paletteMode === 'LINK' ? '🔗 LIER' : '🔍 OUVRIR'}</span>
+              <input ref={paletteInputRef} value={paletteQuery}
+                onChange={(e) => { setPaletteQuery(e.target.value); setPaletteIndex(0); }}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowDown') { e.preventDefault(); setPaletteIndex(i => Math.min(i + 1, Math.max(paletteResults.length - 1, 0))); }
+                  else if (e.key === 'ArrowUp') { e.preventDefault(); setPaletteIndex(i => Math.max(i - 1, 0)); }
+                  else if (e.key === 'Enter') { e.preventDefault(); if (paletteResults[paletteIndex]) selectPaletteItem(paletteResults[paletteIndex]); }
+                  else if (e.key === 'Escape') { setPaletteMode(null); }
+                  else if (e.key === 'Tab') { e.preventDefault(); if (activeFile && activeExtension === 'md') { setPaletteIndex(0); setPaletteMode(m => m === 'OPEN' ? 'LINK' : 'OPEN'); } }
+                }}
+                placeholder="Tape ce dont tu te souviens : nom, bout de chemin, tag..." className="flex-1 bg-transparent text-white text-sm focus:outline-none placeholder-gray-600" />
+              {activeFile && activeExtension === 'md' && <span className="text-[9px] text-gray-600 uppercase shrink-0">Tab : {paletteMode === 'OPEN' ? 'mode lien' : 'mode ouvrir'}</span>}
+            </div>
+            <div className="max-h-[50vh] overflow-y-auto custom-scrollbar">
+              {paletteResults.map((node, i) => (
+                <div key={node.path} onMouseEnter={() => setPaletteIndex(i)} onClick={() => selectPaletteItem(node)}
+                  className={`px-4 py-2 cursor-pointer flex items-center gap-3 ${i === paletteIndex ? 'bg-amber-900/30 border-l-2 border-amber-500' : 'border-l-2 border-transparent'}`}>
+                  <span className="text-sm shrink-0">{node.extension === 'md' ? '📝' : node.extension === 'pdf' ? '📕' : ['xlsx', 'xls'].includes(node.extension) ? '📊' : '📄'}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className={`text-sm truncate ${i === paletteIndex ? 'text-amber-200' : 'text-gray-300'}`}>{node.name.replace(/\.md$/, '')}</div>
+                    <div className="text-[10px] text-gray-600 truncate font-mono">{node.path}</div>
+                  </div>
+                  {noteTags.get(node.path) && <span className="text-[9px] text-gray-500 bg-gray-900 px-1.5 py-0.5 rounded truncate max-w-[140px] shrink-0">{noteTags.get(node.path)}</span>}
+                </div>
+              ))}
+              {paletteResults.length === 0 && <div className="px-4 py-6 text-center text-gray-600 text-xs">Aucun résultat — essaie moins de lettres ou un autre mot</div>}
+            </div>
+            <div className="px-4 py-2 bg-black border-t border-gray-900 text-[9px] text-gray-600 flex gap-4"><span>↑↓ naviguer</span><span>Entrée {paletteMode === 'LINK' ? 'insérer le [[lien]] dans la note' : 'ouvrir'}</span><span>Échap fermer</span></div>
+          </div>
+        </div>
+      )}
+
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }`}</style>
       <div className="h-10 bg-gray-950 border-b border-gray-900 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-6">
-          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V11.80 COCKPIT FIX</span>
+          <span className="text-gray-500 text-xs font-bold tracking-widest uppercase flex gap-2 items-center"><div className={`w-2 h-2 rounded-full ${status.includes("FAILURE") ? 'bg-red-500' : 'bg-green-500'}`}></div>AEGIS V11.90 LINK GUARD</span>
           <div className="flex gap-1 bg-gray-900 p-1 rounded">
             <button onClick={() => setCurrentTab('COCKPIT')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'COCKPIT' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>COCKPIT</button>
             <button onClick={() => { setCurrentTab('MASTER_PLAN'); handleScan(); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MASTER_PLAN' ? 'bg-amber-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MASTER PLAN</button>
-            <button onClick={() => setCurrentTab('MAILBOX')} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'MAILBOX' ? 'bg-amber-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}>MESSAGERIE</button>
             <button onClick={() => { setCurrentTab('TRACKER'); refreshRituals(db!); }} className={`px-4 py-1 text-xs font-bold rounded ${currentTab === 'TRACKER' ? 'bg-amber-800 text-white' : 'text-gray-500 hover:text-gray-300'}`}>RITUELS</button>
           </div>
+          {/* V11.90 : capture rapide — remplace l'ancien onglet MESSAGERIE */}
+          <button onClick={handlePasteFromClipboard} title="Coller le presse-papier (mail Outlook, texte...) en note dans 01_Inbox" className="px-3 py-1 text-xs font-bold rounded bg-gray-900 border border-gray-800 text-green-500 hover:text-green-300 hover:border-green-800 transition-colors">📋 +NOTE</button>
         </div>
         <div className="text-[10px] text-gray-600">{syncStatus}</div>
       </div>
@@ -355,6 +446,9 @@ function App() {
             searchQuery={searchQuery}
             onSearch={handleGlobalSearch}
             searchResults={searchResults}
+            splitMode={splitMode} onToggleSplit={() => setSplitMode(!splitMode)}
+            splitRoot={splitRoot} onSetSplitRoot={setSplitRoot}
+            expandedFoldersB={expandedFoldersB} onToggleExpandB={toggleFolderExpandB}
           />
           <div onMouseDown={startResizingLeft} className="absolute right-0 top-0 w-1.5 h-full cursor-col-resize bg-gray-800 hover:bg-amber-500 transition-colors z-50"></div>
         </div>
@@ -435,8 +529,33 @@ function App() {
                           </div>
                         </div>
                         <div onMouseDown={startResizingActionPlan} className="h-1.5 bg-gray-900 border-t border-b border-gray-800 hover:bg-amber-600 cursor-row-resize flex items-center justify-center shrink-0 transition-colors z-10 mb-4" title="Ajuster la hauteur"><div className="w-10 h-0.5 bg-gray-600 rounded-full"></div></div>
-                        <div className="flex-1 min-h-[100px] border-t border-gray-900 pt-0">
-                          <textarea ref={textAreaRef} className="w-full h-full bg-black text-gray-300 font-mono text-base resize-none focus:outline-none leading-relaxed p-2" value={bodyContent} onChange={(e) => handleContentChange(e.target.value)} spellCheck={false} placeholder="Write your note here..." />
+                        <div className="flex-1 min-h-[100px] border-t border-gray-900 pt-0 relative">
+                          <textarea ref={textAreaRef} className="w-full h-full bg-black text-gray-300 font-mono text-base resize-none focus:outline-none leading-relaxed p-2" value={bodyContent}
+                            onChange={(e) => { handleContentChange(e.target.value); detectWikiTrigger(e.target.value, e.target.selectionStart); }}
+                            onSelect={(e) => { const ta = e.currentTarget; detectWikiTrigger(ta.value, ta.selectionStart); }}
+                            onKeyDown={(e) => {
+                              // V11.90: navigation dans les suggestions [[
+                              if (!wikiSuggest || wikiResults.length === 0) return;
+                              if (e.key === 'ArrowDown') { e.preventDefault(); setWikiIndex(i => Math.min(i + 1, wikiResults.length - 1)); }
+                              else if (e.key === 'ArrowUp') { e.preventDefault(); setWikiIndex(i => Math.max(i - 1, 0)); }
+                              else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); acceptWikiSuggestion(wikiResults[wikiIndex]); }
+                              else if (e.key === 'Escape') { setWikiSuggest(null); }
+                            }}
+                            spellCheck={false} placeholder="Write your note here... ([[ pour lier une note, Ctrl+K pour en ouvrir une)" />
+                          {/* V11.90: POPUP AUTOCOMPLETE [[ */}
+                          {wikiSuggest && wikiResults.length > 0 && (
+                            <div className="absolute bottom-3 left-3 w-[480px] max-w-[90%] bg-gray-950 border border-amber-700/70 rounded-lg shadow-2xl shadow-black z-40 overflow-hidden">
+                              <div className="px-3 py-1.5 bg-black border-b border-gray-800 text-[9px] text-gray-500 uppercase tracking-widest flex justify-between"><span>🔗 Lier une note {wikiSuggest.query && <span className="text-amber-500 normal-case">"{wikiSuggest.query}"</span>}</span><span>↑↓ · Entrée/Tab · Échap</span></div>
+                              {wikiResults.map((node, i) => (
+                                <div key={node.path} onMouseEnter={() => setWikiIndex(i)} onMouseDown={(e) => { e.preventDefault(); acceptWikiSuggestion(node); }}
+                                  className={`px-3 py-1.5 cursor-pointer flex items-center gap-2 ${i === wikiIndex ? 'bg-amber-900/30 border-l-2 border-amber-500' : 'border-l-2 border-transparent'}`}>
+                                  <span className="text-[10px]">📝</span>
+                                  <span className={`text-xs truncate ${i === wikiIndex ? 'text-amber-200' : 'text-gray-300'}`}>{node.name.replace(/\.md$/, '')}</span>
+                                  <span className="text-[9px] text-gray-600 truncate font-mono ml-auto shrink-0 max-w-[45%]">{node.path}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -512,6 +631,8 @@ function App() {
                     {/* BACKLINKS SECTION */}
                     {backlinks.length > 0 && (<div className="mb-4"> <h4 className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-2 flex items-center gap-2">Cited By <span className="bg-purple-900/30 text-purple-400 px-1.5 rounded-full text-[9px]">{backlinks.length}</span></h4> <ul className="space-y-1 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar"> {backlinks.map(backlink => (<li key={backlink.id} onClick={() => openNote(backlink.path)} className="group cursor-pointer bg-purple-900/10 border border-purple-900/30 hover:bg-purple-900/30 p-2 rounded transition-all"> <div className="flex items-center gap-2"> <span className="text-xs text-purple-300 group-hover:text-white truncate font-medium">⬅ {backlink.path.replace('.md', '')}</span> </div> </li>))} </ul> </div>)}
                     {detectedLinks.length > 0 && (<div className="mb-4"> <h4 className="text-[10px] font-bold text-green-500 uppercase tracking-wider mb-2 flex items-center gap-2">Going To <span className="bg-green-900/30 text-green-400 px-1.5 rounded-full text-[9px]">{detectedLinks.length}</span></h4> <ul className="space-y-1 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar"> {detectedLinks.map(link => (<li key={link} onClick={() => openNote(link.endsWith('.md') ? link : `${link}.md`)} className="group cursor-pointer bg-green-900/10 border border-green-900/30 hover:bg-green-900/30 p-2 rounded transition-all"> <div className="flex items-center gap-2"> <span className="text-xs text-green-300 group-hover:text-white truncate font-medium">➡ {link}</span> </div> </li>))} </ul> </div>)}
+                    {/* V11.90 : NOTES LIEES PAR TAGS (calculées depuis toujours, jamais affichées) */}
+                    {relatedNotes.length > 0 && (<div className="mb-4"> <h4 className="text-[10px] font-bold text-cyan-500 uppercase tracking-wider mb-2 flex items-center gap-2">Mêmes Tags <span className="bg-cyan-900/30 text-cyan-400 px-1.5 rounded-full text-[9px]">{relatedNotes.length}</span></h4> <ul className="space-y-1 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar"> {relatedNotes.map(rn => (<li key={rn.id} onClick={() => openNote(rn.path)} className="group cursor-pointer bg-cyan-900/10 border border-cyan-900/30 hover:bg-cyan-900/30 p-2 rounded transition-all"> <div className="flex items-center gap-2"> <span className="text-xs text-cyan-300 group-hover:text-white truncate font-medium">◈ {rn.path.replace('.md', '')}</span> </div> </li>))} </ul> </div>)}
 
                     <div className="space-y-4 pt-2 border-t border-gray-900">
                       <div> <label className="text-[10px] text-gray-600 font-bold uppercase mb-2 block">UUID (System)</label> <input type="text" value={metadata.id} disabled className="w-full bg-gray-900/50 border border-gray-900 text-gray-600 text-[9px] rounded p-2 font-mono select-all" /> </div>

@@ -126,19 +126,109 @@ fn import_file(
 
 // --- COMMANDES EXISTANTES ---
 
+// Collecte récursive des fichiers .md (mêmes règles d'exclusion que visit_dirs)
+fn collect_md_files(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with('.') || name == "System Volume Information" {
+                continue;
+            }
+            if path.is_dir() {
+                collect_md_files(&path, out);
+            } else if path
+                .extension()
+                .map(|e| e.to_string_lossy().to_lowercase() == "md")
+                .unwrap_or(false)
+            {
+                out.push(path);
+            }
+        }
+    }
+}
+
+// Construit les paires de remplacement [[ancien]] -> [[nouveau]].
+// `name_still_in_use` : un autre .md du coffre porte encore l'ancien nom de base,
+// dans ce cas les liens "nom seul" [[nom]] sont ambigus et ne sont pas réécrits.
+fn build_link_replacements(
+    old_target: &str,
+    new_target: &str,
+    name_still_in_use: bool,
+) -> Vec<(String, String)> {
+    let mut replacements = vec![
+        // Lien exact vers le fichier/dossier
+        (format!("[[{}]]", old_target), format!("[[{}]]", new_target)),
+        // Liens vers le contenu d'un dossier déplacé/renommé
+        (format!("[[{}/", old_target), format!("[[{}/", new_target)),
+    ];
+    let old_name = old_target.rsplit('/').next().unwrap_or(old_target);
+    let new_name = new_target.rsplit('/').next().unwrap_or(new_target);
+    // Lien "nom seul" : réécrit en chemin complet pour lever l'ambiguïté,
+    // uniquement si le nom a changé et n'est pas déjà couvert par le lien exact
+    if old_name != new_name && old_name != old_target && !name_still_in_use {
+        replacements.push((format!("[[{}]]", old_name), format!("[[{}]]", new_target)));
+    }
+    replacements
+}
+
+fn apply_replacements(content: &str, replacements: &[(String, String)]) -> (String, usize) {
+    let mut out = content.to_string();
+    let mut count = 0usize;
+    for (from, to) in replacements {
+        let n = out.matches(from.as_str()).count();
+        if n > 0 {
+            out = out.replace(from.as_str(), to.as_str());
+            count += n;
+        }
+    }
+    (out, count)
+}
+
 #[tauri::command]
 fn update_links_on_move(
     vault_path: String,
     old_path_rel: String,
     new_path_rel: String,
 ) -> Result<String, String> {
-    // Placeholder fonctionnel pour éviter les erreurs de compilation si WalkDir manque
-    // La logique frontend mettra à jour l'interface, le backend suivra dans une prochaine maj
-    println!(
-        "TODO: Update links in {} from {} to {}",
-        vault_path, old_path_rel, new_path_rel
-    );
-    Ok("LINKS_UPDATE_PENDING".to_string())
+    let old_norm = old_path_rel.replace('\\', "/");
+    let new_norm = new_path_rel.replace('\\', "/");
+    if old_norm == new_norm || old_norm.is_empty() {
+        return Ok("0 lien mis à jour".to_string());
+    }
+
+    let mut md_files: Vec<std::path::PathBuf> = Vec::new();
+    collect_md_files(Path::new(&vault_path), &mut md_files);
+
+    // Anti-ambiguïté : si un fichier porte encore l'ancien nom de base ailleurs
+    // dans le coffre, on ne touche pas aux liens [[nom seul]]
+    let old_name = old_norm.rsplit('/').next().unwrap_or(&old_norm).to_string();
+    let name_still_in_use = md_files.iter().any(|p| {
+        p.file_stem()
+            .map(|s| s.to_string_lossy() == old_name.as_str())
+            .unwrap_or(false)
+    });
+
+    let replacements = build_link_replacements(&old_norm, &new_norm, name_still_in_use);
+
+    let mut files_updated = 0usize;
+    let mut links_updated = 0usize;
+    for file in &md_files {
+        let content = match fs::read_to_string(file) {
+            Ok(c) => c,
+            Err(_) => continue, // fichier illisible : on ne bloque pas les autres
+        };
+        let (new_content, n) = apply_replacements(&content, &replacements);
+        if n > 0 {
+            fs::write(file, new_content).map_err(|e| format!("{}: {}", file.display(), e))?;
+            files_updated += 1;
+            links_updated += n;
+        }
+    }
+    Ok(format!(
+        "{} lien(s) mis à jour dans {} fichier(s)",
+        links_updated, files_updated
+    ))
 }
 
 #[tauri::command]
@@ -299,4 +389,58 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lien_exact_reecrit_au_deplacement() {
+        let r = build_link_replacements("10_Projets/Foo", "90_Archive/Foo", false);
+        let (out, n) = apply_replacements("voir [[10_Projets/Foo]] ici", &r);
+        assert_eq!(out, "voir [[90_Archive/Foo]] ici");
+        assert_eq!(n, 1);
+    }
+
+    #[test]
+    fn liens_prefixes_suivent_le_dossier_renomme() {
+        let r = build_link_replacements("20_Operations/BE_RH", "20_Operations/RH", false);
+        let (out, n) =
+            apply_replacements("[[20_Operations/BE_RH/Fiche]] et [[20_Operations/BE_RH]]", &r);
+        assert_eq!(out, "[[20_Operations/RH/Fiche]] et [[20_Operations/RH]]");
+        assert_eq!(n, 2);
+    }
+
+    #[test]
+    fn lien_nom_seul_requalifie_en_chemin_complet_au_renommage() {
+        let r = build_link_replacements("10_Projets/Ancien_Nom", "10_Projets/Nouveau_Nom", false);
+        let (out, n) = apply_replacements("cf [[Ancien_Nom]]", &r);
+        assert_eq!(out, "cf [[10_Projets/Nouveau_Nom]]");
+        assert_eq!(n, 1);
+    }
+
+    #[test]
+    fn lien_nom_seul_preserve_si_nom_ambigu() {
+        let r = build_link_replacements("10_Projets/Ancien_Nom", "10_Projets/Nouveau_Nom", true);
+        let (out, n) = apply_replacements("cf [[Ancien_Nom]]", &r);
+        assert_eq!(out, "cf [[Ancien_Nom]]");
+        assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn deplacement_sans_renommage_conserve_les_liens_nom_seul() {
+        let r = build_link_replacements("10_Projets/Foo", "90_Archive/Foo", false);
+        let (out, n) = apply_replacements("cf [[Foo]]", &r);
+        assert_eq!(out, "cf [[Foo]]");
+        assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn liens_similaires_non_touches() {
+        let r = build_link_replacements("10_Projets/Foo", "90_Archive/Foo", false);
+        let (out, n) = apply_replacements("[[10_Projets/Foobar]] reste intact", &r);
+        assert_eq!(out, "[[10_Projets/Foobar]] reste intact");
+        assert_eq!(n, 0);
+    }
 }
